@@ -33,7 +33,7 @@ You need two components: the **Service** (to find the pods) and the **Ingress** 
 
 > **Note:** The `selector` below uses the specific labels we found on your `mynifi-0` pod.
 
-### File: `nifi-networking.yaml`
+### File: `nifi-combined.yaml`
 ```yaml
 ---
 apiVersion: v1
@@ -44,6 +44,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
+    # This now matches your pod exactly
     app.kubernetes.io/instance: mynifi
     app.kubernetes.io/name: server
   ports:
@@ -72,6 +73,7 @@ spec:
             name: mynifi-web
             port:
               name: nifi-https
+
 ```
 
 ---
@@ -81,13 +83,11 @@ Apply the configuration and check that the "Bridge" between the Service and Pod 
 
 ```bash
 # Apply the YAML
-kubectl apply -f nifi-networking.yaml
+kubectl apply -f nifi-combined.yaml
 
 # Verify Endpoints (Wait until an IP appears in the ENDPOINTS column)
 kubectl get endpoints mynifi-web -n cfm-streaming
 ```
-
-
 
 ---
 
@@ -95,8 +95,3 @@ kubectl get endpoints mynifi-web -n cfm-streaming
 Since the Ingress is listening on the standard HTTPS port (443) and the hostname matches your `nifi.properties` whitelist exactly, use this URL:
 
 **URL:** `https://mynifi-web.cfm-streaming.svc.cluster.local/nifi/`
-
-* **SSL Warning:** Click **Advanced** -> **Proceed** (this is normal for self-signed NiFi certs).
-* **No Tunnel:** You do not need `minikube tunnel` for this because the Ingress is bound to the Minikube IP you put in `/etc/hosts`.
-
-Would you like me to show you how to check the NiFi logs if the page loads but the "Loading" spinner never disappears?
