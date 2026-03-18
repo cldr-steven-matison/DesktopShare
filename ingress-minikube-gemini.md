@@ -63,7 +63,7 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
 spec:
   rules:
-  - host: mynifi-web.cfm-streaming.svc.cluster.local
+  - host: mynifi-web.mynifi.cfm-streaming.svc.cluster.local
     http:
       paths:
       - path: /
