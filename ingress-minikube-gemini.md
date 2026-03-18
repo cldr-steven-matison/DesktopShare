@@ -23,7 +23,7 @@ Map the NiFi internal domain name to that Minikube IP. This allows your browser 
 
 ```text
 # Add this line to /etc/hosts
-192.168.49.2  mynifi-web.cfm-streaming.svc.cluster.local
+192.168.49.2  mynifi-web.mynifi.cfm-streaming.svc.cluster.local
 ```
 
 ---
