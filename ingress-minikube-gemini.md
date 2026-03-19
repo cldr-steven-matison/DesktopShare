@@ -94,4 +94,4 @@ kubectl get endpoints mynifi-web -n cfm-streaming
 ## 6. The Final URL
 Since the Ingress is listening on the standard HTTPS port (443) and the hostname matches your `nifi.properties` whitelist exactly, use this URL:
 
-**URL:** `https://mynifi-web.cfm-streaming.svc.cluster.local/nifi/`
+**URL:** `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/`
