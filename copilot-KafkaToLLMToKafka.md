@@ -17,7 +17,7 @@ From your attached doc: **"Since your setup is lightweight (single-node Minikube
 
 ### 2. Create a Parameter Context
 1. In NiFi UI top-right, **hamburger → Parameter Contexts → Create**.  
-2. Name it **matrix_monitor_params** (or reuse `se_ent_east_params` if you prefer).  
+2. Name it **matrix_monitor_params**.  
 3. Add parameters:
    - **Kafka Broker Endpoint** = `my-cluster-kafka-bootstrap.cld-streaming.svc:9092` 
    - **Input Topic** = `events`
@@ -46,8 +46,8 @@ Create processors in this order and configure the properties exactly as shown.
 #### ConsumeKafkaRecord
 - **Type**: `ConsumeKafkaRecord_2_6`  
 - **Properties**
-  - **Topic Name** = `${Input Topic}`
-  - **Bootstrap Servers** = `${Kafka Broker Endpoint}`
+  - **Topic Name** = `#{Input Topic}`
+  - **Bootstrap Servers** = `#{Kafka Broker Endpoint}`
   - **Group ID** = `matrix-monitor-consumer`
   - **Kafka Record Reader** = `JsonTreeReader`
   - **Offset Reset** = `latest`
@@ -60,7 +60,7 @@ Create processors in this order and configure the properties exactly as shown.
   - **Search Value** = `(?s)(.*)`  
   - **Replacement Value** (exact JSON body):
     ```json
-    {"model":"meta-llama/Llama-3.2-3B-Instruct","messages":[{"role":"user","content":"Summarize this event: ${record:value('/payload')}" }],"temperature":0.0}
+    {"model":"meta-llama/Llama-3.2-3B-Instruct","messages":[{"role":"user","content":"Summarize this event: #{record:value('/payload')}" }],"temperature":0.0}
     ```
   - **Replacement Strategy** = `Regex`
   - **Evaluation Mode** = `Entire text`
@@ -71,14 +71,14 @@ Create processors in this order and configure the properties exactly as shown.
 - **Type**: `InvokeHTTP`  
 - **Properties**
   - **HTTP Method** = `POST`
-  - **Remote URL** = `${vLLM Base URL}/v1/chat/completions`
+  - **Remote URL** = `#{vLLM Base URL}/v1/chat/completions`
   - **Content-Type** = `application/json`
   - **Send Message Body** = `true`
   - **Read Timeout** = `120000`
   - **Connect Timeout** = `30000`
   - **Follow Redirects** = `True`
   - **Put Response Body In Attribute** = `false`
-- **Notes**: If vLLM requires auth, add an `UpdateAttribute` or `ReplaceText` before `InvokeHTTP` to add an `Authorization` header: set attribute `http.headers.Authorization` = `Bearer ${hf.token}` and in `InvokeHTTP` set **Attributes to Send** to `http.headers.*`.
+- **Notes**: If vLLM requires auth, add an `UpdateAttribute` or `ReplaceText` before `InvokeHTTP` to add an `Authorization` header: set attribute `http.headers.Authorization` = `Bearer #{hf.token}` and in `InvokeHTTP` set **Attributes to Send** to `http.headers.*`.
 
 #### EvaluateJsonPath
 - **Type**: `EvaluateJsonPath`  
@@ -92,25 +92,25 @@ Create processors in this order and configure the properties exactly as shown.
 #### PublishKafkaRecord Inference Results
 - **Type**: `PublishKafka_2_6`  
 - **Properties**
-  - **Topic Name** = `${inference.topic}`
-  - **Bootstrap Servers** = `${Kafka Broker Endpoint}`
+  - **Topic Name** = `#{inference.topic}`
+  - **Bootstrap Servers** = `#{Kafka Broker Endpoint}`
   - **Record Writer** = `JsonRecordSetWriter`
-  - **Key** = `${record:value('/id')}` (or `id` attribute)
+  - **Key** = `#{record:value('/id')}` (or `id` attribute)
   - **acks** = `all`
   - **security.protocol** = `PLAINTEXT` (or your cluster setting)
 
 #### RouteOnAttribute Score/Alert
 - **Type**: `RouteOnAttribute`  
 - **Properties**
-  - **high_risk** = `${response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}`
+  - **high_risk** = `#{response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}`
 
 #### PublishKafkaRecord Alerts
 - **Type**: `PublishKafka_2_6`  
 - **Properties**
-  - **Topic Name** = `${Alerts Topic}`
-  - **Bootstrap Servers** = `${Kafka Broker Endpoint}`
+  - **Topic Name** = `#{Alerts Topic}`
+  - **Bootstrap Servers** = `#{Kafka Broker Endpoint}`
   - **Record Writer** = `JsonRecordSetWriter`
-  - **Key** = `${record:value('/id')}`
+  - **Key** = `#{record:value('/id')}`
 
 ---
 
@@ -132,7 +132,7 @@ Use the NiFi drag‑and‑drop connection UI and select the relationships shown.
   - NiFi **Variable Registry** (encrypted in CFM) for non-sensitive values.
   - NiFi **Sensitive Parameters** in the Parameter Context for tokens.
   - A secrets controller service (e.g., HashiCorp Vault controller) if available in your CFM environment.
-- Example: add a Parameter `hf.token` (sensitive) and set `http.headers.Authorization` attribute to `Bearer ${hf.token}` before `InvokeHTTP`.
+- Example: add a Parameter `hf.token` (sensitive) and set `http.headers.Authorization` attribute to `Bearer #{hf.token}` before `InvokeHTTP`.
 
 ---
 
@@ -178,7 +178,7 @@ Use the NiFi drag‑and‑drop connection UI and select the relationships shown.
 
 **RouteOnAttribute expression**
 ```
-${response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}
+#{response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}
 ```
 
 ---
