@@ -9,7 +9,7 @@ This turns your Minikube into a private AI endpoint that **NiFi** can call (via 
 **Option A: vLLM (recommended — faster, higher throughput, great for concurrency)**  
 vLLM is killer for batched inference and works perfectly on 40-series cards.
 
-1. **Create a basic Deployment + Service** (save as `vllm-deploy.yaml`):
+1. **Create a basic Deployment + Service** (save as `vllm-llama.yaml`):
 
 **WARNIG** This requires HG access to install container.
 
@@ -80,7 +80,7 @@ spec:
 
 2. Apply it:
    ```
-   kubectl apply -f vllm-deploy.yaml
+   kubectl apply -f vllm-llama.yaml
    ```
 
 3. Expose locally (from WSL Ubuntu):
@@ -99,21 +99,3 @@ spec:
        "temperature": 0.7
      }'
    ```
-
-**Option B: Ollama (easier if you want tons of models quickly, slightly slower)**  
-Ollama has a huge library and pre-quantized goodies.
-
-- Use community Helm chart or simple Deployment:
-  ```yaml
-  # ollama-deploy.yaml snippet
-  image: ollama/ollama:latest
-  command: ["serve"]
-  args: []
-  volumeMounts:
-  - mountPath: /root/.ollama
-    name: ollama-data
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-  ```
-  Then `ollama pull` models via an init container or sidecar/job.
