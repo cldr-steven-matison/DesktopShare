@@ -10,7 +10,10 @@ This turns your Minikube into a private AI endpoint that **NiFi** can call (via 
 vLLM is killer for batched inference and works perfectly on 40-series cards.
 
 1. **Create a basic Deployment + Service** (save as `vllm-deploy.yaml`):
-   ```yaml
+
+**WARNIG** This requires HG access to install container.
+
+```yaml
    apiVersion: apps/v1
    kind: Deployment
    metadata:
