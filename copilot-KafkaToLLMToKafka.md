@@ -56,14 +56,11 @@ Create processors in this order and configure the properties exactly as shown.
 #### ReplaceText Build vLLM Request
 - **Type**: `ReplaceText`  
 - **Properties**
-  - **Search Value** = `(?s)(.*)`  
   - **Replacement Value** (exact JSON body):
     ```json
-    {"model":"meta-llama/Llama-3.2-3B-Instruct","messages":[{"role":"user","content":"Summarize this event: ${record:value('/payload')}" }],"temperature":0.0}
+    {"model":"meta-llama/Llama-3.2-3B-Instruct","messages":[{"role":"user","content":"Summarize this event: $1" }],"temperature":0.0}
     ```
-  - **Replacement Strategy** = `Regex`
   - **Evaluation Mode** = `Entire text`
-  - **Character Set** = `UTF-8`
 - **Auto‑terminate**: failure
 
 #### InvokeHTTP to vLLM
@@ -89,13 +86,11 @@ Create processors in this order and configure the properties exactly as shown.
   - **Bootstrap Servers** = `#{Kafka Broker Endpoint}`
   - **Record Writer** = `JsonRecordSetWriter`
   - **Key** = `#{record:value('/id')}` (or `id` attribute)
-  - **acks** = `all`
-  - **security.protocol** = `PLAINTEXT` (or your cluster setting)
 
 #### RouteOnAttribute Score/Alert
 - **Type**: `RouteOnAttribute`  
 - **Properties**
-  - **high_risk** = `#{response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}`
+  - **high_risk** = `${response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}`
 
 #### PublishKafkaRecord Alerts
 - **Type**: `PublishKafka_2_6`  
@@ -103,7 +98,7 @@ Create processors in this order and configure the properties exactly as shown.
   - **Topic Name** = `#{Alerts Topic}`
   - **Bootstrap Servers** = `#{Kafka Broker Endpoint}`
   - **Record Writer** = `JsonRecordSetWriter`
-  - **Key** = `#{record:value('/id')}`
+  - **Key** = `${record:value('/id')}`
 
 ---
 
@@ -116,66 +111,5 @@ Create processors in this order and configure the properties exactly as shown.
 - **RouteOnAttribute high_risk → PublishKafkaRecord (alerts)**  
 - **RouteOnAttribute unmatched → PublishKafkaRecord (inference)**
 
-Use the NiFi drag‑and‑drop connection UI and select the relationships shown.
 
 ---
-
-### 6. Securely inject HF token and other secrets
-- **Do not** hardcode tokens in processors. Use one of:
-  - NiFi **Variable Registry** (encrypted in CFM) for non-sensitive values.
-  - NiFi **Sensitive Parameters** in the Parameter Context for tokens.
-  - A secrets controller service (e.g., HashiCorp Vault controller) if available in your CFM environment.
-- Example: add a Parameter `hf.token` (sensitive) and set `http.headers.Authorization` attribute to `Bearer #{hf.token}` before `InvokeHTTP`.
-
----
-
-### 7. Test the flow end-to-end
-1. **Start** processors in order (enable controller services first).  
-2. Produce a test message to Kafka (run from a pod that has Kafka client tools or from your machine if networked):
-   ```bash
-   kubectl -n cfm-streaming exec -it deploy/kafka-client -- \
-     kafka-console-producer --broker-list my-cluster-kafka-bootstrap.cld-streaming.svc:9092 --topic events
-   ```
-   Then send:
-   ```json
-   {"id":"evt-1","payload":"Multiple failed logins from 10.0.0.5"}
-   ```
-3. Watch NiFi provenance or the `inference-results` topic:
-   ```bash
-   kubectl -n cfm-streaming exec -it deploy/kafka-client -- \
-     kafka-console-consumer --bootstrap-server my-cluster-kafka-bootstrap.cld-streaming.svc:9092 --topic inference-results --from-beginning --max-messages 5
-   ```
-4. Tail NiFi logs if something fails:
-   ```bash
-   kubectl -n cfm-streaming logs -f mynifi-0 -c nifi
-   kubectl -n cfm-streaming exec -it mynifi-0 -- tail -n 200 -f /opt/nifi/nifi-current/logs/nifi-app.log
-   ```
-
----
-
-### 8. Troubleshooting checklist
-- **Controller services disabled** → processors that reference them will fail to start. Enable them first.  
-- **Wrong Parameter names** → ensure Parameter Context name and parameter keys match exactly.  
-- **Bundle/type mismatch** → when creating processors manually in the UI you avoid bundle version mismatches that break imports.  
-- **InvokeHTTP 401/403** → check `http.headers.Authorization` and token placement.  
-- **OOM or slow vLLM responses** → add `MergeContent` to batch small events, throttle `ConsumeKafkaRecord`, or add Kafka buffering.  
-- **No messages in Kafka topics** → verify topic names and Kafka bootstrap address; test with `kafka-console-producer/consumer`.
-
----
-
-### Quick reference snippets you can copy
-**InvokeHTTP body example** (ReplaceText output):
-```json
-{"model":"meta-llama/Llama-3.2-3B-Instruct","messages":[{"role":"user","content":"Summarize this event: Multiple failed logins from 10.0.0.5"}],"temperature":0.0}
-```
-
-**RouteOnAttribute expression**
-```
-#{response_text:matches('(?i).*\\b(attack|breach|exploit|error|failed|unauthorized)\\b.*')}
-```
-
----
-
-### Final notes and next offers
-- Building the flow manually in the NiFi UI avoids the import/JSON schema mismatch you hit.  
-- If you want, I’ll now **generate the exact NiFi UI step sequence** as a checklist you can follow click‑by‑click, or produce the minimal `curl` calls to create the processors via the NiFi REST API instead of the UI. Tell me which you prefer and I’ll produce it in the same style as your blog.
