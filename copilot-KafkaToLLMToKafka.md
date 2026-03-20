@@ -19,11 +19,11 @@ From your attached doc: **"Since your setup is lightweight (single-node Minikube
 1. In NiFi UI top-right, **hamburger → Parameter Contexts → Create**.  
 2. Name it **matrix_monitor_params** (or reuse `se_ent_east_params` if you prefer).  
 3. Add parameters:
-   - **Kafka Broker Endpoint** = `my-cluster-kafka-bootstrap.cld-streaming.svc:9092` (or your bootstrap)
-   - **input.topic** = `events`
-   - **inference.topic** = `inference-results`
-   - **alerts.topic** = `alerts`
-   - **vllm.base.url** = `http://<MINIKUBE_IP:PORT>`
+   - **Kafka Broker Endpoint** = `my-cluster-kafka-bootstrap.cld-streaming.svc:9092` 
+   - **Input Topic** = `events`
+   - **Inference Topic** = `inference-results`
+   - **Alerts Topic** = `alerts`
+   - **vLLM Base URL** = `http://localhost:8000`
 4. Save and **apply** the Parameter Context to the Process Group you will create.
 
 ---
@@ -46,7 +46,7 @@ Create processors in this order and configure the properties exactly as shown.
 #### ConsumeKafkaRecord
 - **Type**: `ConsumeKafkaRecord_2_6`  
 - **Properties**
-  - **Topic Name** = `${input.topic}`
+  - **Topic Name** = `${Input Topic}`
   - **Bootstrap Servers** = `${Kafka Broker Endpoint}`
   - **Group ID** = `matrix-monitor-consumer`
   - **Kafka Record Reader** = `JsonTreeReader`
@@ -71,7 +71,7 @@ Create processors in this order and configure the properties exactly as shown.
 - **Type**: `InvokeHTTP`  
 - **Properties**
   - **HTTP Method** = `POST`
-  - **Remote URL** = `${vllm.base.url}/v1/chat/completions`
+  - **Remote URL** = `${vLLM Base URL}/v1/chat/completions`
   - **Content-Type** = `application/json`
   - **Send Message Body** = `true`
   - **Read Timeout** = `120000`
@@ -107,7 +107,7 @@ Create processors in this order and configure the properties exactly as shown.
 #### PublishKafkaRecord Alerts
 - **Type**: `PublishKafka_2_6`  
 - **Properties**
-  - **Topic Name** = `${alerts.topic}`
+  - **Topic Name** = `${Alerts Topic}`
   - **Bootstrap Servers** = `${Kafka Broker Endpoint}`
   - **Record Writer** = `JsonRecordSetWriter`
   - **Key** = `${record:value('/id')}`
