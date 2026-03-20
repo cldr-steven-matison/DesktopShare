@@ -14,56 +14,68 @@ vLLM is killer for batched inference and works perfectly on 40-series cards.
 **WARNIG** This requires HG access to install container.
 
 ```yaml
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: vllm-server
-   spec:
-     replicas: 1
-     selector:
-       matchLabels:
-         app: vllm
-     template:
-       metadata:
-         labels:
-           app: vllm
-       spec:
-         containers:
-         - name: vllm
-           image: vllm/vllm-openai:v0.6.2  # or latest as of March 2026
-           command: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
-           args:
-           - --model
-           - meta-llama/Llama-3.2-3B-Instruct  # fits easily on 8GB; swap to Qwen2.5-7B, Gemma-2-9B, etc.
-           - --dtype
-           - auto
-           - --gpu-memory-utilization
-           - "0.85"  # leave headroom
-           - --max-model-len
-           - "8192"
-           - --tensor-parallel-size
-           - "1"
-           ports:
-           - containerPort: 8000
-           resources:
-             limits:
-               nvidia.com/gpu: "1"
-             requests:
-               nvidia.com/gpu: "1"
-         tolerations: []  # usually not needed in Minikube
-   ---
-   apiVersion: v1
-   kind: Service
-   metadata:
-     name: vllm-service
-   spec:
-     selector:
-       app: vllm
-     ports:
-     - protocol: TCP
-       port: 8000
-       targetPort: 8000
-     type: ClusterIP  # or LoadBalancer if you want minikube tunnel
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+    spec:
+      containers:
+      - name: vllm-server
+        image: vllm/vllm-openai:latest
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: HF_TOKEN
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+          requests:
+            nvidia.com/gpu: "1"
+        args:
+        - "meta-llama/Llama-3.2-3B-Instruct"
+        - "--quantization"
+        - "bitsandbytes"
+        - "--load-format"
+        - "bitsandbytes"
+        - "--gpu-memory-utilization"
+        - "0.80"
+        - "--max-model-len"
+        - "4096"
+        - "--enforce-eager"
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-service
+spec:
+  selector:
+    app: vllm-server
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
    ```
 
 2. Apply it:
