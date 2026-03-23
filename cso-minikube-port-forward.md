@@ -1,15 +1,34 @@
-## Managing Multiple Port-Forwards Efficiently in Minikube/kubectl
+## Managing Multiple Services & Port-Forwards Efficiently in Minikube
 Running tons of `kubectl port-forward` or `minikube service` commands manually gets painful fast (one terminal per forward, easy to lose, conflicts, etc.). Here are practical ways to handle many at once without going insane:
 
 
 ## Using minikube service list
-Before you start creating tunnels, it is helpful to see the state of all your services in one view. You don't need to run a command for each just to check the status:
+Before you start working with services, it is helpful to see the state of all your services in one view. You don't need to run a command for each just to check the status:
 
 ```Bash
 minikube service list --namespace cld-streaming
 ```
 
-This generates a clean table showing the Internal IP, the exposed Port, and whether the service is currently reachable.
+Notice the following output:
+
+```terminal
+┌───────────────┬────────────────────────────────┬──────────────────┬─────┐
+│   NAMESPACE   │              NAME              │   TARGET PORT    │ URL │
+├───────────────┼────────────────────────────────┼──────────────────┼─────┤
+│ cld-streaming │ cloudera-surveyor-service      │ http/8080        │     │
+│ cld-streaming │ flink-operator-webhook-service │ No node port     │     │
+│ cld-streaming │ my-cluster-kafka-bootstrap     │ No node port     │     │
+│ cld-streaming │ my-cluster-kafka-brokers       │ No node port     │     │
+│ cld-streaming │ schema-registry-service        │ application/9090 │     │
+│ cld-streaming │ ssb-mve                        │ No node port     │     │
+│ cld-streaming │ ssb-postgresql                 │ No node port     │     │
+│ cld-streaming │ ssb-session-admin              │ No node port     │     │
+│ cld-streaming │ ssb-session-admin-rest         │ No node port     │     │
+│ cld-streaming │ ssb-sse                        │ No node port     │     │
+└───────────────┴────────────────────────────────┴──────────────────┴─────┘
+```
+
+This generates a clean table showing the current running services.
 
 
 ## **Run them in background with &** 
@@ -18,7 +37,7 @@ This generates a clean table showing the Internal IP, the exposed Port, and whet
 
    ```bash
 minikube service cloudera-surveyor-service -n cld-streaming --url &
-minikube service schema-registry-service -n cld-streaming --url & minikube service ssb-sse -n cld-streaming --url
+minikube service schema-registry-service -n cld-streaming --url & minikube service ssb-sse -n cld-streaming --url &
    ```
    - use `&` to chain multiple commands
    - use `&` on end to run in the background
