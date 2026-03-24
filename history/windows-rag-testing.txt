@@ -1,0 +1,135 @@
+  # terminal 1
+    677  kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'
+  678  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-test
+spec:
+  restartPolicy: Never
+  containers:
+  - name: cuda-test
+    image: nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda12.5.0
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+EOF
+
+  679  kubectl logs gpu-test -f
+  680  kubectl apply -f vllm-qwen.yaml
+  681  kubectl port-forward svc/vllm-service 8000:8000
+  682  curl http://localhost:8000/v1/chat/completions   -H "Content-Type: application/json"   -d '{
+    "model": "Qwen/Qwen2.5-3B-Instruct",
+    "messages": [{"role": "user", "content": "Tell me a short joke about a data engineer."}],
+    "temperature": 0.7
+  }'
+  683  kubectl port-forward svc/vllm-service 8000:8000
+  684  history
+
+
+# Terminal 2
+    677  minikube service vllm-service --url
+  678  kubeclt delete -f vllm-qwen.yaml
+  679  kubectl delete -f vllm-qwen.yaml
+  680  kubectl apply -f vllm-qwen.yaml
+  681  nano qdrant-deployment.yaml
+  682  kubectl apply -f qdrant-deployment.yaml
+  683  nano embedding-server.yaml
+  684  kubectl apply -f embedding-server.yaml
+  685  curl http://localhost:8000/v1/chat/completions   -H "Content-Type: application/json"   -d '{
+    "model": "Qwen/Qwen2.5-3B-Instruct",
+    "messages": [{"role": "user", "content": "Tell me a short joke about a data engineer."}],
+    "temperature": 0.7
+  }'
+  686  kubectl logs -l app=vllm-server --tail 20
+  687  curl http://localhost:6333/
+  688  kubectl port-forward svc/qdrant 6333:6333
+  689  kubectl delete -f embedding-server.yaml
+  690  nano embedding-server.yaml
+  691  kubectl apply -f embedding-server.yaml
+  692  kubectl delete -f embedding-server.yaml
+  693  rm -rf embedding-server.yaml
+  694  nano embedding-server.yaml
+  695  kubectl apply -f embedding-server.yaml
+  696  kubectl delete -f embedding-server.yaml
+  697  rm -rf embedding-server.yaml
+  698  nano embedding-server.yaml
+  699  kubectl apply -f embedding-server.yaml
+  700  kubectl delete -f embedding-server.yaml
+  701  rm -rf embedding-server.yaml
+  702  nano embedding-server.yaml
+  703  kubectl apply -f embedding-server.yaml
+  704  kubectl delete -f embedding-server.yaml
+  705  rm -rf embedding-server.yaml
+  706  nano embedding-server.yaml
+  707  kubectl apply -f embedding-server.yaml
+  708  kubectl delete -f embedding-server.yaml
+  709  rm -rf embedding-server.yaml
+  710  nano embedding-server.yaml
+  711  kubectl apply -f embedding-server.yaml
+  712  nano embedding-server.yaml
+  713  kubectl delete -f embedding-server.yaml
+  714  rm -rf embedding-server.yaml
+  715  nano embedding-server.yaml
+  716  kubectl apply -f embedding-server.yaml
+  717  kubectl delete -f embedding-server.yaml
+  718  rm -rf embedding-server.yaml
+  719  nano embedding-server.yaml
+  720  kubectl apply -f embedding-server.yaml
+  721  kubectl delete -f embedding-server.yaml
+  722  rm -rf embedding-server.yaml
+  723  nano embedding-server.yaml
+  724  kubectl apply -f embedding-server.yaml
+  725  python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='nomic-ai/nomic-embed-text-v1', local_dir=r'C:\hf-models\nomic-embed', token='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')"
+  726  mkdir -p /mnt/c/hf-models/nomic-embed
+  727  cd /mnt/c/hf-models/nomic-embed
+  728  pip install huggingface_hub
+  729  sudo apt install python3-pip
+  730  pip install huggingface_hub
+  731  python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='nomic-ai/nomic-embed-text-v1', local_dir='/mnt/c/hf-models/nomic-embed', token='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')"
+  732  pip install huggingface_hub --break-system-packages
+  733  python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='nomic-ai/nomic-embed-text-v1', local_dir='/mnt/c/hf-models/nomic-embed', token='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')"
+  734  kubectl delete -f embedding-server.yaml
+  735  rm -rf embedding-server.yaml
+  736  nano embedding-server.yaml
+  737  kubectl apply -f embedding-server.yaml
+  738  kubectl delete -f embedding-server.yaml
+  739  kubectl apply -f embedding-server.yaml
+  740  kubectl logs -f deployment/embedding-server
+  741  kubectl describe pod embedding-server-b4c9bf7c-qcdx8
+  742  minikube mount /mnt/c/hf-models/nomic-embed:/mnt/c/hf-models/nomic-embed
+  743  kubectl delete -f embedding-server.yaml
+  744  kubectl apply -f embedding-server.yaml
+  745  kubectl port-forward svc/embedding-service 8080:8080d
+  746  kubectl port-forward svc/embedding-service 8080:8080
+  747  curl -X POST http://localhost:8080/embed -d
+  748  kubectl port-forward svc/embedding-server-service 8080:80
+  749  history
+
+# Terminal 3
+  677  kubectl logs embedding-server-56cf8b6c8f-fptdg
+  678  kubectl logs embedding-server-5dfb6959-bsjks
+  679  kubectl logs embedding-server-69b479658f-lhnbn
+  680  kubectl logs embedding-server-5dc6d64d4f-25ks8
+  681  kubectl logs embedding-server-f454b59f5-zfh9b
+  682  kubectl logs embedding-server-85bcfd9799-bmt9n
+  683  tunas@MINI-Gaming-G1:~$ kubectl logs embedding-server-85bcfd9799-bmt9n
+  684  2026-03-24T16:29:59.320952Z  INFO text_embeddings_router: router/src/main.rs:175: Args { model_id: "nom**-**/*****-*****-***t-v1", revision: None, tokenization_workers: None, dtype: None, pooling: None, max_concurrent_requests: 512, max_batch_tokens: 16384, max_batch_requests: None, max_client_batch_size: 32, auto_truncate: false, default_prompt_name: None, default_prompt: None, hf_api_token: None, hostname: "embedding-server-85bcfd9799-bmt9n", port: 80, uds_path: "/tmp/text-embeddings-inference-server", huggingface_hub_cache: Some("/data"), payload_limit: 2000000, api_key: None, json_output: false, otlp_endpoint: None, otlp_service_name: "text-embeddings-inference.server", cors_allow_origin: None }
+  685  2026-03-24T16:29:59.321049Z  INFO hf_hub: /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/hf-hub-0.3.2/src/lib.rs:55: Token file not found "/root/.cache/huggingface/token"
+  686  2026-03-24T16:29:59.352182Z  INFO download_pool_config: text_embeddings_core::download: core/src/download.rs:38: Downloading `1_Pooling/config.json`
+  687  2026-03-24T16:29:59.869629Z  INFO download_new_st_config: text_embeddings_core::download: core/src/download.rs:62: Downloading `config_sentence_transformers.json`
+  688  2026-03-24T16:29:59.918726Z  INFO download_artifacts: text_embeddings_core::download: core/src/download.rs:21: Starting download
+  689  2026-03-24T16:29:59.918768Z  INFO download_artifacts: text_embeddings_core::download: core/src/download.rs:23: Downloading `config.json`
+  690  Error: Could not download model artifacts
+  691  Caused by:
+  692  curl -H "Authorization: Bearer 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" ht
+  693  tps://huggingface.co/api/models/nomic-ai/nomic-embed-text-v1
+  694  curl -H "Authorization: Bearer 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" https://huggingface.co/api/models/nomic-ai/nomic-embed-text-v1
+  695  kubectl logs embedding-server-69f9bdd87d-l92dm
+  696  kubectl logs embedding-server-586fb674b-898vq
+  697  kubectl logs embedding-server-b4c9bf7c-m7mkc
+  698  minikube mount /mnt/c/hf-models/nomic-embed:/mnt/c/hf-models/nomic-embed
+  699  curl 127.0.0.1:8080/embed   -X POST   -d '{"inputs":"The streaming pipeline is finally complete."}'   -H 'Content-Type: application/json'
+  700  history
+
+
