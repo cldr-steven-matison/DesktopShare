@@ -1,3 +1,10 @@
+kubectl port-forward svc/qdrant 6333:6333 &
+kubectl port-forward svc/vllm-service 8000:8000 &
+kubectl port-forward svc/embedding-server-service 8080:80 &
+
+
+
+
   # terminal 1
     677  kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'
   678  cat <<EOF | kubectl apply -f -
@@ -103,7 +110,7 @@ EOF
   745  kubectl port-forward svc/embedding-service 8080:8080d
   746  kubectl port-forward svc/embedding-service 8080:8080
   747  curl -X POST http://localhost:8080/embed -d
-  748  kubectl port-forward svc/embedding-server-service 8080:80
+  748  kubectl port-forward svc/embedding-server-service 8080:8080
   749  history
 
 # Terminal 3
