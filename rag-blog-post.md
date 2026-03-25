@@ -4,7 +4,7 @@ Here's a ready-to-copy LinkedIn post draft that promotes your new RAG content (b
 
 🚀 Just dropped a full end-to-end, **privacy-first local RAG pipeline** running entirely on your laptop — no cloud, no data leaving your machine, zero cloud bills.
 
-Using **Cloudera Streaming Operators** on Kubernetes (via Minikube + GPU passthrough), you can now build real-time semantic search and Q&A over your documents, Git repos, PDFs, URLs — powered by:
+Using **Cloudera Streaming Operators** on Kubernetes (via Minikube + GPU passthrough), you can now build real-time semantic search and Q&A over your documents — powered by:
 
 - **Apache NiFi** → intelligent ingestion, routing, and orchestration  
 - **Kafka** → durable, high-throughput event streaming  
@@ -17,8 +17,8 @@ Why this matters in 2026:
 Enterprises want RAG for internal knowledge bases, compliance-heavy use cases, edge AI, or cost-controlled prototyping — but most solutions force cloud dependency. This stack gives you:  
 - Full data sovereignty & offline capability  
 - Real-time streaming ingestion + processing  
-- GPU-accelerated inference without vendor lock-in  
-- Easy path from laptop → hybrid/multi-cloud prod  
+- GPU-accelerated inference off cloud
+- Easy path from laptop → hybrid/multi-cloud production platforms
 
 Check out the step-by-step guide here:  
 https://cldr-steven-matison.github.io/  
