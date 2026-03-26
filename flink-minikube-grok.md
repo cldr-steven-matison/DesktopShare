@@ -1,3 +1,4 @@
+
 **Yes, the Grok-generated Flink options in the Markdown are viable to integrate into your StreamToVLLM setup with minimal (or zero) impact on the existing NiFi flow.**  
 
 The blog post you linked shows a pure NiFi + Kafka pipeline (NiFi in `cfm-streaming`, Kafka in `cld-streaming`, vLLM/embedding/Qdrant in `default`). No Flink is running today, but your local Minikube already has the NVIDIA device plugin working (vLLM pod requests `nvidia.com/gpu: 1` and it passes). Cloudera Streaming Operators (the same Helm chart you already ran in `cld-streaming`) includes the official Flink Kubernetes Operator by default, so the control plane is already there.
