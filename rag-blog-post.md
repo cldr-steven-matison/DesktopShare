@@ -24,7 +24,7 @@ Check out the step-by-step guide here:
 https://cldr-steven-matison.github.io/  
 (Head to the "RAG with Cloudera Streaming Operators" post — 4 min read, with architecture, setup notes, and ties into the Minikube GPU + vLLM content)
 
-If you're a platform engineer, MLOps practitioner, or data engineer building on Kubernetes and tired of cloud-only RAG demos — this one's for you. Drop a comment if you're running local streaming + AI pipelines, or if you'd like to see expansions (Flink SQL for advanced feature engineering in-stream? More connectors?).
+If you're a platform engineer, MLOps practitioner, or data engineer building on Kubernetes and tired of cloud-only RAG demos — this one's for you. Drop a comment if you're running local streaming + AI pipelines, or if you'd like to see expansions (can we get flink in here?).
 
 #RAG #GenerativeAI #Kubernetes #StreamingData #ApacheKafka #ApacheNiFi #Cloudera #LocalAI #MLOps #DataEngineering
 
