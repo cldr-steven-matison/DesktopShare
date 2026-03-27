@@ -22,7 +22,7 @@
 
 ---
 
-I seen this on X the other day and though it was really cool. I bookmarked, and later forked the repo.  It is another perfect integration with my previous post [RAG with Cloudera Streaming Operators]().  
+I seen this on X the other day and thought it was really cool. I bookmarked, and later forked the repo.  It turns out this is another perfect integration with my previous post [RAG with Cloudera Streaming Operators]().  
 
 So Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka and optionally straight into your Qdrant RAG collection.  
 
