@@ -1,13 +1,13 @@
 🚀 **Just launched StreamToWhisper** — the missing audio layer for my fully local Cloudera Streaming Operators stack!
 
-I’ve wired **insanely-fast-whisper** (Whisper large-v3 + Flash Attention 2) directly into my RTX 4090 Minikube cluster. Now audio files, podcasts, meeting recordings, or live streams flow through:
+I’ve wired **insanely-fast-whisper** (Whisper large-v3 + Flash Attention 2) directly into my RTX 4060 Minikube cluster. Now audio files, podcasts, meeting recordings, or live streams flow through:
 
 - Apache NiFi → Kafka (`new_audio` topic)  
 - GPU-powered transcription server (150+ minutes in <90 seconds)  
 - Clean transcripts land in Kafka (`transcribed_text`)  
 - Automatically chunked, embedded, and upserted into the existing **StreamToVLLM** Qdrant collection  
 
-Result? I can now ask my local vLLM Qwen2.5-3B model questions about *spoken* content with perfect context — zero cloud, zero data leaving the machine.
+Result? I can now ask my local vLLM Qwen2.5-3B model questions about *spoken* content with perfect context.
 
 Full end-to-end pipeline built on the same Cloudera Streaming Operators (CSM + CFM) + NiFi + Kafka foundation I already had running.
 
