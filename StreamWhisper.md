@@ -1,8 +1,8 @@
-**StreamWhisper: Insanely Fast Audio Transcription with Cloudera Streaming Operators on RTX 4090**
+**StreamWhisper: Insanely Fast Audio Transcription with Cloudera Streaming Operators on RTX 4060**
 
 **date:** 2026-03-27  
 **last_modified_at:** 2026-03-27  
-**excerpt:** "Real-time, GPU-accelerated speech-to-text over streaming audio sources (files, URLs, Kafka) — powered by insanely-fast-whisper, Cloudera Streaming Operators (Kafka + NiFi), and your RTX 4090. Transcripts flow straight into your existing StreamToVLLM RAG pipeline for instant Q&A on spoken content. Zero cloud, fully local."
+**excerpt:** "Real-time, GPU-accelerated speech-to-text over streaming audio sources (files, URLs, Kafka) — powered by insanely-fast-whisper, Cloudera Streaming Operators (Kafka + NiFi), and your RTX 4060. Transcripts flow straight into your existing StreamToVLLM RAG pipeline for instant Q&A on spoken content. Zero cloud, fully local."
 
 **header:**  
   teaser: "/assets/images/StreamWhisper-architecture.png"  
@@ -22,13 +22,13 @@
 
 ---
 
-Let’s build **StreamWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4090 → clean transcripts land in Kafka (and optionally straight into your Qdrant RAG collection).  
+Let’s build **StreamWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka (and optionally straight into your Qdrant RAG collection).  
 
-The result? You can now ask your vLLM model questions about *spoken* content with perfect context, all running 100% locally on your RTX 4090.
+The result? You can now ask your vLLM model questions about *spoken* content with perfect context, all running 100% locally on your RTX 4060.
 
 ![StreamWhisper Architecture](/assets/images/StreamWhisper-architecture.png)
 
-**RTX 4090 sweet spot** — 24 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
+**RTX 4060 sweet spot** — 24 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
 
 You already have the full Cloudera Streaming Operators stack + the StreamToVLLM RAG pipeline from the previous sessions. We’re just adding the audio transcription brain.
 
@@ -37,39 +37,11 @@ You already have the full Cloudera Streaming Operators stack + the StreamToVLLM 
 ## 💻 Prerequisites
 
 You should have:
-- Minikube running with **GPU passthrough** (RTX 4090 confirmed — upgrade from the 4060 setup)
+- Minikube running with **GPU passthrough** (RTX 4060 confirmed)
 - Cloudera Streaming Operators (CSM + CSA + CFM) installed in `cld-streaming` and `cfm-streaming`
 - The full **StreamToVLLM** RAG stack (vLLM Qwen, Qdrant `my-rag-collection`, embedding server) already deployed
 - NiFi UI at `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/`
 - Git cloned: `git clone https://github.com/cldr-steven-matison/insanely-fast-whisper.git`
-
-**Quick GPU double-check (RTX 4090):**
-
-```bash
-kubectl get nodes -o jsonpath='{.items[*].status.allocatable.nvidia\.com/gpu}'
-# Should return: 1
-
-# NVIDIA test pod (same as before)
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gpu-test
-spec:
-  restartPolicy: Never
-  containers:
-  - name: cuda-test
-    image: nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda12.5.0
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-EOF
-kubectl logs gpu-test -f
-```
-
-**Expected:** `Test PASSED` ✅  
-Keep `watch nvidia-smi` running — you’ll see the 4090 light up during transcription.
-
 ---
 
 ## 📦 Step 1: Containerize & Deploy Insanely Fast Whisper Inference Server
@@ -200,7 +172,7 @@ curl -X POST http://localhost:8001/transcribe \
   | jq
 ```
 
-You should get back `{"text": "...", "chunks": [...]}` in seconds on the 4090.
+You should get back `{"text": "...", "chunks": [...]}` in seconds on the 4060.
 
 ---
 
@@ -266,7 +238,7 @@ kubectl delete -f whisper-server.yaml
 ## :checkered_flag: The "StreamWhisper" Takeaway
 
 - **Full streaming audio pipeline** now lives inside your Cloudera Operators cluster.
-- **RTX 4090** handles large-v3 Whisper at insane speeds.
+- **RTX 4060** handles large-v3 Whisper at insane speeds.
 - **Zero extra infrastructure** — NiFi + Kafka do all the heavy lifting.
 - **Seamless RAG integration** — spoken content is now searchable and queryable exactly like your documents.
 - **Future-proof** — swap Whisper models, add diarization, or pipe live microphone streams via NiFi processors.
@@ -281,7 +253,3 @@ You now have a complete local AI data engineering sandbox: documents → RAG, au
 - [OpenAI Whisper large-v3](https://huggingface.co/openai/whisper-large-v3)
 - Previous posts: [RAG with Cloudera Streaming Operators](/blog/2026-03-22-RAG-with-Cloudera-Streaming-Operators/), [Cloudera Streaming Operators](/blog/2026-03-09-Cloudera-Streaming-Operators/)
 - [NiFi Templates repo](https://github.com/cldr-steven-matison/NiFi-Templates) (StreamWhisper folder)
-
-If you want the full YAMLs, updated NiFi JSON flows, a ready-made Docker image pushed to your local registry, or a live demo on your RTX 4090, just say the word and we’ll schedule a quick call or push the next set of files.  
-
-Ready to transcribe? 🚀
