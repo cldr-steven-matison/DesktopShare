@@ -22,7 +22,9 @@
 
 ---
 
-Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka and optionally straight into your Qdrant RAG collection.  
+I seen this on X the other day and though it was really cool. I bookmarked, and later forked the repo.  It is another perfect integration with my previous post [RAG with Cloudera Streaming Operators]().  
+
+So Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka and optionally straight into your Qdrant RAG collection.  
 
 The result? You can now ask your vLLM model questions about *spoken* content with perfect context.
 
@@ -30,7 +32,7 @@ The result? You can now ask your vLLM model questions about *spoken* content wit
 
 **RTX 4060 sweet spot** — 8 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
 
-You already have the full Cloudera Streaming Operators stack + the StreamToVLLM RAG pipeline from the previous sessions. We’re just adding the audio transcription brain.
+You already have the full [Cloudera Streaming Operators]() stack + the StreamToVLLM RAG pipeline from the previous session. We’re just adding the audio transcription ability to the brain.
 
 ---
 
