@@ -22,13 +22,13 @@
 
 ---
 
-Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka (and optionally straight into your Qdrant RAG collection).  
+Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka and optionally straight into your Qdrant RAG collection.  
 
-The result? You can now ask your vLLM model questions about *spoken* content with perfect context, all running 100% locally on your RTX 4060.
+The result? You can now ask your vLLM model questions about *spoken* content with perfect context.
 
 ![StreamToWhisper Architecture](/assets/images/StreamToWhisper-architecture.png)
 
-**RTX 4060 sweet spot** — 24 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
+**RTX 4060 sweet spot** — 8 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
 
 You already have the full Cloudera Streaming Operators stack + the StreamToVLLM RAG pipeline from the previous sessions. We’re just adding the audio transcription brain.
 
@@ -178,7 +178,7 @@ You should get back `{"text": "...", "chunks": [...]}` in seconds on the 4060.
 
 ## 🌊 Step 2: NiFi Flows for StreamToWhisper
 
-We add two new Process Groups (exported as JSON from my repo).
+![StreamToWhisper Architecture](/assets/images/StreamToWhisper-nifi-flow.png)
 
 **Download the full flows here:** [NiFi Templates - StreamToWhisper](https://github.com/cldr-steven-matison/NiFi-Templates) (new `StreamToWhisper` flow added today).
 
@@ -192,8 +192,7 @@ We add two new Process Groups (exported as JSON from my repo).
 3. **InvokeHTTP** – POST to `http://whisper-service:8001/transcribe` (binary file upload)
 4. **EvaluateJsonPath** – extract `$.text` into attribute `transcript`
 5. **ReplaceText** – format for Qdrant (or plain text)
-6. **PublishKafka_2_6** – push clean transcript to `transcribed_text`
-7. **(Optional)** InvokeHTTP to your existing embedding server → upsert directly into `my-rag-collection` with source=`audio-stream`
+6. **PublishKafka_2_6** – push clean transcript to `new_documents` to process as a document in `StreamToVLLM`
 
 **Pro Tip:** Use the same `#{Kafka Broker Endpoint}` parameter you already have. Schedule IngestAudioToStream to run once, then start StreamToWhisper.
 
@@ -206,7 +205,7 @@ Transcripts are automatically ingested into Qdrant by the existing `StreamToVLLM
 Now ask your vLLM model about spoken content:
 
 ```bash
-python3 query-rag.py   # (reuse the script from the previous RAG post)
+python3 query-rag-whisper.py   # (you could reuse the script from the previous RAG post)
 ```
 
 **Example question:** “What did the speaker say about Cloudera Streaming Operators in the podcast?”
@@ -249,7 +248,7 @@ You now have a complete local AI data engineering sandbox: documents → RAG, au
 
 ## 📚 Resources & Further Reading
 
-- [insanely-fast-whisper GitHub](https://github.com/cldr-steven-matison/insanely-fast-whisper)
+- [Insanely-fast-whisper GitHub](https://github.com/cldr-steven-matison/insanely-fast-whisper)
 - [OpenAI Whisper large-v3](https://huggingface.co/openai/whisper-large-v3)
 - Previous posts: [RAG with Cloudera Streaming Operators](/blog/2026-03-22-RAG-with-Cloudera-Streaming-Operators/), [Cloudera Streaming Operators](/blog/2026-03-09-Cloudera-Streaming-Operators/)
 - [NiFi Templates repo](https://github.com/cldr-steven-matison/NiFi-Templates) (StreamToWhisper folder)
