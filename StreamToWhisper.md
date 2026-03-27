@@ -53,24 +53,70 @@ The original repo is a fast CLI/pipeline. We wrap it in a lightweight FastAPI se
 ### 1.1 Create the Dockerfile (save as `Dockerfile.whisper`)
 
 ```dockerfile
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+# Dockerfile.whisper.12 - Final Stable "G1" Build
+# Targets: CUDA 12.4, Flash Attention 2, Whisper-Large-v3
+# Author: Steven Matison (Solutions Engineer, Cloudera)
 
+# STAGE 1: The Heavy Lifting (Builder)
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 AS builder
+
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y python3.11 python3.11-venv python3-pip git ffmpeg && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y \
+    python3.11 python3.11-venv python3-pip git ffmpeg ninja-build \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 RUN python3.11 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install insanely-fast-whisper + FastAPI
-COPY . /app
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-RUN pip install --no-cache-dir -r requirements.txt  # (or just the packages below)
-RUN pip install --no-cache-dir \
-    insanely-fast-whisper==0.0.15 \
-    fastapi uvicorn python-multipart huggingface_hub flash-attn --no-build-isolation
+# 1. Essential Build Tools for C++ Compilation
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel packaging
 
-# Simple FastAPI server
+# 2. Hard-pin Torch to CUDA 12.4 (RTX 4060 Optimization)
+RUN pip install --no-cache-dir \
+    torch==2.4.1+cu124 torchvision==0.19.1+cu124 torchaudio==2.4.1+cu124 \
+    --extra-index-url https://download.pytorch.org/whl/cu124
+
+# 3. Web Stack (Allowing Transitive Dependencies for Starlette/Pydantic)
+RUN pip install --no-cache-dir \
+    fastapi uvicorn starlette pydantic pydantic-core \
+    anyio idna sniffio typing-extensions click h11 python-multipart
+
+# 4. AI Stack (Guarded with --no-deps to prevent Torch overwrites)
+RUN pip install --no-cache-dir --no-deps \
+    transformers insanely-fast-whisper==0.0.15 huggingface_hub
+
+# 5. Manual AI Dependency Tree
+RUN pip install --no-cache-dir \
+    pyyaml requests tqdm numpy regex sentencepiece \
+    httpx filelock fsspec safetensors accelerate \
+    soundfile librosa scipy tokenizers
+
+# 6. Compile Flash Attention 2 (Hardware-Specific Build)
+RUN pip install --no-cache-dir flash-attn --no-build-isolation
+
+# 7. Pre-Bake Whisper-Large-v3 (Authenticated Download)
+RUN python3 -c "from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-large-v3')"
+
+# ==========================================
+# STAGE 2: The Lean Runtime
+# ==========================================
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    python3.11 ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /root/.cache/huggingface /root/.cache/huggingface
+ENV PATH="/opt/venv/bin:$PATH"
+
+# FastAPI Inference Logic
 COPY <<EOF /app/main.py
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
@@ -79,7 +125,7 @@ from transformers import pipeline
 import tempfile
 import os
 
-app = FastAPI(title="StreamToWhisper Inference")
+app = FastAPI(title="StreamToWhisper")
 
 pipe = pipeline(
     "automatic-speech-recognition",
@@ -97,7 +143,7 @@ async def transcribe(file: UploadFile = File(...)):
     try:
         result = pipe(tmp_path, chunk_length_s=30, batch_size=24, return_timestamps=True)
         os.unlink(tmp_path)
-        return {"text": result["text"], "chunks": result.get("chunks", [])}
+        return {"text": result["text"]}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -106,7 +152,8 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
 EOF
 
-CMD ["python", "main.py"]
+EXPOSE 8001
+ENTRYPOINT ["/opt/venv/bin/python3", "main.py"]
 ```
 
 ### 1.2 Build & load into Minikube
