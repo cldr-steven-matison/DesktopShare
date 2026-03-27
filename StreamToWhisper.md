@@ -248,4 +248,4 @@ You now have a complete local AI data engineering sandbox: documents → RAG, au
 - [Insanely-fast-whisper GitHub](https://github.com/cldr-steven-matison/insanely-fast-whisper)
 - [OpenAI Whisper large-v3](https://huggingface.co/openai/whisper-large-v3)
 - Previous posts: [RAG with Cloudera Streaming Operators](/blog/2026-03-22-RAG-with-Cloudera-Streaming-Operators/), [Cloudera Streaming Operators](/blog/2026-03-09-Cloudera-Streaming-Operators/)
-- [NiFi Templates repo](https://github.com/cldr-steven-matison/NiFi-Templates) (StreamToWhisper folder)
+- [NiFi Templates repo](https://github.com/cldr-steven-matison/NiFi-Templates)
