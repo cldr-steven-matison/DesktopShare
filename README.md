@@ -1,2 +1,2 @@
 # CollectDemo
-Assets collecting for demo.
+Local repo I use to share assets while testing MD across environments.
