@@ -1,11 +1,11 @@
-**StreamWhisper: Insanely Fast Audio Transcription with Cloudera Streaming Operators on RTX 4060**
+**StreamToWhisper: Insanely Fast Audio Transcription with Cloudera Streaming Operators on RTX 4060**
 
 **date:** 2026-03-27  
 **last_modified_at:** 2026-03-27  
 **excerpt:** "Real-time, GPU-accelerated speech-to-text over streaming audio sources (files, URLs, Kafka) — powered by insanely-fast-whisper, Cloudera Streaming Operators (Kafka + NiFi), and your RTX 4060. Transcripts flow straight into your existing StreamToVLLM RAG pipeline for instant Q&A on spoken content. Zero cloud, fully local."
 
 **header:**  
-  teaser: "/assets/images/StreamWhisper-architecture.png"  
+  teaser: "/assets/images/StreamToWhisper-architecture.png"  
 
 **categories:**  
   - blog  
@@ -22,11 +22,11 @@
 
 ---
 
-Let’s build **StreamWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka (and optionally straight into your Qdrant RAG collection).  
+Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka (and optionally straight into your Qdrant RAG collection).  
 
 The result? You can now ask your vLLM model questions about *spoken* content with perfect context, all running 100% locally on your RTX 4060.
 
-![StreamWhisper Architecture](/assets/images/StreamWhisper-architecture.png)
+![StreamToWhisper Architecture](/assets/images/StreamToWhisper-architecture.png)
 
 **RTX 4060 sweet spot** — 24 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
 
@@ -77,7 +77,7 @@ from transformers import pipeline
 import tempfile
 import os
 
-app = FastAPI(title="StreamWhisper Inference")
+app = FastAPI(title="StreamToWhisper Inference")
 
 pipe = pipeline(
     "automatic-speech-recognition",
@@ -176,17 +176,17 @@ You should get back `{"text": "...", "chunks": [...]}` in seconds on the 4060.
 
 ---
 
-## 🌊 Step 2: NiFi Flows for StreamWhisper
+## 🌊 Step 2: NiFi Flows for StreamToWhisper
 
 We add two new Process Groups (exported as JSON from my repo).
 
-**Download the full flows here:** [NiFi Templates - StreamWhisper](https://github.com/cldr-steven-matison/NiFi-Templates) (new folder `StreamWhisper` added today).
+**Download the full flows here:** [NiFi Templates - StreamToWhisper](https://github.com/cldr-steven-matison/NiFi-Templates) (new `StreamToWhisper` flow added today).
 
 ### 🛠️ IngestAudioToStream Flow
 - GenerateFlowFile / InvokeHTTP → pulls audio from URLs, S3, or local files
 - PublishKafka_2_6 → sends raw audio bytes to topic `new_audio`
 
-### 🛠️ StreamWhisper Flow
+### 🛠️ StreamToWhisper Flow
 1. **ConsumeKafka_2_6** – `new_audio` topic
 2. **ConvertAvroToJSON** / **ExtractText** – keep binary audio as attribute
 3. **InvokeHTTP** – POST to `http://whisper-service:8001/transcribe` (binary file upload)
@@ -195,7 +195,7 @@ We add two new Process Groups (exported as JSON from my repo).
 6. **PublishKafka_2_6** – push clean transcript to `transcribed_text`
 7. **(Optional)** InvokeHTTP to your existing embedding server → upsert directly into `my-rag-collection` with source=`audio-stream`
 
-**Pro Tip:** Use the same `#{Kafka Broker Endpoint}` parameter you already have. Schedule IngestAudioToStream to run once, then start StreamWhisper.
+**Pro Tip:** Use the same `#{Kafka Broker Endpoint}` parameter you already have. Schedule IngestAudioToStream to run once, then start StreamToWhisper.
 
 ---
 
@@ -235,7 +235,7 @@ kubectl delete -f whisper-server.yaml
 
 ---
 
-## :checkered_flag: The "StreamWhisper" Takeaway
+## :checkered_flag: The "StreamToWhisper" Takeaway
 
 - **Full streaming audio pipeline** now lives inside your Cloudera Operators cluster.
 - **RTX 4060** handles large-v3 Whisper at insane speeds.
@@ -252,4 +252,4 @@ You now have a complete local AI data engineering sandbox: documents → RAG, au
 - [insanely-fast-whisper GitHub](https://github.com/cldr-steven-matison/insanely-fast-whisper)
 - [OpenAI Whisper large-v3](https://huggingface.co/openai/whisper-large-v3)
 - Previous posts: [RAG with Cloudera Streaming Operators](/blog/2026-03-22-RAG-with-Cloudera-Streaming-Operators/), [Cloudera Streaming Operators](/blog/2026-03-09-Cloudera-Streaming-Operators/)
-- [NiFi Templates repo](https://github.com/cldr-steven-matison/NiFi-Templates) (StreamWhisper folder)
+- [NiFi Templates repo](https://github.com/cldr-steven-matison/NiFi-Templates) (StreamToWhisper folder)
