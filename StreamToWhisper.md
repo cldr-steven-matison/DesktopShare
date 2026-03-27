@@ -2,7 +2,7 @@
 
 **date:** 2026-03-27  
 **last_modified_at:** 2026-03-27  
-**excerpt:** "Real-time, GPU-accelerated speech-to-text over streaming audio sources (files, URLs, Kafka) — powered by insanely-fast-whisper, Cloudera Streaming Operators (Kafka + NiFi), and your RTX 4060. Transcripts flow straight into your existing StreamToVLLM RAG pipeline for instant Q&A on spoken content. Zero cloud, fully local."
+**excerpt:** "Real-time, GPU-accelerated speech-to-text over streaming audio sources — powered by insanely-fast-whisper, Cloudera Streaming Operators (Kafka + NiFi), and my RTX 4060. Transcripts flow straight into my existing StreamToVLLM RAG pipeline for instant Q&A on spoken content."
 
 **header:**  
   teaser: "/assets/images/StreamToWhisper-architecture.png"  
