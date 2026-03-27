@@ -188,13 +188,10 @@ You should get back `{"text": "...", "chunks": [...]}` in seconds on the 4060.
 
 ### 🛠️ StreamToWhisper Flow
 1. **ConsumeKafka_2_6** – `new_audio` topic
-2. **ConvertAvroToJSON** / **ExtractText** – keep binary audio as attribute
 3. **InvokeHTTP** – POST to `http://whisper-service:8001/transcribe` (binary file upload)
 4. **EvaluateJsonPath** – extract `$.text` into attribute `transcript`
-5. **ReplaceText** – format for Qdrant (or plain text)
-6. **PublishKafka_2_6** – push clean transcript to `new_documents` to process as a document in `StreamToVLLM`
-
-**Pro Tip:** Use the same `#{Kafka Broker Endpoint}` parameter you already have. Schedule IngestAudioToStream to run once, then start StreamToWhisper.
+5. **ReplaceText** - format flowfile with our transcript
+6. **PublishKafka_2_6** – publish to `new_documents` to process as a document in `StreamToVLLM`
 
 ---
 

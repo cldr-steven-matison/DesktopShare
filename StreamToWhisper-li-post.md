@@ -11,7 +11,7 @@ Result? I can now ask my local vLLM Qwen2.5-3B model questions about *spoken* co
 
 Full end-to-end pipeline built on the same Cloudera Streaming Operators (CSM + CFM) + NiFi + Kafka foundation I already had running.
 
-📝 **Complete technical guide + all YAMLs, Dockerfile, and ready-to-import NiFi flows** are live in the new blog post:
+📝 **Complete technical guide + all YAMLs, Dockerfile, and ready-to-import NiFi flows** are in the new blog post.
 
 👉 **StreamToWhisper: Insanely Fast Audio Transcription with Cloudera Streaming Operators**  
 (link in first comment)
