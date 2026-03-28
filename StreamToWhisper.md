@@ -187,7 +187,7 @@ spec:
         resources:
           limits:
             nvidia.com/gpu: 1
-            memory: "20Gi"
+            memory: "8Gi"
         ports:
         - containerPort: 8001
 ---
