@@ -22,15 +22,14 @@
 
 ---
 
-I seen this on X the other day and thought it was really cool. I bookmarked, and later forked the repo.  It turns out this is another perfect integration with my previous post [RAG with Cloudera Streaming Operators]().  
+I saw this posted on X the other day and thought it was really cool. I bookmarked and later forked the GitHub Repo.  It turns out this is a perfect integration with my previous post [RAG with Cloudera Streaming Operators]().  
 
-So Let’s build **StreamToWhisper** — the missing audio ingestion layer for your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka and optionally straight into your Qdrant RAG collection.  
+So Let’s build **StreamToWhisper** — an audio ingestion layer deployed in your local Cloudera Streaming Operators stack. Audio files or live streams hit NiFi → Kafka → insanely-fast-whisper inference on the RTX 4060 → clean transcripts land in Kafka and are processed straight into your Qdrant RAG collection.  
 
 The result? You can now ask your vLLM model questions about *spoken* content with perfect context.
 
 ![StreamToWhisper Architecture](/assets/images/StreamToWhisper-architecture.png)
 
-**RTX 4060 sweet spot** — 8 GB VRAM lets us run `openai/whisper-large-v3` with Flash Attention 2 at blazing speeds (150+ minutes of audio transcribed in <90 seconds).
 
 You already have the full [Cloudera Streaming Operators]() stack + the StreamToVLLM RAG pipeline from the previous session. We’re just adding the audio transcription ability to the brain.
 
@@ -251,10 +250,10 @@ Transcripts are automatically ingested into Qdrant by the existing `StreamToVLLM
 Now ask your vLLM model about spoken content:
 
 ```bash
-python3 query-rag-whisper.py   # (you could reuse the script from the previous RAG post)
+python3 query-rag-whisper.py
 ```
 
-**Example question:** “What did the speaker say about Cloudera Streaming Operators in the podcast?”
+**Example question:** “How is rice prepared?”
 
 You’ll get a perfect context-aware answer pulled from the transcribed audio.
 
@@ -278,6 +277,8 @@ watch nvidia-smi
 kubectl delete -f whisper-server.yaml
 ```
 
+PRO TIP 
+  [Lessons Learned]()
 ---
 
 ## :checkered_flag: The "StreamToWhisper" Takeaway
@@ -288,7 +289,7 @@ kubectl delete -f whisper-server.yaml
 - **Seamless RAG integration** — spoken content is now searchable and queryable exactly like your documents.
 - **Future-proof** — swap Whisper models, add diarization, or pipe live microphone streams via NiFi processors.
 
-You now have a complete local AI data engineering sandbox: documents → RAG, audio → transcripts → RAG, all streaming in real time.
+You now have a complete local AI data engineering sandbox: documents → RAG, audio → transcripts → RAG using NiFi, and Kafka deployed with Cloudera Streaming Operators.
 
 ---
 
