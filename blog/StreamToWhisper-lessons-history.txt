@@ -1,16 +1,56 @@
+
+  973  mkdir whisper
+  974  cd whisper
+  975  nano Dockerfile.whisper
+
+  989  docker build -t streamwhisper:latest -f Dockerfile.whisper .
+  990  nano Dockerfile.whisper.2
+  991  docker build -t streamwhisper:latest -f Dockerfile.whisper.2 .
+  992  nano Dockerfile.whisper.3
+  993  docker build -t streamwhisper:latest -f Dockerfile.whisper.3 .
+  994  nano Dockerfile.whisper.4
+  995  docker build -t streamwhisper:latest -f Dockerfile.whisper.4 .
+  996  nano Dockerfile.whisper.5
+  997  docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
+  998  nano Dockerfile.whisper.6
+ 1000  docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
+ 1005  nano Dockerfile.whisper.7
+ 1006  docker build -t streamwhisper:latest -f Dockerfile.whisper.7 .
+ 1007  nano Dockerfile.whisper.8
+ 1008  docker build -t streamwhisper:latest -f Dockerfile.whisper.8 .
+ 1009  nano Dockerfile.whisper.9
+ 1010  docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
+ 1014  nano Dockerfile.whisper.10
+ 1015  docker build -t streamwhisper:latest -f Dockerfile.whisper.10 .
+ 1016  nano Dockerfile.whisper.11
+ 1017  docker build -t streamwhisper:latest -f Dockerfile.whisper.11 .
+ 1018  nano Dockerfile.whisper.12
+ 1019  docker build -t streamwhisper:latest -f Dockerfile.whisper.12 .
+ 1020  export MY_TOKEN=$(kubectl get secret hf-token -o jsonpath='{.data.token}' | base64 --decode)
+ 1022  docker build -t streamwhisper:latest --build-arg HF_TOKEN=$MY_TOKEN -f Dockerfile.whisper.12 .
+
+
+ 1026  minikube service whisper-server-service --url
+ 1027  curl -X POST http://whisper-server-service:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
+ 1028  curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
+
+ 1032  wget -O test-speech.wav https://github.com/Azure-Samples/cognitive-services-speech-sdk/raw/master/samples/cpp/windows/console/samples/whatstheweatherlike.wav
+ 1033  curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
+
+
+
   930  nano whisper-server.yaml
   931  kubectl apply -f whisper-server.yaml
   932  kubectl describe pod whisper-server-779f955f5c-j2vr7
-  933  nano whisper-server.yaml
+
   934  kubectl delete -f whisper-server.yaml
   935  kubectl apply -f whisper-server.yaml
-  936  kubectl describe pod whisper-server-6486568f56-rsv4v
-  937  kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable."nvidia\.com\/gpu"
+
   938  kubectl delete -f vllm-qwen.yaml
   939  kubectl delete -f whisper-server.yaml
   940  kubectl apply -f whisper-server.yaml
   941  kubectl describe pod whisper-server-6486568f56-xrcg2
-  942  # Force a restart of the pod to ensure a clean slate on the GPU
+
   943  kubectl rollout restart deployment whisper-server
   944  kubectl describe pod whisper-server-6486568f56-xrcg2
   945  kubectl logs whisper-server-6486568f56-xrcg2
@@ -40,90 +80,10 @@
   969  kubectl delete -f whisper-server.yaml
   970  kubectl apply -f whisper-server.yaml
   971  kubectl delete -f whisper-server.yaml
-  972  ls
-  973  mkdir whisper
-  974  cd whisper
-  975  nano Dockerfile.whisper
-  976  eval $(minikube docker-env)
-  977  docker build -t streamwhisper:latest -f Dockerfile.whisper .
-  978  nano requirements.txt
-  979  nano Dockerfile.whisper
-  980  eval $(minikube docker-env)
-  981  docker build -t streamwhisper:latest -f Dockerfile.whisper .
-  982  rm -rf Dockerfile.whisper
-  983  nano Dockerfile.whisper
-  984  docker build -t streamwhisper:latest -f Dockerfile.whisper .
-  985  kubectl apply -f whisper-server.yaml
-  986  curl -L https://www.voiptroubleshooter.com/open_speech/american/eng_m1.wav -o test-speech.wav
-  987  rm -rf Dockerfile.whisper
-  988  nano Dockerfile.whisper
-  989  docker build -t streamwhisper:latest -f Dockerfile.whisper .
-  990  nano Dockerfile.whisper.2
-  991  docker build -t streamwhisper:latest -f Dockerfile.whisper.2 .
-  992  nano Dockerfile.whisper.3
-  993  docker build -t streamwhisper:latest -f Dockerfile.whisper.3 .
-  994  nano Dockerfile.whisper.4
-  995  docker build -t streamwhisper:latest -f Dockerfile.whisper.4 .
-  996  nano Dockerfile.whisper.5
-  997  docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
-  998  nano Dockerfile.whisper.6
-  999  docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
- 1000  docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
- 1001  nano Dockerfile.whisper.6
- 1002  rm -rf Dockerfile.whisper.6
- 1003  nano Dockerfile.whisper.6
- 1004  docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
- 1005  nano Dockerfile.whisper.7
- 1006  docker build -t streamwhisper:latest -f Dockerfile.whisper.7 .
- 1007  nano Dockerfile.whisper.8
- 1008  docker build -t streamwhisper:latest -f Dockerfile.whisper.8 .
- 1009  nano Dockerfile.whisper.9
- 1010  docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
- 1011  rm -rf Dockerfile.whisper.9
- 1012  nano Dockerfile.whisper.9
- 1013  docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
- 1014  nano Dockerfile.whisper.10
- 1015  docker build -t streamwhisper:latest -f Dockerfile.whisper.10 .
- 1016  nano Dockerfile.whisper.11
- 1017  docker build -t streamwhisper:latest -f Dockerfile.whisper.11 .
- 1018  nano Dockerfile.whisper.12
- 1019  docker build -t streamwhisper:latest -f Dockerfile.whisper.12 .
- 1020  export MY_TOKEN=$(kubectl get secret hf-token -o jsonpath='{.data.token}' |
- 1021  base64 --decode)
- 1022  docker build -t streamwhisper:latest --build-arg HF_TOKEN=$MY_TOKEN -f Dockerfile.whisper.12 .
- 1023  ks
- 1024  ls
- 1025  curl -X POST http://whisper-server-service:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
- 1026  minikube service whisper-server-service --url
- 1027  curl -X POST http://whisper-server-service:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
- 1028  curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
- 1029  ffmpeg -i test-speech.wav -ar 16000 -ac 1 -c:a pcm_s16le test-clean.wav
- 1030  wget -O test-speech.wav https://github.com/microsoft/Cognitive-Speech-STT-Service-Sample/raw/master/Samples-Audio/en-US/MountainView/16k.wav
- 1031  wget -O test-speech.wav https://www.voiptroubleshooter.com/open_speech/american/phrase_m1.wav
- 1032  wget -O test-speech.wav https://github.com/Azure-Samples/cognitive-services-speech-sdk/raw/master/samples/cpp/windows/console/samples/whatstheweatherlike.wav
- 1033  curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
- 1034  kubectl get svc -n cfm-streaming
- 1035  kubectl apply -f whisper-server.yaml -n cfm-streaming
- 1036  cd
- 1037  cd ..
- 1038  cd ~/
- 1039  ks
- 1040  ls
- 1041  kubectl apply -f whisper-server.yaml -n cfm-streaming
- 1042  kubectl delete -f whisper-server.yaml -n cfm-streaming
- 1043  kubectl get svc whisper-server-service -n default
- 1044  kubectl get svc whisper-server-service
- 1045  kubectl get svc whisper-server
- 1046  kubectl get svc whisper-server-service
- 1047  kubectl get svc -n default
+
  1048  kubectl exec -it mynifi-0 -n cfm-streaming -- curl -s -o /dev/null -w "%{http_code}" http://whisper-server-service.default.svc.cluster.local:8001/transcribe
- 1049  kubectl get svc -A
- 1050  curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
- 1051  ls
- 1052  cd whisper
- 1053  curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
- 1054  cd .
- 1055  cd ..
+
+
  1056  kubectl apply -f vllm-qwen.yaml
  1057  cp query-rag-5.py query-rag-whisper.py
  1058  nano query-rag-whisper.py
@@ -132,7 +92,7 @@
  1061  nano vllm-qwen.yaml
  1062  kubectl logs -l app=vllm-server --tail 300
  1063  nano vllm-qwen.yaml
- 1064  ls
+
  1065  nano vllm-qwen.yaml
  1066  kubectl create secret generic hf-token   --from-literal=token=[hf-token]   --dry-run=client -o yaml | kubectl apply -f -
  1067  nano vllm-qwen.yaml
@@ -144,16 +104,11 @@
  1073  kubectl logs -l app=vllm-server --tail 3000
  1074  python3 query-rag-whisper.py
  1075  nano query-rag-whisper.py
+
  1076  curl -X DELETE "http://localhost:6333/collections/my-rag-collection"
  1077  curl -X PUT "http://localhost:6333/collections/my-rag-collection" -H "Content-Type: application/json" -d '{"vectors": {"size": 768, "distance": "Cosine"}}'
  1078  clear
- 1079  kubectl delete -f vllm-qwen.yaml
- 1080  kubectl get svc -A
+
  1081  kubectl apply -f vllm-qwen.yaml
- 1082  kubectl logs -l app=vllm-server --tail 3000
  1083  kubectl logs -l app=vllm-server --tail 300
  1084  python3 query-rag-whisper.py
- 1085  history
- 1086  exit
- 1087  history
-tunas@MINI-Gaming-G1:~$

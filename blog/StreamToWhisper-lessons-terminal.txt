@@ -1,18 +1,8 @@
-tunas@MINI-Gaming-G1:~$ ls
-ClouderaStreamingOperators          kubecolor_0.3.1_linux_amd64.tar.gz.1  query-rag-4.py
-LICENSE                             kubecolor_0.3.1_linux_amd64.tar.gz.2  query-rag-5.py
-README.md                           license.txt                           query-rag.py
-annotations                         matrix-rain-no-gpu.yaml               vllm-deploy-1.yaml
-annotations_trainval2017.zip        matrix-rain-prebuilt.yaml             vllm-deploy-2.yaml
-embedding-server.yaml               matrix-rain.yaml                      vllm-deploy-3.yaml
-history.txt                         matrix-test.yaml                      vllm-deploy-6.yaml
-history_user.txt                    qdrant-deployment.yaml                vllm-deploy.yaml
-k9s_Linux_amd64.deb                 query-rag-2.py                        vllm-llama.yaml
-kubecolor_0.3.1_linux_amd64.tar.gz  query-rag-3.py                        vllm-qwen.yaml
-tunas@MINI-Gaming-G1:~$ mkdir whisper
-tunas@MINI-Gaming-G1:~$ cd whisper
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper
-tunas@MINI-Gaming-G1:~/whisper$ eval $(minikube docker-env)
+
+steven@CSO:~$ mkdir whisper
+steven@CSO:~$ cd whisper
+steven@CSO:~/whisper$ nano Dockerfile.whisper
+steven@CSO:~/whisper$ eval $(minikube docker-env)
 docker build -t streamwhisper:latest -f Dockerfile.whisper .
 [+] Building 401.3s (13/15)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper                                   0.1s
@@ -72,10 +62,10 @@ Dockerfile.whisper:13
   15 |         insanely-fast-whisper==0.0.15 \
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --no-cache-dir -r requirements.txt  # (or just the packages below)" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano requirements.txt
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper
-tunas@MINI-Gaming-G1:~/whisper$ eval $(minikube docker-env)
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper .
+steven@CSO:~/whisper$ nano requirements.txt
+steven@CSO:~/whisper$ nano Dockerfile.whisper
+steven@CSO:~/whisper$ eval $(minikube docker-env)
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper .
 [+] Building 178.6s (13/14)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper                                   0.0s
  => => transferring dockerfile: 1.84kB                                                         0.0s
@@ -144,9 +134,9 @@ Dockerfile.whisper:15
   18 |
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --no-cache-dir     insanely-fast-whisper==0.0.15     fastapi uvicorn python-multipart huggingface_hub flash-attn --no-build-isolation" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ rm -rf Dockerfile.whisper
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper .
+steven@CSO:~/whisper$ rm -rf Dockerfile.whisper
+steven@CSO:~/whisper$ nano Dockerfile.whisper
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper .
 [+] Building 465.3s (16/16) FINISHED                                                 docker:default
  => [internal] load build definition from Dockerfile.whisper                                   0.0s
  => => transferring dockerfile: 2.18kB                                                         0.0s
@@ -170,15 +160,15 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfi
  => => exporting layers                                                                       21.2s
  => => writing image sha256:0aef498fd237777f54b6bf049c9250ceadcf682889e6041c75f3261f877e935f   0.0s
  => => naming to docker.io/library/streamwhisper:latest                                        0.0s
-tunas@MINI-Gaming-G1:~/whisper$ kubectl apply -f whisper-server.yaml
+steven@CSO:~/whisper$ kubectl apply -f whisper-server.yaml
 error: the path "whisper-server.yaml" does not exist
-tunas@MINI-Gaming-G1:~/whisper$ curl -L https://www.voiptroubleshooter.com/open_speech/american/eng_m1.wav -o test-speech.wav
+steven@CSO:~/whisper$ curl -L https://www.voiptroubleshooter.com/open_speech/american/eng_m1.wav -o test-speech.wav
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
 100    91    0    91    0     0    176      0 --:--:-- --:--:-- --:--:--   176
-tunas@MINI-Gaming-G1:~/whisper$ rm -rf Dockerfile.whisper
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper .
+steven@CSO:~/whisper$ rm -rf Dockerfile.whisper
+steven@CSO:~/whisper$ nano Dockerfile.whisper
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper .
 [+] Building 398.7s (16/16) FINISHED                                                 docker:default
  => [internal] load build definition from Dockerfile.whisper                                   0.0s
  => => transferring dockerfile: 2.52kB                                                         0.0s
@@ -202,8 +192,8 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfi
  => => exporting layers                                                                       18.9s
  => => writing image sha256:f2b18f2c77ffe7a04a7b62efecb9503977f38b97708ba35bf109a402efc3912c   0.0s
  => => naming to docker.io/library/streamwhisper:latest                                        0.0s
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.2
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.2 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.2
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.2 .
 [+] Building 377.9s (14/16)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper.2                                 0.0s
  => => transferring dockerfile: 2.78kB                                                         0.0s
@@ -283,8 +273,8 @@ Dockerfile.whisper.2:36
   38 |     # --- THE "CHANGE" ZONE ---
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c python3 -c \"from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-large-v3')\"" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.3
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.3 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.3
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.3 .
 [+] Building 182.3s (13/17)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper.3                                 0.0s
  => => transferring dockerfile: 2.70kB                                                         0.0s
@@ -412,8 +402,8 @@ Dockerfile.whisper.3:26
   30 |
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --no-cache-dir     transformers     insanely-fast-whisper==0.0.15     fastapi uvicorn python-multipart huggingface_hub flash-attn --no-build-isolation" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.4
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.4 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.4
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.4 .
 [+] Building 358.0s (13/17)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper.4                                 0.0s
  => => transferring dockerfile: 2.85kB                                                         0.0s
@@ -718,8 +708,8 @@ Dockerfile.whisper.4:37
   39 |     # 4. Bake the model
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --no-cache-dir flash-attn --no-build-isolation" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.5
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.5
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
 [+] Building 201.4s (16/19)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper.5                                 0.0s
  => => transferring dockerfile: 3.10kB                                                         0.0s
@@ -770,8 +760,8 @@ Dockerfile.whisper.5:42
   44 |     # STAGE 2: Final Runtime
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c python3 -c \"from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-large-v3')\"" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.6
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.6
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.5 .
 [+] Building 0.9s (16/19)                                                            docker:default
  => [internal] load build definition from Dockerfile.whisper.5                                 0.0s
  => => transferring dockerfile: 3.10kB                                                         0.0s
@@ -822,8 +812,8 @@ Dockerfile.whisper.5:42
   44 |     # STAGE 2: Final Runtime
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c python3 -c \"from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-large-v3')\"" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ ^C
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
+steven@CSO:~/whisper$ ^C
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
 [+] Building 0.1s (1/1) FINISHED                                                     docker:default
  => [internal] load build definition from Dockerfile.whisper.6                                 0.0s
  => => transferring dockerfile: 1.95kB                                                         0.0s
@@ -835,10 +825,10 @@ Dockerfile.whisper.6:55
   57 |
 --------------------
 ERROR: failed to build: failed to solve: unterminated heredoc
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.6
-tunas@MINI-Gaming-G1:~/whisper$ rm -rf Dockerfile.whisper.6
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.6
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.6
+steven@CSO:~/whisper$ rm -rf Dockerfile.whisper.6
+steven@CSO:~/whisper$ nano Dockerfile.whisper.6
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.6 .
 [+] Building 27.2s (15/18)                                                           docker:default
  => [internal] load build definition from Dockerfile.whisper.6                                 0.0s
  => => transferring dockerfile: 3.05kB                                                         0.0s
@@ -884,8 +874,8 @@ Dockerfile.whisper.6:44
   46 |     # STAGE 2: Final Runtime
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c python3 -c \"from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-large-v3')\"" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.7
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.7 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.7
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.7 .
 [+] Building 41.3s (15/18)                                                           docker:default
  => [internal] load build definition from Dockerfile.whisper.7                                 0.0s
  => => transferring dockerfile: 2.89kB                                                         0.0s
@@ -975,8 +965,8 @@ Dockerfile.whisper.7:44
   46 |     # STAGE 2: Final Runtime
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c python3 -c \"from transformers import pipeline; pipeline('automatic-speech-recognition', model='openai/whisper-large-v3')\"" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.8
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.8 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.8
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.8 .
 [+] Building 188.0s (19/19) FINISHED                                                 docker:default
  => [internal] load build definition from Dockerfile.whisper.8                                 0.0s
  => => transferring dockerfile: 2.89kB                                                         0.0s
@@ -1002,8 +992,8 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfi
  => => exporting layers                                                                       23.2s
  => => writing image sha256:d2ff1e3f729f57a733366950eddc7a04a62d47c35ba06517d07a20a5448ed60e   0.0s
  => => naming to docker.io/library/streamwhisper:latest                                        0.0s
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.9
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.9
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
 [+] Building 0.1s (1/1) FINISHED                                                     docker:default
  => [internal] load build definition from Dockerfile.whisper.9                                 0.0s
  => => transferring dockerfile: 1.78kB                                                         0.0s
@@ -1015,9 +1005,9 @@ Dockerfile.whisper.9:52
   53 |
 --------------------
 ERROR: failed to build: failed to solve: dockerfile parse error on line 52: COPY requires at least two arguments, but only one was provided. Destination could not be determined
-tunas@MINI-Gaming-G1:~/whisper$ rm -rf Dockerfile.whisper.9
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.9
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
+steven@CSO:~/whisper$ rm -rf Dockerfile.whisper.9
+steven@CSO:~/whisper$ nano Dockerfile.whisper.9
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.9 .
 [+] Building 0.6s (20/20) FINISHED                                                   docker:default
  => [internal] load build definition from Dockerfile.whisper.9                                 0.0s
  => => transferring dockerfile: 3.12kB                                                         0.0s
@@ -1044,9 +1034,9 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfi
  => => exporting layers                                                                        0.0s
  => => writing image sha256:c0f5c233779188215eb49154502051254316db97cdfd342cd1e55e11c7124e30   0.0s
  => => naming to docker.io/library/streamwhisper:latest                                        0.0s
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.10
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.10
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.10 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.10
+steven@CSO:~/whisper$ nano Dockerfile.whisper.10
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.10 .
 [+] Building 200.1s (14/18)                                                          docker:default
  => [internal] load build definition from Dockerfile.whisper.10                                0.0s
  => => transferring dockerfile: 3.02kB                                                         0.0s
@@ -1102,8 +1092,8 @@ Dockerfile.whisper.10:29
   31 |     # 4. Bake the model (CACHED)
 --------------------
 ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --no-cache-dir flash-attn --no-build-isolation" did not complete successfully: exit code: 1
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.11
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.11 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.11
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.11 .
 [+] Building 116.8s (12/20)                                                           docker:default
  => [builder  1/10] FROM docker.io/nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04@sha256:622e78a1d  0.0s
  => [internal] preparing inline document                                                        0.0s
@@ -1161,8 +1151,8 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfi
  => => exporting layers                                                                      22.8s
  => => writing image sha256:9c12899036f867f3b45f9cdc03e368568c36c2f492e36d074a6953828c988f5c  0.0s
  => => naming to docker.io/library/streamwhisper:latest                                       0.0s
-tunas@MINI-Gaming-G1:~/whisper$ nano Dockerfile.whisper.12
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.12 .
+steven@CSO:~/whisper$ nano Dockerfile.whisper.12
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest -f Dockerfile.whisper.12 .
 [+] Building 104.4s (11/21)                                                         docker:default
  => [internal] load build definition from Dockerfile.whisper.12                               0.0s
  => => transferring dockerfile: 3.29kB                                                        0.0s
@@ -1182,9 +1172,9 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest -f Dockerfi
  - SecretsUsedInArgOrEnv: Do not use ARG or ENV instructions for sensitive data (ARG "HF_TOKEN") (line 5)
  - SecretsUsedInArgOrEnv: Do not use ARG or ENV instructions for sensitive data (ENV "HF_TOKEN") (line 6)
 ERROR: failed to build: failed to solve: Canceled: context canceled
-tunas@MINI-Gaming-G1:~/whisper$ export MY_TOKEN=$(kubectl get secret hf-token -o jsonpath='{.data.token}' |
+steven@CSO:~/whisper$ export MY_TOKEN=$(kubectl get secret hf-token -o jsonpath='{.data.token}' |
 base64 --decode)
-tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest --build-arg HF_TOKEN=$MY_TOKEN -f Dockerfile.whisper.12 .
+steven@CSO:~/whisper$ docker build -t streamwhisper:latest --build-arg HF_TOKEN=$MY_TOKEN -f Dockerfile.whisper.12 .
 [+] Building 373.0s (21/21) FINISHED                                                docker:default
  => [internal] load build definition from Dockerfile.whisper.12                               0.0s
  => => transferring dockerfile: 3.29kB                                                        0.0s
@@ -1216,70 +1206,3 @@ tunas@MINI-Gaming-G1:~/whisper$ docker build -t streamwhisper:latest --build-arg
  2 warnings found (use docker --debug to expand):
  - SecretsUsedInArgOrEnv: Do not use ARG or ENV instructions for sensitive data (ARG "HF_TOKEN") (line 5)
  - SecretsUsedInArgOrEnv: Do not use ARG or ENV instructions for sensitive data (ENV "HF_TOKEN") (line 6)
-tunas@MINI-Gaming-G1:~/whisper$ ks
-Command 'ks' not found, but can be installed with:
-sudo apt install qdl
-tunas@MINI-Gaming-G1:~/whisper$ ls
-Dockerfile.whisper     Dockerfile.whisper.2  Dockerfile.whisper.6  test-speech.wav
-Dockerfile.whisper.10  Dockerfile.whisper.3  Dockerfile.whisper.7
-Dockerfile.whisper.11  Dockerfile.whisper.4  Dockerfile.whisper.8
-Dockerfile.whisper.12  Dockerfile.whisper.5  Dockerfile.whisper.9
-tunas@MINI-Gaming-G1:~/whisper$ curl -X POST http://whisper-server-service:8001/transcribe \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@test-speech.wav"
-curl: (6) Could not resolve host: whisper-server-service
-tunas@MINI-Gaming-G1:~/whisper$ minikube service whisper-server-service --url
-
-❌  Exiting due to SVC_NOT_FOUND: Service 'whisper-server-service' was not found in 'default' namespace.
-You may select another namespace by using 'minikube service whisper-server-service -n <namespace>'. Or list out all the services using 'minikube service list'
-
-tunas@MINI-Gaming-G1:~/whisper$ curl -X POST http://whisper-server-service:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
-curl: (6) Could not resolve host: whisper-server-service
-tunas@MINI-Gaming-G1:~/whisper$ curl -X POST http://127.0.0.1:8001/transcribe \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@test-speech.wav"
-{"error":"Soundfile is either not in the correct format or is malformed. Ensure that the soundfile has a valid audio file extension (e.g. wav, flac or mp3) and is not corrupted. If reading from a retunas@MINI-Gaming-G1:~/whisper$ ffmpeg -i test-speech.wav -ar 16000 -ac 1 -c:a pcm_s16le test-clean.wav:~/whisper$ ffmpeg -i test-speech.wav -ar 16000 -ac 1 -c:a pcm_s16le test-clean.wav
-Command 'ffmpeg' not found, but can be installed with:
-sudo snap install ffmpeg  # version 4.3.1, or
-sudo apt  install ffmpeg  # version 7:6.1.1-1ubuntu1
-See 'snap info ffmpeg' for additional versions.
-tunas@MINI-Gaming-G1:~/whisper$ wget -O test-speech.wav https://github.com/microsoft/Cognitive-Speech-STT-Service-Sample/raw/master/Samples-Audio/en-US/MountainView/16k.wav
---2026-03-27 19:06:16--  https://github.com/microsoft/Cognitive-Speech-STT-Service-Sample/raw/master/Samples-Audio/en-US/MountainView/16k.wav
-Resolving github.com (github.com)... 140.82.113.4
-Connecting to github.com (github.com)|140.82.113.4|:443... connected.
-HTTP request sent, awaiting response... 404 Not Found
-2026-03-27 19:06:17 ERROR 404: Not Found.
-
-tunas@MINI-Gaming-G1:~/whisper$ wget -O test-speech.wav https://www.voiptroubleshooter.com/open_speech/american/phrase_m1.wav
---2026-03-27 19:07:15--  https://www.voiptroubleshooter.com/open_speech/american/phrase_m1.wav
-Resolving www.voiptroubleshooter.com (www.voiptroubleshooter.com)... 162.241.218.124
-Connecting to www.voiptroubleshooter.com (www.voiptroubleshooter.com)|162.241.218.124|:443... connected.
-HTTP request sent, awaiting response... 404 Not Found
-2026-03-27 19:07:15 ERROR 404: Not Found.
-
-tunas@MINI-Gaming-G1:~/whisper$ wget -O test-speech.wav https://github.com/Azure-Samples/cognitive-services-speech-sdk/raw/master/samples/cpp/windows/console/samples/whatstheweatherlike.wav
---2026-03-27 19:07:46--  https://github.com/Azure-Samples/cognitive-services-speech-sdk/raw/master/samples/cpp/windows/console/samples/whatstheweatherlike.wav
-Resolving github.com (github.com)... 140.82.112.4
-Connecting to github.com (github.com)|140.82.112.4|:443... connected.
-HTTP request sent, awaiting response... 302 Found
-Location: https://raw.githubusercontent.com/Azure-Samples/cognitive-services-speech-sdk/master/samples/cpp/windows/console/samples/whatstheweatherlike.wav [following]
---2026-03-27 19:07:47--  https://raw.githubusercontent.com/Azure-Samples/cognitive-services-speech-sdk/master/samples/cpp/windows/console/samples/whatstheweatherlike.wav
-Resolving raw.githubusercontent.com (raw.githubusercontent.com)... 185.199.108.133, 185.199.110.133, 185.199.111.133, ...
-Connecting to raw.githubusercontent.com (raw.githubusercontent.com)|185.199.108.133|:443... connected.
-HTTP request sent, awaiting response... 200 OK
-Length: 65004 (63K) [audio/wav]
-Saving to: ‘test-speech.wav’
-
-test-speech.wav          100%[=================================>]  63.48K  --.-KB/s    in 0.01s
-
-2026-03-27 19:07:47 (5.93 MB/s) - ‘test-speech.wav’ saved [65004/65004]
-
-tunas@MINI-Gaming-G1:~/whisper$ curl -X POST http://127.0.0.1:8001/transcribe \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@test-speech.wav"
-tunas@MINI-Gaming-G1:~/whisper$ curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
-{"text":" What's the weather like?"}tunas@MINI-Gttutuntunatunatuntuntuttttttttttuttututuntuttutttttttunas@MINI-Gaming-G1:~/whisper$
-
-
-
-
