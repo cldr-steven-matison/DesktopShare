@@ -1,0 +1,19 @@
+curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
+{"text":" What's the weather like?"}
+
+
+tunas@MINI-Gaming-G1:~/whisper$ wget https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0010_8k.wav
+--2026-03-30 09:52:58--  https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0010_8k.wav
+Resolving www.voiptroubleshooter.com (www.voiptroubleshooter.com)... 162.241.218.124
+Connecting to www.voiptroubleshooter.com (www.voiptroubleshooter.com)|162.241.218.124|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 538014 (525K) [audio/x-wav]
+Saving to: ‘OSR_us_000_0010_8k.wav’
+
+OSR_us_000_0010_8k.wav        100%[=================================================>] 525.40K  1.34MB/s    in 0.4s
+
+2026-03-30 09:52:59 (1.34 MB/s) - ‘OSR_us_000_0010_8k.wav’ saved [538014/538014]
+
+tunas@MINI-Gaming-G1:~/whisper$ mv OSR_us_000_0010_8k.wav test-speech.wav
+tunas@MINI-Gaming-G1:~/whisper$ curl -X POST http://127.0.0.1:8001/transcribe   -H "Content-Type: multipart/form-data"   -F "file=@test-speech.wav"
+{"text":" The birch canoe slid on the smooth planks. Glue the sheet to the dark blue background. It is easy to tell the depth of a well. These days a chicken leg is a rare dish. Rice is often served in round bowls. The juice of lemons makes fine punch. The box was thrown beside the parked truck. The hogs were fed chopped corn and garbage four hours of steady work faced us a large size in stockings is hard to sell"}
