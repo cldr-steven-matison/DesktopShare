@@ -165,7 +165,7 @@ The CFM Operator will reconcile, mount the volume into all NiFi pods, and load t
 This plan now **exactly matches** the CFM 3.0.0 official NAR provider docs **and** your colleague’s practical NFS/Ubuntu workflow. It works on Minikube the same way it would in a full NFS-backed production cluster.
 
 
-## DEBUG
+## Terminal Commands
 
 ```bash
 kubectl describe pod mynifi-0 -n cfm-streaming > debug_nifi_pod.txt
@@ -179,5 +179,15 @@ kubectl exec mynifi-0 -c nifi -n cfm-streaming -- grep "nifi.python" /opt/nifi/n
 kubectl exec -it mynifi-0 -c nifi -n cfm-streaming -- find /opt/nifi/nifi-current/work -name "TransactionGenerator.py"
 
 kubectl exec -n cfm-streaming mynifi-0 -- ls -la /opt/nifi/nifi-current/python/extensions
+
+
+minikube mount /Users/steven.matison/nifi-custom-processors/TransactionGenerator/python/processors:/extensions --uid 10001 --gid 10001
+
+kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/kafka-console-consumer.sh \\n  --bootstrap-server localhost:9092 \\n  --topic model_data_fraud \\n  --from-beginning \\n  --max-messages 1000
+
+kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/kafka-console-consumer.sh \\n  --bootstrap-server localhost:9092 \\n  --topic model_data_good \\n  --from-beginning \\n  --max-messages 10000
+
+kubectl delete -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
 
  ```
