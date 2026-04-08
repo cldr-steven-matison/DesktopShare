@@ -1,0 +1,253 @@
+No existing authorizations, skipping authorization verification
+Kerberos is not configured
+NAR provider directory exists. Discovering NARs...
+[main] INFO com.cloudera.nifi.kubernetes.Unpacker - Start NAR unpacking.
+[main] INFO com.cloudera.nifi.kubernetes.CustomNarUnpacker - Checking nars at location: ./lib
+[main] INFO com.cloudera.nifi.kubernetes.CustomNarUnpacker - Checking nars at location: ./data/extensions
+[main] INFO com.cloudera.nifi.kubernetes.CustomNarUnpacker - Unpacked 1 custom NARs.
+[main] INFO com.cloudera.nifi.kubernetes.Unpacker - Unpacking nars finished successfully!
+--------------------------------------------------------------------------------
+NIFI_PROPERTIES: /opt/nifi/nifi-current/conf/nifi.properties
+NIFI_CERT_DIR: /tmp/tmp.Fhgs0DoH8z
+NIFI_TEMP_DIR: /tmp/tmp.Fhgs0DoH8z
+KEYSTORE_PATH: /opt/nifi/nifi-current/data/keystore.jks
+TRUSTSTORE_PATH: /opt/nifi/nifi-current/data/truststore.jks
+--------------------------------------------------------------------------------
+Importing keystore /usr/lib/jvm/jre/lib/security/cacerts to /opt/nifi/nifi-current/data/truststore.jks...
+Entry for alias naverglobalrootcertificationauthority successfully imported.
+Entry for alias teliasonerarootcav1 successfully imported.
+Entry for alias vtruseccrootca successfully imported.
+Entry for alias emsignrootca-g1 successfully imported.
+Entry for alias quovadisrootca3g3 successfully imported.
+Entry for alias secureglobalca successfully imported.
+Entry for alias microsoftrsarootcertificateauthority2017 successfully imported.
+Entry for alias securesignrootca15 successfully imported.
+Entry for alias ssl.comevrootcertificationauthorityecc successfully imported.
+Entry for alias szafirrootca2 successfully imported.
+Entry for alias securesignrootca14 successfully imported.
+Entry for alias ssl.comtlsrsarootca2022 successfully imported.
+Entry for alias quovadisrootca1g3 successfully imported.
+Entry for alias atostrustedrootrootcarsatls2021 successfully imported.
+Entry for alias autoridaddecertificacionfirmaprofesionalcifa62634068 successfully imported.
+Entry for alias securesignrootca12 successfully imported.
+Entry for alias telekomsecuritytlsrsaroot2023 successfully imported.
+Entry for alias isrgrootx2 successfully imported.
+Entry for alias isrgrootx1 successfully imported.
+Entry for alias digicertglobalrootca successfully imported.
+Entry for alias twcacyberrootca successfully imported.
+Entry for alias sectigopublicserverauthenticationrootr46 successfully imported.
+Entry for alias bjcaglobalrootca2 successfully imported.
+Entry for alias globalsignroote46 successfully imported.
+Entry for alias bjcaglobalrootca1 successfully imported.
+Entry for alias starfieldservicesrootcertificateauthority-g2 successfully imported.
+Entry for alias actalisauthenticationrootca successfully imported.
+Entry for alias tubitakkamusmsslkoksertifikasi-surum1 successfully imported.
+Entry for alias amazonrootca4 successfully imported.
+Entry for alias amazonrootca3 successfully imported.
+Entry for alias globalsignrootca-r6 successfully imported.
+Entry for alias amazonrootca2 successfully imported.
+Entry for alias amazonrootca1 successfully imported.
+Entry for alias globalsignrootca-r3 successfully imported.
+Entry for alias affirmtrustpremium successfully imported.
+Entry for alias haricatlsrsarootca2021 successfully imported.
+Entry for alias entrustrootcertificationauthority-g2 successfully imported.
+Entry for alias gdcatrustauthr5root successfully imported.
+Entry for alias atostrustedrootrootcaecctls2021 successfully imported.
+Entry for alias telekomsecuritytlseccroot2020 successfully imported.
+Entry for alias emsigneccrootca-g3 successfully imported.
+Entry for alias atostrustedroot2011 successfully imported.
+Entry for alias d-trustevrootca12020 successfully imported.
+Entry for alias anfsecureserverrootca successfully imported.
+Entry for alias certignarootca successfully imported.
+Entry for alias vtrusrootca successfully imported.
+Entry for alias digicerttlsrsa4096rootg5 successfully imported.
+Entry for alias comodoecccertificationauthority successfully imported.
+Entry for alias securetrustca successfully imported.
+Entry for alias cadisigrootr2 successfully imported.
+Entry for alias starfieldrootcertificateauthority-g2 successfully imported.
+Entry for alias globalsigneccrootca-r5 successfully imported.
+Entry for alias globalsigneccrootca-r4 successfully imported.
+Entry for alias buypassclass2rootca successfully imported.
+Entry for alias tuntrustrootca successfully imported.
+Entry for alias buypassclass3rootca successfully imported.
+Entry for alias epkirootcertificationauthority successfully imported.
+Entry for alias certigna successfully imported.
+Entry for alias cfcaevroot successfully imported.
+Entry for alias emsignrootca-c1 successfully imported.
+Entry for alias certumtrustednetworkca successfully imported.
+Entry for alias securitycommunicationrootca2 successfully imported.
+Entry for alias oistewisekeyglobalrootgcca successfully imported.
+Entry for alias usertrustrsacertificationauthority successfully imported.
+Entry for alias d-trustbrrootca22023 successfully imported.
+Entry for alias trustwaveglobaleccp384certificationauthority successfully imported.
+Entry for alias firmaprofesionalcaroot-aweb successfully imported.
+Entry for alias swisssigngoldca-g2 successfully imported.
+Entry for alias certsignrootca successfully imported.
+Entry for alias certumec-384ca successfully imported.
+Entry for alias hipkirootca-g1 successfully imported.
+Entry for alias twcaglobalrootca successfully imported.
+Entry for alias trustwaveglobaleccp256certificationauthority successfully imported.
+Entry for alias globalsignrootr46 successfully imported.
+Entry for alias entrustrootcertificationauthority-ec1 successfully imported.
+Entry for alias emsigneccrootca-c3 successfully imported.
+Entry for alias digicerttrustedrootg4 successfully imported.
+Entry for alias quovadisrootca2g3 successfully imported.
+Entry for alias trustwaveglobalcertificationauthority successfully imported.
+Entry for alias gtsrootr4 successfully imported.
+Entry for alias gtsrootr3 successfully imported.
+Entry for alias gtsrootr2 successfully imported.
+Entry for alias globaltrust2020 successfully imported.
+Entry for alias gtsrootr1 successfully imported.
+Entry for alias hellenicacademicandresearchinstitutionseccrootca2015 successfully imported.
+Entry for alias d-trustrootclass3ca22009 successfully imported.
+Entry for alias trustasiatlseccrootca successfully imported.
+Entry for alias commscopepublictrustrsaroot-02 successfully imported.
+Entry for alias e-szignorootca2017 successfully imported.
+Entry for alias commscopepublictrustrsaroot-01 successfully imported.
+Entry for alias affirmtrustcommercial successfully imported.
+Entry for alias digicertassuredidrootg3 successfully imported.
+Entry for alias affirmtrustnetworking successfully imported.
+Entry for alias digicertassuredidrootg2 successfully imported.
+Entry for alias d-trustrootclass3ca2ev2009 successfully imported.
+Entry for alias comodocertificationauthority successfully imported.
+Entry for alias usertrustecccertificationauthority successfully imported.
+Entry for alias trustasiatlsrsarootca successfully imported.
+Entry for alias quovadisrootca3 successfully imported.
+Entry for alias sectigopublicserverauthenticationroote46 successfully imported.
+Entry for alias quovadisrootca2 successfully imported.
+Entry for alias trustasiaglobalrootcag4 successfully imported.
+Entry for alias trustasiaglobalrootcag3 successfully imported.
+Entry for alias twcarootcertificationauthority successfully imported.
+Entry for alias d-trustbrrootca12020 successfully imported.
+Entry for alias commscopepublictrusteccroot-02 successfully imported.
+Entry for alias commscopepublictrusteccroot-01 successfully imported.
+Entry for alias certumtrustedrootca successfully imported.
+Entry for alias ucaglobalg2root successfully imported.
+Entry for alias ssl.comrootcertificationauthorityecc successfully imported.
+Entry for alias certainlyrootr1 successfully imported.
+Entry for alias identrustcommercialrootca1 successfully imported.
+Entry for alias izenpe.com successfully imported.
+Entry for alias swisssignrsatlsrootca2022-1 successfully imported.
+Entry for alias ucaextendedvalidationroot successfully imported.
+Entry for alias microsece-szignorootca2009 successfully imported.
+Entry for alias acraizfnmt-rcmservidoresseguros successfully imported.
+Entry for alias digicerttlseccp384rootg5 successfully imported.
+Entry for alias certsignrootcag2 successfully imported.
+Entry for alias acraizfnmt-rcm successfully imported.
+Entry for alias certainlyroote1 successfully imported.
+Entry for alias affirmtrustpremiumecc successfully imported.
+Entry for alias teliarootcav2 successfully imported.
+Entry for alias netlockarany(classgold)ftanstvny successfully imported.
+Entry for alias ssl.comrootcertificationauthorityrsa successfully imported.
+Entry for alias entrustrootcertificationauthority successfully imported.
+Entry for alias digicertassuredidrootca successfully imported.
+Entry for alias digicertglobalrootg3 successfully imported.
+Entry for alias digicertglobalrootg2 successfully imported.
+Entry for alias certumtrustednetworkca2 successfully imported.
+Entry for alias d-trustevrootca22023 successfully imported.
+Entry for alias oistewisekeyglobalrootgbca successfully imported.
+Entry for alias comodorsacertificationauthority successfully imported.
+Entry for alias haricatlseccrootca2021 successfully imported.
+Entry for alias ssl.comtlseccrootca2022 successfully imported.
+Entry for alias securitycommunicationeccrootca1 successfully imported.
+Entry for alias identrustpublicsectorrootca1 successfully imported.
+Entry for alias digicerthighassuranceevrootca successfully imported.
+Entry for alias accvraiz1 successfully imported.
+Entry for alias godaddyrootcertificateauthority-g2 successfully imported.
+Entry for alias microsofteccrootcertificateauthority2017 successfully imported.
+Entry for alias t-telesecglobalrootclass3 successfully imported.
+Entry for alias t-telesecglobalrootclass2 successfully imported.
+Entry for alias hongkongpostrootca3 successfully imported.
+Entry for alias ssl.comevrootcertificationauthorityrsar2 successfully imported.
+Entry for alias hellenicacademicandresearchinstitutionsrootca2015 successfully imported.
+Import command completed:  146 entries successfully imported, 0 entries failed or cancelled
+
+Warning:
+<teliasonerarootcav1> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<secureglobalca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<digicertglobalrootca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<securetrustca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<epkirootcertificationauthority> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<certigna> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<certumtrustednetworkca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<swisssigngoldca-g2> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<certsignrootca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<affirmtrustnetworking> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<comodocertificationauthority> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<quovadisrootca3> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<quovadisrootca2> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<twcarootcertificationauthority> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<entrustrootcertificationauthority> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<digicertassuredidrootca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<digicerthighassuranceevrootca> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+<accvraiz1> uses the SHA1withRSA signature algorithm which is considered a security risk and is disabled.
+Importing keystore /tmp/tmp.Fhgs0DoH8z/truststore.jks to /opt/nifi/nifi-current/data/truststore.jks...
+Entry for alias ca successfully imported.
+Import command completed:  1 entries successfully imported, 0 entries failed or cancelled
+Importing keystore /tmp/tmp.Fhgs0DoH8z/keystore.jks to /opt/nifi/nifi-current/data/keystore.jks...
+Entry for alias certificate successfully imported.
+Entry for alias ca successfully imported.
+Import command completed:  2 entries successfully imported, 0 entries failed or cancelled
+
+Warning:
+The JKS keystore uses a proprietary format. It is recommended to migrate to PKCS12 which is an industry standard format using "keytool -importkeystore -srckeystore /opt/nifi/nifi-current/data/keystore.jks -destkeystore /opt/nifi/nifi-current/data/keystore.jks -deststoretype pkcs12".
+Importing /home/nifi/cfmopusercert/ca.crt into truststore
+Certificate was added to keystore
+ls: cannot access '/home/nifi/pki-ref': No such file or directory
+Importing /tmp/tmp.Fhgs0DoH8z/additional-certs/cert.crt with alias cert-0
+Certificate was added to keystore
+The encrypt-config command is deprecated for removal in NiFi 2.0.0
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Handling encryption of nifi.properties
+[main] WARN org.apache.nifi.properties.ConfigEncryptionTool - The source nifi.properties and destination nifi.properties are identical [/opt/nifi/nifi-current/conf/nifi.properties] so the original will be overwritten
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Handling encryption of login-identity-providers.xml
+[main] WARN org.apache.nifi.properties.ConfigEncryptionTool - The source login-identity-providers.xml and destination login-identity-providers.xml are identical [/opt/nifi/nifi-current/conf/login-identity-providers.xml] so the original will be overwritten
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Handling encryption of authorizers.xml
+[main] WARN org.apache.nifi.properties.ConfigEncryptionTool - The source authorizers.xml and destination authorizers.xml are identical [/opt/nifi/nifi-current/conf/authorizers.xml] so the original will be overwritten
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool -        bootstrap.conf:               /opt/nifi/nifi-current/conf/bootstrap.conf
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (src)  nifi.properties:              /opt/nifi/nifi-current/conf/nifi.properties
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (dest) nifi.properties:              /opt/nifi/nifi-current/conf/nifi.properties
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (src)  login-identity-providers.xml: /opt/nifi/nifi-current/conf/login-identity-providers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (dest) login-identity-providers.xml: /opt/nifi/nifi-current/conf/login-identity-providers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (src)  authorizers.xml:              /opt/nifi/nifi-current/conf/authorizers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (dest) authorizers.xml:              /opt/nifi/nifi-current/conf/authorizers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (src)  flow.xml.gz:                  null
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - (dest) flow.xml.gz:                  null
+[main] WARN org.apache.nifi.properties.AbstractBootstrapPropertiesLoader - System Property [nifi.properties.file.path] not found: Using Relative Path [conf/nifi.properties]
+[main] INFO org.apache.nifi.properties.NiFiPropertiesLoader - Loading Application Properties [/opt/nifi/nifi-current/conf/nifi.properties]
+[main] INFO org.apache.nifi.properties.NiFiPropertiesLoader - Loading Application Properties [/opt/nifi/nifi-current/conf/nifi.properties]
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Loaded NiFiProperties instance with 162 properties
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Loaded login identity providers content (35 lines)
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - No encrypted password property elements found in login-identity-providers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - No unencrypted password property elements found in login-identity-providers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Loaded authorizers content (37 lines)
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - No encrypted password property elements found in authorizers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - No unencrypted password property elements found in authorizers.xml
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Protected [nifi.security.keyPasswd] using [aes/gcm] -> 	64rMmA2b5mAbOxLC||kv4JmvXVrfhYNJvjB8l701R6AvLYTXrPiJXn6Ctt9Tpt8N8K
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Updated protection key [nifi.security.keyPasswd.protected]
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Protected [nifi.security.keystorePasswd] using [aes/gcm] -> 	1G4Jr2TCqlqWHNre||WHhJMu5Wk+DRTG1OhAceBNKzY38dQNn+HSBcGxMkZ6dS7cIw
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Updated protection key [nifi.security.keystorePasswd.protected]
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Protected [nifi.security.truststorePasswd] using [aes/gcm] -> 	ZdxvISsQuFuFxZ/q||6Z5FshPlJAUASWKxjDA2tb657EHF9ppsIkxLdxc5BWfIgZtn
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Updated protection key [nifi.security.truststorePasswd.protected]
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Protected [nifi.sensitive.props.key] using [aes/gcm] -> 	M8QYMxk+7HB/kv9I||XYD9Lye9jPucnqFUnPCVnh76fET38FLYSPowI2OjbKI/YR+WoK43ioOJWrweNqrEKNpN
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Updated protection key [nifi.sensitive.props.key.protected]
+[main] INFO org.apache.nifi.properties.ConfigEncryptionTool - Final result: 166 keys including 4 protected keys
+[main] ERROR org.apache.nifi.properties.ConfigEncryptionTool - No provider element with class org.apache.nifi.ldap.LdapProvider found in XML content; the file could be empty or the element may be missing or commented out: No ldap-provider element found
+
+Java home: /usr/lib/jvm/jre
+NiFi home: /opt/nifi/nifi-current
+
+Bootstrap Config File: /opt/nifi/nifi-current/conf/bootstrap.conf
+
+Login Identity Providers Processed [/opt/nifi/nifi-current/./conf/login-identity-providers.xml]
+
+NiFi is running with PID 287.
+
+Java home: /usr/lib/jvm/jre
+NiFi home: /opt/nifi/nifi-current
+
+Bootstrap Config File: /opt/nifi/nifi-current/conf/bootstrap.conf
+
+2026-04-08 01:06:59,610 INFO [main] org.apache.nifi.bootstrap.Command Starting Apache NiFi...
+2026-04-08 01:06:59,610 INFO [main] org.apache.nifi.bootstrap.Command Working Directory: /opt/nifi/nifi-current
+2026-04-08 01:06:59,610 INFO [main] org.apache.nifi.bootstrap.Command Command: /usr/lib/jvm/jre/bin/java -classpath /opt/nifi/nifi-current/conf:/opt/nifi/nifi-current/lib/logback-classic-1.3.14.jar:/opt/nifi/nifi-current/lib/nifi-stateless-api-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/jul-to-slf4j-2.0.16.jar:/opt/nifi/nifi-current/lib/nifi-api-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/nifi-nar-utils-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/jetty-schemas-5.2.jar:/opt/nifi/nifi-current/lib/nifi-server-api-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/log4j-over-slf4j-2.0.16.jar:/opt/nifi/nifi-current/lib/logback-core-1.3.14.jar:/opt/nifi/nifi-current/lib/jcl-over-slf4j-2.0.16.jar:/opt/nifi/nifi-current/lib/nifi-framework-api-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/javax.servlet-api-3.1.0.jar:/opt/nifi/nifi-current/lib/nifi-per-process-group-logging-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/nifi-property-utils-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/nifi-runtime-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/aspectjweaver-1.9.6.jar:/opt/nifi/nifi-current/lib/nifi-stateless-bootstrap-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/c2-protocol-component-api-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/slf4j-api-2.0.16.jar:/opt/nifi/nifi-current/lib/swagger-annotations-1.6.14.jar:/opt/nifi/nifi-current/lib/nifi-properties-1.28.1.2.3.17.0-9.jar:/opt/nifi/nifi-current/lib/java11/jakarta.xml.bind-api-2.3.3.jar:/opt/nifi/nifi-current/lib/java11/jakarta.activation-api-1.2.2.jar:/opt/nifi/nifi-current/lib/java11/txw2-2.3.9.jar:/opt/nifi/nifi-current/lib/java11/jakarta.activation-1.2.2.jar:/opt/nifi/nifi-current/lib/java11/javax.annotation-api-1.3.2.jar:/opt/nifi/nifi-current/lib/java11/jaxb-runtime-2.3.9.jar:/opt/nifi/nifi-current/lib/java11/istack-commons-runtime-3.0.12.jar -Dorg.xerial.snappy.tempdir=/opt/nifi/nifi-current/ --add-opens=java.base/sun.security.util=ALL-UNNAMED -Djavax.net.ssl.trustStorePassword=plgPz8sS4nFFrve5C6hS -Djdk.tls.trustNameService=true -XX:+IgnoreUnrecognizedVMOptions -verbose:gc --add-opens=java.base/java.net=ALL-UNNAMED -Xlog:gc=info:file=/opt/nifi/nifi-current/logs/nifi-gc.log:utc,uptime,level,tags --add-exports=java.base/sun.security.provider=ALL-UNNAMED -Dorg.apache.jasper.compiler.disablejsr199=true -Xmx2g -Xms2g -Djavax.net.ssl.trustStore=/opt/nifi/nifi-current/data/truststore.jks -Djavax.security.auth.useSubjectCredsOnly=true -Djava.security.egd=file:/dev/urandom -Dsun.net.http.allowRestrictedHeaders=true -Djava.net.preferIPv4Stack=true -Djava.awt.headless=true -XX:+UseG1GC -Djava.protocol.handler.pkgs=sun.net.www.protocol -XX:MaxDirectMemorySize=536870912 -Dnifi.properties.file.path=/opt/nifi/nifi-current/conf/nifi.properties -Dnifi.bootstrap.listen.port=34869 -Dapp=NiFi -Dorg.apache.nifi.bootstrap.config.log.dir=/opt/nifi/nifi-current/logs org.apache.nifi.NiFi -K /opt/nifi/nifi-current/conf/sensitive.key 
+2026-04-08 01:06:59,626 INFO [main] org.apache.nifi.bootstrap.Command Launched Apache NiFi with Process ID 322

@@ -1,0 +1,407 @@
+Name:             mynifi-0
+Namespace:        cfm-streaming
+Priority:         0
+Service Account:  mynifi
+Node:             minikube/192.168.49.2
+Start Time:       Tue, 07 Apr 2026 21:04:58 -0400
+Labels:           app.kubernetes.io/component=nifi
+                  app.kubernetes.io/instance=mynifi
+                  app.kubernetes.io/managed-by=cfm-operator
+                  app.kubernetes.io/name=server
+                  app.kubernetes.io/part-of=nifi
+                  apps.kubernetes.io/pod-index=0
+                  controller-revision-hash=mynifi-797696449f
+                  statefulset.kubernetes.io/pod-name=mynifi-0
+Annotations:      dfx.cloudera.com/config-hash: 2661112101
+Status:           Running
+IP:               10.244.0.50
+IPs:
+  IP:           10.244.0.50
+Controlled By:  StatefulSet/mynifi
+Containers:
+  nifi:
+    Container ID:   docker://3cadda6841911c95e17db72095ee1d60d2cf2f69e1860b52328e2931ef599a17
+    Image:          container.repository.cloudera.com/cloudera/cfm-nifi-k8s:3.0.0-b126-nifi_1.28.1.2.3.17.0-9
+    Image ID:       docker-pullable://container.repository.cloudera.com/cloudera/cfm-nifi-k8s@sha256:2aeb0f303653d211855831a694ee133ab92af3d274fa7377ca5f2fba91ea7b46
+    Ports:          6007/TCP (cluster), 8443/TCP (https)
+    Host Ports:     0/TCP (cluster), 0/TCP (https)
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Tue, 07 Apr 2026 21:06:56 -0400
+      Finished:     Tue, 07 Apr 2026 21:07:00 -0400
+    Ready:          False
+    Restart Count:  4
+    Liveness:       tcp-socket :8443 delay=120s timeout=5s period=10s #success=1 #failure=3
+    Readiness:      exec [/bin/bash -c /opt/nifi/scripts/readiness-probe.sh] delay=30s timeout=5s period=10s #success=1 #failure=3
+    Environment:
+      SINGLE_USER:        <set to the key 'username' in secret 'nifi-admin-creds'>         Optional: false
+      SINGLE_PASS:        <set to the key 'password' in secret 'nifi-admin-creds'>         Optional: false
+      KEYSTORE_PASSWORD:  <set to the key 'password' in secret 'mynifi-keystorepassword'>  Optional: false
+    Mounts:
+      /home/nifi/cfmopusercert from mynifi-cfm-operator-user-cert-volume (rw)
+      /home/nifi/identities from identities-config (rw)
+      /home/nifi/sensitive_props from sensitive-props-key (rw)
+      /opt/nifi/nifi-current/conf-template/authorizers.xml from mynifi-authorizers-volume (rw,path="authorizers.xml")
+      /opt/nifi/nifi-current/conf-template/bootstrap.conf from mynifi-bootstrap-volume (rw,path="bootstrap.conf")
+      /opt/nifi/nifi-current/conf-template/logback.xml from mynifi-logback-volume (rw,path="logback.xml")
+      /opt/nifi/nifi-current/conf-template/login-identity-providers.xml from mynifi-login-identity-providers-volume (rw,path="login-identity-providers.xml")
+      /opt/nifi/nifi-current/conf-template/nifi-cli.properties from mynifi-nifi-cli-properties-volume (rw,path="nifi-cli.properties")
+      /opt/nifi/nifi-current/conf-template/nifi.properties from mynifi-nifi-properties-volume (rw,path="nifi.properties")
+      /opt/nifi/nifi-current/conf-template/state-management.xml from mynifi-state-management-volume (rw,path="state-management.xml")
+      /opt/nifi/nifi-current/content-repository from content-repository (rw)
+      /opt/nifi/nifi-current/data from data (rw)
+      /opt/nifi/nifi-current/flowfile-repository from flowfile-repository (rw)
+      /opt/nifi/nifi-current/heapdump from heapdump (rw)
+      /opt/nifi/nifi-current/logs from logs (rw)
+      /opt/nifi/nifi-current/nar-provider/custom-nars/ from nar-provider-custom-nars (rw)
+      /opt/nifi/nifi-current/provenance-repository from provenance-repository (rw)
+      /opt/nifi/nifi-current/state from state (rw)
+      /opt/nifi/scripts/certificate_setup.sh from mynifi-certificate-setup-script-volume (rw,path="certificate_setup.sh")
+      /opt/nifi/scripts/decommission.sh from mynifi-decommission-script-volume (rw,path="decommission.sh")
+      /opt/nifi/scripts/readiness-probe.sh from mynifi-readiness-probe-script-volume (rw,path="readiness-probe.sh")
+      /opt/nifi/scripts/security-provider-setup.sh from mynifi-security-provider-setup-script-volume (rw,path="security-provider-setup.sh")
+      /opt/nifi/scripts/start.sh from mynifi-start-script-volume (rw,path="start.sh")
+      /opt/nifi/scripts/stop.sh from mynifi-stop-script-volume (rw,path="stop.sh")
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+  app-log:
+    Container ID:  docker://8a3987773eab6e0f30e3c1fc4112554af890f7fa50aa8fa71dfe017a2b1283a5
+    Image:         container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126
+    Image ID:      docker-pullable://container.repository.cloudera.com/cloudera/cfm-tini@sha256:046d4986e338b49672e83bd552a8237111fa74bbd253e53264ae85f4da4ff747
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      /bin/bash
+      -c
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      
+      LOGFILE="/var/log/nifi-app.log"
+      
+      echo -n "Waiting for $LOGFILE to be ready... "
+      until [ -p "$LOGFILE" ]; do
+          sleep 1
+      done
+      echo "done."
+      
+      # Something about following the file name instead of the file descriptor breaks in v2 but not
+      # in v1. This command is intentionally different from v1.
+      tail -f --retry "$LOGFILE"
+      
+    State:          Running
+      Started:      Tue, 07 Apr 2026 21:04:59 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/heapdump from heapdump (rw)
+      /var/log from logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+  user-log:
+    Container ID:  docker://3ced60e37df3dc53cab4344e01645db4b1e57f3794167f6b6cd3cd3a1f47c724
+    Image:         container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126
+    Image ID:      docker-pullable://container.repository.cloudera.com/cloudera/cfm-tini@sha256:046d4986e338b49672e83bd552a8237111fa74bbd253e53264ae85f4da4ff747
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      /bin/bash
+      -c
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      
+      LOGFILE="/var/log/nifi-user.log"
+      
+      echo -n "Waiting for $LOGFILE to be ready... "
+      until [ -p "$LOGFILE" ]; do
+          sleep 1
+      done
+      echo "done."
+      
+      # Something about following the file name instead of the file descriptor breaks in v2 but not
+      # in v1. This command is intentionally different from v1.
+      tail -f --retry "$LOGFILE"
+      
+    State:          Running
+      Started:      Tue, 07 Apr 2026 21:04:59 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/log from logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+  bootstrap-log:
+    Container ID:  docker://9f22d486751af2e440015ad37ca140da2f632273d5036cdbca8a31fe54e6e303
+    Image:         container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126
+    Image ID:      docker-pullable://container.repository.cloudera.com/cloudera/cfm-tini@sha256:046d4986e338b49672e83bd552a8237111fa74bbd253e53264ae85f4da4ff747
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      /bin/bash
+      -c
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      
+      LOGFILE="/var/log/nifi-bootstrap.log"
+      
+      echo -n "Waiting for $LOGFILE to be ready... "
+      until [ -p "$LOGFILE" ]; do
+          sleep 1
+      done
+      echo "done."
+      
+      # Something about following the file name instead of the file descriptor breaks in v2 but not
+      # in v1. This command is intentionally different from v1.
+      tail -f --retry "$LOGFILE"
+      
+    State:          Running
+      Started:      Tue, 07 Apr 2026 21:04:59 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/log from logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+  gc-log:
+    Container ID:  docker://391f0c72b3e04932fccbb1114b6238feadae0fc2cdf654bbc2afe484ad451570
+    Image:         container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126
+    Image ID:      docker-pullable://container.repository.cloudera.com/cloudera/cfm-tini@sha256:046d4986e338b49672e83bd552a8237111fa74bbd253e53264ae85f4da4ff747
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      /bin/bash
+      -c
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      
+      LOGFILE="/var/log/nifi-gc.log"
+      
+      echo -n "Waiting for $LOGFILE to be ready... "
+      until [ -p "$LOGFILE" ]; do
+          sleep 1
+      done
+      echo "done."
+      
+      # Something about following the file name instead of the file descriptor breaks in v2 but not
+      # in v1. This command is intentionally different from v1.
+      tail -f --retry "$LOGFILE"
+      
+    State:          Running
+      Started:      Tue, 07 Apr 2026 21:04:59 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/log from logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+  request-log:
+    Container ID:  docker://e7aad24ac5382763962297b83f1684b58836893a531ce53f1e105c293da28d66
+    Image:         container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126
+    Image ID:      docker-pullable://container.repository.cloudera.com/cloudera/cfm-tini@sha256:046d4986e338b49672e83bd552a8237111fa74bbd253e53264ae85f4da4ff747
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      /bin/bash
+      -c
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      
+      LOGFILE="/var/log/nifi-request.log"
+      
+      echo -n "Waiting for $LOGFILE to be ready... "
+      until [ -p "$LOGFILE" ]; do
+          sleep 1
+      done
+      echo "done."
+      
+      # Something about following the file name instead of the file descriptor breaks in v2 but not
+      # in v1. This command is intentionally different from v1.
+      tail -f --retry "$LOGFILE"
+      
+    State:          Running
+      Started:      Tue, 07 Apr 2026 21:05:00 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/log from logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+  deprecation-log:
+    Container ID:  docker://eb91799a67dafecbbf917416b5a5dbc875d5c127058c474566d58533158f4a46
+    Image:         container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126
+    Image ID:      docker-pullable://container.repository.cloudera.com/cloudera/cfm-tini@sha256:046d4986e338b49672e83bd552a8237111fa74bbd253e53264ae85f4da4ff747
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      /bin/bash
+      -c
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      
+      LOGFILE="/var/log/nifi-deprecation.log"
+      
+      echo -n "Waiting for $LOGFILE to be ready... "
+      until [ -p "$LOGFILE" ]; do
+          sleep 1
+      done
+      echo "done."
+      
+      # Something about following the file name instead of the file descriptor breaks in v2 but not
+      # in v1. This command is intentionally different from v1.
+      tail -f --retry "$LOGFILE"
+      
+    State:          Running
+      Started:      Tue, 07 Apr 2026 21:05:00 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/log from logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-p5nfz (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  sensitive-props-key:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  mynifi-sensitive-props-key
+    Optional:    false
+  flowfile-repository:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  content-repository:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  provenance-repository:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  state:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  data:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  logs:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  heapdump:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  mynifi-authorizers-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-authorizers
+    Optional:  false
+  mynifi-bootstrap-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-bootstrap
+    Optional:  false
+  mynifi-logback-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-logback
+    Optional:  false
+  mynifi-login-identity-providers-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-login-identity-providers
+    Optional:  false
+  mynifi-nifi-properties-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-nifi-properties
+    Optional:  false
+  mynifi-state-management-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-state-management
+    Optional:  false
+  mynifi-nifi-cli-properties-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-nifi-cli-properties
+    Optional:  false
+  mynifi-start-script-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-start-script
+    Optional:  false
+  mynifi-stop-script-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-stop-script
+    Optional:  false
+  mynifi-certificate-setup-script-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-certificate-setup-script
+    Optional:  false
+  mynifi-decommission-script-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-decommission-script
+    Optional:  false
+  mynifi-readiness-probe-script-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-readiness-probe-script
+    Optional:  false
+  mynifi-security-provider-setup-script-volume:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-security-provider-setup-script
+    Optional:  false
+  mynifi-cfm-operator-user-cert-volume:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  mynifi-cfm-operator-user-cert
+    Optional:    false
+  identities-config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mynifi-identities-config
+    Optional:  false
+  nar-provider-custom-nars:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  custom-nars
+    ReadOnly:   false
+  kube-api-access-p5nfz:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                    From               Message
+  ----     ------     ----                   ----               -------
+  Normal   Scheduled  2m33s                  default-scheduler  Successfully assigned cfm-streaming/mynifi-0 to minikube
+  Normal   Pulled     2m32s                  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126" already present on machine and can be accessed by the pod
+  Normal   Started    2m32s                  kubelet            Container started
+  Normal   Pulled     2m32s                  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126" already present on machine and can be accessed by the pod
+  Normal   Pulled     2m32s                  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126" already present on machine and can be accessed by the pod
+  Normal   Created    2m32s                  kubelet            Container created
+  Normal   Started    2m32s                  kubelet            Container started
+  Normal   Pulled     2m32s                  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126" already present on machine and can be accessed by the pod
+  Normal   Created    2m32s                  kubelet            Container created
+  Normal   Started    2m32s                  kubelet            Container started
+  Normal   Pulled     2m32s                  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126" already present on machine and can be accessed by the pod
+  Normal   Started    2m32s                  kubelet            Container started
+  Normal   Created    2m32s                  kubelet            Container created
+  Normal   Created    2m32s                  kubelet            Container created
+  Normal   Created    2m31s                  kubelet            Container created
+  Normal   Started    2m31s                  kubelet            Container started
+  Normal   Pulled     2m31s                  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-tini:3.0.0-b126" already present on machine and can be accessed by the pod
+  Normal   Created    2m31s                  kubelet            Container created
+  Normal   Started    2m31s                  kubelet            Container started
+  Normal   Created    2m27s (x2 over 2m32s)  kubelet            Container created
+  Normal   Started    2m27s (x2 over 2m32s)  kubelet            Container started
+  Normal   Pulled     2m11s (x3 over 2m32s)  kubelet            Container image "container.repository.cloudera.com/cloudera/cfm-nifi-k8s:3.0.0-b126-nifi_1.28.1.2.3.17.0-9" already present on machine and can be accessed by the pod
+  Warning  BackOff    22s (x8 over 2m22s)    kubelet            Back-off restarting failed container nifi in pod mynifi-0_cfm-streaming(556b44b0-4aa0-4c09-a4aa-8c8dccfd36bc)
