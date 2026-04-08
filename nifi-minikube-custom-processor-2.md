@@ -167,8 +167,10 @@ This plan now **exactly matches** the CFM 3.0.0 official NAR provider docs **and
 
 ## DEBUG
 
+```bash
  1570  kubectl describe pod mynifi-0 -n cfm-streaming > debug_nifi_pod.txt
  1572  kubectl logs mynifi-0 -n cfm-streaming -c nifi --previous > nifi_crash_logs.txt
  1574  kubectl get pvc custom-nars -n cfm-streaming -o yaml > debug_pvc.txt
  1575  kubectl describe pvc custom-nars -n cfm-streaming >> debug_pvc.txt
  1578  kubectl get sc standard -o yaml > debug_storage_class.txt
+ ```
