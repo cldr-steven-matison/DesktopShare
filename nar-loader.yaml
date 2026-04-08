@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: custom-nars
+  namespace: cfm-streaming
+spec:
+  storageClassName: "standard"   # Changed from nfs
+  accessModes:
+    - ReadWriteOnce              # Changed from ReadWriteMany
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nar-loader
+  namespace: cfm-streaming
+spec:
+  containers:
+  - name: ubuntu
+    command:
+    - /bin/bash
+    image: ubuntu:latest
+    stdin: true
+    tty: true
+    volumeMounts:
+    - name: custom-nars-vol
+      mountPath: /home/ubuntu/nars
+  volumes:
+    - name: custom-nars-vol
+      persistentVolumeClaim:
+        claimName: custom-nars

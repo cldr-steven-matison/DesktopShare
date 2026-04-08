@@ -118,7 +118,7 @@ kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 
 ### Step 3: Update Your NiFi Custom Resource (mynifi) with NAR Provider (Minor Update)
 
-Edit your `nifi-eval.yaml` (or the file that defines the `Nifi` CR) and add/replace the `narProvider` section under `spec:`:
+Edit your `nifi-cluster-30-nifi2x-pvc.yaml` (or the file that defines the `Nifi` CR) and add/replace the `narProvider` section under `spec:`:
 
 ```yaml
 spec:
@@ -131,7 +131,7 @@ spec:
 
 Apply the updated CR:
 ```bash
-kubectl apply -f nifi-eval.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-pvc.yaml -n cfm-streaming
 ```
 
 The CFM Operator will reconcile, mount the volume into all NiFi pods, and load the custom NAR.
