@@ -48,7 +48,22 @@ helm registry login container.repository.cloudera.com
 # --- Cloudera & Streaming Stack Installation (Helm) ---
 helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.16.3 --set installCRDs=true
 helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99
-helm install cfm-operator oci://container.repository.cloudera.com/cloudera-helm/cfm-operator/cfm-operator --namespace cfm-streaming --version 3.0.0-b126 --set installCRDs=true --set image.repository=container.repository.cloudera.com/cloudera/cfm-operator --set image.tag=3.0.0-b126 --set "image.imagePullSecrets[0].name=cloudera-creds" --set "imagePullSecrets={cloudera-creds}" --set licenseSecret=cfm-operator-license
+
+
+helm install cfm-operator oci://container.repository.cloudera.com/cloudera-helm/cfm-operator/cfm-operator \
+  --namespace cfm-streaming \
+  --version 2.11.0-b57 \
+  --set installCRDs=true \
+  --set image.repository=container.repository.cloudera.com/cloudera/cfm-operator \
+  --set image.tag=2.11.0-b57 \
+  --set "image.imagePullSecrets[0].name=cloudera-creds" \
+  --set "imagePullSecrets={cloudera-creds}" \
+  --set "authProxy.image.repository=container.repository.cloudera.com/cloudera_thirdparty/hardened/kube-rbac-proxy" \
+  --set "authProxy.image.tag=0.19.0-r3-202503182126" \
+  --set licenseSecret=cfm-operator-license \
+  --set-file clouderaLicense.fileContent=./license.txt
+
+
 helm install schema-registry --namespace cld-streaming --version 1.6.0-b99 --values sr-values.yaml --set "image.imagePullSecrets[0].name=cloudera-creds" oci://container.repository.cloudera.com/cloudera-helm/csm-operator/schema-registry
 helm install cloudera-surveyor oci://container.repository.cloudera.com/cloudera-helm/csm-operator/surveyor --namespace cld-streaming --version 1.6.0-b99 --values kafka-surveyor.yaml --set image.imagePullSecrets=cloudera-creds --set-file clouderaLicense.fileContent=./license.txt
 
