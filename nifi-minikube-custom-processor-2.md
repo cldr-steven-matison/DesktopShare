@@ -65,9 +65,9 @@ metadata:
   name: custom-nars
   namespace: cfm-streaming
 spec:
-  storageClassName: "nfs"
+  storageClassName: "standard"   # Changed from nfs
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce              # Changed from ReadWriteMany
   resources:
     requests:
       storage: 100Mi
