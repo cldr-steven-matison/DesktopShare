@@ -41,7 +41,7 @@ Everything else (your Python `TransactionGenerator` logic, minimal NAR packaging
 4. Package it:
    ```bash
    cd ~/nifi-custom-processors/TransactionGenerator
-   jar -cf ../custom-transaction-generator.nar META-INF python
+   jar -cfm ../custom-transaction-generator.nar META-INF/MANIFEST.MF python META-INF
    ```
 
 5. Verify:
@@ -150,11 +150,11 @@ The CFM Operator will reconcile, mount the volume into all NiFi pods, and load t
 
 - Check NiFi pod logs for NAR loading:
   ```bash
-  kubectl logs <nifi-pod-name> -n cfm-streaming | grep -iE 'nar|python|TransactionGenerator'
+  kubectl logs mynifi-0 -n cfm-streaming | grep -iE 'nar|python|TransactionGenerator'
   ```
 - Confirm the volume is mounted and the NAR is present:
   ```bash
-  kubectl exec -it <nifi-pod-name> -n cfm-streaming -- ls /opt/nifi/nifi-current/extensions/custom-nars/
+  kubectl exec -it mynifi-0 -n cfm-streaming -- ls /opt/nifi/nifi-current/extensions/custom-nars/
   ```
 - If the processor does not appear:
   - Verify the NAR file is inside the PVC (`kubectl exec` into `nar-loader`).
@@ -168,9 +168,14 @@ This plan now **exactly matches** the CFM 3.0.0 official NAR provider docs **and
 ## DEBUG
 
 ```bash
- 1570  kubectl describe pod mynifi-0 -n cfm-streaming > debug_nifi_pod.txt
- 1572  kubectl logs mynifi-0 -n cfm-streaming -c nifi --previous > nifi_crash_logs.txt
- 1574  kubectl get pvc custom-nars -n cfm-streaming -o yaml > debug_pvc.txt
- 1575  kubectl describe pvc custom-nars -n cfm-streaming >> debug_pvc.txt
- 1578  kubectl get sc standard -o yaml > debug_storage_class.txt
+kubectl describe pod mynifi-0 -n cfm-streaming > debug_nifi_pod.txt
+kubectl logs mynifi-0 -n cfm-streaming -c nifi --previous > nifi_crash_logs.txt
+kubectl get pvc custom-nars -n cfm-streaming -o yaml > debug_pvc.txt
+kubectl describe pvc custom-nars -n cfm-streaming >> debug_pvc.txt
+kubectl get sc standard -o yaml > debug_storage_class.txt
+
+kubectl logs mynifi-0 -c app-log -n cfm-streaming
+kubectl exec mynifi-0 -c nifi -n cfm-streaming -- grep "nifi.python" /opt/nifi/nifi-current/conf/nifi.properties
+kubectl exec -it mynifi-0 -c nifi -n cfm-streaming -- find /opt/nifi/nifi-current/work -name "TransactionGenerator.py"
+
  ```
