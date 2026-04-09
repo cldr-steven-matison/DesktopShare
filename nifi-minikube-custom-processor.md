@@ -208,7 +208,7 @@ When you are done, lets clean up this nifi cluster:
 kubectl delete -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
 ```
 
-We are now going to work on the NAR example.  
+We are now going to work on the Java / NAR example of a custom NiFi processor.  
 
 4. Create a Custom Processor Example (HelloWorld-style)
 Run this Maven command (requires Java 21+ and Maven installed locally):
@@ -238,6 +238,7 @@ mvn clean install -Denforcer.skip=true
 ```
 
 The NAR file will be at:  
+
 `my-custom-nifi-bundle/nifi-mycustom-nar/target/nifi-mycustom-nar-1.0.0-SNAPSHOT.nar`
 
 
@@ -307,7 +308,7 @@ Verify the file is in the volume:
 kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 ```
 
-### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider
+### Step 3: Create and Apply Your NiFi CR with NarProvider
 
 Create `nifi-cluster-30-nifi2x-nar.yaml` as follows:
 
@@ -371,15 +372,11 @@ The CFM Operator will reconcile, mount the volume into all NiFi pods, and load t
 
 ### Step 4: Verify the Custom Processor Is Loaded
 
-- Watch pods: `kubectl get pods -n cfm-streaming -w`
-- Port-forward the UI:
-  ```bash
-  kubectl port-forward svc/mynifi 8443:8443 -n cfm-streaming
-  ```
-- Open https://localhost:8443/nifi
-- In the processor palette, search for **MyProcessor** — it should appear.
+ Open the NiFi UI.  In the processor palette, search for **MyProcessor** — it should appear.
 
-### Step 5: Troubleshooting (Updated)
+![MyProcessor](/assets/images/MyProcessor.png)
+
+### Step 5: Troubleshooting
 
 - Check NiFi pod logs for NAR loading:
   ```bash
@@ -411,13 +408,11 @@ kubectl exec -it mynifi-0 -c nifi -n cfm-streaming -- find /opt/nifi/nifi-curren
 
 kubectl exec -n cfm-streaming mynifi-0 -- ls -la /opt/nifi/nifi-current/python/extensions
 
-
 minikube mount /Users/steven.matison/nifi-custom-processors/TransactionGenerator/python/processors:/extensions --uid 10001 --gid 10001
 
 kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/kafka-console-consumer.sh \\n  --bootstrap-server localhost:9092 \\n  --topic model_data_fraud \\n  --from-beginning \\n  --max-messages 1000
 
 kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/kafka-console-consumer.sh \\n  --bootstrap-server localhost:9092 \\n  --topic model_data_good \\n  --from-beginning \\n  --max-messages 10000
-
 
 kubectl apply -f nifi-combined.yaml -n cfm-streaming
 kubectl delete -f nifi-combined.yaml -n cfm-streaming
@@ -427,7 +422,5 @@ kubectl apply -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
 
 kubectl delete -f nifi-cluster-30-nifi2x-nar.yaml -n cfm-streaming
 kubectl apply -f nifi-cluster-30-nifi2x-nar.yaml -n cfm-streaming
-
-
 
  ```
