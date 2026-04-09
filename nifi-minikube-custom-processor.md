@@ -130,9 +130,9 @@ In another terminal execute this command
 minikube mount ~/nifi-custom-processors:/extensions --uid 10001 --gid 10001
 ```
 
-Run our statefulset nifi yaml:
+Run our python nifi yaml:
 ```bash
-kubectl apply -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
 ```
 
 Open the Nifi UI and you should notice new processor TransactionGenerator.  Notice its **Version: 0.0.6-SNAPSHOT**
@@ -144,7 +144,7 @@ Top Tip:  Be patient after saving new changes to the filename.  Refresh NiFi UI 
 When you are done, lets clean up this nifi cluster:
 
 ```bash
-kubectl delete -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+kubectl delete -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
 ```
 
 We are now going to work on the NAR example.  
@@ -248,7 +248,7 @@ kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 
 ### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider
 
-Create `nifi-cluster-30-nifi2x-pvc.yaml` as follows:
+Create `nifi-cluster-30-nifi2x-nar.yaml` as follows:
 
 ```yaml
 apiVersion: cfm.cloudera.com/v1alpha1
@@ -303,7 +303,7 @@ spec:
 
 Apply the updated CR:
 ```bash
-kubectl apply -f nifi-cluster-30-nifi2x-pvc.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-nar.yaml -n cfm-streaming
 ```
 
 The CFM Operator will reconcile, mount the volume into all NiFi pods, and load the custom NAR.
@@ -358,9 +358,15 @@ kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/k
 kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/kafka-console-consumer.sh \\n  --bootstrap-server localhost:9092 \\n  --topic model_data_good \\n  --from-beginning \\n  --max-messages 10000
 
 
-kubectl delete -f nifi-combined.yaml -n cfm-streaming
-kubectl delete -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
-kubectl apply -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
 kubectl apply -f nifi-combined.yaml -n cfm-streaming
+kubectl delete -f nifi-combined.yaml -n cfm-streaming
+
+kubectl delete -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
+
+kubectl delete -f nifi-cluster-30-nifi2x-nar.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-nar.yaml -n cfm-streaming
+
+
 
  ```
