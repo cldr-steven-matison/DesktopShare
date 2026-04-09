@@ -252,10 +252,57 @@ kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 
 ### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider (Minor Update)
 
-Create `nifi-cluster-30-nifi2x-statefulset.yaml` as follows:
+Create `nifi-cluster-30-nifi2x-pvc.yaml` as follows:
 
 ```yaml
-
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: Nifi
+metadata:
+  name: mynifi
+  namespace: cfm-streaming
+spec:
+  replicas: 1
+  nifiVersion: "2.6.0"
+  image:
+    repository: container.repository.cloudera.com/cloudera/cfm-nifi-k8s
+    tag: 3.0.0-b126-nifi_2.6.0.4.3.4.0-234
+    pullSecret: cloudera-creds
+  tiniImage:
+    repository: container.repository.cloudera.com/cloudera/cfm-tini
+    tag: 3.0.0-b126
+    pullSecret: cloudera-creds
+  hostName: mynifi-web.mynifi.cfm-streaming.svc.cluster.local
+  uiConnection:
+    type: Ingress
+    ingressConfig:
+      hostname: ""
+    annotations:
+      nginx.ingress.kubernetes.io/affinity: cookie
+      nginx.ingress.kubernetes.io/affinity-mode: persistent
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  security:
+    initialAdminIdentity: "admin"
+    nodeCertGen:
+      issuerRef:
+        name: cfm-operator-ca-issuer-signed
+        kind: ClusterIssuer
+    singleUserAuth:
+      enabled: true
+      credentialsSecretName: "nifi-admin-creds"
+  configOverride:
+    nifiProperties:
+      upsert:
+        nifi.cluster.leader.election.implementation: "KubernetesLeaderElectionManager"
+  stateManagement:
+    clusterProvider:
+      id: kubernetes-provider
+      class: org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider
+  narProvider:
+    volumes:
+      - volumeClaimName: custom-nars
+  
 ```
 
 Apply the updated CR:
