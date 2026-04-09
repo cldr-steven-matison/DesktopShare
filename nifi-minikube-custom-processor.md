@@ -141,8 +141,15 @@ You can now repeat this process iterating your Version to ensure the python work
 
 Top Tip:  Be patient after saving new changes to the filename.  Refresh NiFi UI if needed and ensure you see your newest Version.
 
+When you are done, lets clean up this nifi cluster:
 
-4. Build the minimal NAR structure exactly as before:
+```bash
+kubectl delete -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+```
+
+We are now going to work on the NAR example.  
+
+4. Build the minimal NAR structure exactly as follows:
    ```
    TransactionGenerator/
    ├── META-INF/
@@ -243,7 +250,7 @@ kubectl cp ~/nifi-custom-processors/custom-transaction-generator.nar nar-loader:
 kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 ```
 
-### Step 3: Update Your NiFi Custom Resource (mynifi) with NAR Provider (Minor Update)
+### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider (Minor Update)
 
 Create `nifi-cluster-30-nifi2x-statefulset.yaml` as follows:
 
@@ -253,7 +260,7 @@ Create `nifi-cluster-30-nifi2x-statefulset.yaml` as follows:
 
 Apply the updated CR:
 ```bash
-kubectl apply -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-pvc.yaml -n cfm-streaming
 ```
 
 The CFM Operator will reconcile, mount the volume into all NiFi pods, and load the custom NAR.
