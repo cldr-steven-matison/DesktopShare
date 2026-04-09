@@ -161,14 +161,13 @@ We are now going to work on the NAR example.
 
    `META-INF/MANIFEST.MF` content:
    ```
-   Manifest-Version: 1.0
-   Archiver-Version: Plexus Archiver
-   Created-By: Apache Maven
-   Build-Jdk: 
-   Extension-Name: TransactionGenerator
-   Implementation-Title: TransactionGenerator
-   Implementation-Version: 0.0.1-SNAPSHOT
-   Implementation-Vendor: Your Name
+Manifest-Version: 1.0
+Nar-Id: transaction-generator-nar
+Nar-Group: com.cloudera.nifi
+Nar-Version: 0.0.1-SNAPSHOT
+Extension-Name: TransactionGenerator
+Implementation-Title: TransactionGenerator
+Implementation-Version: 0.0.1-SNAPSHOT
    ```
 
 5. Package it:
