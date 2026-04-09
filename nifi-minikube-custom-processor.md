@@ -6,8 +6,8 @@
 
 1. Create the directory on your MacBook:
    ```bash
-   mkdir -p ~/nifi-custom-processors/TransactionGenerator
-   cd ~/nifi-custom-processors/TransactionGenerator
+   mkdir -p ~/nifi-custom-processors/
+   cd ~/nifi-custom-processors/
    ```
 
 2. Create `TransactionGenerator.py` as follows:
@@ -246,7 +246,6 @@ Verify the file is in the volume:
 kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 ```
 
-
 ### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider
 
 Create `nifi-cluster-30-nifi2x-pvc.yaml` as follows:
@@ -317,7 +316,7 @@ The CFM Operator will reconcile, mount the volume into all NiFi pods, and load t
   kubectl port-forward svc/mynifi 8443:8443 -n cfm-streaming
   ```
 - Open https://localhost:8443/nifi
-- In the processor palette, search for **TransactionGenerator** — it should appear.
+- In the processor palette, search for **MyProcessor** — it should appear.
 
 ### Step 5: Troubleshooting (Updated)
 
@@ -334,8 +333,6 @@ The CFM Operator will reconcile, mount the volume into all NiFi pods, and load t
   - Check that the PVC is Bound and the pod is Running.
   - Make sure the NAR structure inside the file is correct (`python/processors/TransactionGenerator.py`).
 - You can delete/recreate the `nar-loader` pod anytime if you need to add more NARs later.
-
-
 
 
 ## Terminal Commands
@@ -361,8 +358,9 @@ kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/k
 kubectl exec -it my-cluster-combined-0 -n cld-streaming -- \\n  /opt/kafka/bin/kafka-console-consumer.sh \\n  --bootstrap-server localhost:9092 \\n  --topic model_data_good \\n  --from-beginning \\n  --max-messages 10000
 
 
-kubectl apply -f nifi-combined.yaml -n cfm-streaming
+kubectl delete -f nifi-combined.yaml -n cfm-streaming
 kubectl delete -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
 kubectl apply -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+kubectl apply -f nifi-combined.yaml -n cfm-streaming
 
  ```
