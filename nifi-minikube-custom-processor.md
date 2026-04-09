@@ -2,7 +2,7 @@
 
 [ new summary ]
 
-### Step 1: Create the TransactionGenerator Python Processor (Unchanged)
+### Step 1: Create the TransactionGenerator Python Processor
 
 1. Create the directory on your MacBook:
    ```bash
@@ -122,7 +122,27 @@ class TransactionGenerator(FlowFileSource):
         return FlowFileSourceResult(relationship = 'success', attributes = {'NiFi': 'PythonProcessor'}, contents = fintransaction)
 ```
 
-3. Build the minimal NAR structure exactly as before:
+3. Inject TransactionGenerator.py as extension for Testing
+
+In another terminal execute this command
+
+```bash
+minikube mount ~/nifi-custom-processors/TransactionGenerator/python/processors:/extensions --uid 10001 --gid 10001
+```
+
+Run our statefulset nifi yaml:
+```bash
+kubectl apply -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
+```
+
+Open the Nifi UI and you should notice new processor TransactionGenerator.  Notice its **Version: 0.0.6-SNAPSHOT**
+
+You can now repeat this process iterating your Version to ensure the python works as expected in NiFi. 
+
+Top Tip:  Be patient after saving new changes to the filename.  Refresh NiFi UI if needed and ensure you see your newest Version.
+
+
+4. Build the minimal NAR structure exactly as before:
    ```
    TransactionGenerator/
    ├── META-INF/
@@ -144,17 +164,18 @@ class TransactionGenerator(FlowFileSource):
    Implementation-Vendor: Your Name
    ```
 
-4. Package it:
+5. Package it:
    ```bash
    cd ~/nifi-custom-processors/TransactionGenerator
    jar -cfm ../custom-transaction-generator.nar META-INF/MANIFEST.MF python META-INF
    ```
 
-5. Verify:
+6. Verify:
    ```bash
    unzip -l ~/nifi-custom-processors/custom-transaction-generator.nar
    ```
    You should see `python/processors/TransactionGenerator.py` inside.
+
 
 ### Step 2: Set Up NFS NAR Provider Volume 
 
