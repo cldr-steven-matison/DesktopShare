@@ -1,4 +1,4 @@
-**Deploy Your Custom Processor in Cloudera Streaming Operators on Minikube (CFM 3.0.0 NAR Providers + Python.py Examples)**
+**Deploy Custom NiFi Processors in Cloudera Streaming Operators (Python + Java Examples)**
 
 [ new summary ]
 
@@ -127,7 +127,7 @@ class TransactionGenerator(FlowFileSource):
 In another terminal execute this command
 
 ```bash
-minikube mount ~/nifi-custom-processors/TransactionGenerator/python/processors:/extensions --uid 10001 --gid 10001
+minikube mount ~/nifi-custom-processors:/extensions --uid 10001 --gid 10001
 ```
 
 Run our statefulset nifi yaml:
@@ -149,38 +149,35 @@ kubectl delete -f nifi-cluster-30-nifi2x-statefulset.yaml -n cfm-streaming
 
 We are now going to work on the NAR example.  
 
-4. Build the minimal NAR structure exactly as follows:
-   ```
-   TransactionGenerator/
-   ├── META-INF/
-   │   └── MANIFEST.MF
-   └── python/
-       └── processors/
-           └── TransactionGenerator.py
-   ```
+4. Create a Custom Processor Example (HelloWorld-style)
+Run this Maven command (requires Java 21+ and Maven installed locally):
 
-   `META-INF/MANIFEST.MF` content:
-   
 ```bash
-Manifest-Version: 1.0
-Nar-Id: transaction-generator-nar
-Nar-Group: com.cloudera.nifi
-Nar-Version: 0.0.1-SNAPSHOT
-Extension-Name: TransactionGenerator
-Implementation-Title: TransactionGenerator
-Implementation-Version: 0.0.1-SNAPSHOT
+mvn archetype:generate \
+  -DarchetypeGroupId=org.apache.nifi \
+  -DarchetypeArtifactId=nifi-processor-bundle-archetype \
+  -DarchetypeVersion=2.4.0 \
+  -DnifiVersion=2.4.0 \
+  -DgroupId=com.example \
+  -DartifactId=my-custom-nifi-bundle \
+  -Dversion=1.0.0-SNAPSHOT \
+  -DartifactBaseName=mycustom \
+  -DinteractiveMode=false
 ```
-5. Package it:
-   ```bash
-   cd ~/nifi-custom-processors/TransactionGenerator
-   jar -cfm ../custom-transaction-generator.nar META-INF/MANIFEST.MF python META-INF
-   ```
 
-6. Verify:
-   ```bash
-   unzip -l ~/nifi-custom-processors/custom-transaction-generator.nar
-   ```
-   You should see `python/processors/TransactionGenerator.py` inside.
+This generates a complete bundle project with:
+- A sample processor (`MyProcessor.java` in `nifi-my-custom-nifi-bundle-processors/src/main/java/...`)
+- The NAR packaging structure (ready for NiFi 2.4.0)
+
+Navigate into the generated folder and build it:
+
+```bash
+cd my-custom-nifi-bundle
+mvn clean install -Denforcer.skip=true
+```
+
+The NAR file will be at:  
+`my-custom-nifi-bundle/nifi-mycustom-nar/target/nifi-mycustom-nar-1.0.0-SNAPSHOT.nar`
 
 
 ### Step 2: Set Up NFS NAR Provider Volume 
@@ -239,17 +236,18 @@ kubectl get pod nar-loader -n cfm-streaming
 ```
 Both should show `Bound` / `Running`.
 
-Copy the NAR into the NFS volume:
+Copy the NAR into the nar-loader:
 ```bash
-kubectl cp ~/nifi-custom-processors/custom-transaction-generator.nar nar-loader:/home/ubuntu/nars/ -n cfm-streaming
+kubectl cp my-custom-nifi-bundle/nifi-mycustom-nar/target/nifi-mycustom-nar-1.0.0-SNAPSHOT.nar nar-loader:/home/ubuntu/nars/ -n cfm-streamin
 ```
 
-(Optional) Verify the file is in the volume:
+Verify the file is in the volume:
 ```bash
 kubectl exec -it nar-loader -n cfm-streaming -- ls /home/ubuntu/nars/
 ```
 
-### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider (Minor Update)
+
+### Step 3: Create and Apply Your NiFi Custom Resource (mynifi) with NAR Provider
 
 Create `nifi-cluster-30-nifi2x-pvc.yaml` as follows:
 
@@ -311,7 +309,7 @@ kubectl apply -f nifi-cluster-30-nifi2x-pvc.yaml -n cfm-streaming
 
 The CFM Operator will reconcile, mount the volume into all NiFi pods, and load the custom NAR.
 
-### Step 4: Verify the Custom Processor Is Loaded (Unchanged)
+### Step 4: Verify the Custom Processor Is Loaded
 
 - Watch pods: `kubectl get pods -n cfm-streaming -w`
 - Port-forward the UI:
