@@ -5,103 +5,66 @@ This Dockerfile takes the Cloudera Flink base (which is Ubuntu-based), layers on
 ### Recommended Dockerfile (multi-stage style for smaller final size)
 
 ```dockerfile
-# ────────────────────────────────────────────────────────────────
-# Stage 1: Builder (install heavy things, then copy only what's needed)
-# ────────────────────────────────────────────────────────────────
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS builder
-
-# Install basic dependencies + python3.10 (common in recent Cloudera/Ubuntu images)
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-        python3.10 \
-        python3.10-dev \
-        python3-pip \
-        python3-wheel \
-        wget \
-        git \
-        build-essential && \
-    rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip and install PyTorch 2.4+ (CUDA 12.4 wheel – adjust version if needed)
-# You can also use torch 2.5 / 2.6 if available by March 2026
-RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-
-# Optional: install ONNX Runtime + TensorRT if you prefer inference route
-# RUN pip3 install --no-cache-dir onnxruntime-gpu tensorrt
-
-# ────────────────────────────────────────────────────────────────
-# Final stage: start from Cloudera Flink base
-# ────────────────────────────────────────────────────────────────
 FROM container.repository.cloudera.com/cloudera/flink:1.20.1-csaop1.5.0-b275
 
-# Copy CUDA runtime + cuDNN libraries from builder
-COPY --from=builder /usr/local/cuda/ /usr/local/cuda/
-COPY --from=builder /usr/lib/x86_64-linux-gnu/libcudnn* /usr/lib/x86_64-linux-gnu/
-COPY --from=builder /usr/local/cuda/lib64/libcudnn* /usr/local/cuda/lib64/
+USER root
 
-# Copy Python + PyTorch from builder
-COPY --from=builder /usr/bin/python3* /usr/bin/
-COPY --from=builder /usr/lib/python3.10 /usr/lib/python3.10
-COPY --from=builder /usr/local/lib/python3.10 /usr/local/lib/python3.10
+# 1. HEAVY LAYER: This 5GB+ layer is now at the top.
+# It will be cached and never re-downloaded unless you change this line.
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
-# Symlink python3 → python (common convention)
-RUN ln -s /usr/bin/python3 /usr/bin/python
+# 2. SYSTEM LAYER: Fast microdnf installs
+RUN microdnf update -y && \
+    microdnf install -y wget mesa-libGL glib2 libXrender libXext shadow-utils && \
+    microdnf clean all
 
-# Install minimal runtime dependencies (if not already in base image)
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends \
-        libgl1 \
-        libglib2.0-0 \
-        libsm6 \
-        libxrender1 \
-        libxext6 && \
-    rm -rf /var/lib/apt/lists/*
+# 3. RUNTIME LAYER: NVIDIA-specific wheels
+RUN pip install --no-cache-dir \
+    nvidia-cuda-runtime-cu12 \
+    nvidia-cudnn-cu12 \
+    nvidia-cublas-cu12
 
-# Re-install PyTorch dependencies that might have been missed in copy
-# (this step is fast because wheels are cached)
-RUN pip3 install --no-cache-dir numpy pillow
+# 4. CONFIG & PATHS: The "Secret Sauce" that got us the 'True' status
+RUN mkdir -p /opt/flink/conf && touch /opt/flink/conf/flink-conf.yaml && \
+    export SITE_PACKAGES=$(python3 -c "import site; print(site.getsitepackages()[0])") && \
+    echo "$SITE_PACKAGES/nvidia/cuda_runtime/lib" > /etc/ld.so.conf.d/nvidia-pip.conf && \
+    echo "$SITE_PACKAGES/nvidia/cudnn/lib" >> /etc/ld.so.conf.d/nvidia-pip.conf && \
+    ldconfig
 
-# Optional: if using PyFlink Table API with Python UDFs for image models
-# COPY your-requirements.txt /tmp/
-# RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
-
-# Set environment so PyTorch / CUDA can find libraries
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}
-ENV PATH=/usr/local/cuda/bin:${PATH}
+# Ensure these match the site-packages path from the v4 success
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:${LD_LIBRARY_PATH}
 ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# (Optional) Verify at build time – uncomment to debug
-# RUN python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.version.cuda)"
+USER flink
+ENTRYPOINT ["python3", "-c", "import torch; print('CUDA Available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"]
 ```
 
 ### Build & Push Instructions (for Minikube)
 
-1. **Save the file** → `Dockerfile.gpu-flink`
+1. **Save the file** → `Dockerfile.5`
 
 2. **Build** (use cache aggressively)
 
    ```bash
-   docker buildx build \
-     --platform linux/amd64 \
-     -t localhost:5000/custom-flink-gpu:1.20.1-cuda12.4-pytorch \
-     -f Dockerfile.gpu-flink \
-     --build-arg BUILDKIT_INLINE_CACHE=1 \
-     .
+   docker build -t localhost:5000/custom-flink-gpu:v5 -f Dockerfile.5 .
    ```
-
-   (Use `buildx` if you want multi-platform later; otherwise plain `docker build` is fine.)
 
 3. **Run local registry** (Minikube needs this or image load)
 
    ```bash
-   docker run -d -p 5000:5000 --restart=always --name registry registry:2
+    docker run --rm --gpus all localhost:5000/custom-flink-gpu:v5
    ```
+Notice the following output:
+
+CUDA Available: True
+Device: NVIDIA GeForce RTX 4060
+
 
 4. **Push** to local registry
 
    ```bash
-   docker push localhost:5000/custom-flink-gpu:1.20.1-cuda12.4-pytorch
+   docker push localhost:5000/custom-flink-gpu:v5
    ```
 
 5. **Make Minikube see the local registry**
@@ -111,7 +74,7 @@ ENV NVIDIA_VISIBLE_DEVICES=all
    - **Option A** (easiest for testing)
 
      ```bash
-     minikube image load localhost:5000/custom-flink-gpu:1.20.1-cuda12.4-pytorch
+     minikube image load localhost:5000/custom-flink-gpu:v5
      ```
 
    - **Option B** (better for repeated use)
@@ -121,31 +84,94 @@ ENV NVIDIA_VISIBLE_DEVICES=all
      ```bash
      eval $(minikube docker-env)
      # then build directly into minikube's docker (no push/load needed)
-     docker build -t custom-flink-gpu:1.20.1-cuda12.4-pytorch .
+     docker build -t custom-flink-gpu:v5 .
      ```
 
 ### Final Kubernetes / Flink Deployment Notes
 
-In your FlinkApplication / FlinkDeployment CR (CSA Operator or Flink Kubernetes Operator):
+FlinkApplication / FlinkDeployment CR (CSA Operator or Flink Kubernetes Operator):
+
+Create your-flink-deployment.yaml:
 
 ```yaml
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: gpu-flink-job
 spec:
-  image: custom-flink-gpu:1.20.1-cuda12.4-pytorch          # or localhost:5000/... if using registry
+  # This must be at the root of spec
+  serviceAccount: flink-operator-sa
+  image: localhost:5000/custom-flink-gpu:v5
+  flinkVersion: v1_20
+  imagePullPolicy: IfNotPresent
   flinkConfiguration:
-    taskmanager.numberOfTaskSlots: "2"                     # adjust
-    external-resources.gpu.amount: "1"                     # per TM
-    external-resources.gpu.driver-factory.class: "org.apache.flink.externalresource.gpu.GPUDriverFactory"
-    # If using NVIDIA k8s device plugin (recommended):
-    # taskmanager.resources: nvidia.com/gpu: 1
+    taskmanager.numberOfTaskSlots: "1"
+    # Essential for stable K8s scheduling
+    kubernetes.operator.periodic.savepoint.interval: "6h"
+  jobManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+  taskManager:
+    resource:
+      memory: "4096m"
+      cpu: 1
+    # Resource limits for GPU must be in the podTemplate for the operator to pass them
+    podTemplate:
+      spec:
+        containers:
+          - name: flink-main-container
+            resources:
+              limits:
+                nvidia.com/gpu: 1
 ```
 
 ### Quick Validation Inside Container
 
 ```bash
-docker run --rm --gpus all localhost:5000/custom-flink-gpu:1.20.1-cuda12.4-pytorch \
+docker run --rm --gpus all localhost:5000/custom-flink-gpu:v5 \
   python -c "import torch; print('CUDA?', torch.cuda.is_available()); print('Device count:', torch.cuda.device_count()); print(torch.cuda.get_device_name(0))"
 ```
 
 Expected output: `CUDA? True`, device count 1+, and your GPU name (e.g. RTX 4060).
+ 
 
-This should match the spirit of the plan — a GPU-capable Flink image ready for image-recognition UDFs in PyFlink. If the plan.md specifies TensorRT instead or a different CUDA version, adjust the base image and pip install accordingly. Let me know what exact inference path (PyTorch vs ONNX-TensorRT) you want to prioritize.
+ CUDA Available: True
+Device: NVIDIA GeForce RTX 4060
+
+
+## History
+
+```terminal
+ 1918  cd csa-airgap/
+ 1920  docker load < ./images/csa-operator.tar
+ 1921  cd ..
+ 1922  kubectl create -f https://github.com/jetstack/cert-manager/releases/download/v1.8.2/cert-manager.yaml
+ 1923  kubectl wait -n cert-manager --for=condition=Available deployment --all
+ 1924  helm install csa-operator --namespace cld-streaming     --version 1.5.0-b275     --set 'flink-kubernetes-operator.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.sse.image.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.sqlRunner.image.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.mve.image.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.database.imagePullSecrets[0].name=cloudera-creds'     --set-file flink-kubernetes-operator.clouderaLicense.fileContent=./license.txt     ./charts/csa-operator-1.5.0-b275.tgz
+ 1925  cd csa-airgap/
+ 1930  helm install csa-operator --namespace cld-streaming     --version 1.5.0-b275     --set 'flink-kubernetes-operator.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.sse.image.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.sqlRunner.image.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.mve.image.imagePullSecrets[0].name=cloudera-creds'     --set 'ssb.database.imagePullSecrets[0].name=cloudera-creds'     --set-file flink-kubernetes-operator.clouderaLicense.fileContent=../license.txt     ./charts/csa-operator-1.5.0-b275.tgz
+
+ 1936* minikube service ssb-sse --namespace cld-streaming --url
+ 1937  cd ..
+ 1938  mkdir flink-gpu
+ 1939  cd flink-gpu
+ 1968  nano Dockerfile.5
+ 1969  docker build -t localhost:5000/custom-flink-gpu:v5 -f Dockerfile.5 .
+ 1970  docker run --rm --gpus all localhost:5000/custom-flink-gpu:v5
+ 1971  docker push localhost:5000/custom-flink-gpu:v5
+ 1972  # Start the registry if it isn't already running
+ 1973  docker run -d -p 5000:5000 --restart=always --name registry registry:2
+ 1974  docker push localhost:5000/custom-flink-gpu:v5
+ 1975  ls
+ 1977  minikube ip
+ 1979  kubectl create serviceaccount flink-operator-sa
+ 1980  kubectl create rolebinding flink-operator-sa-rb --clusterrole=edit --serviceaccount=default:flink-operator-sa
+ 
+ 1982  minikube image load localhost:5000/custom-flink-gpu:v5
+ 
+ 1988  nano your-flink-deployment-2.yaml
+ 1989  kubectl apply -f your-flink-deployment-2.yaml
+ 1990  kubectl describe flinkdeployment gpu-flink-job
+
+```
