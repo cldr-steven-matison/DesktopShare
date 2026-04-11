@@ -1,5 +1,3 @@
-Based on our session and the verified commands from your terminal history, here is the updated and consolidated Markdown documentation. This version reflects the **NVIDIA-Pip-Inject** strategy that successfully resolved the CUDA visibility issue on your RTX 4060.
-
 ***
 
 # Custom GPU-Accelerated Flink Image for Cloudera Streaming Analytics
