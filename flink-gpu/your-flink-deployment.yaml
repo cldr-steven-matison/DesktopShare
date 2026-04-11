@@ -1,0 +1,30 @@
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: gpu-flink-job
+spec:
+  # This must be at the root of spec
+  serviceAccount: flink-operator-sa
+  image: localhost:5000/custom-flink-gpu:v6
+  flinkVersion: v1_20
+  imagePullPolicy: IfNotPresent
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "1"
+    # Essential for stable K8s scheduling
+    kubernetes.operator.periodic.savepoint.interval: "6h"
+  jobManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+  taskManager:
+    resource:
+      memory: "4096m"
+      cpu: 1
+    # Resource limits for GPU must be in the podTemplate for the operator to pass them
+    podTemplate:
+      spec:
+        containers:
+          - name: flink-main-container
+            resources:
+              limits:
+                nvidia.com/gpu: 1
