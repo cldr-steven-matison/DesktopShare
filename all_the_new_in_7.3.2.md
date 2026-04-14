@@ -7,9 +7,8 @@ Cloudera Runtime 7.3.2 delivers a comprehensive set of new capabilities, moderni
 Key highlights include a completely redesigned React-based UI for Apache Atlas with improved search, filtering, and navigation; automated entity auto-purging and asynchronous metadata import for better metadata hygiene and scalability; the new Cloudera Storage Optimizer in Ozone that intelligently converts cold data to erasure coding for 45-60% storage savings; numerous Hive UX enhancements and new commands; G1 Garbage Collector defaults on JDK 17 for HDFS, Ozone, and others; plus targeted improvements in Cruise Control, HBase, Impala, Ranger, Phoenix, and more. Operational, security, and configuration enhancements round out the release, making upgrades smoother and deployments more efficient.
 
 
-**Cloudera Runtime 7.3.2 – Component Version Rebases**
+**Component Version Rebases**
 
-Here is a clean Markdown table summarizing **all explicit product/component rebases and version upgrades** from the official 7.3.2 release notes (extracted directly from each "What's New" sub-page).
 
 | Component                  | Previous Version | New Version   | Type          | Notes |
 |----------------------------|------------------|---------------|---------------|-------|
@@ -22,7 +21,8 @@ Here is a clean Markdown table summarizing **all explicit product/component reba
 | Apache Ranger              | 2.4.0           | 2.6.0        | Component Upgrade | Latest fixes while maintaining compatibility |
 | Apache Spark (Spark 3)     | —               | 3.5.4        | Major Rebase  | Rebase of Spark 3 to 3.5.4 |
 
-**Components with no major upstream version rebase in 7.3.2** (only feature additions, JDK 17 support, IPv6, or hotfixes):
+**Other Components** 
+Feature additions, JDK 17 support, IPv6, or hotfixes.
 - Cruise Control
 - Hive
 - Cloudera Data Explorer (Hue)
@@ -44,7 +44,7 @@ Here is a clean Markdown table summarizing **all explicit product/component reba
 - YARN / YARN Queue Manager
 - Zookeeper
 
-**Platform-wide changes** (not component-specific rebases):
+**Platform-wide changes**
 - Widespread JDK 17 adoption (most services)
 - IPv6 dual-stack support (multiple services)
 - New OS support (RHEL 9.6, Rocky Linux 9.6, SLES 15 SP6, Ubuntu 24.04)
