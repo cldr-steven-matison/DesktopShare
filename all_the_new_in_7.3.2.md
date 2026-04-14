@@ -81,12 +81,6 @@ Feature additions, JDK 17 support, IPv6, or hotfixes.
 <a id="atlas"></a>
 ### What’s New in Apache Atlas
 
-New features and functional updates for Atlas are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-Cloudera Runtime 7.3.2 introduces new features of Atlas and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-atlas.html).
-
-## Cloudera Runtime 7.3.2:
-
 **New React-Based User Interface for Apache Atlas**
 
 Apache Atlas now features a redesigned React-based user interface that offers enhanced usability and streamlined metadata management. You can switch between the Classic and New UI experiences. The new interface introduces an improved search panel that automatically lists all available entity types, classifications, and glossary terms, with one-click access to relevant members. Enhanced filtering capabilities allow users to show empty service types, unused classifications, and toggle between category or term views in the glossary. Additionally, entities and classifications can now be displayed in a collapsed flat tree view for simplified navigation of complex metadata hierarchies. For more information, see [Apache Atlas dashboard tour](https://docs.cloudera.com/cdp-private-cloud-base/7.3.2/cdp-governance-overview/topics/atlas-dashboard.html).
@@ -131,10 +125,6 @@ Simplified Configuration: Streamlined logging setup is introduced with native XM
 <a id="cloud-connectors"></a>
 ### What's New in Cloud Connectors
 
-Learn about the new features of Cloud Connectors in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
 **Rebase to Hadoop 3.4.2**
 
 This release of the Cloud Connectors is based on Hadoop 3.4.2. See the following upstream resources for more information on the changes:
@@ -146,10 +136,6 @@ This release of the Cloud Connectors is based on Hadoop 3.4.2. See the following
 
 <a id="cruise-control"></a>
 ### What's New in Cruise Control
-
-New features and functional updates for Cruise Control are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
 
 **New configuration parameter for controlling IP stack preference**
 
@@ -171,10 +157,6 @@ Additionally, the `intra.broker.goals` configuration no longer needs to be defin
 <a id="hbase"></a>
 ### What's New in Apache HBase
 
-New features and functional updates for HBase are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2:
-
 **IPv6 support for HBase**
 
 Starting with the 7.3.2 release, HBase client supports IPv6 with dual-stack functionality, allowing seamless communication over both IPv4 and IPv6 networks. This capability improves network scalability, future-proofs deployments, and enhances overall platform security.
@@ -193,10 +175,6 @@ The HBase runtime component is upgraded from 2.4.17 to 2.6.3. This release incor
 
 <a id="hdfs"></a>
 ### What’s New in Apache HDFS
-
-Learn about the new features of HDFS in Cloudera Runtime 7.3.2, its service packs and cumulative hotfixes.
-
-#### Cloudera Runtime 7.3.2
 
 **Support for G1 Garbage Collector (G1GC) with JDK 17**
 
@@ -227,12 +205,6 @@ The page also includes a second table covering additional changes from the Hadoo
 
 <a id="hive"></a>
 ### What's New in Apache Hive
-
-New features and functional updates for Hive are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Hive and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-hive.html).
 
 **Hive user experience enhancements**
 
@@ -284,12 +256,6 @@ Cloudera now provides support for OAuth authentication using OAuth JWT bearer to
 
 <a id="hue"></a>
 ### What's New in Apache Hue
-
-New features and functional updates for Cloudera Data Explorer (Hue) are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Cloudera Data Explorer (Hue) and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-hue.html).
 
 **Product Branding Update**
 
@@ -345,12 +311,6 @@ For more information, see [Configuring global Hive JDBC URL for Oozie](https://d
 
 <a id="iceberg"></a>
 ### What's New in Apache Iceberg
-
-Learn about the new features of Iceberg in Cloudera Runtime 7.3.2, its service packs and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Iceberg and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-iceberg.html).
 
 **Cloudera Lakehouse Optimizer for Iceberg table optimization**
 
@@ -412,12 +372,6 @@ Apache Jira: [IMPALA-12588](https://issues.apache.org/jira/browse/IMPALA-12588)
 
 <a id="impala"></a>
 ### What's New in Apache Impala
-
-New features and functional updates for Impala are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Impala and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-impala.html).
 
 **Hierarchical metastore event processing (Preview)**
 
@@ -524,12 +478,6 @@ Apache Jira: [IMPALA-10349](https://issues.apache.org/jira/browse/IMPALA-10349)
 
 <a id="kafka"></a>
 ### What's New in Apache Kafka
-
-New features and functional updates for Kafka are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Kafka and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-kafka.html).
 
 **Rebase on Kafka 3.9**
 
@@ -643,12 +591,6 @@ For step-by-step upgrade instructions on configuration updates and driver replac
 <a id="knox"></a>
 ### What's New in Apache Knox
 
-New features and functional updates for Apache Knox are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Knox and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-knox.html).
-
 **SameSite attribute for pac4j session cookies is now configurable**
 
 You can now configure the SameSite attribute for pac4j session cookies.
@@ -669,12 +611,6 @@ The alias management configuration has been moved from service-level to role-lev
 
 <a id="kudu"></a>
 ### What's New in Apache Kudu
-
-New features and functional updates for Kudu are introduced in Cloudera Runtime 7.3.2, its service packs, and cumulative hotfixes.
-
-## Cloudera Runtime 7.3.2
-
-Cloudera Runtime 7.3.2 introduces new features of Kudu and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see [New Features](https://docs.cloudera.com/cdp-private-cloud-base/7.3.1/private-release-notes/topics/rt-whats-new-kudu.html).
 
 **Kudu JDK 17 upgrade**
 
@@ -857,8 +793,6 @@ For more details, see [Installing Ranger KMS in a federated deployment](https://
 
 <a id="solr"></a>
 ### What's New in Apache Solr
-
-## Cloudera Runtime 7.3.2:
 
 **Solr JDK 17 upgrade**
 
