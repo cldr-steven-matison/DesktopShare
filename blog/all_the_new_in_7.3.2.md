@@ -672,6 +672,123 @@ If you set both options, then the value defined in the workflow.xml file takes p
 
 <a id="ozone"></a>
 ### What’s New in Ozone
+## Cloudera Runtime 7.3.2
+
+Cloudera Runtime 7.3.2 introduces new features of Ozone and includes all service packs and cumulative hotfixes from 7.3.1.100 through 7.3.1.706. For a comprehensive record of all updates in Cloudera Runtime 7.3.1.x, see New Features.
+
+Cloudera Storage Optimizer
+
+Cloudera Storage Optimizer is an intelligent data lifecycle management feature that automatically reduces storage usage by converting infrequently accessed data from replicated storage (RATIS 3×) to space-efficient erasure coding (EC). It analyzes access patterns and applies configurable policies to identify and convert cold data, reducing the storage footprint by 45% to 60% while maintaining data durability and availability. The benefit is additional usable capacity for the same licensed capacity. For more information, see Cloudera Storage Optimizer documentation.
+
+Storage container reconciliation
+
+By design, container replicas are identical and contain the same data. Container reconciliation is a repair mechanism that allows administrators to detect and repair container replicas that are corrupted or have otherwise diverged from each other. The data within each replica is summarized as a single data checksum. If the replica data diverges, these checksums will differ. After reconciliation, the replicas will contain the same data with matching checksums. This data checksum remains constant even as data is deleted from the container in the background. For more information, see Storage container reconciliation documentation.
+
+Support for G1 Garbage Collector (G1GC) with JDK 17
+
+When running Ozone on JDK 17, all Ozone server processes now default to the G1 Garbage Collector (G1GC). No action is required for most deployments.
+
+Configuration Changes for the FIPS-compliant SASL Changes
+
+Cloudera supports DIGEST-SHA, a new SASL mechanism, to replace DIGEST-MD5. DIGEST-SHA uses SHA256 and AES instead of MD5 and DES for message digest and encryption, respectively. As a result, DIGEST-SHA is fully FIPS-compliant. For more information, see Step 1: Prepare hosts .
+
+Moved the port ozone.prometheus.http-port from 9094 to 9096
+
+The port ozone.prometheus.http-port is moved from 9094 to 9096 to avoid Ozone Prometheus port colliding with HBase thrift server if they are on the same host.
+
+Added new Ozone canaries
+
+To configure the threshold value, the following new Ozone canaries are added along with the relevant configuration property that can be used to disable them:
+
+- Ozone SCM heap memory canary: ozone_scm_heap_canary_enabled
+- Ozone OM heap memory canary: ozone_om_heap_canary_enabled
+- Ozone Datanode failed volumes canary: ozone_datanode_failed_volume_canary_enabled
+
+Added role-specific Java options
+
+Previously, Ozone Java options ( JAVA_OPTS) were configured through a single shared setting. This change introduces separate Java option parameters for each Ozone service role, allowing more granular configuration.
+
+The following role-specific parameters are now available:
+
+- Storage Container Manager (SCM): ozone_scm_java_opts
+- Ozone Manager (OM): ozone_om_java_opts
+- Datanode (DN): ozone_dn_java_opts
+- S3 Gateway (S3G): ozone_s3g_java_opts
+- Recon: ozone_recon_java_opts
+
+Each parameter applies only to its corresponding service and overrides the shared JAVA_OPTS configuration where applicable.
+
+Added Knox proxy user configuration for Ozone Recon
+
+You can now restrict which hosts and groups Knox can impersonate when accessing Ozone Recon by using the following configuration properties:
+
+- ozone.recon.http.auth.proxyuser.knox.hosts: Specifies the hosts from which Knox is allowed to impersonate users .
+- ozone.recon.http.auth.proxyuser.knox.groups: Specifies the user groups that Knox is allowed to impersonate.
+
+Added new verifier for container states
+
+The ozone debug replicas verify command now includes the new --container-state verifier:.
+
+ozone debug replicas verify --container-state <volume/bucket/path> -o <output.json>
+
+This new verifier identifies keys mapped to problematic containers or replica states in SCM. It checks for the following states for every container in the replica:
+
+- Containers: DELETED or DELETING
+- Replicas: DELETED , UNHEALTHY, or INVALID
+
+The command generates a JSON file containing details on keys, blocks, and replicas, along with a pass or fail status for each check. It supports the following options:
+
+- --all-results: Displays all verification outcomes
+- -o : Specifies the output file path
+- --container-cache-size: Sets the number of containers stored in the in-memory cache for the --container-state check. The default value is 1 million containers (approximately 43MB of memory). The value must be greater than zero, otherwise, the system uses the 1 million default.
+
+Enhanced volume health checks triggered by container scanner
+
+When a container scanner (background or on-demand, data or metadata) marks a container as unhealthy due to corruption, the system now automatically triggers an on-demand scan of the associated volume. This enhancement helps detect and address broader volume-level issues that might exist beyond the affected container, improving overall data integrity and reliability.
+
+New container health metrics
+
+In Cloudera Base on premises 7.3.2.0 and higher releases, Ozone Recon now exposes additional metrics for the Container Health Task to improve observability of container state across the cluster. Recon tracks the number of containers in the following states:
+
+- Missing
+- Under-replicated
+- Over-replicated
+- Mis-replicated
+
+Increased default Ratis segment size for Ozone Manager (OM) and Storage Container Manager (SCM)
+
+To improve startup performance, the default values of the ozone.om.ratis.segment.size and ozone.scm.ha.ratis.segment.size configurations are increased from 4 MB to 64 MB.
+
+- The ozone.om.ratis.segment.size configuration sets the size of the raft segment used by Apache Ratis on OM. 
+- The ozone.scm.ha.ratis.segment.size configuration sets the size of the raft segment used by Apache Ratis on SCM.
+
+Renaming all legacy HDFS configuration keys and the corresponding Java constants to HDDS
+
+All legacy configuration keys previously prefixed with dfs. (used by HDFS) are updated to use the hdds. prefix, aligning them with the HDDS component. Backward compatibility is maintained. The system will continue to recognize the old dfs. keys, but they are now deprecated. Deprecation notices and mappings are handled internally by adding DeprecationDelta in OzoneConfiguration .
+
+Additionally, the corresponding Java constants for both the configuration key and the default value are renamed accordingly.
+
+All deletion configurations are dynamically configurable without restart
+
+In Cloudera Base on premises 7.3.2.0 and higher releases, the following deletion configurations are dynamically reconfigurable without requiring a restart:
+
+- For Ozone Manager: ozone.thread.number.dir.deletion
+- For Datanode: ozone.block.deleting.service.interval
+- ozone.block.deleting.service.timeout
+
+Support for callback on completed reconfiguration
+
+The reconfiguration framework now supports a reconfiguration completed event. Components can now register callbacks that trigger after all properties in a task are processed. This allows the system to validate and apply interdependent settings automatically. You can access the status and values of the reconfigured properties using the ReconfigurableBase#getReconfigurationTaskStatus method within the callback.
+
+Moved and enhanced Ratis Log Parsing command in Ozone
+
+The ozone debug ratislogparser command is moved under the new ozone debug ratis parse subcommand. The parse subcommand now supports parsing different Ratis files, providing a more general and extensible interface.
+
+The new --role=[om, scm, datanode] optional flag is added to specify which schema to use when parsing logs. By default, the schema is set to generic .
+
+Enhanced output for ozone debug replicas chunk-info command
+
+The ozone debug replicas chunk-info command now provides detailed information about the chunks associated with a given key. Previously, chunk-related details were only available when the --verbose flag was used. With this update, the command includes...
 
 ---
 
@@ -804,6 +921,16 @@ Solr supports JDK 17 starting with the 7.3.2 release. Upgrade to JDK 17 to gain
 
 <a id="spark"></a>
 ### What’s New in Spark
+
+Rebase Spark3 to Apache Spark 3.5.4 in Cloudera Runtime.
+
+Spark 3.5.4 is the default Spark version in Cloudera Runtime . Refer to the [Apache Spark documentation](https://spark.apache.org/docs/3.5.4/index.html) for more information on changes.
+
+Refer to [Migrating Spark applications](https://docs.cloudera.com/cdp-private-cloud-base/7.3.2/spark-upgrade/topics/spark-application-migration.html) for more information on migrating your existing Spark applications.
+
+Spark 3 contains a large number of changes from Spark 2.
+
+Refer to [Upgrading Spark](https://docs.cloudera.com/cdp-private-cloud-base/7.3.2/spark-upgrade/topics/upgrading-spark.html) for more information on upgrading Spark clusters to 7.3.2.0, and [Migrating Spark applications](https://docs.cloudera.com/cdp-private-cloud-base/7.3.2/spark-upgrade/topics/spark-application-migration.html) for more information on migrating your existing Spark applications between versions 2 and 3.
 
 ---
 
