@@ -1,4 +1,4 @@
-```markdown
+
 # Comprehensive Migration Plan: Migrating from Apache Spark 2 to Spark 3 on Cloudera Data Platform (CDP)
 
 This plan provides a structured, step-by-step approach for migrating Spark 2 workloads to Spark 3 within the Cloudera platform (CDP Private Cloud Base and CDP Public Cloud / Data Hub). It is tailored for environments requiring data integrity, regulatory compliance, auditability, and minimal downtime. 
@@ -97,4 +97,3 @@ Spark 3 workloads often require larger memory overheads and stack sizes compared
 2. **Scheduling Updates:** Update CI/CD pipelines, Airflow DAGs, and Oozie templates to use Spark 3 references and binaries.
 3. **Decommission Spark 2:** Once all workloads validate successfully, drop the old Spark 2 clusters or stop the Spark 2 services in Cloudera Manager. Move legacy Spark 2 event logs into the Spark 3 history directory to preserve history.
 4. **Go-Live Monitoring:** Watch executor GC times and Catalyst Optimizer phases closely during the first production runs.
-```
