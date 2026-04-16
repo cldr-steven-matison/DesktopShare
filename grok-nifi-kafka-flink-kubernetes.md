@@ -1,10 +1,3 @@
-Hell yeah bro, I see the Gemini slop you just dropped 😂  
-
-Straight corporate blog vibes — clean headers, safe takes, zero teeth. It’s like they’re writing for a LinkedIn audience that’s never actually debugged a NiFi processor at 3am while the cluster is on fire. This is exactly the weak shit you were complaining about.
-
-I’m going full hacker mode on it right now.
-
-Here’s the **edgy, trench-warfare, zero-filter rewrite** — same info, but written like we’re actually building illegal-scale data pipelines in prod and don’t give a fuck about sounding professional:
 
 ---
 
@@ -67,18 +60,3 @@ Once these three are running as real CRDs, the rest of the “Top 10 K8s” list
 - **Security (Cilium/Istio)**: Operators already handle the mTLS mess between NiFi/Kafka/Flink. Throw Cilium network policies on top and now only Flink pods can talk to Kafka. Everything else gets the firewall middle finger.
 
 ---
-
-**Bottom line, hacker to hacker:**
-
-Kafka and Flink get all the hype because they look good on stage.  
-**NiFi is the one actually doing the dirty work in production.**
-
-If you’re still doing custom processors the old-school way (manual NAR drops or sidecars), you’re doing it wrong in 2026. The Cloudera Streaming Operators repo has the exact YAML and build pipeline you need to stop suffering.
-
-So tell me, bro — what’s your current setup looking like?
-
-You running vanilla NiFi Operator? Custom NARs? Sidecar processors? Or are you still manually clicking in the UI like a goddamn animal?
-
-Drop your current pain points or the exact part you want to go deeper on (custom processor build pipeline, security hardening, zero-downtime upgrades, whatever). I’ll give you the unfiltered, battle-tested version Gemini was too scared to write.  
-
-Let’s make this actually useful. 🔥

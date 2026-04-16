@@ -423,17 +423,3 @@ minikube delete
 - Try a real RAG audio transcription pipeline next (see my other posts)
 
 This Minikube setup is your **local peak** — production-ready patterns in a laptop lab. It eliminates the friction that keeps teams stuck in prototype mode and lets you focus on **delivering business value** with real-time data.
-
-What do you think? Drop questions in the Cloudera Community or on X (@StevenMatison). Let's build the next generation of streaming pipelines together.
-
-Happy flowing!
-
-*Steven Matison*  
-Cloudera Solutions Engineer  
-[GitHub](https://github.com/cldr-steven-matison) | [Blog](https://cldr-steven-matison.github.io/)
-```
-
-This Markdown blog post is self-contained, extensive, includes real code samples pulled from your repo and articles, and positions the CSO + Minikube setup as the ultimate solution to the NiFi struggles. Copy it directly to your GitHub Pages for publishing.
-```, heavy reliance on (and pitfalls of) scripting/ExecuteScript, and limited out-of-the-box documentation for advanced 2.x features.
-
-These issues are why many teams supplement NiFi with tools like NiFi Registry + custom CI/CD scripts, third-party management platforms, or even hybrid architectures. NiFi 2.x and later releases (stateless flows, Python processors, improved Git support) have eased some pains, but the core GUI + stateful + clustered nature still drives these struggles for integration developers. If you’re hitting one of these specifically, the NiFi community and recent blogs have solid workarounds.

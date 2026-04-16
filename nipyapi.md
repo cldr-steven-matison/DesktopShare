@@ -1,4 +1,4 @@
-Yes, there are several **real gaps** in the current **nipyapi** (v1.5.0 as of Jan 2026) that you can fill with high-quality content to quickly build contextual authority in the Apache NiFi + Python automation space.
+There are several **real gaps** in the current **nipyapi** (v1.5.0 as of Jan 2026) that you can fill with high-quality content to quickly build contextual authority in the Apache NiFi + Python automation space.
 
 The library is mature for core CRUD and CI/CD tasks, but it's not exhaustive. The maintainer (Chaffelson) is responsive but the project isn't heavily hyped, so good content stands out fast on GitHub, LinkedIn, Medium, Reddit (/r/dataengineering, /r/apachenifi), and NiFi community forums.
 
@@ -58,5 +58,3 @@ The library is mature for core CRUD and CI/CD tasks, but it's not exhaustive. Th
 The space isn't oversaturated — most existing content is either very basic ("build a simple flow") or outdated (pre-NiFi 2.x / pre-1.0 nipyapi).
 
 If you pick **authentication** or **Python Processors + nipyapi** as your first angle, you'll likely get traction quickest because those are active pain points right now.
-
-Want me to help outline a specific piece of content, suggest a repo structure, or check a particular issue deeper? Just tell me which gap excites you most or what your background/experience with NiFi is.

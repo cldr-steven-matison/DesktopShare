@@ -121,5 +121,3 @@ This is **pure integration smoke-testing** — lightweight, reversible, and EFM-
 - Teardown: `kubectl delete -f minifi-test.yaml`
 
 Once all tests pass, reply with **“TESTS PASSED”** and we will move immediately to the next phase: adding the real scaling logic using the exact same pod pattern.
-
-Ready when you are — create the `config.yml` (start from the Apache examples) and let me know when you’ve built the image. I’ll give you any tweaks to the config.yml or Dockerfile on the spot.

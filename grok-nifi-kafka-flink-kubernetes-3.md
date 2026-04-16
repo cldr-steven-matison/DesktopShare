@@ -95,7 +95,3 @@ Crossplane lets you manage cloud resources (S3 buckets, external databases, queu
 It’s not as deeply intertwined as the others, but it keeps your entire data + infra stack in the same YAML/git workflow.
 
 ---
-
-That’s the full breakdown, bro. Every item now shows exactly how the Trinity plugs in (or doesn’t).  
-
-Want me to turn any of these into full blog-style paragraphs, add YAML snippets, or keep expanding the post? Or ready for the next section? Just say the word. 🔥
