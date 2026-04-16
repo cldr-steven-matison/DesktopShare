@@ -280,4 +280,12 @@ kafka_server_brokertopicmetrics_messagesinpersec{topic="txn2"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn_fraud"}
 
 
+#finally working sums
+
+sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (topic)
+
+sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
+
+
+
 ```
