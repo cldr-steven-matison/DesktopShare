@@ -6,7 +6,7 @@ metadata:
   labels:
     app: strimzi
 data:
-  kafka-metrics-config.yml: |
+  kafka-metrics-config.yaml: |
     lowercaseOutputName: true
     rules:
       - pattern: "kafka.server<type=(.+), name=(.+)><>(Count|Value)"

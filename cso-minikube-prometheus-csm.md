@@ -23,7 +23,11 @@ Before we start, ensure you have the following:
 * **CSM Operator** installed in the `cld-streaming` namespace.
 * **Prometheus Operator** installed via Helm in the `monitoring` namespace.
 
-> 💡 **Pro Tip:** Use the following Helm command to ensure Prometheus is looking for our Custom Resources:
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+```
+
+> Helm Install Prometheus
 > ```bash
 > helm install prometheus prometheus-community/kube-prometheus-stack \
 >   --namespace monitoring --create-namespace \
@@ -45,7 +49,7 @@ metadata:
   labels:
     app: strimzi
 data:
-  kafka-metrics-config.yml: |
+  kafka-metrics-config.yaml: |
     lowercaseOutputName: true
     rules:
       - pattern: "kafka.server<type=(.+), name=(.+)><>(Count|Value)"
@@ -59,7 +63,39 @@ data:
 
 ---
 
-### 2️⃣ The Kafka Cluster Config (`kafka-eval-prometheus.yaml`)
+### 2️⃣ The Kafka Cluster Config 
+
+
+⚠️ **Warning:** Do not forget our kafka-nodepool in our sequence.   I had issues with not doing a complete new cluster.  So if necessary full delete and re-create.
+  
+(`kafka-nodepool.yaml`)
+
+```yaml
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: combined
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 10Gi
+        kraftMetadata: shared
+        deleteClaim: false
+
+```
+
+
+
+(`kafka-eval-prometheus.yaml`)
 
 ⚠️ **Warning:** If you are using **KafkaNodePools** (KRaft mode), do **NOT** put the `metricsConfig` in the NodePool spec. It will throw a strict decoding error. It belongs in the **Kafka** resource.
 
@@ -81,7 +117,7 @@ spec:
       valueFrom:
         configMapKeyRef:
           name: kafka-metrics
-          key: kafka-metrics-config.yml
+          key: kafka-metrics-config.yaml
     listeners:
       - name: plain
         port: 9092
@@ -148,6 +184,10 @@ minikube service prometheus-kube-prometheus-prometheus -n monitoring --url
 minikube service prometheus-grafana -n monitoring --url
 ```
 
+use this command to get the admin password
+```bash
+kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+```
 ---
 
 ### 🏁 Summary
@@ -156,3 +196,36 @@ By separating our **Topology** (NodePools) from our **Configuration** (Kafka CR)
 **Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!**
 
 ---
+
+
+```terminal
+
+kubectl apply -f kafka-metrics-config.yaml -n cld-streaming
+kubectl apply -f kafka-nodepool.yaml -n cld-streaming
+kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
+kubectl apply -f strimzi-pod-monitor.yaml -n monitoring
+
+
+kubectl delete -f kafka-metrics-config.yaml -n cld-streaming
+kubectl delete -f kafka-nodepool.yaml  -n cld-streaming
+kubectl delete -f kafka-eval-prometheus.yaml -n cld-streaming
+kubectl delete -f strimzi-pod-monitor.yaml -n monitoring
+
+
+kubectl logs my-cluster-combined-0 -n cld-streaming
+
+minikube service prometheus-kube-prometheus-prometheus -n monitoring --url
+
+
+ 1047  kubectl get configmap kafka-metrics -n cld-streaming -o jsonpath='{.data}' | jq 'keys'
+
+ 1056  kubectl get pvc,pv -n cld-streaming
+ 1058  minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
+
+kubectl delete kafka my-cluster -n cld-streaming
+kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
+
+
+
+
+```

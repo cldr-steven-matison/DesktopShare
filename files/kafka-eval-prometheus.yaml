@@ -13,7 +13,7 @@ spec:
       valueFrom:
         configMapKeyRef:
           name: kafka-metrics
-          key: kafka-metrics-config.yml
+          key: kafka-metrics-config.yaml
     listeners:
       - name: plain
         port: 9092
