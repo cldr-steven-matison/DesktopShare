@@ -198,8 +198,51 @@ By separating our **Topology** (NodePools) from our **Configuration** (Kafka CR)
 ---
 
 
-```terminal
+Things to add:
 
+
+1. The Full Delete
+Wipe the Kafka cluster and the storage again to prevent any ID or configuration caching.
+
+```Bash
+kubectl delete kafka my-cluster -n cld-streaming
+kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
+minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
+```
+2.  I had to helm uninstall the operator if i got it into a bad state,  maybe better than the sudo rm -rf above..  when testing this process i dont need to keep operator around.  
+
+```bash
+helm uninstall strimzi-cluster-operator --namespace cld-streaming
+
+
+helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99 
+```
+
+3.  Force Prometheus to Re-scan
+Sometimes the Prometheus Operator misses the "Create" event after a "Delete" event. You can give it a nudge by restarting the operator:
+
+```bash
+kubectl rollout restart deployment prometheus-kube-prometheus-operator -n monitoring
+```
+
+4.  Testing Prometheus Works
+
+Navigate and confirm you see Targets:
+
+[ screen shot on mac desktop ]
+
+Execute these in Prometheus:
+
+```query
+{__name__=~"kafka_.*"}
+
+
+
+```
+
+
+```terminal
+helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99 
 kubectl apply -f kafka-metrics-config.yaml -n cld-streaming
 kubectl apply -f kafka-nodepool.yaml -n cld-streaming
 kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
@@ -210,6 +253,9 @@ kubectl delete -f kafka-metrics-config.yaml -n cld-streaming
 kubectl delete -f kafka-nodepool.yaml  -n cld-streaming
 kubectl delete -f kafka-eval-prometheus.yaml -n cld-streaming
 kubectl delete -f strimzi-pod-monitor.yaml -n monitoring
+helm uninstall strimzi-cluster-operator --namespace cld-streaming
+
+
 
 
 kubectl logs my-cluster-combined-0 -n cld-streaming
@@ -226,6 +272,12 @@ kubectl delete kafka my-cluster -n cld-streaming
 kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
 
 
+other Prometheus Queries I used
+
+{__name__=~"kafka_server_brokertopicmetrics.*"}
+kafka_server_brokertopicmetrics_messagesinpersec{topic="txn1"}
+kafka_server_brokertopicmetrics_messagesinpersec{topic="txn2"}
+kafka_server_brokertopicmetrics_messagesinpersec{topic="txn_fraud"}
 
 
 ```

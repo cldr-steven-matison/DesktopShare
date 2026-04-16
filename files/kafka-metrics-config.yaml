@@ -9,6 +9,7 @@ data:
   kafka-metrics-config.yaml: |
     lowercaseOutputName: true
     rules:
+      - pattern: ".*"
       - pattern: "kafka.server<type=(.+), name=(.+)><>(Count|Value)"
         name: "kafka_server_$1_$2"
       - pattern: "kafka.controller<type=(.+), name=(.+)><>(Count|Value)"
