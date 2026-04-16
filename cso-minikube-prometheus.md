@@ -1,6 +1,6 @@
 **Comprehensive Plan: Building and Integrating Prometheus into Cloudera Streaming Operators (CFM, CSA, and CSM) on Kubernetes**
 
-This is a full, production-oriented, step-by-step guide to **build and integrate Prometheus** (including the Prometheus Operator for Kubernetes-native scraping via ServiceMonitors/PodMonitors) into each of the three Cloudera Streaming Operators: **CFM** (Cloudera Flow Management / NiFi), **CSA** (Cloudera Streaming Analytics / Flink), and **CSM** (Cloudera Streams Messaging / Kafka + Strimzi). It is designed to be a 10–15+ minute read, actionable for a DevOps/SRE/Platform team, and directly leverages the sources you specified in `https://github.com/cldr-steven-matison/DesktopShare/blob/main/ai-sources.md`.
+This is a step-by-step guide to **build and integrate Prometheus** (including the Prometheus Operator for Kubernetes-native scraping via ServiceMonitors/PodMonitors) into each of the three Cloudera Streaming Operators: **CFM** (Cloudera Flow Management / NiFi), **CSA** (Cloudera Streaming Analytics / Flink), and **CSM** (Cloudera Streams Messaging / Kafka + Strimzi). It is designed to be a 10–15+ minute read, actionable for a DevOps/SRE/Platform team, and directly leverages the sources you specified in `https://github.com/cldr-steven-matison/DesktopShare/blob/main/ai-sources.md`.
 
 Your primary base repo (`https://github.com/cldr-steven-matison/ClouderaStreamingOperators`) already contains the full-suite deployment patterns for CFM/CSA/CSM (NiFi 2.x clusters, Flink, Kafka via Strimzi, custom processors, Python mounts, RAG flows, etc.). We will treat this repo as the **single source of truth** for customization. All changes will be implemented as Git-tracked overlays, Kustomize patches, or Helm value overrides so you can rebuild/deploy reproducibly.
 
@@ -218,5 +218,3 @@ Your `ClouderaStreamingOperators` repo is the perfect place:
 4. Commit, deploy, and iterate.
 
 This plan gives you **complete, operator-native Prometheus observability** while staying 100% within the sources and patterns from your ai-sources.md repo. You now have a single Git repo that deploys the full Cloudera Streaming suite **with built-in enterprise monitoring**.
-
-If you push your updated repo or share specific YAML snippets from it, I can refine the exact patch files further. Let’s get your CFM/CSA/CSM clusters fully observable!

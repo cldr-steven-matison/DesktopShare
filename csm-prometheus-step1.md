@@ -63,7 +63,7 @@ data:
 
 ⚠️ **Warning:** If you are using **KafkaNodePools** (KRaft mode), do **NOT** put the `metricsConfig` in the NodePool spec. It will throw a strict decoding error. It belongs in the **Kafka** resource.
 
-Here is the corrected `kafka-eval-prometheus.yaml`:
+Create the `kafka-eval-prometheus.yaml`:
 
 ```yaml
 apiVersion: kafka.strimzi.io/v1
@@ -119,7 +119,6 @@ metadata:
 spec:
   selector:
     matchLabels:
-      # This matches the label we verified on your pod earlier
       strimzi.io/cluster: my-cluster
       strimzi.io/kind: Kafka
   namespaceSelector:
@@ -127,7 +126,6 @@ spec:
       - cld-streaming
   podMetricsEndpoints:
     - path: /metrics
-      # Strimzi names the JMX exporter port 'tcp-prometheus'
       targetPort: 9404
       interval: 30s
 ```
@@ -135,8 +133,9 @@ spec:
 
 ---
 
-### 4️⃣ Exposing the UIs (The WSL2 Way)
-Since we are on Minikube in WSL2, `xdg-open` will fail. We need to grab the URLs manually and keep the tunnels alive in separate terminal tabs.
+### 4️⃣ Exposing the UIs
+
+Grab the URLs and keep the tunnels alive in separate terminal tabs.
 
 **Tab 1: Prometheus UI**
 ```bash
@@ -148,10 +147,6 @@ minikube service prometheus-kube-prometheus-prometheus -n monitoring --url
 ```bash
 minikube service prometheus-grafana -n monitoring --url
 ```
-* **Default Login:** `admin` / `prom-operator` (or check your secrets).
-* **Import Dashboard:** Use ID `10973` to get the official Strimzi view.
-
-
 
 ---
 
@@ -161,4 +156,3 @@ By separating our **Topology** (NodePools) from our **Configuration** (Kafka CR)
 **Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!**
 
 ---
-*Steven Matison is a Solutions Engineer at Cloudera focusing on NiFi, Kafka, and Flink architectures.*
