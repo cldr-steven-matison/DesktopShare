@@ -1,0 +1,49 @@
+ 1916  kubectl apply -f kafka-metrics-config.yaml -n cld-streaming
+ 1917  kubectl apply -f kafka-nodepool.yaml -n cld-streaming
+ 1918  kubectl apply -f kafka-eval.yaml -n cld-streaming
+ 1919  kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+ 1920  kubectl exec my-cluster-kafka-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep -E 'topic="(txn1|txn2)"'
+ 1921  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep messagesinpersec
+ 1922  kubectl get pod my-cluster-combined-0 -n cld-streaming --show-labels
+ 1923  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep messagesinpersec
+ 1924  kubectl exec my-cluster-combined-0 -n cld-streaming -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+ 1925  nano strimzi-pod-monitor.yaml
+ 1926  kubectl apply -f strimzi-pod-monitor.yaml -n monitoring
+ 1927  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics
+
+ 1930  kubectl logs -l app.kubernetes.io/name=prometheus -n monitoring
+ 1931  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep -E 'topic="(txn1|txn2)"'
+ 1932  kubectl exec my-cluster-combined-0 -n cld-streaming -- netstat -an | grep 9404
+ 1933  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep -E 'topic="(txn1|txn2)"' | grep 'MessagesInPerSec'
+ 1934  kubectl exec my-cluster-combined-0 -n cld-streaming -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+ 1935  kubectl exec -it my-cluster-combined-0 -n cld-streaming -- /bin/bash -c "echo 'warmup-message' | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic txn1"
+ 1936  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep txn1
+ 1937  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep "messagesinpersec_topic_txn1"
+ 1938  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep "messagesinpersec_topic_txn1"kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep "txn1"
+ 1939  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep "txn1"
+ 1940  kubectl exec -it my-cluster-combined-0 -n cld-streaming -- /bin/bash -c "for i in {1..5}; do echo 'test-message-\$i' | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic txn1; done"
+ 1941  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep "txn1" | grep "MessagesInPerSec"
+ 1942  kubectl exec -it my-cluster-combined-0 -n cld-streaming -- /bin/bash -c "echo 'manual-test' | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic txn1"
+ 1943  kubectl exec my-cluster-combined-0 -n cld-streaming -- curl -s localhost:9404/metrics | grep "txn1"
+ 1944  kubectl get configmap kafka-metrics -n cld-streaming -o yaml
+ 1945  kubectl exec my-cluster-combined-0 -n cld-streaming -- /opt/kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list localhost:9092 --topic txn1
+
+# 1. Check if the ConfigMap with metrics rules was applied
+ 1948  kubectl get configmap kafka-metrics -n cld-streaming -o yaml
+# 2. Check if PodMonitors exist (most common issue)
+ 1950  kubectl get podmonitors.monitoring.coreos.com -A
+# 3. Describe the main one (look for namespaceSelector and selector)
+ 1952  kubectl get podmonitor strimzi-pod-monitor -n monitoring -o yaml   # or whatever name you used
+# 4. Check your Kafka CR has metricsConfig enabled
+ 1954  kubectl get kafka my-cluster -n cld-streaming -o yaml | grep -A 20 metricsConfig
+
+ 
+ 1955  nano strimzi-pod-monitor.yaml
+ 1956  kubectl apply -f strimzi-pod-monitor.yaml -n monitoring
+ 1957  nano strimzi-pod-monitor.yaml
+ 1958  kubectl apply -f strimzi-pod-monitor.yaml -n monitoring
+ 1959  kubectl get podmonitor strimzi-pod-monitor -n monitoring -o yaml
+ 1960  kubectl port-forward -n cld-streaming my-cluster-kafka-0 9404:9404 &
+ 1961  curl -s http://localhost:9404/metrics | wc -l
+ 1962  kubectl port-forward -n cld-streaming my-cluster-combined-0 9404:9404 &
+ 1963  kubectl port-forward -n cld-streaming my-cluster-combined-0 9404:9404 & curl -s http://localhost:9404/metrics | wc -l
