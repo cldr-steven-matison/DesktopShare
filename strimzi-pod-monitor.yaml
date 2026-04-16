@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: strimzi-pod-monitor
+  namespace: monitoring
+  labels:
+    # ⚠️ This MUST match the release name of your Prometheus Helm install
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      # This matches the label we verified on your pod earlier
+      strimzi.io/cluster: my-cluster
+      strimzi.io/kind: Kafka
+  namespaceSelector:
+    matchNames:
+      - cld-streaming
+  podMetricsEndpoints:
+    - path: /metrics
+      # Strimzi names the JMX exporter port 'tcp-prometheus'
+      targetPort: 9404
+      interval: 30s
