@@ -47,10 +47,10 @@ Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) ru
 | Project | Link | Purpose |
 |---------|------|---------|
 | **Cloudera Streaming Operators Blog** | [View Blog](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/) | Step-by-step MacBook/Minikube setup guides for CFM, CSA, CSM |
-| **ClouderaStreamingOperators** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) | YAML configs and Helm values used in the blog |
-| **ClouderaOperatorYAML** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaOperatorYAML) | Terminal commands and YAML files to install and configure Cloudera Streaming Operators (Kafka, Flink, NiFi) on Kubernetes |
-| **NiFi-Templates** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi-Templates) | Ready-to-import NiFi dataflow templates and examples |
-| **NiFi2 Processor Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground) | Custom processor development & testing |
+| **ClouderaStreamingOperators** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) | Terminal commands, YAML configs, and Helm values used in the blog |
+| **ClouderaOperatorYAML** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaOperatorYAML) | Other YAML examples for Cloudera Streaming Operators (Kafka, Flink, NiFi) on Kubernetes (not CSO above) |
+| **NiFi-Templates** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi-Templates) | NiFi flow definition file templates and dataflow examples |
+| **NiFi2 Processor Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground) | Custom processor development & testing for NiFi 2 |
 | **MiNiFi Kubernetes Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) | MiNiFi + Kubernetes edge deployments |
 | **Flink Kubernetes Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/Flink-Kubernetes-Playground) | Flink on K8s/GPU experiments |
 
