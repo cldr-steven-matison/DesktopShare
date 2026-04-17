@@ -2,29 +2,7 @@ Here's a **detailed, practical plan** to turn the example NiFi and Kafka YAMLs f
 
 This approach keeps everything declarative, version-controlled, and easy to update/rollback.
 
-### 1. Prerequisites (Make Sure These Are Done)
-Before starting the GitOps part, confirm:
-
-- Minikube is running with sufficient resources (`minikube start --cpus=6 --memory=12g --disk-size=40g` recommended).
-- Ingress addon enabled: `minikube addons enable ingress`
-- `minikube tunnel` running in a separate terminal (for local access to ingresses).
-- **cert-manager** installed (required for NiFi TLS).
-- Namespaces created:
-  ```bash
-  kubectl create namespace cld-streaming
-  kubectl create namespace cfm-streaming
-  ```
-- Required secrets exist in the correct namespaces:
-  - `cfm-operator-license`
-  - `cloudera-creds` (for pulling images from Cloudera registry)
-  - `nifi-admin-creds` (for NiFi initial admin user)
-- Operators are healthy:
-  ```bash
-  kubectl get pods -n cld-streaming
-  kubectl get pods -n cfm-streaming
-  ```
-
-### 2. Set Up Your Git Repository Structure
+### 1. Set Up Your Git Repository Structure
 Fork or clone the original repo and create a clean structure optimized for ArgoCD.
 
 Recommended folder layout (you can put this in a new private repo or a subdirectory):
@@ -65,7 +43,7 @@ cloudera-streaming-gitops/
 - Use **Kustomize** (built into ArgoCD) to keep things DRY.
 - Never commit real credentials. Use Kubernetes Secrets + SealedSecrets, External Secrets Operator, or ArgoCD's secret management.
 
-### 3. Create ArgoCD Applications
+### 2. Create ArgoCD Applications
 ArgoCD will watch your Git repo and apply/sync the resources.
 
 #### Option A: Separate Applications (Recommended for starters)
@@ -124,7 +102,7 @@ spec:
 #### Option B: One ApplicationSet (more scalable)
 If you want to manage both + future components easily, use an ApplicationSet with directories or generators.
 
-### 4. Deployment Order & Dependencies
+### 3. Deployment Order & Dependencies
 ArgoCD doesn't enforce strict order by default, so handle dependencies carefully:
 
 **Recommended sync sequence**:
@@ -147,7 +125,7 @@ ArgoCD doesn't enforce strict order by default, so handle dependencies carefully
 - Or create a parent Application that depends on child ones.
 - Manually sync Kafka first, then NiFi (easiest for initial setup).
 
-### 5. Step-by-Step Execution Plan
+### 4. Step-by-Step Execution Plan
 1. Fork/clone the repo and push your structured GitOps layout.
 2. Install ArgoCD if not already present (or use your existing setup).
 3. Apply the Application CRs:
@@ -171,7 +149,7 @@ ArgoCD doesn't enforce strict order by default, so handle dependencies carefully
    ```
    Then access: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/`
 
-### 6. Post-Deployment Tips & Common Gotchas
+### 5. Post-Deployment Tips & Common Gotchas
 - **Resource limits on Minikube**: The example YAMLs are evaluation-style. You may need to reduce replicas or CPU/memory requests if your Minikube is constrained.
 - **Ingress & TLS**: `nifi-combined.yaml` usually includes the Ingress. Make sure Minikube tunnel is running.
 - **Customizations**: Use Kustomize patches for things like node selectors, storage class (Minikube usually uses `standard`), or enabling Python/NAR support.
