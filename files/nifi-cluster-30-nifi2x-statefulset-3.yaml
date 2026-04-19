@@ -1,0 +1,90 @@
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: Nifi
+metadata:
+  name: mynifi
+  namespace: cfm-streaming
+spec:
+  replicas: 1
+  nifiVersion: "2.6.0"
+
+  # === Image & Tini (Cloudera CFM official images) ===
+  image:
+    repository: container.repository.cloudera.com/cloudera/cfm-nifi-k8s
+    tag: 3.0.0-b126-nifi_2.6.0.4.3.4.0-234
+    pullSecret: cloudera-creds
+  tiniImage:
+    repository: container.repository.cloudera.com/cloudera/cfm-tini
+    tag: 3.0.0-b126
+    pullSecret: cloudera-creds
+
+  # === Python Extensions (the hatch-built stuff) ===
+  # Tell NiFi where to find the Python processors
+  configOverride:
+    nifiProperties:
+      upsert:
+        # The mount path + the relative fallback the listener expects
+        nifi.python.extensions.directories: "./python_extensions,/opt/nifi/nifi-current/python/extensions"
+        # Kubernetes-native leader election (standard for CFM on K8s)
+        nifi.cluster.leader.election.implementation: "KubernetesLeaderElectionManager"
+
+  # === StatefulSet customizations (fully supported in CFM 3.0.0) ===
+  # This is where you add volumes, mounts, and env vars for Python
+  statefulset:
+    env:
+      - name: NIFI_PYTHON_LISTENER_STARTUP_TIMEOUT
+        value: "600 sec"          # Gives pip time to install heavy deps (Chroma, Pinecone, etc.)
+      - name: NIFI_PYTHON_PROXIED_LOG_LEVEL
+        value: "DEBUG"            # Detailed logs in nifi-python.log when a processor fails to load
+    volumes:
+      - name: python-extensions
+        hostPath:
+          path: /extensions       # ← Your hatch-built extensions dir (from `hatch build`)
+    volumeMounts:
+      - name: python-extensions
+        mountPath: /opt/nifi/nifi-current/python/extensions
+
+  # === Resources (CFM requires this nested structure) ===
+  resources:
+    nifi:
+      requests:
+        cpu: "4"
+        memory: "8Gi"
+      limits:
+        cpu: "8"
+        memory: "12Gi"
+    log:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+
+  # === Access (UI) ===
+  hostName: mynifi-web.mynifi.cfm-streaming.svc.cluster.local
+  uiConnection:
+    type: Ingress
+    ingressConfig:
+      hostname: ""   # leave empty if you want to use the Ingress hostname from annotations
+    annotations:
+      nginx.ingress.kubernetes.io/affinity: cookie
+      nginx.ingress.kubernetes.io/affinity-mode: persistent
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+  # === Security (fully supported in CFM operator) ===
+  security:
+    initialAdminIdentity: "admin"
+    nodeCertGen:
+      issuerRef:
+        name: cfm-operator-ca-issuer-signed
+        kind: ClusterIssuer
+    singleUserAuth:
+      enabled: true
+      credentialsSecretName: "nifi-admin-creds"
+
+  # === Kubernetes-native state management (common pattern in CFM) ===
+  # If your CRD version exposes a top-level stateManagement field, keep it.
+  # Otherwise the operator will fall back to the default state-management.xml.
+  stateManagement:
+    clusterProvider:
+      id: kubernetes-provider
+      class: org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider
