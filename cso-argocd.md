@@ -193,6 +193,26 @@ It will prompt for the username (admin) and the password.
 
 In ArgoCD UI or CLI, monitor the sync:
    ```bash
+   argocd app sync cloudera-base # -> Wait until ClusterIssuer is Ready.
+```
+
+Verification Steps (The "Sanity Check")
+
+
+Check the CA: `kubectl get clusterissuer cfm-operator-ca-issuer-signed -o wide`
+
+If this isn't "Ready", stop. Nothing else will work.
+
+Check the Certs: `kubectl get certificate -n cfm-streaming`
+
+If "Ready" is "False", your NiFi pods will never spawn.
+
+Check the Operator Logs: `kubectl logs -l control-plane=cfm-operator -n cfm-streaming`
+
+This is where you'll see "Secret not found" or "Permission denied" errors.
+
+
+```bash
    argocd app sync cloudera-kafka
    argocd app sync cloudera-nifi
    ```
