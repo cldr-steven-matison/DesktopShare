@@ -78,7 +78,9 @@ kubectl port-forward svc/vllm-service 8000:8000
 # Nifi logs
 kubectl logs -n cfm-streaming -f mynifi-0
 kubectl get pod -n cfm-streaming mynifi-0 -o jsonpath='{.spec.containers[*].name}'; echo
-kubectl logs -n cfm-streaming mynifi-0 --all-containers -f
+
+kubectl describe pod mynifi-0 -n cfm-streaming
+
 kubectl logs -n cfm-streaming mynifi-0 --all-containers -f --max-log-requests=7
 kubectl exec -n cfm-streaming -it mynifi-0 -- /bin/bash -c   "tail -n 500 -F /opt/nifi/nifi-current/logs/nifi-app.log" | egrep --line-buffered -i "import|template|flow|json|error|exception"
 

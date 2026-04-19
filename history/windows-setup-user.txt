@@ -47,6 +47,7 @@ helm registry login container.repository.cloudera.com
 
 # --- Cloudera & Streaming Stack Installation (Helm) ---
 helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.16.3 --set installCRDs=true
+
 helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99
 
 

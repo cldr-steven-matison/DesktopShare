@@ -139,7 +139,7 @@ kubectl create namespace argocd
 The installation uses the `--server-side` flag to accommodate large Custom Resource Definitions (CRDs), such as `applicationsets.argoproj.io`, which exceed the standard `kubectl apply` annotation limit of 262,144 bytes.
 
 ```bash
-kubectl apply --server-side -n argocd -f [https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml](https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml)
+ kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
 
 ### 3. Verify Controller Readiness
@@ -163,6 +163,12 @@ To manage the sync state of the NiFi and Kafka clusters via the UI, port-forward
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
+Access the UI
+Open your browser and navigate to:
+https://localhost:8080
+
+Note: You will likely see a "Your connection is not private" warning because Argo CD uses a self-signed certificate. Click Advanced and Proceed to localhost (unsafe).
+
 
 Now that ArgoCD is setup lets move on with testing Kafka and Nifi applications.
 
@@ -171,7 +177,21 @@ Now that ArgoCD is setup lets move on with testing Kafka and Nifi applications.
    kubectl apply -f applications/kafka-app.yaml
    kubectl apply -f applications/nifi-app.yaml
    ```
-4. In ArgoCD UI or CLI, monitor the sync:
+4. ArgoCD Login for CLI
+
+You need to authenticate the CLI to the new instance. First, make sure your port-forward is still running in another window:
+
+`kubectl port-forward svc/argocd-server -n argocd 8080:443`
+
+Then, run the login command:
+
+```bash
+argocd login localhost:8080 --insecure
+```
+It will prompt for the username (admin) and the password.
+
+
+In ArgoCD UI or CLI, monitor the sync:
    ```bash
    argocd app sync cloudera-kafka
    argocd app sync cloudera-nifi
