@@ -14,3 +14,7 @@ helm uninstall strimzi-cluster-operator --namespace cld-streaming || true
 helm uninstall cert-manager --namespace cert-manager || true
 
 echo "✅ All Helm releases uninstalled."
+
+minikube delete
+
+echo "minikube deleted."

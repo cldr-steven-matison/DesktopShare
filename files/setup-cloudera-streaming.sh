@@ -41,7 +41,6 @@ minikube addons enable ingress
 echo "📦 Installing cert-manager..."
 kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
 helm repo add jetstack https://charts.jetstack.io --force-update
-helm repo update
 
 if ! helm list -n cert-manager | grep -q cert-manager; then
   helm install cert-manager jetstack/cert-manager \
@@ -53,20 +52,62 @@ else
   echo "✅ cert-manager already installed"
 fi
 
+echo "installing cert-manager and waiting..."
 kubectl wait --namespace cert-manager --for=condition=Available deployment --all --timeout=300s
 
-# 3. Cloudera Helm Registry Login
-echo "🔑 Logging into Cloudera Helm registry..."
-echo "   Enter your Cloudera username when prompted:"
-helm registry login container.repository.cloudera.com
-
-helm repo update
-
-# 4. Namespaces + Secrets
-echo "📂 Creating namespaces and secrets..."
+# 3. Create Namespaces
+echo "📂 Creating namespaces..."
 kubectl create namespace "$CLUSTER_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace "$CFM_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
+# 4. Cloudera Authentication
+# ====================== Cloudera Credentials & Helm Login (prompt only once) ======================
+
+echo "=== Cloudera Authentication ==="
+
+# Prompt only if the secret doesn't exist in the main namespace
+if ! kubectl get secret cloudera-creds -n "$CLUSTER_NAMESPACE" >/dev/null 2>&1; then
+  echo "Cloudera credentials secret not found. Please enter your credentials:"
+
+  read -rp "Enter Cloudera container repository username: " CL_USERNAME
+  read -rsp "Enter Cloudera container repository password: " CL_PASSWORD
+  echo
+
+  # 1. Login to Helm registry (non-interactive)
+  echo "Logging into Cloudera Helm registry..."
+  echo "$CL_PASSWORD" | helm registry login container.repository.cloudera.com \
+    --username "$CL_USERNAME" \
+    --password-stdin
+
+  # 2. Create the docker-registry secret in both namespaces
+  echo "Creating cloudera-creds secret..."
+  kubectl create secret docker-registry cloudera-creds \
+    --docker-server=container.repository.cloudera.com \
+    --docker-username="$CL_USERNAME" \
+    --docker-password="$CL_PASSWORD" \
+    --namespace "$CLUSTER_NAMESPACE"
+
+  kubectl create secret docker-registry cloudera-creds \
+    --docker-server=container.repository.cloudera.com \
+    --docker-username="$CL_USERNAME" \
+    --docker-password="$CL_PASSWORD" \
+    --namespace "$CFM_NAMESPACE"
+
+  echo "✅ Credentials saved and Helm logged in."
+else
+  echo "✅ cloudera-creds secret already exists — skipping credential prompt"
+  
+  # Optional: Force re-login to Helm if you want to be extra safe
+  # echo "Ensuring Helm is logged in..."
+  # helm registry logout container.repository.cloudera.com >/dev/null 2>&1 || true
+  # ... (you can add the login again if needed)
+fi
+
+echo "Helm Repo Updating...."
+helm repo update
+
+# 5. Secrets
+echo "📂 Creating secrets..."
 # License secret (both namespaces)
 kubectl create secret generic cfm-operator-license \
   --from-file=license.txt="$LICENSE_FILE" \
@@ -103,7 +144,7 @@ kubectl create secret generic nifi-admin-creds \
   --from-literal=password=admin12345678 \
   --namespace "$CFM_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-# 5. Install Operators
+# 6. Install Operators
 echo "🛠️ Installing Strimzi Kafka Operator..."
 helm upgrade --install strimzi-cluster-operator \
   oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator \
