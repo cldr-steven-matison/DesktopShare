@@ -391,5 +391,31 @@ sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud
 sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
 
 
+## in deeper sessions we stick to pushing grafana defaults and working dashboard
+
+# in this session, a :lightbulb: moment.   When hem upgrade failed  rollback worked to revert
+# also be careful in test iterations,  if we do a live patch,  we need to make sure we go back to get the same change reflected in cli or yaml commands
+
+
+ 1023  cd ~/Documents/GitHub/ClouderaStreamingOperators
+ 1024  kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
+ 1025  kubectl get podmonitors -n cld-streaming
+ 1026  kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+ 1027  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+ 1028  kubectl get podmonitors -n cld-streaming
+ 1029  kubectl exec -it my-cluster-combined-0 -n cld-streaming -- curl localhost:9404/metrics
+ 1030  kubectl patch podmonitor strimzi-pod-monitor -n cld-streaming --type merge -p '{"spec":{"jobLabel":"strimzi.io/cluster"}}'
+ 1031  helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.additionalDataSources[0].jsonData.timeInterval=30s' \\n  --set 'grafana.additionalDataSources[0].jsonData.httpMethod=POST' \\n  --set 'grafana.additionalDataSources[0].jsonData.incrementalQuerying=true'
+ 1032  helm rollback prometheus -n cld-streaming
+ 1033  helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.sidecar.datasources.isDefaultDatasourceEditable=true' \\n  --set 'grafana.additionalDataSources[0].jsonData.scrapeInterval=30s'
+ 1034  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+ 1035  helm rollback prometheus -n cld-streaming
+ 1036  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+ 1037  helm uninstall prometheus -n cld-streaming
+ 1038  ls
+
+
+
+
 
 ```
