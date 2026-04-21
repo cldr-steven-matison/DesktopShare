@@ -190,31 +190,54 @@ kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data
 ```
 ---
 
+Here's the **clean, updated standalone section** you can copy and paste directly into your MD file as **Section 5**:
+
+---
+
 ### 5️⃣ Querying Kafka Metrics in Prometheus UI
 
-Now that you have the Prometheus UI exposed via `minikube service` (from Section 4), you can start exploring live metrics from your **CSM Operator** Kafka cluster in real time. The JMX Prometheus Exporter (configured via the `kafka-metrics` ConfigMap and PodMonitor) exposes hundreds of broker-level and topic-level metrics from Strimzi-based Kafka. These are perfect for troubleshooting producer/consumer throughput, replication health, and topic-specific behavior in your CSM workloads (like `txn1`, `txn2`, and `txn_fraud`).
+Now that you have the Prometheus UI exposed via `minikube service` (from Section 4) and your `strimzi-pod-monitor` shows **3/3 targets UP**, you can start exploring live metrics from your **CSM Operator** Kafka cluster in real time.
 
-Head to the Prometheus UI in your browser (usually at `http://127.0.0.1:xxxxx`). Switch to the **Graph** tab, and paste in the queries below. Use the autocomplete dropdown to explore available metrics, or check the **Targets** page to confirm your Kafka brokers are being scraped successfully.
+The JMX Prometheus Exporter is successfully scraping your brokers on port 9404. Your Kafka brokers are named `my-cluster-combined-*` due to the `combined` KafkaNodePool.
+
+Head to the Prometheus UI in your browser (usually at `http://<minikube-ip>:9090`). Switch to the **Graph** tab, and paste in the queries below. Use the autocomplete dropdown to explore other available metrics, or check **Status → Targets** to confirm everything is still scraping correctly.
 
 **Sample Query 1: Topic Messages In Per Second (Confirmed Throughput)**  
 ```promql
 sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
 ```  
-This is the exact query you already verified at the bottom of the plan — it aggregates messages ingested per second, grouped by broker pod and topic. Watch it spike when your producers (or NiFi flows) push data to those txn topics. Great for spotting imbalances across brokers or sudden drops in one topic.
+This query aggregates messages ingested per second, grouped by broker pod and topic. Watch it spike when your producers or NiFi flows push data into the txn topics. Excellent for spotting sudden drops or imbalances across brokers.
 
-**Sample Query 2: Under-Replicated Partitions (Replication Health)**  
+**Sample Query 2: Topic Bytes In Per Second (Throughput in Bytes)**  
 ```promql
-sum(kafka_server_replicamanager_underreplicatedpartitions{strimzi_io_cluster="my-cluster"}) by (pod)
+sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic)
 ```  
-This shows the number of under-replicated partitions per broker (it should stay at or near **0** in a healthy CSM cluster). Any sustained value > 0 signals replication lag, broker overload, or network issues between your Kafka pods. Swap `my-cluster` for your actual `Kafka` CR name if different, and add `{namespace="cld-streaming"}` to narrow it further.
+This query shows the incoming byte rate per topic over a 5-minute window. It gives you a clear picture of actual data volume flowing into `txn1`, `txn2`, and especially `txn_fraud`. Because it uses `rate()`, the graph is much smoother and more useful for monitoring real-world throughput.
 
-**Quick Tips for Power Users**  
-- Wrap counters in `rate(...[5m])` for smoother trends: e.g., `sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic)`.  
-- Filter aggressively with labels like `{pod=~".*kafka.*"}` or `{topic=~"txn.*"}`.  
-- Set up basic alerting later by creating a `PrometheusRule` CRD in the `monitoring` namespace if you want auto-notifications on high under-replication or low throughput.  
-- If metrics are missing, restart the Prometheus pod (`kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring`) and re-check the PodMonitor status.
+**Quick Tips for This Setup**  
+- Filter by your actual broker pods when needed:  
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic, pod)
+  ```  
+- Add namespace filtering for cleaner results:  
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m]{namespace="cld-streaming"})) by (topic)
+  ```  
+- For leadership health in your replication-factor=1 evaluation cluster, quickly check:  
+  ```promql
+  sum(kafka_server_replicamanager_leadercount) by (pod)
+  ```  
+  You should see roughly balanced leader counts across the three `my-cluster-combined-*` pods.  
+- If any query returns no data, make sure you are actively producing messages to the topics. Then restart Prometheus to force a fresh scrape:  
+  ```bash
+  kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
+  ```
 
-Run these queries while your producers are active — you’ll instantly see the power of Prometheus + CSM Operator for Kafka observability.
+Run both queries while your producers or NiFi flows are actively sending data to `txn1`, `txn2`, and `txn_fraud`. You should now see clear, live throughput numbers appearing in the Prometheus graphs.
+
+This gives you immediate visibility into both message rate and data volume — perfect for evaluating how well your CSM Kafka cluster is handling the workload.
+
+---
 
 ### 6️⃣ Visualizing CSM Kafka with Grafana Dashboards
 
