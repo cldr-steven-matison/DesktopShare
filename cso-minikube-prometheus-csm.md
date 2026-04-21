@@ -221,13 +221,8 @@ This query shows the incoming byte rate per topic over a 5-minute window. It giv
   ```  
 - Add namespace filtering for cleaner results:  
   ```promql
-  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m]{namespace="cld-streaming"})) by (topic)
+  sum(kafka_server_brokertopicmetrics_bytesinpersec{namespace="cld-streaming"}) by (topic)
   ```  
-- For leadership health in your replication-factor=1 evaluation cluster, quickly check:  
-  ```promql
-  sum(kafka_server_replicamanager_leadercount) by (pod)
-  ```  
-  You should see roughly balanced leader counts across the three `my-cluster-combined-*` pods.  
 - If any query returns no data, make sure you are actively producing messages to the topics. Then restart Prometheus to force a fresh scrape:  
   ```bash
   kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
