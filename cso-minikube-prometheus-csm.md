@@ -30,9 +30,17 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 > Helm Install Prometheus
 > ```bash
 > helm install prometheus prometheus-community/kube-prometheus-stack \
->   --namespace monitoring --create-namespace \
->   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
->   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false
+  --namespace cld-streaming --create-namespace \
+  --set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
+  --set 'grafana.additionalDataSources[0].name=Prometheus' \
+  --set 'grafana.additionalDataSources[0].type=prometheus' \
+  --set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
+  --set 'grafana.additionalDataSources[0].access=proxy' \
+  --set 'grafana.additionalDataSources[0].isDefault=true' \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+  --set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
+  --set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
 > ```
 
 ---
@@ -149,7 +157,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: strimzi-pod-monitor
-  namespace: monitoring
+  namespace: cld-streaming
   labels:
     release: prometheus
 spec:
@@ -165,7 +173,7 @@ spec:
       targetPort: 9404
       interval: 30s
 ```
-`kubectl apply -f strimzi-pod-monitor.yaml -n monitoring`
+`kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming`
 
 ---
 
@@ -175,18 +183,18 @@ Grab the URLs and keep the tunnels alive in separate terminal tabs.
 
 **Tab 1: Prometheus UI**
 ```bash
-minikube service prometheus-kube-prometheus-prometheus -n monitoring --url
+minikube service prometheus-kube-prometheus-prometheus -n cld-streaming --url
 ```
 * **Verification:** Go to `Status -> Targets`. Look for `strimzi-pod-monitor`. It should be **UP**.
 
 **Tab 2: Grafana UI**
 ```bash
-minikube service prometheus-grafana -n monitoring --url
+minikube service prometheus-grafana -n cld-streaming --url
 ```
 
 use this command to get the admin password
 ```bash
-kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+kubectl get secret --namespace cld-streaming prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
 ```
 ---
 
@@ -225,7 +233,7 @@ This query shows the incoming byte rate per topic over a 5-minute window. It giv
   ```  
 - If any query returns no data, make sure you are actively producing messages to the topics. Then restart Prometheus to force a fresh scrape:  
   ```bash
-  kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
+  kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n cld-streaming
   ```
 
 Run both queries while your producers or NiFi flows are actively sending data to `txn1`, `txn2`, and `txn_fraud`. You should now see clear, live throughput numbers appearing in the Prometheus graphs.
@@ -238,7 +246,7 @@ This gives you immediate visibility into both message rate and data volume — p
 
 With Prometheus feeding live data, Grafana turns those raw metrics into professional dashboards. However, “no data” is the most common issue at this stage — usually because Prometheus is not yet scraping the Kafka brokers or the dashboard variables don’t match your labels.
 
-Open Grafana (`minikube service grafana -n monitoring`). Login with `admin` and the password from the secret (see Section 4).
+Open Grafana (`minikube service grafana -n cld-streaming`). Login with `admin` and the password from the secret (see Section 4).
 
 **Step 1: Verify the Prometheus Data Source**  
 Go to **Configuration → Data Sources**.  
@@ -318,7 +326,7 @@ helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.ima
 Sometimes the Prometheus Operator misses the "Create" event after a "Delete" event. You can give it a nudge by restarting the operator:
 
 ```bash
-kubectl rollout restart deployment prometheus-kube-prometheus-operator -n monitoring
+kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
 ```
 
 4.  Testing Prometheus Works
@@ -342,13 +350,13 @@ helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.ima
 kubectl apply -f kafka-metrics-config.yaml -n cld-streaming
 kubectl apply -f kafka-nodepool.yaml -n cld-streaming
 kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
-kubectl apply -f strimzi-pod-monitor.yaml -n monitoring
+kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
 
 
 kubectl delete -f kafka-metrics-config.yaml -n cld-streaming
 kubectl delete -f kafka-nodepool.yaml  -n cld-streaming
 kubectl delete -f kafka-eval-prometheus.yaml -n cld-streaming
-kubectl delete -f strimzi-pod-monitor.yaml -n monitoring
+kubectl delete -f strimzi-pod-monitor.yaml -n cld-streaming
 helm uninstall strimzi-cluster-operator --namespace cld-streaming
 
 
@@ -356,7 +364,7 @@ helm uninstall strimzi-cluster-operator --namespace cld-streaming
 
 kubectl logs my-cluster-combined-0 -n cld-streaming
 
-minikube service prometheus-kube-prometheus-prometheus -n monitoring --url
+minikube service prometheus-kube-prometheus-prometheus -n cld-streaming --url
 
 
  1047  kubectl get configmap kafka-metrics -n cld-streaming -o jsonpath='{.data}' | jq 'keys'
