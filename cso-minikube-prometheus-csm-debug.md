@@ -1,88 +1,158 @@
-Here's the updated troubleshooting flow that matches exactly how your plan is written (CSM Operator on Minikube, `cld-streaming` namespace, etc.).  
+**✅ Great progress!** Your Prometheus scraping is working (test queries return data in the UI/explorer, brokers are UP on port 9404, NiFi is pushing to `txn*` topics, and basic `kafka_server_brokertopicmetrics_*` metrics are visible).  
 
-The “no data” issue is extremely common in this setup — even when the dashboard imports cleanly. It almost always means **Prometheus is not successfully scraping the Kafka broker metrics** (or the scrape is happening but the labels don’t match what the dashboard expects).
+The **Strimzi Grafana dashboard** is failing for two main reasons in your exact CSM + KafkaNodePool + Minikube setup:
 
-### Quick Diagnosis Commands (Run These Now)
+1. **Your `kafka-metrics-config.yaml` is too minimal** → only exposes a subset of metrics. The dashboard expects many more (e.g. `kafka_server_replicamanager_leadercount`, `kafka_cluster_partition_*`, full topic/partition labels, etc.).
+2. **Your `strimzi-pod-monitor.yaml` has no relabelings** → the metrics series are missing the exact labels the dashboard variables and queries rely on (`strimzi_io_cluster`, `kubernetes_pod_name`, `pod_name`, etc.). Prometheus only adds basic K8s labels (`namespace`, `pod`) by default.
 
-Open a terminal and run the following one by one:
+The NodePool `combined` naming (`my-cluster-combined-*`) is compatible once the labels are fixed.
 
+### Step-by-step fix (copy-paste ready)
+
+#### 1. Full Delete + Rebuild (prevents stale config caching)
 ```bash
-# 1. Check if Prometheus is discovering your Kafka pods
-kubectl get podmonitors.monitoring.coreos.com -n monitoring
+kubectl delete kafka my-cluster -n cld-streaming --ignore-not-found
+kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming --ignore-not-found
+kubectl delete configmap kafka-metrics -n cld-streaming --ignore-not-found
+kubectl delete podmonitor strimzi-pod-monitor -n cld-streaming --ignore-not-found
 
-# 2. Look at the actual targets in Prometheus UI
-# Open Prometheus → Status → Targets
-# Look for targets with job="kafka" or containing "cld-streaming" / "my-cluster-kafka"
-# They should show State = UP. If they are DOWN or missing → that's the problem.
+minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
 
-# 3. Check Kafka pods have the metrics port exposed
-kubectl get pods -n cld-streaming -l strimzi.io/kind=Kafka -o wide
-
-kubectl describe pod <one-of-your-kafka-broker-pods> -n cld-streaming | grep -A 20 "Ports:"
+# Optional but clean: restart operator if you hit bad state
+helm uninstall strimzi-cluster-operator --namespace cld-streaming
+# Re-install (your exact command)
+helm install strimzi-cluster-operator --namespace cld-streaming \
+  --set 'image.imagePullSecrets[0].name=cloudera-creds' \
+  --set-file clouderaLicense.fileContent=./license.txt \
+  --set watchAnyNamespace=true \
+  oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99
 ```
 
-Also, in the Prometheus UI (Graph tab), paste your working query again:
-```promql
-sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
+#### 2. Use the **full official Strimzi metrics config** (replaces your minimal one)
+```bash
+curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/kafka-metrics.yaml
+kubectl apply -f kafka-metrics.yaml -n cld-streaming
 ```
-If this still returns data → good.  
-If it now returns **no data** → the scrape is broken or the metrics config changed.
 
-### Most Likely Fixes (in order)
+(This is the exact ConfigMap the Strimzi dashboard was built for — it includes all the rules for `brokertopicmetrics`, `replicamanager`, `controller`, topic/partition labels, etc.)
 
-**Fix 1: Verify / Re-apply the PodMonitor**  
-Your plan already has a PodMonitor for the Kafka metrics. Make sure it is in the **monitoring** namespace and has the correct selector for the `kube-prometheus-stack` release.
-
-Typical working PodMonitor for CSM/Strimzi on Minikube looks like this (add or replace if needed):
+#### 3. Updated `strimzi-pod-monitor.yaml` (with relabelings — this is the key fix)
+Replace your current one with this:
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: kafka-brokers
-  namespace: monitoring
+  name: strimzi-pod-monitor
+  namespace: cld-streaming
   labels:
-    release: kube-prometheus-stack
+    release: prometheus
 spec:
-  namespaceSelector:
-    matchNames:
-    - cld-streaming
   selector:
     matchLabels:
+      strimzi.io/cluster: my-cluster
       strimzi.io/kind: Kafka
+  namespaceSelector:
+    matchNames:
+      - cld-streaming
   podMetricsEndpoints:
-  - port: tcp-prometheus   # this must match the port name in the Kafka pod
-    interval: 30s
-    path: /metrics
+    - path: /metrics
+      targetPort: 9404
+      interval: 30s
+      relabelings:
+        # Map Strimzi pod labels (strimzi.io/...) to top-level metric labels the dashboard expects
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(strimzi_io_.+)
+          replacement: $1
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+          replacement: $1
+        # Standard K8s labels the dashboard variables use
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: kubernetes_pod_name
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod_name
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node_name
 ```
 
-Apply it:
 ```bash
-kubectl apply -f your-podmonitor.yaml
+kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
 ```
 
-Then restart Prometheus so it picks up the new monitor:
+#### 4. Re-apply Kafka resources (in order)
 ```bash
-kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n monitoring
+kubectl apply -f kafka-nodepool.yaml -n cld-streaming
+kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
 ```
 
-**Fix 2: Confirm the JMX Exporter Port Name**  
-In your Kafka CR (`spec.kafka`), the metrics port must be named **exactly** `tcp-prometheus` (or whatever name you used in the PodMonitor).  
-Run:
+#### 5. Force Prometheus to pick up changes
 ```bash
-kubectl get pod <kafka-pod> -n cld-streaming -o yaml | grep -A 10 -B 5 "name:.*prometheus"
+kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n cld-streaming
+kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
 ```
 
-**Fix 3: Generate Traffic (Very Important!)**  
-Many panels stay empty until there is actual activity on the topics.  
-While testing, run a simple producer against your txn topics (or trigger your NiFi flows). The Strimzi dashboard relies heavily on rate-based metrics like `messagesinpersec`, `bytesinpersec`, etc.
+Wait ~30-60s, then check in Prometheus UI (`minikube service prometheus-kube-prometheus-prometheus -n cld-streaming --url`):
 
-**Fix 4: Check Grafana Variables**  
-After the dashboard is imported:
-- At the top of the Strimzi Kafka dashboard, change these variables:
-  - **namespace** → `cld-streaming`
-  - **strimzi_cluster_name** → `my-cluster` (or whatever your `Kafka` CR is named)
-  - **kafka_broker** → leave as .* or pick your broker pods
-  - **kafka_topic** → `txn1|txn2|txn_fraud` (or `.*`)
+- **Status → Targets** → `strimzi-pod-monitor` should be 3/3 UP.
+- Run this diagnostic query (should return 3 lines with your brokers):
 
-If the variables don’t show your namespace/cluster, the underlying Prometheus query can’t find matching labels.
+```promql
+count by (namespace, pod, kubernetes_pod_name, pod_name, strimzi_io_cluster, strimzi_io_kind) (kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"})
+```
+
+You should now see labels like `strimzi_io_cluster="my-cluster"`, `kubernetes_pod_name="my-cluster-combined-0"`, `pod_name="my-cluster-combined-0"`.
+
+#### 6. Grafana Dashboard (updated instructions for Section 6)
+
+1. Import the Strimzi dashboard exactly as before (the same `strimzi-kafka.json` you already have).
+2. **Set the variables** at the top of the dashboard:
+   - `kubernetes_namespace` → `cld-streaming`
+   - `strimzi_cluster_name` → `my-cluster`
+   - `kafka_broker` → should now auto-populate with `combined-0`, `combined-1`, `combined-2` (or select `.*`)
+   - `kafka_topic` → `txn1|txn2|txn_fraud` (or `.*` for everything)
+
+3. Generate traffic (trigger your NiFi flows) → the dashboard should now light up.
+
+**If any variable still shows "No values"**:
+- Go to **Dashboard settings → Variables**, edit `strimzi_cluster_name` (or others) and change the **Query** to:
+  ```promql
+  label_values(kafka_server_replicamanager_leadercount{namespace="cld-streaming"}, strimzi_io_cluster)
+  ```
+- Do the same for `kafka_broker` if needed:
+  ```promql
+  label_values(kafka_server_replicamanager_leadercount{namespace="cld-streaming",strimzi_io_cluster="my-cluster"}, kubernetes_pod_name)
+  ```
+  (then update the regex to `/.*combined-(.+)/` or just use the full pod name).
+
+#### Quick custom panels (while dashboard finishes loading)
+Use these in a temporary dashboard (they match your working queries):
+
+- **Messages In Per Second**
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_messagesinpersec{namespace="cld-streaming", topic=~"txn1|txn2|txn_fraud"}[5m])) by (pod, topic)
+  ```
+
+- **Bytes In Per Second**
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec{namespace="cld-streaming", topic=~"txn1|txn2|txn_fraud"}[5m])) by (topic)
+  ```
+
+- **Under Replicated Partitions**
+  ```promql
+  sum(kafka_server_replicamanager_underreplicatedpartitions{namespace="cld-streaming", strimzi_io_cluster="my-cluster"}) by (pod)
+  ```
+
+### Next Steps for the MD post
+- Replace your current **Section 3** with the new PodMonitor YAML above.
+- Update **Section 1** (Metrics ConfigMap) to point to the full `kafka-metrics.yaml` download.
+- Expand **Section 6** with the diagnostic query + variable tweaks above.
+- Add the full-delete commands and the label verification query.
+
+Run the steps above and let me know what the diagnostic query returns (or paste a screenshot of the Prometheus table). We'll tweak the relabelings/variables in one more pass if needed.
+
+You’re literally one PodMonitor relabeling away from a fully working professional Strimzi dashboard. 🚀
+
+Once this is solid, the next post on CFM (NiFi) monitoring will be straightforward — same Prometheus stack, just add a ServiceMonitor for NiFi.
