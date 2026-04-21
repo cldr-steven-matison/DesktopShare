@@ -194,7 +194,7 @@ kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data
 
 Now that you have the Prometheus UI exposed via `minikube service` (from Section 4), you can start exploring live metrics from your **CSM Operator** Kafka cluster in real time. The JMX Prometheus Exporter (configured via the `kafka-metrics` ConfigMap and PodMonitor) exposes hundreds of broker-level and topic-level metrics from Strimzi-based Kafka. These are perfect for troubleshooting producer/consumer throughput, replication health, and topic-specific behavior in your CSM workloads (like `txn1`, `txn2`, and `txn_fraud`).
 
-Head to the Prometheus UI in your browser (usually at `http://<minikube-ip>:9090`). Switch to the **Graph** tab, and paste in the queries below. Use the autocomplete dropdown to explore available metrics, or check the **Targets** page to confirm your Kafka brokers are being scraped successfully.
+Head to the Prometheus UI in your browser (usually at `http://127.0.0.1:xxxxx`). Switch to the **Graph** tab, and paste in the queries below. Use the autocomplete dropdown to explore available metrics, or check the **Targets** page to confirm your Kafka brokers are being scraped successfully.
 
 **Sample Query 1: Topic Messages In Per Second (Confirmed Throughput)**  
 ```promql
@@ -218,46 +218,54 @@ Run these queries while your producers are active — you’ll instantly see the
 
 ### 6️⃣ Visualizing CSM Kafka with Grafana Dashboards
 
-With Prometheus feeding live data, **Grafana** turns those raw metrics into professional, at-a-glance dashboards tailored for your CSM Kafka cluster. The `kube-prometheus-stack` already ships with a Prometheus data source configured, so you can go from zero to insightful visualizations in minutes.
+With Prometheus feeding live data, Grafana turns those raw metrics into professional dashboards. However, “no data” is the most common issue at this stage — usually because Prometheus is not yet scraping the Kafka brokers or the dashboard variables don’t match your labels.
 
-Open the Grafana UI (again from the `minikube service` command in Section 4 — usually `http://<minikube-ip>:3000`). Login with the admin credentials (run this if you forgot them):  
-```bash
-kubectl get secret -n monitoring kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 --decode
-```  
-(Username is usually `admin`.)
+Open Grafana (`minikube service grafana -n monitoring`). Login with `admin` and the password from the secret (see Section 4).
 
 **Step 1: Verify the Prometheus Data Source**  
-Go to **Configuration → Data Sources**. The “Prometheus” source should already point to your operator-managed instance (something like `http://prometheus-operated.monitoring.svc:9090`). Click **Test** — it should say “Data source is working”.
+Go to **Configuration → Data Sources**.  
+- The “Prometheus” source should point to something like `http://prometheus-operated.monitoring.svc:9090`.  
+- Click **Save & Test**. It must say “Data source is working”.  
+(Note: There is no separate “Test” button on every screen — use the one at the bottom of the datasource edit page.)
 
-**Step 2: Import the Official Strimzi Kafka Dashboard (Recommended)**  
-Strimzi (and therefore **CSM Operator**) provides battle-tested dashboards. Grab the main one with this command:  
-```bash
-curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/grafana-dashboards/strimzi-kafka.json
-```  
-In Grafana:  
-1. **Dashboards → New → Import**  
-2. Upload the downloaded JSON file (or paste the raw URL directly).  
-3. Select your Prometheus data source when prompted.  
-4. Import!  
+**Step 2: Import the Strimzi Kafka Dashboard (Fixed Instructions)**  
+1. Download the JSON:
+   ```bash
+   curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/grafana-dashboards/strimzi-kafka.json
+   ```
+2. In Grafana → **Dashboards** → **New** → **Import**  
+3. Click **Upload JSON file** and select the downloaded file.  
+4. On the next screen:
+   - Datasource → select your Prometheus data source  
+   - Click **Import**
 
-You’ll instantly get pre-built panels for broker overview, topic throughput, JVM memory/GC, partition counts, and more — all filtered to your `KafkaNodePool` and topics.
+**Step 3: Troubleshoot “No Data”**  
+- In the dashboard, set the template variables at the top:
+  - `kubernetes_namespace` = `cld-streaming`
+  - `strimzi_cluster_name` = `my-cluster` (match your Kafka CR name)
+  - `kafka_topic` = `txn1|txn2|txn_fraud`
+- Go back to Prometheus UI → **Status** → **Targets** and confirm there are UP targets for your Kafka brokers (look for port 9404 or the `tcp-prometheus` port).
+- Generate traffic to your topics (run a producer or trigger NiFi flows) — many panels only show data once messages are flowing.
 
-**Step 3: Build or Enhance Custom Panels (Optional but Powerful)**  
-Create a new dashboard and add panels using the queries from Section 5:  
-- **Time Series panel** → Paste Query 1 for “Messages In Per Second” (legend format: `{{pod}} - {{topic}}`).  
-- **Stat/Gauge panel** → Use Query 2 for “Under-Replicated Partitions” (set thresholds: green=0, red>0).  
-- Add extras like:  
+**Step 4: Quick Custom Panels While Fixing**  
+If the full dashboard is still empty, create a temporary dashboard and add these two panels (Time Series):
+
+- Messages In Per Second (your confirmed query):
   ```promql
-  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic)
-  ```  
-  for bytes throughput, or JVM heap: `java_lang_memory_heapmemoryusage_used{area="heap"} / java_lang_memory_heapmemoryusage_max{area="heap"}`.  
+  sum(rate(kafka_server_brokertopicmetrics_messagesinpersec[5m])) by (pod, topic)
+  ```
+- Under-Replicated Partitions:
+  ```promql
+  sum(kafka_server_replicamanager_underreplicatedpartitions) by (pod)
+  ```
 
-Create dashboard variables for `$namespace`, `$pod`, and `$topic` so you can filter dynamically across your CSM topics (`txn_fraud` etc.).
+Once you see data in these simple panels, the full Strimzi dashboard will light up after you fix the PodMonitor + variables.
 
-**Step 4: Set Up Alerts & Sharing**  
-In any panel, click **Alert** → define rules (e.g., under-replicated partitions > 0 for > 2 minutes). Share the dashboard via link or export as JSON for team reuse.
+You’re super close — 95% of the time this is just a missing PodMonitor scrape or mismatched namespace/cluster label.  
 
-You now have production-grade visibility into your entire CSM Kafka pipeline — throughput, health, and topic-level behavior — all running locally on Minikube. Pair this with your NiFi flows and you’re flying with full observability!  
+Run the diagnosis commands above and paste the output here (especially the Targets page and PodMonitor list). I’ll give you the exact one-line fix for your setup.
+
+We’ll get the dashboard showing your `txn_fraud` throughput in the next message. Let’s knock this out! 🚀
 
 
 ### 🏁 Summary
