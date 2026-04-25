@@ -12,7 +12,7 @@ Centralized infrastructure on WSL2 handles the heavy lifting (routing, parsing c
 
 ## PHASE 0: Prerequisites (Split Environment)
 
-We split the tools between the Windows Host (Edge) and WSL2 (Core) because WSL2 does not natively expose Windows audio/MIDI hardware.
+We split the tools between the Windows Host (Edge) and WSL2 (Core) to demonstrate using Minifi & NiFi across environments.  In this case from kubernetes cluster with no access to the edge device with midi and audio.
 
 **1. On the Windows Host (Edge):**
 * **Python 3.11+**: `winget install Python.Python.3.11`
@@ -53,7 +53,7 @@ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 ## PHASE 2: Local Strudel REPL
 
-**Inside WSL2:**
+**Inside WSL2:**  ?? Redo this for install on windows??
 ```bash
 git clone https://codeberg.org/uzu/strudel.git
 cd strudel
@@ -66,28 +66,16 @@ pnpm dev
 
 ## PHASE 3: Core Infrastructure (Minikube / Cloudera Streaming)
 
-**Inside WSL2:**
-Spin up your existing containerized data stack.
-
-```bash
-minikube start --cpus 6 --memory 12288 --disk-size 40g
-kubectl create namespace cld-streaming
-# ... (Deploy your docker-registry secret, cert-manager, Strimzi, Kafka, NiFi)
-```
-
-Ensure Kafka is accessible to the Windows Host by port-forwarding:
-```bash
-kubectl port-forward -n cld-streaming my-cluster-kafka-0 9092:9092
-```
+Link to blog doc for CSO.
 
 ---
 
-## PHASE 4: Core NiFi Flow (The Heavy Lift)
+## PHASE 4: Core NiFi Flow
 
 Open your K8s NiFi UI. This flow strips complex upstream JSON into a dead-simple string for the edge.
 
 1. **ListenHTTP**
-   * Listening Port: `8080`
+   * Listening Port: `999`
    * Path: `/musical-events`
 2. **EvaluateJsonPath**
    * Destination: `flowfile-content` (Replaces the entire FlowFile payload with the JSON path result).
@@ -95,7 +83,7 @@ Open your K8s NiFi UI. This flow strips complex upstream JSON into a dead-simple
    * *Result: If the incoming payload is `{"note": 60}`, the FlowFile content is now strictly `"60"`.*
 3. **PublishKafka**
    * Kafka Brokers: `localhost:9092`
-   * Topic Name: `musical.changes`
+   * Topic Name: `musical_changes`
    * Use Transactions: `false`
 
 ---
@@ -159,42 +147,55 @@ Leave this running.
 
 We configure the MiNiFi C++ agent to act purely as a Kafka consumer that drops files into our watchdog's inbox.
 
-Edit or replace `C:\minifi\conf\config.yml`:
+Edit as administrator `C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\conf.yml`:
 
 ```yaml
 MiNiFi Config Version: 3
 Flow Controller:
-  name: MiNiFi Edge File Drop
-
+  name: MiNiFi Music Edge
+  id: 123e4567-e89b-12d3-a456-426614174000
 Processors:
-  - name: ConsumeKafka
+  - name: GetKafka
+    id: 123e4567-e89b-12d3-a456-426614174001
     class: org.apache.nifi.minifi.processors.ConsumeKafka
     scheduling strategy: TIMER_DRIVEN
-    scheduling period: 100 ms
+    scheduling period: 5 sec
     Properties:
-      Kafka Brokers: localhost:9092
-      Topic Names: musical.changes
-      Group ID: minifi-midi-group
-      Offset Reset: latest
-
-  - name: DropMIDIFile
+      Kafka Brokers: 127.0.0.1:9092
+      Topic Names: musical_changes
+      Group ID: minifi-music-group-new
+      Security Protocol: plaintext
+      Offset Reset: earliest
+      auto.offset.reset: earliest
+  - name: LogAttributes
+    id: 123e4567-e89b-12d3-a456-426614174004
+    class: org.apache.nifi.minifi.processors.LogAttribute
+    scheduling strategy: EVENT_DRIVEN
+  - name: WriteToInbox
+    id: 123e4567-e89b-12d3-a456-426614174002
     class: org.apache.nifi.minifi.processors.PutFile
     scheduling strategy: EVENT_DRIVEN
     Properties:
-      Directory: C:\midi\inbox
+      Directory: C:\\midi\\inbox
       Conflict Resolution Strategy: replace
-
 Connections:
-  - name: KafkaToFile
-    source name: ConsumeKafka
-    destination name: DropMIDIFile
+  - name: KafkaToLog
+    id: 123e4567-e89b-12d3-a456-426614174005
+    source name: GetKafka
+    destination name: LogAttributes
     source relationship name: success
+  - name: LogToDisk
+    id: 123e4567-e89b-12d3-a456-426614174006
+    source name: LogAttributes
+    destination name: WriteToInbox
+    source relationship name: success
+
 ```
 
 Run MiNiFi in a new PowerShell window:
 ```powershell
-cd C:\minifi\bin
-.\minifi.exe run
+cd "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin"
+.\minifi.exe
 ```
 
 ---
@@ -221,7 +222,7 @@ stack(
 From either WSL2 or Windows PowerShell, simulate your upstream producer by sending a test payload to your K8s NiFi instance:
 
 ```bash
-curl -X POST http://localhost:8080/musical-events \
+curl -X POST http://localhost:9999/musical-events \
      -H "Content-Type: application/json" \
      -d '{"note": 60, "velocity": 100}'
 ```
@@ -231,3 +232,77 @@ curl -X POST http://localhost:8080/musical-events \
 2. Windows MiNiFi pulls `"60"` from Kafka and writes it to `C:\midi\inbox\flowfile.txt`.
 3. Python Watchdog instantly detects the file, reads `"60"`, hits loopMIDI, and deletes the file.
 4. Strudel hears the Note On over loopMIDI and plays the sound instantly.
+
+
+## Terminal Map
+
+1. The NiFi Flow
+```wsl2
+minikube tunnel
+```
+2. WSL2 to Localhost kafka
+```wsl2
+kubectl port-forward -n cld-streaming my-cluster-combined-2 9092:9092
+```
+3. Inbound NiFi Port for Upstream Notes
+```wsl2
+kubectl port-forward -n cfm-streaming pod/mynifi-0 9999:9999
+```
+
+4.  MiniFi 
+```powershell
+PS C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin> .\minifi.exe
+```
+
+5. Send a Test Note to NiFi
+```powershell
+curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
+```
+
+
+
+X. MiDi Watchdog Notes to StrudelKafkaBus
+```powershell
+PS C:\Users\tunas> python C:\midi\watchdog.py
+```
+x. LoopMIDI ?? never got this far Total data was always 0
+
+[ screen shot ]
+
+X. Strudel ?? should this be on PS not WSL2?  
+```wsl2
+tunas@MINI-Gaming-G1:~/strudel$ pnpm dev
+```
+
+
+
+
+
+## History
+
+```bash
+
+   1 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
+
+   6 cd c:\midi\inbox
+
+  17 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
+  18 Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 300
+  29 Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 150
+  30 dir "C:\midi\inbox"
+  31 ls
+
+
+```
+
+### MiNiFi Terminal History
+
+```powershelladmin
+
+
+  55 Stop-Service -Name "Apache NiFi MiNiFi" -Force -ErrorAction SilentlyContinue
+  56 Stop-Service -Name "MiNiFi" -ErrorAction SilentlyContinue
+  57 .\minifi.exe
+ 
+  
+```
