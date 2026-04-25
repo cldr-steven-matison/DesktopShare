@@ -57,3 +57,34 @@ You will hear the change live.
 Your existing watchdog.py already sends the exact same note_on/note_off messages, so once the midikeys code is in Strudel, Kafka → MiNiFi → watchdog → LoopMIDI will make sound immediately.
 
 Drop the test sender or a real Kafka event and you’ll hear it. That’s the integration confirmed. Let me know when you hear the notes.
+
+
+##### Pass 2
+
+
+```js
+navigator.requestMIDIAccess({sysex:false}).then(m => {
+  console.log("=== ALL MIDI INPUTS Strudel Sees ===");
+  Array.from(m.inputs.values()).forEach(p => console.log('→ "' + p.name + '"'));
+  console.log("=== END ===");
+}).catch(e => console.error("MIDI ERROR", e));
+```
+
+Paste ONLY the block above into Strudel REPL → hit Play.  
+F12 → Console.  
+Copy the entire output here.
+
+```powershell
+net stop midisrv && net start midisrv
+```
+
+Run that exact line in an **Administrator** PowerShell, then close/reopen your browser and Strudel REPL, then run the JS block above again.
+
+Your Python test already proves the port exists on Windows. The service restart + exact port name from console will make Strudel hear every note instantly with this next block (once we see the name):
+
+```js
+const kb = await midikeys('StrudelKafkaBus')
+kb().s('sawtooth').gain(0.8).room(0.4).delay(0.3)
+```
+
+Paste the console output and we finish this today.
