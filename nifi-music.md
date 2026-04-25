@@ -82,7 +82,7 @@ Open your K8s NiFi UI. This flow strips complex upstream JSON into a dead-simple
    * Add dynamic property: `midi.note` -> `$.note`
    * *Result: If the incoming payload is `{"note": 60}`, the FlowFile content is now strictly `"60"`.*
 3. **PublishKafka**
-   * Kafka Brokers: `localhost:9092`
+   * Kafka Brokers: `my-cluster-kafka-bootstrap.cld-streaming.svc:9092`
    * Topic Name: `musical_changes`
    * Use Transactions: `false`
 
