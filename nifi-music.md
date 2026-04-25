@@ -18,7 +18,7 @@ We split the tools between the Windows Host (Edge) and WSL2 (Core) to demonstrat
 * **Python 3.11+**: `winget install Python.Python.3.11`
 * **Python Packages**: Open PowerShell and run: `python -m pip install mido python-rtmidi`
 * **loopMIDI**: Download and install [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html).
-* **MiNiFi C++**: Download the Windows MiNiFi C++ agent (`.zip`) from the Apache NiFi site and extract it to `C:\minifi`.
+* **MiNiFi C++**: Download the Windows MiNiFi C++ from the Apache NiFi site and install as ApacheMiNiFi.
 
 **2. Inside WSL2 (Core):**
 ```bash
@@ -53,7 +53,7 @@ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 ## PHASE 2: Local Strudel REPL
 
-**Inside WSL2:**  ?? Redo this for install on windows??
+**Inside WSL2:**  ?? Redo this for install on windows??  NO, windows c++ install is more of a nitemare than strudel itself... stay in linux to break dependecy hells
 ```bash
 git clone https://codeberg.org/uzu/strudel.git
 cd strudel
@@ -205,15 +205,15 @@ cd "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin"
 In the Strudel REPL (`localhost:4321`), paste the following and hit **Play**:
 
 ```js
-let cc = await midin('StrudelKafkaBus')
+// This creates a pattern that listens to your loopMIDI port
+// The 'await' is crucial because it handshakes with the WebMIDI API
+const kb = await midikeys('StrudelKafkaBus')
 
-stack(
-  note("<c4 eb4 g4 bb4>").voicing().sound("sawtooth")
-    // CC listener ready for future expansion
-    .decay(cc(3).range(0.1, 0.8))                  
-)
-.room(0.4)
+// This iterates through every incoming MIDI note and plays a synth
+kb().s('sawtooth').room(0.5).gain(0.8)
 ```
+
+Make sure to send new data,  1 new note should trigger a play
 
 ---
 

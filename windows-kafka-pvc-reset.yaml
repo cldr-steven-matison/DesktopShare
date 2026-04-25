@@ -1,0 +1,41 @@
+ 1991  kubectl apply --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 
+
+
+ 2036  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-topics.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --create --topic musical_changes --partitions 1 --replication-factor 1
+ 2037  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-topics.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --delete --topic musical_changes
+ 2038  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-topics.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --list
+ 
+
+ 2041  cd ClouderaStreamingOperators/
+ 2042  kubectl delete --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 2043  kubectl apply --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 2044  helm uninstall cloudera-surveyor --namespace cld-streaming
+ 2045  helm uninstall schema-registry --namespace cld-streaming
+ 2046  kubectl delete --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 2047  helm uninstall strimzi-cluster-operator --namespace cld-streaming
+ 2048  helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99
+ 2049  kubectl apply --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 2050  kubectl logs my-cluster-combined-0 -n cld-streaming
+ 2051  # Warning: This deletes the Kafka data volumes
+ 2052  kubectl delete kafka my-cluster -n cld-streaming
+ 2053  kubectl delete pvc -n cld-streaming -l strimzi.io/cluster=my-cluster
+ 2054  kubectl patch kafka my-cluster -n cld-streaming -p '{"metadata":{"finalizers":null}}' --type merge
+ 2055  kubectl patch kafka my-cluster-combined -n cld-streaming -p '{"metadata":{"finalizers":null}}' --type merge
+ 2056  kubectl delete kafka my-cluster -n cld-streaming --grace-period=0 --force
+ 2057  kubectl get pvc -n cld-streaming
+ 2058  kubectl patch pvc data-0-my-cluster-combined-0 -n cld-streaming -p '{"metadata":{"finalizers":null}}' --type merge
+ 2059  kubectl patch pvc data-0-my-cluster-combined-1 -n cld-streaming -p '{"metadata":{"finalizers":null}}' --type merge
+ 2060  kubectl patch pvc data-0-my-cluster-combined-2 -n cld-streaming -p '{"metadata":{"finalizers":null}}' --type merge
+ 2061  kubectl get pvc -n cld-streaming
+ 2062  kubectl delete --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 2063  kubectl apply --filename kafka-eval.yaml,kafka-nodepool.yaml --namespace cld-streaming
+ 2064  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-topics.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --list
+ 2065  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-topics.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --create --topic musical_changes --partitions 1 --replication-factor 1
+ 2066  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-topics.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --list
+ 2067  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --topic musical_changes
+ 2068  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-console-consumer.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --topic musical_changes --from-beginning
+ 2069  curl -X POST http://localhost:8080/musical-events -d '{"note": 64}'
+ 2070  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-console-consumer.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --topic musical_changes --from-beginning --max-messages 5
+ 2071  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-consumer-groups.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --group minifi-music-group-new --describe
+ 2072  kubectl exec -it my-cluster-combined-0 -n cld-streaming -c kafka -- bin/kafka-console-consumer.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --topic musical_changes --from-beginning
