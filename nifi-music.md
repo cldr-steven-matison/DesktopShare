@@ -198,6 +198,12 @@ cd "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin"
 .\minifi.exe
 ```
 
+
+if minifi is running and still not working right,  this command helps:
+
+```wsl2
+PS C:\Users\tunas> Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Wait | Select-String "Kafka|Consumer|Broker"
+```
 ---
 
 ## PHASE 7: Strudel Code (Live Reaction)
