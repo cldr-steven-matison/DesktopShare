@@ -159,7 +159,32 @@ Edit as administrator `C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\co
 
 Using the sample from [MiNiFi Kubernetes Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) I was able to get InvokeHttp working to write notes to c:/midi/inbox.
 ```yaml
-Get Code from Windows
+MiNiFi Config Version: 3
+Flow Controller:
+  name: MiNiFi Music Edge
+Processors:
+  - name: ListenForNotes
+    id: 888e4567-e89b-12d3-a456-426614174001
+    class: org.apache.nifi.minifi.processors.ListenHTTP
+    scheduling strategy: TIMER_DRIVEN
+    scheduling period: 0 sec
+    Properties:
+      Listening Port: 9998
+      Listening IP: 0.0.0.0
+      HTTP Rest URL: /midi
+  - name: WriteToInbox
+    id: 123e4567-e89b-12d3-a456-426614174002
+    class: org.apache.nifi.minifi.processors.PutFile
+    scheduling strategy: EVENT_DRIVEN
+    Properties:
+      Directory: C:\midi\inbox
+      Conflict Resolution Strategy: replace
+Connections:
+  - name: HttpToDisk
+    id: 999e4567-e89b-12d3-a456-426614174003
+    source name: ListenForNotes
+    destination name: WriteToInbox
+    source relationship name: success
 ```
 
 ### Consume Kafka
@@ -401,8 +426,9 @@ kubectl port-forward -n cfm-streaming pod/mynifi-0 9999:9999
 ```
 
 4.  MiNiFi 
-```powershell
-PS C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin> .\minifi.exe
+```powershelladmin
+cd 'C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin'
+ .\minifi.exe
 ```
 
 5. Send Test Notes
@@ -410,7 +436,7 @@ PS C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin> .\minifi.exe
 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
 ```
 ```powershell
-curl.exe -X POST http://localhost:9998/musical-events -H "Content-Type: application/json" -d "60"
+curl.exe -X POST http://localhost:9998/midi -H "Content-Type: application/json" -d "60"
 ```
 
 6. MiDi Watchdog Notes to StrudelKafkaBus
@@ -481,3 +507,61 @@ Fips conf path:          C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\fips
 - [Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
 - [My Github](https://github.com/cldr-steven-matison/)
 
+## Scripts
+
+Used this to test,  need to get the strudel snippet that works best with this midi stream
+
+```python
+import time
+import rtmidi
+from rtmidi.midiconstants import NOTE_ON, NOTE_OFF
+
+PORT_NAME = "StrudelKafkaBus"
+CHANNEL = 1
+VELOCITY = 95
+
+midiout = rtmidi.MidiOut()
+available_ports = midiout.get_ports()
+
+port_opened = False
+for i, port in enumerate(available_ports):
+    if PORT_NAME.lower() in port.lower():
+        midiout.open_port(i)
+        print(f"âœ… Connected to: {port}")
+        port_opened = True
+        break
+
+if not port_opened:
+    midiout.open_virtual_port(PORT_NAME)
+    print(f"âœ… Created virtual port: {PORT_NAME}")
+
+# Melody: (note, duration) â€” I slowed it down a bit and added a tiny gap
+melody = [
+    (72, 0.35), (72, 0.35), (74, 0.35), (76, 0.35),
+    (72, 0.35), (76, 0.35), (74, 0.55),
+    (72, 0.35), (72, 0.35), (74, 0.35), (76, 0.35),
+    (72, 0.55), (71, 0.55)
+]
+
+def play_note(note, duration, velocity=VELOCITY):
+    note_on = [NOTE_ON | (CHANNEL - 1), note, velocity]
+    note_off = [NOTE_OFF | (CHANNEL - 1), note, 0]
+
+    midiout.send_message(note_on)
+    time.sleep(duration)      # this is how long the note is "held"
+    midiout.send_message(note_off)
+
+    time.sleep(0.08)          # â† small gap after note-off so notes don't bleed into each other
+
+print("ðŸŽ¹ Playing slower, cleaner melody...")
+
+try:
+    while True:
+        for note, dur in melody:
+            play_note(note, dur)
+        print("â†º Looping...")
+except KeyboardInterrupt:
+    print("\nðŸ›‘ Stopped.")
+finally:
+    del midiout
+```
