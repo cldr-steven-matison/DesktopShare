@@ -14,7 +14,7 @@ Our Cloudera Streaming Operator infrastructure on WSL2 (minikube) handles the in
 
 ## PHASE 0: Prerequisites
 
-We split the tools between the Windows Host (Edge) and WSL2 (Kubernetes) to demonstrate using Minifi & NiFi across environments.  In this case midi passes through our kubernetes cluster to the edge device's c++ agent which can take audible action using a music as code tool called Strudel.
+We split the tools between the Windows Host (Edge) and Kubernetes on WSL2 (Core) to demonstrate using Minifi & NiFi across environments.  In this case midi passes through our kubernetes cluster to the edge device's c++ agent which can take audible action using a music as code tool called Strudel.
 
 **1. On the Windows Host (Edge):**
 * **Python 3.11+**: `winget install Python.Python.3.11`
