@@ -400,26 +400,29 @@ kubectl port-forward -n cld-streaming my-cluster-combined-2 9092:9092
 kubectl port-forward -n cfm-streaming pod/mynifi-0 9999:9999
 ```
 
-4.  MiniFi 
+4.  MiNiFi 
 ```powershell
 PS C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin> .\minifi.exe
 ```
 
-5. Send a Test Note to NiFi
+5. Send Test Notes
 ```powershell
 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
 ```
-
-X. MiDi Watchdog Notes to StrudelKafkaBus
 ```powershell
-PS C:\Users\tunas> python C:\midi\watchdog.py
+curl.exe -X POST http://localhost:9998/musical-events -H "Content-Type: application/json" -d "60"
 ```
 
-x. LoopMIDI 
+6. MiDi Watchdog Notes to StrudelKafkaBus
+```powershell
+python C:\midi\watchdog.py
+```
+
+7. LoopMIDI 
 
 [ screen shot ]
 
-X. Strudel 
+8. Strudel 
 ```wsl2
 pnpm dev
 ```
@@ -473,8 +476,8 @@ Fips conf path:          C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\fips
 
 ## Resources
 
-[Strudel Docs](https://strudel.cc/learn/getting-started/)
-[LoopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html).
-[Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
-[My Github](https://github.com/cldr-steven-matison/)
+- [Strudel Docs](https://strudel.cc/learn/getting-started/)
+- [LoopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html).
+- [Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
+- [My Github](https://github.com/cldr-steven-matison/)
 
