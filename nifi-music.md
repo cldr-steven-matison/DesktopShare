@@ -222,44 +222,73 @@ PS C:\Users\tunas> Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cp
 ```
 ---
 
-## PHASE 7: Strudel Code (Live Reaction)
+## PHASE 7: Setup and Initial Testing of loopMIDI + Strudel MIDI (Windows Host)
 
-In the Strudel REPL (`localhost:4321`), paste the following and hit **Play**:
+**Critical:** Windows MIDI stack (especially on Windows 11 24H2/25H2+) can “forget” virtual ports after you delete/recreate them in loopMIDI. Always follow the exact order below. TotalData increasing in loopMIDI + your Python test script working but Strudel not seeing the port is the classic symptom — it is fixable with a MIDI service restart.
 
-```js
-// This creates a pattern that listens to your loopMIDI port
-// The 'await' is crucial because it handshakes with the WebMIDI API
-const kb = await midikeys('StrudelKafkaBus')
+### Step-by-Step Setup
 
-// This iterates through every incoming MIDI note and plays a synth
-kb().s('sawtooth').room(0.5).gain(0.8)
-```
+1. **Start loopMIDI FIRST (as Administrator recommended)**
+   - Open **loopMIDI** from the Start menu (right-click → Run as administrator).
+   - In “New port-name” box, type exactly: `StrudelKafkaBus`
+   - Click **+**.
+   - Leave the loopMIDI window open in the background (it must stay running).
 
-Make sure to send new data,  1 new note should trigger a play
+2. **Restart the Windows MIDI Service (do this every time you recreate a port)**
+   - Open Command Prompt **as Administrator** and run:
+     ```
+     net stop midisrv
+     net start midisrv
+     ```
+   - Or open `services.msc`, find **Windows MIDI Service**, and Restart it.
+   - This rebuilds the MIDI device list and makes the new port visible to browsers/WebMIDI.
 
----
+3. **Verify the port exists (quick test)**
+   - Open PowerShell and run your simple test script (save as `C:\midi\test-midi.py`):
+     ```python
+     import mido
+     import time
+     from mido import Message
 
-## PHASE 8: Integration Test 
+     port_name = "StrudelKafkaBus"
+     available = mido.get_output_names()
+     actual = next((p for p in available if port_name in p), port_name)
+     print(f"Available ports: {available}")
+     print(f"Using: {actual}")
 
-From either WSL2 or Windows PowerShell, simulate your upstream producer by sending a test payload to your K8s NiFi instance:
+     with mido.open_output(actual) as outport:
+         for note in [60, 64, 67, 72]:  # C4, E4, G4, C5
+             print(f"→ Sending note {note}")
+             outport.send(Message('note_on', note=note, velocity=100))
+             time.sleep(0.5)
+             outport.send(Message('note_off', note=note, velocity=0))
+             time.sleep(0.3)
+     ```
+   - Run: `python C:\midi\test-midi.py`
+   - You should see notes in the console **and** TotalData counter increasing in the loopMIDI window.
 
-```bash
-curl -X POST http://localhost:9999/musical-events \
-     -H "Content-Type: application/json" \
-     -d '{"note": 60, "velocity": 100}'
-```
+4. **Launch Strudel and Test MIDI Input**
+   - Make sure your Strudel dev server is running (`pnpm dev` in the strudel folder).
+   - Open **Chrome or Edge** (best WebMIDI support) and go to `http://localhost:4321/`.
+   - The browser will prompt “Allow MIDI devices?” — click **Allow**.
+   - In the Strudel REPL, paste and run this test code (replaces the incomplete example in PHASE 7):
+     ```js
+     // Listen for MIDI note input from our virtual bus
+     const kb = await midikeys('StrudelKafkaBus')
+     console.log('✅ MIDI input ready:', kb)  // check browser console (F12)
 
-**The Final Execution Chain:**
-1. K8s NiFi receives JSON, flattens to `"60"`, pushes to Kafka.
-2. Windows MiNiFi pulls `"60"` from Kafka and writes it to `C:\midi\inbox\flowfile.txt`.
-3. Python Watchdog instantly detects the file, reads `"60"`, hits loopMIDI, and deletes the file.
-4. Strudel hears the Note On over loopMIDI and plays the sound instantly.
+     // Simple test: play whatever notes arrive from Kafka/Python
+     kb.note  // this turns incoming MIDI notes into a Strudel pattern
+       .sound("sawtooth")  // or "piano", "gm_acoustic_bass", etc.
+       .room(0.5)
+       .out()
+     ```
+   - Now run your Python test script again (step 3). You should hear the notes playing live through Strudel’s browser audio **and** see activity in the Strudel console.
 
-## Testing Audible End
 
-Here is a Python script for the WSL2 side. 
+### Testing Audible End
 
-Yankee Doodle Script (yyd.py)
+Here is a Python script for the WSL2 side.  Yankee Doodle Script (yyd.py)
 
 ```python
 Python
@@ -307,6 +336,53 @@ if __name__ == "__main__":
         print("Check your mount! /mnt/c/midi/inbox/ is missing.")
 ```
 
+Create and Run.  This is our expected result of Yankee Doodle Dandy.
+
+---
+
+## PHASE 8: Strudel Code (Live Reaction)
+
+In the Strudel REPL (`localhost:4321`), paste the following and hit **Play**:
+
+```js
+// This creates a pattern that listens to your loopMIDI port
+// The 'await' is crucial because it handshakes with the WebMIDI API
+const kb = await midikeys('StrudelKafkaBus')
+
+// This iterates through every incoming MIDI note and plays a synth
+kb().s('sawtooth').room(0.5).gain(0.8)
+```
+
+**The Final Execution Chain:**
+1. K8s NiFi receives JSON, flattens to `"60"`, pushes to Kafka.
+2. Windows MiNiFi pulls `"60"` from Kafka and writes it to `C:\midi\inbox\flowfile.txt`.
+3. Python Watchdog instantly detects the file, reads `"60"`, hits loopMIDI, and deletes the file.
+4. Strudel hears the Note On over loopMIDI and plays the sound instantly.
+
+---
+
+## PHASE 9: End to End Integration Test 
+
+From either WSL2 or Windows PowerShell, simulate your upstream producer by sending a test payload to your K8s NiFi instance:
+
+```bash
+curl -X POST http://localhost:9999/musical-events \
+     -H "Content-Type: application/json" \
+     -d '{"note": 60, "velocity": 100}'
+```
+
+You should hear a single note from Strudel.  Try a few different notes and confirm they play in Strudel.
+
+
+## PHASE 10:  End to End Yankee Doodle Dandy
+
+In this section we are going to stream the Yankee Doodle Dandy midi through Nifi to Strudel.
+
+[ add integration example content ]
+
+
+
+
 ## Terminal Map
 
 1. The NiFi Flow
@@ -347,6 +423,21 @@ X. Strudel
 ```wsl2
 pnpm dev
 ```
+
+## Common Issues & Fixes (Troubleshooting Guide)
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Port not listed in Strudel (even though Python sees it) | MIDI service stale after port recreation | Restart `midisrv` (step 2), recreate port in loopMIDI, refresh browser page (hard refresh Ctrl+Shift+R) |
+| TotalData increases but no sound in Strudel | Name mismatch or WebMIDI permission | Use exact name shown in loopMIDI (sometimes has " 1" suffix). Re-allow MIDI in browser. |
+| Strudel never prompts for MIDI | Browser not Chrome/Edge or page not reloaded after service restart | Switch browser or restart Strudel server + page |
+| Persistent problems after multiple recreations | Windows MIDI driver cache | Reinstall loopMIDI as Administrator + reboot, or try alternative virtual MIDI tools |
+| No ports visible at all | Hidden/old MIDI devices conflicting | Device Manager → View → Show hidden devices → delete any greyed-out MIDI entries → restart MIDI service |
+
+**Pro tip:** Install free **MIDI-OX** (or loopMIDI’s built-in monitor) to watch raw MIDI traffic on `StrudelKafkaBus` — great for confirming data is flowing before Strudel even starts.
+
+This section gives you a reliable, repeatable test harness before you wire up the full NiFi → Kafka → MiNiFi pipeline. Once this works reliably, the rest of your architecture should light up perfectly.
+
 
 
 ## History
