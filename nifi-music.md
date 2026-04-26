@@ -158,11 +158,11 @@ Edit as administrator `C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\co
 ### InvokeHttp
 
 Using the sample from []() I was able to get InvokeHttp working to write notes to c:/midi/inbox.
-
-### Consume Kafka
 ```yaml
 Get Code from Windows
 ```
+
+### Consume Kafka
 
 Had issues getting a ConsumeKafka processor to work in MiNiFi
 
