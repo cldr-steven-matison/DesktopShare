@@ -589,3 +589,30 @@ Remove-Item -Path ".\provenance_repository\*" -Recurse -Force
 # 4. Restart MiNiFi
 .\bin\minifi.exe
 ```
+
+## Strudel Piano + Beat
+
+This strudel code is working very well with default flow of midi as piano.
+
+```strudel
+hush()
+
+const kb = await midikeys('StrudelKafkaBus')
+
+stack(
+  // PIANO WITH LONG SUSTAIN
+  kb()
+    .s('piano')
+    .n(note)
+    // .sustain(2) keeps the sample playing longer before the fade starts
+    .sustain(2) 
+    // .release(3) creates a very long, smooth fade out (the "decay" feel)
+    .release(3) 
+    .room(0.8)
+    .gain(0.7),
+
+  s("bd [~ sd] bd sd").gain(0.8),
+  s("hh:27*8").gain(0.4)
+)
+
+```
