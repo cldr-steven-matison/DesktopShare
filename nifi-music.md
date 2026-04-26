@@ -437,7 +437,11 @@ curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: applicat
 ```
 ```powershell
 curl.exe -X POST http://localhost:9998/midi -H "Content-Type: application/json" -d "60"
+
+PS C:\Users\tunas> Invoke-RestMethod -Uri "http://localhost:9998/contentListener" -Method Post -Body "64" -ContentType "text/plain"
+
 ```
+
 
 6. MiDi Watchdog Notes to StrudelKafkaBus
 ```powershell
@@ -564,4 +568,24 @@ except KeyboardInterrupt:
     print("\nðŸ›‘ Stopped.")
 finally:
     del midiout
+```
+
+## Reset MiNiFi
+
+Run these commands in PowerShell:
+
+```powershell
+# 1. Stop MiNiFi (if it isn't already)
+# (Ctrl+C in the minifi window)
+
+# 2. Navigate to the MiNiFi directory
+cd "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp"
+
+# 3. Wipe the persistent flow data
+Remove-Item -Path ".\flowfile_repository\*" -Recurse -Force
+Remove-Item -Path ".\content_repository\*" -Recurse -Force
+Remove-Item -Path ".\provenance_repository\*" -Recurse -Force
+
+# 4. Restart MiNiFi
+.\bin\minifi.exe
 ```
