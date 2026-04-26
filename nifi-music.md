@@ -157,7 +157,7 @@ Edit as administrator `C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\co
 
 ### InvokeHttp
 
-Using the sample from []() I was able to get InvokeHttp working to write notes to c:/midi/inbox.
+Using the sample from [MiNiFi Kubernetes Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) I was able to get InvokeHttp working to write notes to c:/midi/inbox.
 ```yaml
 Get Code from Windows
 ```
@@ -473,7 +473,8 @@ Fips conf path:          C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\fips
 
 ## Resources
 
-[Strudel]()
-[LoopMidi]()
-[Cloudera Streaming Operators]()
+[Strudel Docs](https://strudel.cc/learn/getting-started/)
+[LoopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html).
+[Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
+[My Github](https://github.com/cldr-steven-matison/)
 
