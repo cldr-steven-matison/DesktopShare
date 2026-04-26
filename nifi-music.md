@@ -1,18 +1,20 @@
 
 ***
 
-# NiFi and Music (WSL2 + MiNiFi File Drop Architecture)
+# NiFi and Music (NiFi MiNiFi & MiDi)
 
 **Live Musical Changes → K8s NiFi → Kafka → Nifi → MiNiFi C++ (PutFile) → Python Watchdog → loopMIDI → Strudel**
 
+?? alternate:  remove kafka, use nifi -> invokeHttp -> MiNiFi or Site to Site ??
+
 **Architecture Goal:**
-Centralized infrastructure on WSL2 handles the heavy lifting (routing, parsing complex JSON). It sends a flattened, simplified payload (e.g., the string `"60"`) to Kafka. A lightweight MiNiFi C++ agent on the Windows host consumes the message and writes it to a local folder. A lightweight Python watchdog instantly reads the file, strikes the MIDI note via loopMIDI, and deletes the file. Strudel plays the result live.
+Our Cloudera Streaming Operator infrastructure on WSL2 (minikube) handles the incoming midi, parses complex JSON. NiFi sends a flattened, simplified payload (e.g., the string `"60"`) to Kafka/MiNiFi. A MiNiFi C++ agent on the Windows host consumes the message and writes it to a local folder. A python watchdog instantly reads the files, strikes the MIDI note via loopMIDI, and deletes the file. Strudel running in the browser plays the result live.
 
 ---
 
-## PHASE 0: Prerequisites (Split Environment)
+## PHASE 0: Prerequisites
 
-We split the tools between the Windows Host (Edge) and WSL2 (Core) to demonstrate using Minifi & NiFi across environments.  In this case from kubernetes cluster with no access to the edge device with midi and audio.
+We split the tools between the Windows Host (Edge) and WSL2 (Kubernetes) to demonstrate using Minifi & NiFi across environments.  In this case midi passes through our kubernetes cluster to the edge device's c++ agent which can take audible action using a music as code tool called Strudel.
 
 **1. On the Windows Host (Edge):**
 * **Python 3.11+**: `winget install Python.Python.3.11`
@@ -53,20 +55,24 @@ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 ## PHASE 2: Local Strudel REPL
 
-**Inside WSL2:**  ?? Redo this for install on windows??  NO, windows c++ install is more of a nitemare than strudel itself... stay in linux to break dependecy hells
+**Inside WSL2:**  
+
 ```bash
 git clone https://codeberg.org/uzu/strudel.git
 cd strudel
 pnpm install
 pnpm dev
+
+## get all of the strudel instal commands, including midi packages
 ```
 → Open your Windows web browser to `http://localhost:4321/`. Leave this running.
 
 ---
 
-## PHASE 3: Core Infrastructure (Minikube / Cloudera Streaming)
+## PHASE 3: Core Infrastructure
 
-Link to blog doc for CSO.
+
+This example integration was built with [Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/).
 
 ---
 
@@ -149,6 +155,17 @@ We configure the MiNiFi C++ agent to act purely as a Kafka consumer that drops f
 
 Edit as administrator `C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\conf.yml`:
 
+### InvokeHttp
+
+Using the sample from []() I was able to get InvokeHttp working to write notes to c:/midi/inbox.
+
+### Consume Kafka
+```yaml
+Get Code from Windows
+```
+
+Had issues getting a ConsumeKafka processor to work in MiNiFi
+
 ```yaml
 MiNiFi Config Version: 3
 Flow Controller:
@@ -198,8 +215,7 @@ cd "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin"
 .\minifi.exe
 ```
 
-
-if minifi is running and still not working right,  this command helps:
+If minifi is running and the flow of data is still not working right,  this command helps show errors:
 
 ```wsl2
 PS C:\Users\tunas> Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Wait | Select-String "Kafka|Consumer|Broker"
@@ -239,12 +255,11 @@ curl -X POST http://localhost:9999/musical-events \
 3. Python Watchdog instantly detects the file, reads `"60"`, hits loopMIDI, and deletes the file.
 4. Strudel hears the Note On over loopMIDI and plays the sound instantly.
 
-
 ## Testing Audible End
 
-Here is the Python script for the WSL2 side. 
+Here is a Python script for the WSL2 side. 
 
-Yankee Doodle Script (yankee.py in WSL2)
+Yankee Doodle Script (yyd.py)
 
 ```python
 Python
@@ -292,17 +307,18 @@ if __name__ == "__main__":
         print("Check your mount! /mnt/c/midi/inbox/ is missing.")
 ```
 
-
 ## Terminal Map
 
 1. The NiFi Flow
 ```wsl2
 minikube tunnel
 ```
+
 2. WSL2 to Localhost kafka
 ```wsl2
 kubectl port-forward -n cld-streaming my-cluster-combined-2 9092:9092
 ```
+
 3. Inbound NiFi Port for Upstream Notes
 ```wsl2
 kubectl port-forward -n cfm-streaming pod/mynifi-0 9999:9999
@@ -318,50 +334,55 @@ PS C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\bin> .\minifi.exe
 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
 ```
 
-
-
 X. MiDi Watchdog Notes to StrudelKafkaBus
 ```powershell
 PS C:\Users\tunas> python C:\midi\watchdog.py
 ```
-x. LoopMIDI ?? never got this far Total data was always 0
+
+x. LoopMIDI 
 
 [ screen shot ]
 
-X. Strudel ?? should this be on PS not WSL2?  
+X. Strudel 
 ```wsl2
-tunas@MINI-Gaming-G1:~/strudel$ pnpm dev
+pnpm dev
 ```
-
-
-
 
 
 ## History
 
 ```bash
-
-   1 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
-
-   6 cd c:\midi\inbox
-
-  17 curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
-  18 Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 300
-  29 Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 150
-  30 dir "C:\midi\inbox"
-  31 ls
-
-
+curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: application/json" -d "{\""note\"": 60}"
+Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 300
+Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 150
+dir "C:\midi\inbox"
 ```
 
 ### MiNiFi Terminal History
 
 ```powershelladmin
+Stop-Service -Name "Apache NiFi MiNiFi" -Force -ErrorAction SilentlyContinue
+Stop-Service -Name "MiNiFi" -ErrorAction SilentlyContinue
+.\minifi.exe
 
-
-  55 Stop-Service -Name "Apache NiFi MiNiFi" -Force -ErrorAction SilentlyContinue
-  56 Stop-Service -Name "MiNiFi" -ErrorAction SilentlyContinue
-  57 .\minifi.exe
- 
-  
+[2026-04-25 11:41:39.005] [main] [info] Found MINIFI_HOME=C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp in environment
+[2026-04-25 11:41:39.006] [main] [info] MiNiFi Locations=
+Working dir:             C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp
+Lock path:               C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\LOCK
+Log properties path:     C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\minifi-log.properties
+UID properties path:     C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\minifi-uid.properties
+Properties path:         C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\minifi.properties
+Logs dir:                C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs
+Fips binary path:        C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\fips
+Fips conf path:          C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\fips
+[2026-04-25 11:41:39.006] [org::apache::nifi::minifi::Properties] [info] Using configuration file to load configuration for Logger properties from C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\minifi-log.properties (located at C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\conf\minifi-log.properties)
+%4|1777131699.193|CONFWARN|123e4567-e89b-12d3-a456-426614174001#consumer-1| [thrd:app]:Configuration property `sasl.mechanism` set to `GSSAPI` but `security.protocol` is not configured for SASL: recommend setting `security.protocol` to SASL_SSL or SASL_PLAINTEXT
 ```
+
+
+## Resources
+
+[Strudel]()
+[LoopMidi]()
+[Cloudera Streaming Operators]()
+
