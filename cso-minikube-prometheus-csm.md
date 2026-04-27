@@ -20,17 +20,17 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 Helm Install Prometheus
 
 ```bash
-helm install prometheus prometheus-community/kube-prometheus-stack 
---namespace cld-streaming --create-namespace 
---set grafana.sidecar.datasources.defaultDatasourceEnabled=false 
---set 'grafana.additionalDataSources[0].name=Prometheus' 
---set 'grafana.additionalDataSources[0].type=prometheus' 
---set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' 
---set 'grafana.additionalDataSources[0].access=proxy' 
---set 'grafana.additionalDataSources[0].isDefault=true' 
---set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false 
---set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false 
---set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' 
+helm install prometheus prometheus-community/kube-prometheus-stack \
+--namespace cld-streaming --create-namespace \
+--set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
+--set 'grafana.additionalDataSources[0].name=Prometheus' \
+--set 'grafana.additionalDataSources[0].type=prometheus' \
+--set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
+--set 'grafana.additionalDataSources[0].access=proxy' \
+--set 'grafana.additionalDataSources[0].isDefault=true' \
+--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+--set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+--set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
 --set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
 ```
 
