@@ -21,7 +21,7 @@ Helm Install Prometheus
 
 ```bash
 helm install prometheus prometheus-community/kube-prometheus-stack 
---namespace cld-streaming 
+--namespace cld-streaming --create-namespace 
 --set grafana.sidecar.datasources.defaultDatasourceEnabled=false 
 --set 'grafana.additionalDataSources[0].name=Prometheus' 
 --set 'grafana.additionalDataSources[0].type=prometheus' 
@@ -47,7 +47,7 @@ metadata:
   labels:
     app: strimzi
 data:
-  kafka-metrics-config.yml: |
+  kafka-metrics-config.yaml: |
     # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics
     lowercaseOutputName: true
     rules:
@@ -239,6 +239,7 @@ spec:
         kraftMetadata: shared
         deleteClaim: false
 ```
+`kubectl apply -f kafka-nodepool.yaml -n cld-streaming`
 
 (`kafka-eval-prometheus.yaml`)
 
@@ -280,7 +281,7 @@ spec:
     topicOperator: {}
     userOperator: {}
 ```
-`kubectl apply -f kafka-eval-prometheus.yaml,kafka-nodepool.yaml -n cld-streaming`
+`kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming`
 
 ---
 
