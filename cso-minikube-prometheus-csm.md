@@ -17,21 +17,22 @@ Before we start, ensure you have the following:
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 ```
 
-> Helm Install Prometheus
-> ```bash
-> helm install prometheus prometheus-community/kube-prometheus-stack 
-  --namespace cld-streaming --create-namespace 
-  --set grafana.sidecar.datasources.defaultDatasourceEnabled=false 
-  --set 'grafana.additionalDataSources[0].name=Prometheus' 
-  --set 'grafana.additionalDataSources[0].type=prometheus' 
-  --set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' 
-  --set 'grafana.additionalDataSources[0].access=proxy' 
-  --set 'grafana.additionalDataSources[0].isDefault=true' 
-  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false 
-  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false 
-  --set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' 
-  --set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
-> ```
+Helm Install Prometheus
+
+```bash
+helm install prometheus prometheus-community/kube-prometheus-stack 
+--namespace cld-streaming 
+--set grafana.sidecar.datasources.defaultDatasourceEnabled=false 
+--set 'grafana.additionalDataSources[0].name=Prometheus' 
+--set 'grafana.additionalDataSources[0].type=prometheus' 
+--set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' 
+--set 'grafana.additionalDataSources[0].access=proxy' 
+--set 'grafana.additionalDataSources[0].isDefault=true' 
+--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false 
+--set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false 
+--set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' 
+--set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
+```
 
 ---
 
@@ -39,33 +40,181 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 First, we need to define how Kafka's JMX metrics are converted into Prometheus format. Create `kafka-metrics-config.yaml`:
 
 ```yaml
-apiVersion: v1
 kind: ConfigMap
+apiVersion: v1
 metadata:
   name: kafka-metrics
-  namespace: cld-streaming
   labels:
     app: strimzi
 data:
-  kafka-metrics-config.yaml: |
+  kafka-metrics-config.yml: |
+    # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics
     lowercaseOutputName: true
     rules:
-      - pattern: "kafka.server<type=(.+), name=(.+)><>(Count|Value)"
-        name: "kafka_server_$1_$2"
-      - pattern: "kafka.controller<type=(.+), name=(.+)><>(Count|Value)"
-        name: "kafka_controller_$1_$2"
-      - pattern: "kafka.network<type=(.+), name=(.+)><>(Count|Value)"
-        name: "kafka_network_$1_$2"
+    # Special cases and very specific rules
+    - pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)><>Value
+      name: kafka_server_$1_$2
+      type: GAUGE
+      labels:
+        clientId: "$3"
+        topic: "$4"
+        partition: "$5"
+    - pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), brokerHost=(.+), brokerPort=(.+)><>Value
+      name: kafka_server_$1_$2
+      type: GAUGE
+      labels:
+        clientId: "$3"
+        broker: "$4:$5"
+    - pattern: kafka.server<type=(.+), cipher=(.+), protocol=(.+), listener=(.+), networkProcessor=(.+)><>connections
+      name: kafka_server_$1_connections_tls_info
+      type: GAUGE
+      labels:
+        cipher: "$2"
+        protocol: "$3"
+        listener: "$4"
+        networkProcessor: "$5"
+    - pattern: kafka.server<type=(.+), clientSoftwareName=(.+), clientSoftwareVersion=(.+), listener=(.+), networkProcessor=(.+)><>connections
+      name: kafka_server_$1_connections_software
+      type: GAUGE
+      labels:
+        clientSoftwareName: "$2"
+        clientSoftwareVersion: "$3"
+        listener: "$4"
+        networkProcessor: "$5"
+    - pattern: "kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+-total):"
+      name: kafka_server_$1_$4
+      type: COUNTER
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    - pattern: "kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+):"
+      name: kafka_server_$1_$4
+      type: GAUGE
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    - pattern: kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+-total)
+      name: kafka_server_$1_$4
+      type: COUNTER
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    - pattern: kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+)
+      name: kafka_server_$1_$4
+      type: GAUGE
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    # Some percent metrics use MeanRate attribute
+    # Ex) kafka.server<type=(KafkaRequestHandlerPool), name=(RequestHandlerAvgIdlePercent)><>MeanRate
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)Percent\w*><>MeanRate
+      name: kafka_$1_$2_$3_percent
+      type: GAUGE
+    # Generic gauges for percents
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)Percent\w*><>Value
+      name: kafka_$1_$2_$3_percent
+      type: GAUGE
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)Percent\w*, (.+)=(.+)><>Value
+      name: kafka_$1_$2_$3_percent
+      type: GAUGE
+      labels:
+        "$4": "$5"
+    # Generic per-second counters with 0-2 key/value pairs
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*, (.+)=(.+), (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_total
+      type: COUNTER
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*, (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_total
+      type: COUNTER
+      labels:
+        "$4": "$5"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*><>Count
+      name: kafka_$1_$2_$3_total
+      type: COUNTER
+    # Generic gauges with 0-2 key/value pairs
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>Value
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>Value
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Value
+      name: kafka_$1_$2_$3
+      type: GAUGE
+    # Emulate Prometheus 'Summary' metrics for the exported 'Histogram's.
+    # Note that these are missing the '_sum' metric!
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_count
+      type: COUNTER
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*), (.+)=(.+)><>(\d+)thPercentile
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+        quantile: "0.$8"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_count
+      type: COUNTER
+      labels:
+        "$4": "$5"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*)><>(\d+)thPercentile
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+        quantile: "0.$6"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Count
+      name: kafka_$1_$2_$3_count
+      type: COUNTER
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)><>(\d+)thPercentile
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        quantile: "0.$4"
+    # KRaft overall related metrics
+    # distinguish between always increasing COUNTER (total and max) and variable GAUGE (all others) metrics
+    - pattern: "kafka.server<type=raft-metrics><>(.+-total|.+-max):"
+      name: kafka_server_raftmetrics_$1
+      type: COUNTER
+    - pattern: "kafka.server<type=raft-metrics><>(current-state): (.+)"
+      name: kafka_server_raftmetrics_$1
+      value: 1
+      type: UNTYPED
+      labels:
+        $1: "$2"
+    - pattern: "kafka.server<type=raft-metrics><>(.+):"
+      name: kafka_server_raftmetrics_$1
+      type: GAUGE
+    # KRaft "low level" channels related metrics
+    # distinguish between always increasing COUNTER (total and max) and variable GAUGE (all others) metrics
+    - pattern: "kafka.server<type=raft-channel-metrics><>(.+-total|.+-max):"
+      name: kafka_server_raftchannelmetrics_$1
+      type: COUNTER
+    - pattern: "kafka.server<type=raft-channel-metrics><>(.+):"
+      name: kafka_server_raftchannelmetrics_$1
+      type: GAUGE
+    # Broker metrics related to fetching metadata topic records in KRaft mode
+    - pattern: "kafka.server<type=broker-metadata-metrics><>(.+):"
+      name: kafka_server_brokermetadatametrics_$1
+      type: GAUGE
 ```
 `kubectl apply -f kafka-metrics-config.yaml -n cld-streaming`
 
 ---
 
 ### 2️⃣ The Kafka Cluster Config 
-
-
-⚠️ **Warning:** Do not forget our kafka-nodepool in our sequence.   
-
   
 (`kafka-nodepool.yaml`)
 
@@ -89,13 +238,9 @@ spec:
         size: 10Gi
         kraftMetadata: shared
         deleteClaim: false
-
 ```
 
-
 (`kafka-eval-prometheus.yaml`)
-
-⚠️ **Warning:** If you are using **KafkaNodePools** (KRaft mode), do **NOT** put the `metricsConfig` in the NodePool spec. It will throw a strict decoding error. It belongs in the **Kafka** resource.
 
 Create the `kafka-eval-prometheus.yaml`:
 
@@ -135,7 +280,7 @@ spec:
     topicOperator: {}
     userOperator: {}
 ```
-`kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming`
+`kubectl apply -f kafka-eval-prometheus.yaml,kafka-nodepool.yaml -n cld-streaming`
 
 ---
 
@@ -162,6 +307,23 @@ spec:
     - path: /metrics
       targetPort: 9404
       interval: 30s
+      relabelings:
+        # Map Strimzi pod labels (strimzi.io/...) to top-level metric labels the dashboard expects
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(strimzi_io_.+)
+          replacement: $1
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+          replacement: $1
+        # Standard K8s labels the dashboard variables use
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: kubernetes_pod_name
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod_name
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node_name
 ```
 `kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming`
 
