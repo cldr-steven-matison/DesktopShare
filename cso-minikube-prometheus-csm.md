@@ -1,27 +1,17 @@
----
-layout: post
-title: "Monitoring Cloudera Streams Messaging (CSM) with Prometheus on Minikube"
-date: 2026-04-15 12:00:00 -0400
-categories: [Cloudera, Kafka, Kubernetes]
-tags: [CSM, Strimzi, Prometheus, Minikube, Monitoring]
----
 
-# 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus on Minikube
+# 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus
 
-If you are running the **Cloudera Streaming Operators** on Minikube, you know that visibility is everything. You can have the most complex NiFi-to-Kafka-to-Flink RAG pipeline in the world, but if you can't see your throughput or under-replicated partitions, you're flying blind.
+If you are running the **Cloudera Streaming Operators**, you know that visibility is everything. You can have the most complex NiFi-to-Kafka-to-Flink RAG pipeline in the world, but if you can't see your throughput or under-replicated partitions, you're flying blind.
 
 In this post, we’re going to wire up **Cloudera Streams Messaging (CSM)**—powered by the Strimzi-based Kafka operator—to a **Prometheus + Grafana** stack. 
-
-
 
 ---
 
 ### 🛠️ Prerequisites
 
 Before we start, ensure you have the following:
-* **Minikube** running with the Docker driver (WSL2 recommended).
-* **CSM Operator** installed in the `cld-streaming` namespace.
-* **Prometheus Operator** installed via Helm in the `monitoring` namespace.
+* **Cloudera Streams Messaing Operator** installed in the `cld-streaming` namespace.
+* **Prometheus Operator** installed via Helm in the `cld-streaming` namespace.
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -29,17 +19,17 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 
 > Helm Install Prometheus
 > ```bash
-> helm install prometheus prometheus-community/kube-prometheus-stack \
-  --namespace cld-streaming --create-namespace \
-  --set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
-  --set 'grafana.additionalDataSources[0].name=Prometheus' \
-  --set 'grafana.additionalDataSources[0].type=prometheus' \
-  --set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
-  --set 'grafana.additionalDataSources[0].access=proxy' \
-  --set 'grafana.additionalDataSources[0].isDefault=true' \
-  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
-  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
-  --set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
+> helm install prometheus prometheus-community/kube-prometheus-stack 
+  --namespace cld-streaming --create-namespace 
+  --set grafana.sidecar.datasources.defaultDatasourceEnabled=false 
+  --set 'grafana.additionalDataSources[0].name=Prometheus' 
+  --set 'grafana.additionalDataSources[0].type=prometheus' 
+  --set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' 
+  --set 'grafana.additionalDataSources[0].access=proxy' 
+  --set 'grafana.additionalDataSources[0].isDefault=true' 
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false 
+  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false 
+  --set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' 
   --set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
 > ```
 
@@ -74,7 +64,8 @@ data:
 ### 2️⃣ The Kafka Cluster Config 
 
 
-⚠️ **Warning:** Do not forget our kafka-nodepool in our sequence.   I had issues with not doing a complete new cluster.  So if necessary full delete and re-create.
+⚠️ **Warning:** Do not forget our kafka-nodepool in our sequence.   
+
   
 (`kafka-nodepool.yaml`)
 
@@ -100,7 +91,6 @@ spec:
         deleteClaim: false
 
 ```
-
 
 
 (`kafka-eval-prometheus.yaml`)
@@ -179,7 +169,7 @@ spec:
 
 ### 4️⃣ Exposing the UIs
 
-Grab the URLs and keep the tunnels alive in separate terminal tabs.
+Grab the URLs and keep the tunnels alive in separate terminals.
 
 **Tab 1: Prometheus UI**
 ```bash
@@ -198,9 +188,6 @@ kubectl get secret --namespace cld-streaming prometheus-grafana -o jsonpath="{.d
 ```
 ---
 
-Here's the **clean, updated standalone section** you can copy and paste directly into your MD file as **Section 5**:
-
----
 
 ### 5️⃣ Querying Kafka Metrics in Prometheus UI
 
@@ -285,17 +272,14 @@ If the full dashboard is still empty, create a temporary dashboard and add these
   sum(kafka_server_replicamanager_underreplicatedpartitions) by (pod)
   ```
 
-Once you see data in these simple panels, the full Strimzi dashboard will light up after you fix the PodMonitor + variables.
 
-You’re super close — 95% of the time this is just a missing PodMonitor scrape or mismatched namespace/cluster label.  
-
-Run the diagnosis commands above and paste the output here (especially the Targets page and PodMonitor list). I’ll give you the exact one-line fix for your setup.
-
-We’ll get the dashboard showing your `txn_fraud` throughput in the next message. Let’s knock this out! 🚀
+[ move to cso-minikube-prometheus-csm-debug.md ]
+[ bring out here ]
+[ likely can remove some of the troubleshooting steps above ]
 
 
 ### 🏁 Summary
-By separating our **Topology** (NodePools) from our **Configuration** (Kafka CR), we successfully injected the Prometheus JMX exporter without breaking the Strimzi operator's strict validation. Now, as NiFi pumps data into Kafka, you can watch the `kafka_server_brokertopicmetrics_messagesinpersec_count` rise in real-time.
+We successfully injected the Prometheus JMX exporter without breaking the Strimzi operator's strict validation. Now, as NiFi pumps data into Kafka, you can watch the `kafka_server_brokertopicmetrics_messagesinpersec_count` rise in real-time.
 
 **Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!**
 
