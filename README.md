@@ -42,11 +42,10 @@ Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) ru
 
 ---
 
-## 🔗 Supporting Repos & Blog
+## 🔗 Supporting Repos
 
 | Project | Link | Purpose |
 |---------|------|---------|
-| **Cloudera Streaming Operators Blog** | [View Blog](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/) | Step-by-step MacBook/Minikube setup guides for CFM, CSA, CSM |
 | **ClouderaStreamingOperators** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) | Terminal commands, YAML configs, and Helm values used in the blog |
 | **ClouderaOperatorYAML** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaOperatorYAML) | Other YAML examples for Cloudera Streaming Operators (Kafka, Flink, NiFi) on Kubernetes (not CSO above) |
 | **NiFi-Templates** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi-Templates) | NiFi flow definition file templates and dataflow examples |
@@ -58,10 +57,10 @@ Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) ru
 
 ## 🛠️ Technologies & Topics
 
-- **Cloudera Streaming**: NiFi (CFM), Flink (CSA), Kafka (CSM), Schema Registry, SQL Stream Builder
-- **Kubernetes / Minikube** (with GPU support)
-- **Custom Processors** (Python, Java, C++)
-- **Observability**: Prometheus, Strimzi, Kafka Surveyor
+- **Cloudera Streaming**: NiFi (CFM), MiNiFi, Flink (CSA), Kafka (CSM), Schema Registry, SQL Stream Builder
+- **Kubernetes / Minikube** Mac and Windows with GPU support
+- **Custom Processors** (Python, Java)
+- **Observability**: Prometheus, Grafana, Kafka Surveyor
 - **AI / RAG**: Local models, audio transcription, fraud detection
 - **Cloudera**: Releases, Integrations, How Tos, Tutorials
 
