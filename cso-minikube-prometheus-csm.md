@@ -362,24 +362,24 @@ Head to the Prometheus UI in your browser (usually at `http://<minikube-ip>:9090
 
 **Sample Query 1: Topic Messages In Per Second (Confirmed Throughput)**  
 ```promql
-sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
+sum(rate(kafka_server_brokertopicmetrics_messagesin_total{topic=~"txn1|txn2|txn_fraud"}[5m])) by (pod, topic)
 ```  
 This query aggregates messages ingested per second, grouped by broker pod and topic. Watch it spike when your producers or NiFi flows push data into the txn topics. Excellent for spotting sudden drops or imbalances across brokers.
 
 **Sample Query 2: Topic Bytes In Per Second (Throughput in Bytes)**  
 ```promql
-sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic)
+sum(rate(kafka_server_brokertopicmetrics_bytesin_total[5m])) by (topic)
 ```  
 This query shows the incoming byte rate per topic over a 5-minute window. It gives you a clear picture of actual data volume flowing into `txn1`, `txn2`, and especially `txn_fraud`. Because it uses `rate()`, the graph is much smoother and more useful for monitoring real-world throughput.
 
 **Quick Tips for This Setup**  
 - Filter by your actual broker pods when needed:  
   ```promql
-  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic, pod)
+  sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"}[5m])) by (topic, pod)
   ```  
 - Add namespace filtering for cleaner results:  
   ```promql
-  sum(kafka_server_brokertopicmetrics_bytesinpersec{namespace="cld-streaming"}) by (topic)
+  sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"}[5m])) by (topic)
   ```  
 - If any query returns no data, make sure you are actively producing messages to the topics. Then restart Prometheus to force a fresh scrape:  
   ```bash
@@ -566,3 +566,81 @@ sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud
 
 
 ```
+
+
+#### 1. Full Delete + Rebuild (prevents stale config caching)
+```bash
+kubectl delete kafka my-cluster -n cld-streaming --ignore-not-found
+kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming --ignore-not-found
+kubectl delete configmap kafka-metrics -n cld-streaming --ignore-not-found
+kubectl delete podmonitor strimzi-pod-monitor -n cld-streaming --ignore-not-found
+
+minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
+
+# Optional but clean: restart operator if you hit bad state
+helm uninstall strimzi-cluster-operator --namespace cld-streaming
+# Re-install (your exact command)
+helm install strimzi-cluster-operator --namespace cld-streaming \
+  --set 'image.imagePullSecrets[0].name=cloudera-creds' \
+  --set-file clouderaLicense.fileContent=./license.txt \
+  --set watchAnyNamespace=true \
+  oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99
+```
+
+#### 2. Source of Kafka Metrics
+```bash
+curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/kafka-metrics.yaml
+kubectl apply -f kafka-metrics.yaml -n cld-streaming
+```
+
+#### 4. Re-apply Kafka resources (in order)
+```bash
+kubectl apply -f kafka-nodepool.yaml -n cld-streaming
+kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
+```
+
+#### 5. Force Prometheus to pick up changes
+```bash
+kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n cld-streaming
+kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
+```
+
+#### 6. Grafana Dashboard (updated instructions for Section 6)
+
+1. Import the Strimzi dashboard exactly as before (the same `strimzi-kafka.json` you already have).
+2. **Set the variables** at the top of the dashboard:
+   - `kubernetes_namespace` → `cld-streaming`
+   - `strimzi_cluster_name` → `my-cluster`
+   - `kafka_broker` → should now auto-populate with `combined-0`, `combined-1`, `combined-2` (or select `.*`)
+   - `kafka_topic` → `txn1|txn2|txn_fraud` (or `.*` for everything)
+
+3. Generate traffic (trigger your NiFi flows) → the dashboard should now light up.
+
+**If any variable still shows "No values"**:
+- Go to **Dashboard settings → Variables**, edit `strimzi_cluster_name` (or others) and change the **Query** to:
+  ```promql
+  label_values(kafka_server_replicamanager_leadercount{namespace="cld-streaming"}, strimzi_io_cluster)
+  ```
+- Do the same for `kafka_broker` if needed:
+  ```promql
+  label_values(kafka_server_replicamanager_leadercount{namespace="cld-streaming",strimzi_io_cluster="my-cluster"}, kubernetes_pod_name)
+  ```
+  (then update the regex to `/.*combined-(.+)/` or just use the full pod name).
+
+#### Quick custom panels (while dashboard finishes loading)
+Use these in a temporary dashboard (they match your working queries):
+
+- **Messages In Per Second**
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_messagesinpersec{namespace="cld-streaming", topic=~"txn1|txn2|txn_fraud"}[5m])) by (pod, topic)
+  ```
+
+- **Bytes In Per Second**
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec{namespace="cld-streaming", topic=~"txn1|txn2|txn_fraud"}[5m])) by (topic)
+  ```
+
+- **Under Replicated Partitions**
+  ```promql
+  sum(kafka_server_replicamanager_underreplicatedpartitions{namespace="cld-streaming", strimzi_io_cluster="my-cluster"}) by (pod)
+  ```
