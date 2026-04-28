@@ -43,15 +43,12 @@ Create a file named `sr-values-postgres.yaml` with the full configuration. This 
 ```yaml
 tls:
   enabled: false
-
 authentication:
   oauth:
     enabled: false
-
 authorization:
   simple:
     enabled: false
-
 database:
   type: postgresql
   jdbcUrl: "jdbc:postgresql://ssb-postgresql.cld-streaming.svc:5432/registry"
@@ -60,10 +57,8 @@ database:
     secretKeyRef:
       name: "sr-db-pass"
       key: "password"
-
 service:
   type: NodePort
-
 resources:
   requests:
     memory: "512Mi"
@@ -78,7 +73,12 @@ resources:
 Now, run the full Helm install command to deploy Schema Registry with your new configuration:
 
 ```bash
-helm install schema-registry ./schema-registry-chart.tgz -f sr-values-postgres.yaml --namespace cld-streaming
+helm install schema-registry \
+--namespace cld-streaming \
+--version 1.6.0-b99 \
+--values sr-values-postgres.yaml \
+--set "image.imagePullSecrets[0].name=cloudera-creds" \
+oci://container.repository.cloudera.com/cloudera-helm/csm-operator/schema-registry 
 ```
 
 Check the status of your pods to ensure they initialize successfully. The init container will authenticate as the new `registry` user, run the Flyway database migrations, and permanently persist your schemas!
