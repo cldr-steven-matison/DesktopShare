@@ -476,21 +476,7 @@ Sometimes the Prometheus Operator misses the "Create" event after a "Delete" eve
 kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
 ```
 
-4.  Testing Prometheus Works
-
-Navigate and confirm you see Targets:
-
-[ screen shot on mac desktop ]
-
-Execute these in Prometheus:
-
-```query
-{__name__=~"kafka_.*"}
-
-
-
-```
-
+### Terminal History
 
 ```terminal
 helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99 
@@ -498,75 +484,54 @@ kubectl apply -f kafka-metrics-config.yaml -n cld-streaming
 kubectl apply -f kafka-nodepool.yaml -n cld-streaming
 kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
 kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
-
-
 kubectl delete -f kafka-metrics-config.yaml -n cld-streaming
 kubectl delete -f kafka-nodepool.yaml  -n cld-streaming
 kubectl delete -f kafka-eval-prometheus.yaml -n cld-streaming
 kubectl delete -f strimzi-pod-monitor.yaml -n cld-streaming
 helm uninstall strimzi-cluster-operator --namespace cld-streaming
-
-
-
-
 kubectl logs my-cluster-combined-0 -n cld-streaming
-
 minikube service prometheus-kube-prometheus-prometheus -n cld-streaming --url
-
-
- 1047  kubectl get configmap kafka-metrics -n cld-streaming -o jsonpath='{.data}' | jq 'keys'
-
- 1056  kubectl get pvc,pv -n cld-streaming
- 1058  minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
-
+kubectl get configmap kafka-metrics -n cld-streaming -o jsonpath='{.data}' | jq 'keys'
+kubectl get pvc,pv -n cld-streaming
+minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
 kubectl delete kafka my-cluster -n cld-streaming
 kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
 
 
-other Prometheus Queries I used
+#other Prometheus Queries I used
 
 {__name__=~"kafka_server_brokertopicmetrics.*"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn1"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn2"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn_fraud"}
 
-
-#finally working sums
-
+#working sums
 sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (topic)
-
 sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
-
-
-## in deeper sessions we stick to pushing grafana defaults and working dashboard
 
 # in this session, a :lightbulb: moment.   When hem upgrade failed  rollback worked to revert
 # also be careful in test iterations,  if we do a live patch,  we need to make sure we go back to get the same change reflected in cli or yaml commands
 
 
- 1023  cd ~/Documents/GitHub/ClouderaStreamingOperators
- 1024  kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
- 1025  kubectl get podmonitors -n cld-streaming
- 1026  kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
- 1027  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
- 1028  kubectl get podmonitors -n cld-streaming
- 1029  kubectl exec -it my-cluster-combined-0 -n cld-streaming -- curl localhost:9404/metrics
- 1030  kubectl patch podmonitor strimzi-pod-monitor -n cld-streaming --type merge -p '{"spec":{"jobLabel":"strimzi.io/cluster"}}'
- 1031  helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.additionalDataSources[0].jsonData.timeInterval=30s' \\n  --set 'grafana.additionalDataSources[0].jsonData.httpMethod=POST' \\n  --set 'grafana.additionalDataSources[0].jsonData.incrementalQuerying=true'
- 1032  helm rollback prometheus -n cld-streaming
- 1033  helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.sidecar.datasources.isDefaultDatasourceEditable=true' \\n  --set 'grafana.additionalDataSources[0].jsonData.scrapeInterval=30s'
- 1034  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
- 1035  helm rollback prometheus -n cld-streaming
- 1036  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
- 1037  helm uninstall prometheus -n cld-streaming
- 1038  ls
-
-
-
-
+cd ~/Documents/GitHub/ClouderaStreamingOperators
+kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
+kubectl get podmonitors -n cld-streaming
+kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+kubectl get podmonitors -n cld-streaming
+kubectl exec -it my-cluster-combined-0 -n cld-streaming -- curl localhost:9404/metrics
+kubectl patch podmonitor strimzi-pod-monitor -n cld-streaming --type merge -p '{"spec":{"jobLabel":"strimzi.io/cluster"}}'
+helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.additionalDataSources[0].jsonData.timeInterval=30s' \\n  --set 'grafana.additionalDataSources[0].jsonData.httpMethod=POST' \\n  --set 'grafana.additionalDataSources[0].jsonData.incrementalQuerying=true'
+ helm rollback prometheus -n cld-streaming
+helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.sidecar.datasources.isDefaultDatasourceEditable=true' \\n  --set 'grafana.additionalDataSources[0].jsonData.scrapeInterval=30s'
+kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+helm rollback prometheus -n cld-streaming
+kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+helm uninstall prometheus -n cld-streaming
 
 ```
 
+### Appendix
 
 #### 1. Full Delete + Rebuild (prevents stale config caching)
 ```bash
@@ -605,27 +570,6 @@ kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-promet
 kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
 ```
 
-#### 6. Grafana Dashboard (updated instructions for Section 6)
-
-1. Import the Strimzi dashboard exactly as before (the same `strimzi-kafka.json` you already have).
-2. **Set the variables** at the top of the dashboard:
-   - `kubernetes_namespace` → `cld-streaming`
-   - `strimzi_cluster_name` → `my-cluster`
-   - `kafka_broker` → should now auto-populate with `combined-0`, `combined-1`, `combined-2` (or select `.*`)
-   - `kafka_topic` → `txn1|txn2|txn_fraud` (or `.*` for everything)
-
-3. Generate traffic (trigger your NiFi flows) → the dashboard should now light up.
-
-**If any variable still shows "No values"**:
-- Go to **Dashboard settings → Variables**, edit `strimzi_cluster_name` (or others) and change the **Query** to:
-  ```promql
-  label_values(kafka_server_replicamanager_leadercount{namespace="cld-streaming"}, strimzi_io_cluster)
-  ```
-- Do the same for `kafka_broker` if needed:
-  ```promql
-  label_values(kafka_server_replicamanager_leadercount{namespace="cld-streaming",strimzi_io_cluster="my-cluster"}, kubernetes_pod_name)
-  ```
-  (then update the regex to `/.*combined-(.+)/` or just use the full pod name).
 
 #### Quick custom panels (while dashboard finishes loading)
 Use these in a temporary dashboard (they match your working queries):
