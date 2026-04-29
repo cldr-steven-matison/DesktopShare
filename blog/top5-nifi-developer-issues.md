@@ -17,7 +17,9 @@ Here are the most frequently cited challenges, ranked roughly by how often they 
 5. **Security configuration and permissions**  
    Setting up proper TLS for the UI and cluster communication, integrating enterprise auth (LDAP, Kerberos, SSO), and applying granular RBAC (especially for “restricted” components that can execute code) is error-prone and high-stakes. Misconfigurations are common in containerized or multi-node setups, and the “execute code” permission required for scripting processors adds security and maintenance headaches.
 
-**Honorable mentions** that come up often include the steep learning curve for newcomers (overwhelming number of processors and properties)```markdown
+**Honorable mentions** that come up often include the steep learning curve for newcomers (overwhelming number of processors and properties)
+
+
 # Why Cloudera Streaming Operators Solve the Top 5 Apache NiFi Integration Developer Struggles — The Ultimate Minikube Setup Guide
 
 **By Steven Matison**  

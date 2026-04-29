@@ -1,47 +1,38 @@
----
-layout: post
-title: "Monitoring Cloudera Streams Messaging (CSM) with Prometheus on Minikube"
-date: 2026-04-15 12:00:00 -0400
-categories: [Cloudera, Kafka, Kubernetes]
-tags: [CSM, Strimzi, Prometheus, Minikube, Monitoring]
----
 
-# 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus on Minikube
+# 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus
 
-If you are running the **Cloudera Streaming Operators** on Minikube, you know that visibility is everything. You can have the most complex NiFi-to-Kafka-to-Flink RAG pipeline in the world, but if you can't see your throughput or under-replicated partitions, you're flying blind.
+If you are running the **Cloudera Streaming Operators**, you know that visibility is everything. You can have the most complex NiFi-to-Kafka-to-Flink RAG pipeline in the world, but if you can't see your throughput or under-replicated partitions, you're flying blind.
 
 In this post, we’re going to wire up **Cloudera Streams Messaging (CSM)**—powered by the Strimzi-based Kafka operator—to a **Prometheus + Grafana** stack. 
-
-
 
 ---
 
 ### 🛠️ Prerequisites
 
 Before we start, ensure you have the following:
-* **Minikube** running with the Docker driver (WSL2 recommended).
-* **CSM Operator** installed in the `cld-streaming` namespace.
-* **Prometheus Operator** installed via Helm in the `monitoring` namespace.
+* **Cloudera Streams Messaing Operator** installed in the `cld-streaming` namespace.
+* **Prometheus Operator** installed via Helm in the `cld-streaming` namespace.
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 ```
 
-> Helm Install Prometheus
-> ```bash
-> helm install prometheus prometheus-community/kube-prometheus-stack \
-  --namespace cld-streaming --create-namespace \
-  --set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
-  --set 'grafana.additionalDataSources[0].name=Prometheus' \
-  --set 'grafana.additionalDataSources[0].type=prometheus' \
-  --set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
-  --set 'grafana.additionalDataSources[0].access=proxy' \
-  --set 'grafana.additionalDataSources[0].isDefault=true' \
-  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
-  --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
-  --set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
-  --set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
-> ```
+Helm Install Prometheus
+
+```bash
+helm install prometheus prometheus-community/kube-prometheus-stack \
+--namespace cld-streaming --create-namespace \
+--set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
+--set 'grafana.additionalDataSources[0].name=Prometheus' \
+--set 'grafana.additionalDataSources[0].type=prometheus' \
+--set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
+--set 'grafana.additionalDataSources[0].access=proxy' \
+--set 'grafana.additionalDataSources[0].isDefault=true' \
+--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+--set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+--set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
+--set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
+```
 
 ---
 
@@ -49,32 +40,181 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 First, we need to define how Kafka's JMX metrics are converted into Prometheus format. Create `kafka-metrics-config.yaml`:
 
 ```yaml
-apiVersion: v1
 kind: ConfigMap
+apiVersion: v1
 metadata:
   name: kafka-metrics
-  namespace: cld-streaming
   labels:
     app: strimzi
 data:
   kafka-metrics-config.yaml: |
+    # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics
     lowercaseOutputName: true
     rules:
-      - pattern: "kafka.server<type=(.+), name=(.+)><>(Count|Value)"
-        name: "kafka_server_$1_$2"
-      - pattern: "kafka.controller<type=(.+), name=(.+)><>(Count|Value)"
-        name: "kafka_controller_$1_$2"
-      - pattern: "kafka.network<type=(.+), name=(.+)><>(Count|Value)"
-        name: "kafka_network_$1_$2"
+    # Special cases and very specific rules
+    - pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), topic=(.+), partition=(.*)><>Value
+      name: kafka_server_$1_$2
+      type: GAUGE
+      labels:
+        clientId: "$3"
+        topic: "$4"
+        partition: "$5"
+    - pattern: kafka.server<type=(.+), name=(.+), clientId=(.+), brokerHost=(.+), brokerPort=(.+)><>Value
+      name: kafka_server_$1_$2
+      type: GAUGE
+      labels:
+        clientId: "$3"
+        broker: "$4:$5"
+    - pattern: kafka.server<type=(.+), cipher=(.+), protocol=(.+), listener=(.+), networkProcessor=(.+)><>connections
+      name: kafka_server_$1_connections_tls_info
+      type: GAUGE
+      labels:
+        cipher: "$2"
+        protocol: "$3"
+        listener: "$4"
+        networkProcessor: "$5"
+    - pattern: kafka.server<type=(.+), clientSoftwareName=(.+), clientSoftwareVersion=(.+), listener=(.+), networkProcessor=(.+)><>connections
+      name: kafka_server_$1_connections_software
+      type: GAUGE
+      labels:
+        clientSoftwareName: "$2"
+        clientSoftwareVersion: "$3"
+        listener: "$4"
+        networkProcessor: "$5"
+    - pattern: "kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+-total):"
+      name: kafka_server_$1_$4
+      type: COUNTER
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    - pattern: "kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+):"
+      name: kafka_server_$1_$4
+      type: GAUGE
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    - pattern: kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+-total)
+      name: kafka_server_$1_$4
+      type: COUNTER
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    - pattern: kafka.server<type=(.+), listener=(.+), networkProcessor=(.+)><>(.+)
+      name: kafka_server_$1_$4
+      type: GAUGE
+      labels:
+        listener: "$2"
+        networkProcessor: "$3"
+    # Some percent metrics use MeanRate attribute
+    # Ex) kafka.server<type=(KafkaRequestHandlerPool), name=(RequestHandlerAvgIdlePercent)><>MeanRate
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)Percent\w*><>MeanRate
+      name: kafka_$1_$2_$3_percent
+      type: GAUGE
+    # Generic gauges for percents
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)Percent\w*><>Value
+      name: kafka_$1_$2_$3_percent
+      type: GAUGE
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)Percent\w*, (.+)=(.+)><>Value
+      name: kafka_$1_$2_$3_percent
+      type: GAUGE
+      labels:
+        "$4": "$5"
+    # Generic per-second counters with 0-2 key/value pairs
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*, (.+)=(.+), (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_total
+      type: COUNTER
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*, (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_total
+      type: COUNTER
+      labels:
+        "$4": "$5"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)PerSec\w*><>Count
+      name: kafka_$1_$2_$3_total
+      type: COUNTER
+    # Generic gauges with 0-2 key/value pairs
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>Value
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>Value
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Value
+      name: kafka_$1_$2_$3
+      type: GAUGE
+    # Emulate Prometheus 'Summary' metrics for the exported 'Histogram's.
+    # Note that these are missing the '_sum' metric!
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+), (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_count
+      type: COUNTER
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*), (.+)=(.+)><>(\d+)thPercentile
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+        "$6": "$7"
+        quantile: "0.$8"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.+)><>Count
+      name: kafka_$1_$2_$3_count
+      type: COUNTER
+      labels:
+        "$4": "$5"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+), (.+)=(.*)><>(\d+)thPercentile
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        "$4": "$5"
+        quantile: "0.$6"
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)><>Count
+      name: kafka_$1_$2_$3_count
+      type: COUNTER
+    - pattern: kafka.(\w+)<type=(.+), name=(.+)><>(\d+)thPercentile
+      name: kafka_$1_$2_$3
+      type: GAUGE
+      labels:
+        quantile: "0.$4"
+    # KRaft overall related metrics
+    # distinguish between always increasing COUNTER (total and max) and variable GAUGE (all others) metrics
+    - pattern: "kafka.server<type=raft-metrics><>(.+-total|.+-max):"
+      name: kafka_server_raftmetrics_$1
+      type: COUNTER
+    - pattern: "kafka.server<type=raft-metrics><>(current-state): (.+)"
+      name: kafka_server_raftmetrics_$1
+      value: 1
+      type: UNTYPED
+      labels:
+        $1: "$2"
+    - pattern: "kafka.server<type=raft-metrics><>(.+):"
+      name: kafka_server_raftmetrics_$1
+      type: GAUGE
+    # KRaft "low level" channels related metrics
+    # distinguish between always increasing COUNTER (total and max) and variable GAUGE (all others) metrics
+    - pattern: "kafka.server<type=raft-channel-metrics><>(.+-total|.+-max):"
+      name: kafka_server_raftchannelmetrics_$1
+      type: COUNTER
+    - pattern: "kafka.server<type=raft-channel-metrics><>(.+):"
+      name: kafka_server_raftchannelmetrics_$1
+      type: GAUGE
+    # Broker metrics related to fetching metadata topic records in KRaft mode
+    - pattern: "kafka.server<type=broker-metadata-metrics><>(.+):"
+      name: kafka_server_brokermetadatametrics_$1
+      type: GAUGE
 ```
 `kubectl apply -f kafka-metrics-config.yaml -n cld-streaming`
 
 ---
 
 ### 2️⃣ The Kafka Cluster Config 
-
-
-⚠️ **Warning:** Do not forget our kafka-nodepool in our sequence.   I had issues with not doing a complete new cluster.  So if necessary full delete and re-create.
   
 (`kafka-nodepool.yaml`)
 
@@ -98,14 +238,10 @@ spec:
         size: 10Gi
         kraftMetadata: shared
         deleteClaim: false
-
 ```
-
-
+`kubectl apply -f kafka-nodepool.yaml -n cld-streaming`
 
 (`kafka-eval-prometheus.yaml`)
-
-⚠️ **Warning:** If you are using **KafkaNodePools** (KRaft mode), do **NOT** put the `metricsConfig` in the NodePool spec. It will throw a strict decoding error. It belongs in the **Kafka** resource.
 
 Create the `kafka-eval-prometheus.yaml`:
 
@@ -172,6 +308,23 @@ spec:
     - path: /metrics
       targetPort: 9404
       interval: 30s
+      relabelings:
+        # Map Strimzi pod labels (strimzi.io/...) to top-level metric labels the dashboard expects
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(strimzi_io_.+)
+          replacement: $1
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+          replacement: $1
+        # Standard K8s labels the dashboard variables use
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: kubernetes_pod_name
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod_name
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node_name
 ```
 `kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming`
 
@@ -179,7 +332,7 @@ spec:
 
 ### 4️⃣ Exposing the UIs
 
-Grab the URLs and keep the tunnels alive in separate terminal tabs.
+Grab the URLs and keep the tunnels alive in separate terminals.
 
 **Tab 1: Prometheus UI**
 ```bash
@@ -198,9 +351,6 @@ kubectl get secret --namespace cld-streaming prometheus-grafana -o jsonpath="{.d
 ```
 ---
 
-Here's the **clean, updated standalone section** you can copy and paste directly into your MD file as **Section 5**:
-
----
 
 ### 5️⃣ Querying Kafka Metrics in Prometheus UI
 
@@ -212,24 +362,24 @@ Head to the Prometheus UI in your browser (usually at `http://<minikube-ip>:9090
 
 **Sample Query 1: Topic Messages In Per Second (Confirmed Throughput)**  
 ```promql
-sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
+sum(rate(kafka_server_brokertopicmetrics_messagesin_total{topic=~"txn1|txn2|txn_fraud"}[5m])) by (pod, topic)
 ```  
 This query aggregates messages ingested per second, grouped by broker pod and topic. Watch it spike when your producers or NiFi flows push data into the txn topics. Excellent for spotting sudden drops or imbalances across brokers.
 
 **Sample Query 2: Topic Bytes In Per Second (Throughput in Bytes)**  
 ```promql
-sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic)
+sum(rate(kafka_server_brokertopicmetrics_bytesin_total[5m])) by (topic)
 ```  
 This query shows the incoming byte rate per topic over a 5-minute window. It gives you a clear picture of actual data volume flowing into `txn1`, `txn2`, and especially `txn_fraud`. Because it uses `rate()`, the graph is much smoother and more useful for monitoring real-world throughput.
 
 **Quick Tips for This Setup**  
 - Filter by your actual broker pods when needed:  
   ```promql
-  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec[5m])) by (topic, pod)
+  sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"}[5m])) by (topic, pod)
   ```  
 - Add namespace filtering for cleaner results:  
   ```promql
-  sum(kafka_server_brokertopicmetrics_bytesinpersec{namespace="cld-streaming"}) by (topic)
+  sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"}[5m])) by (topic)
   ```  
 - If any query returns no data, make sure you are actively producing messages to the topics. Then restart Prometheus to force a fresh scrape:  
   ```bash
@@ -285,17 +435,14 @@ If the full dashboard is still empty, create a temporary dashboard and add these
   sum(kafka_server_replicamanager_underreplicatedpartitions) by (pod)
   ```
 
-Once you see data in these simple panels, the full Strimzi dashboard will light up after you fix the PodMonitor + variables.
 
-You’re super close — 95% of the time this is just a missing PodMonitor scrape or mismatched namespace/cluster label.  
-
-Run the diagnosis commands above and paste the output here (especially the Targets page and PodMonitor list). I’ll give you the exact one-line fix for your setup.
-
-We’ll get the dashboard showing your `txn_fraud` throughput in the next message. Let’s knock this out! 🚀
+[ move to cso-minikube-prometheus-csm-debug.md ]
+[ bring out here ]
+[ likely can remove some of the troubleshooting steps above ]
 
 
 ### 🏁 Summary
-By separating our **Topology** (NodePools) from our **Configuration** (Kafka CR), we successfully injected the Prometheus JMX exporter without breaking the Strimzi operator's strict validation. Now, as NiFi pumps data into Kafka, you can watch the `kafka_server_brokertopicmetrics_messagesinpersec_count` rise in real-time.
+We successfully injected the Prometheus JMX exporter without breaking the Strimzi operator's strict validation. Now, as NiFi pumps data into Kafka, you can watch the `kafka_server_brokertopicmetrics_messagesinpersec_count` rise in real-time.
 
 **Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!**
 
@@ -329,21 +476,7 @@ Sometimes the Prometheus Operator misses the "Create" event after a "Delete" eve
 kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
 ```
 
-4.  Testing Prometheus Works
-
-Navigate and confirm you see Targets:
-
-[ screen shot on mac desktop ]
-
-Execute these in Prometheus:
-
-```query
-{__name__=~"kafka_.*"}
-
-
-
-```
-
+### Terminal History
 
 ```terminal
 helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99 
@@ -351,71 +484,107 @@ kubectl apply -f kafka-metrics-config.yaml -n cld-streaming
 kubectl apply -f kafka-nodepool.yaml -n cld-streaming
 kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
 kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
-
-
 kubectl delete -f kafka-metrics-config.yaml -n cld-streaming
 kubectl delete -f kafka-nodepool.yaml  -n cld-streaming
 kubectl delete -f kafka-eval-prometheus.yaml -n cld-streaming
 kubectl delete -f strimzi-pod-monitor.yaml -n cld-streaming
 helm uninstall strimzi-cluster-operator --namespace cld-streaming
-
-
-
-
 kubectl logs my-cluster-combined-0 -n cld-streaming
-
 minikube service prometheus-kube-prometheus-prometheus -n cld-streaming --url
-
-
- 1047  kubectl get configmap kafka-metrics -n cld-streaming -o jsonpath='{.data}' | jq 'keys'
-
- 1056  kubectl get pvc,pv -n cld-streaming
- 1058  minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
-
+kubectl get configmap kafka-metrics -n cld-streaming -o jsonpath='{.data}' | jq 'keys'
+kubectl get pvc,pv -n cld-streaming
+minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
 kubectl delete kafka my-cluster -n cld-streaming
 kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
 
 
-other Prometheus Queries I used
+#other Prometheus Queries I used
 
 {__name__=~"kafka_server_brokertopicmetrics.*"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn1"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn2"}
 kafka_server_brokertopicmetrics_messagesinpersec{topic="txn_fraud"}
 
-
-#finally working sums
-
+#working sums
 sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (topic)
-
 sum(kafka_server_brokertopicmetrics_messagesinpersec{topic=~"txn1|txn2|txn_fraud"}) by (pod, topic)
-
-
-## in deeper sessions we stick to pushing grafana defaults and working dashboard
 
 # in this session, a :lightbulb: moment.   When hem upgrade failed  rollback worked to revert
 # also be careful in test iterations,  if we do a live patch,  we need to make sure we go back to get the same change reflected in cli or yaml commands
 
 
- 1023  cd ~/Documents/GitHub/ClouderaStreamingOperators
- 1024  kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
- 1025  kubectl get podmonitors -n cld-streaming
- 1026  kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
- 1027  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
- 1028  kubectl get podmonitors -n cld-streaming
- 1029  kubectl exec -it my-cluster-combined-0 -n cld-streaming -- curl localhost:9404/metrics
- 1030  kubectl patch podmonitor strimzi-pod-monitor -n cld-streaming --type merge -p '{"spec":{"jobLabel":"strimzi.io/cluster"}}'
- 1031  helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.additionalDataSources[0].jsonData.timeInterval=30s' \\n  --set 'grafana.additionalDataSources[0].jsonData.httpMethod=POST' \\n  --set 'grafana.additionalDataSources[0].jsonData.incrementalQuerying=true'
- 1032  helm rollback prometheus -n cld-streaming
- 1033  helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.sidecar.datasources.isDefaultDatasourceEditable=true' \\n  --set 'grafana.additionalDataSources[0].jsonData.scrapeInterval=30s'
- 1034  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
- 1035  helm rollback prometheus -n cld-streaming
- 1036  kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
- 1037  helm uninstall prometheus -n cld-streaming
- 1038  ls
-
-
-
-
+cd ~/Documents/GitHub/ClouderaStreamingOperators
+kubectl apply -f strimzi-pod-monitor.yaml -n cld-streaming
+kubectl get podmonitors -n cld-streaming
+kubectl get secret --namespace monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
+kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+kubectl get podmonitors -n cld-streaming
+kubectl exec -it my-cluster-combined-0 -n cld-streaming -- curl localhost:9404/metrics
+kubectl patch podmonitor strimzi-pod-monitor -n cld-streaming --type merge -p '{"spec":{"jobLabel":"strimzi.io/cluster"}}'
+helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.additionalDataSources[0].jsonData.timeInterval=30s' \\n  --set 'grafana.additionalDataSources[0].jsonData.httpMethod=POST' \\n  --set 'grafana.additionalDataSources[0].jsonData.incrementalQuerying=true'
+ helm rollback prometheus -n cld-streaming
+helm upgrade prometheus prometheus-community/kube-prometheus-stack \\n  --namespace cld-streaming \\n  --reuse-values \\n  --set 'grafana.sidecar.datasources.isDefaultDatasourceEditable=true' \\n  --set 'grafana.additionalDataSources[0].jsonData.scrapeInterval=30s'
+kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+helm rollback prometheus -n cld-streaming
+kubectl get secret --namespace cld-streaming -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
+helm uninstall prometheus -n cld-streaming
 
 ```
+
+### Appendix
+
+#### 1. Full Delete + Rebuild (prevents stale config caching)
+```bash
+kubectl delete kafka my-cluster -n cld-streaming --ignore-not-found
+kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming --ignore-not-found
+kubectl delete configmap kafka-metrics -n cld-streaming --ignore-not-found
+kubectl delete podmonitor strimzi-pod-monitor -n cld-streaming --ignore-not-found
+
+minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
+
+# Optional but clean: restart operator if you hit bad state
+helm uninstall strimzi-cluster-operator --namespace cld-streaming
+# Re-install (your exact command)
+helm install strimzi-cluster-operator --namespace cld-streaming \
+  --set 'image.imagePullSecrets[0].name=cloudera-creds' \
+  --set-file clouderaLicense.fileContent=./license.txt \
+  --set watchAnyNamespace=true \
+  oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99
+```
+
+#### 2. Source of Kafka Metrics
+```bash
+curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/kafka-metrics.yaml
+kubectl apply -f kafka-metrics.yaml -n cld-streaming
+```
+
+#### 4. Re-apply Kafka resources (in order)
+```bash
+kubectl apply -f kafka-nodepool.yaml -n cld-streaming
+kubectl apply -f kafka-eval-prometheus.yaml -n cld-streaming
+```
+
+#### 5. Force Prometheus to pick up changes
+```bash
+kubectl rollout restart statefulset prometheus-prometheus-kube-prometheus-prometheus -n cld-streaming
+kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
+```
+
+
+#### Quick custom panels (while dashboard finishes loading)
+Use these in a temporary dashboard (they match your working queries):
+
+- **Messages In Per Second**
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_messagesinpersec{namespace="cld-streaming", topic=~"txn1|txn2|txn_fraud"}[5m])) by (pod, topic)
+  ```
+
+- **Bytes In Per Second**
+  ```promql
+  sum(rate(kafka_server_brokertopicmetrics_bytesinpersec{namespace="cld-streaming", topic=~"txn1|txn2|txn_fraud"}[5m])) by (topic)
+  ```
+
+- **Under Replicated Partitions**
+  ```promql
+  sum(kafka_server_replicamanager_underreplicatedpartitions{namespace="cld-streaming", strimzi_io_cluster="my-cluster"}) by (pod)
+  ```

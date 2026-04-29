@@ -187,7 +187,7 @@ Connections:
     source relationship name: success
 ```
 
-### Consume Kafka
+### ConsumeKafka
 
 Had issues getting a ConsumeKafka processor to work in MiNiFi
 
@@ -232,6 +232,47 @@ Connections:
     destination name: WriteToInbox
     source relationship name: success
 
+```
+
+### ListenHttp
+
+This setup replicates the `ListenHTTP` → `PutFile` pattern from the **MiNiFi-Kubernetes-Playground** repository to enable real-time MIDI triggering via an HTTP API.
+
+Need to test this option once networking is resolved.
+
+
+```yaml
+MiNiFi Config Version: 3
+Flow Controller:
+  name: MiNiFi Music Edge
+Processors:
+  - name: ListenForNotes
+    class: org.apache.nifi.minifi.processors.ListenHTTP
+    Properties:
+      Listening Port: 9998
+      Listening IP: 0.0.0.0
+      # Note: C++ agent often defaults to /contentListener regardless of this value
+      HTTP Rest URL: midi
+
+  - name: WriteToInbox
+    class: org.apache.nifi.minifi.processors.PutFile
+    scheduling strategy: EVENT_DRIVEN
+    Properties:
+      Directory: C:\midi\inbox
+      Conflict Resolution Strategy: replace
+
+Connections:
+  - name: HttpToDisk
+    source name: ListenForNotes
+    destination name: WriteToInbox
+    source relationship name: success
+```
+
+### Site to Site NiFi to MiNiFI
+
+
+```yaml
+need minifi flow
 ```
 
 Run MiNiFi in a new PowerShell window:
