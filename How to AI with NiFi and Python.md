@@ -137,7 +137,7 @@ When injecting new python logic into your data pipeline, you must code defensive
 1. **The Array Trap:** AI assumes FlowFiles contain a single JSON object. If your upstream generator creates an array of transactions, the AI's `.get()` dictionary methods will trigger fatal `AttributeErrors`. Always wrap your logic to handle both `isinstance(payload, list)` and single dicts.
 2. **Never Overwrite the Payload:** AI scripts often return *only* the result of their computation. If you replace your FlowFile content with just the ML score, you lose your original `transaction_id` and break downstream routing. Always append the AI's output to the existing payload (e.g., `payload["ai_response"] = result`).
 3. **Trap Everything:** Wrap the AI logic in a `try/except` block that catches failures, writes the error to an attribute (`attributes['python_error'] = str(e)`), and routes the FlowFile to `failure` instead of crashing the processor.
-4. **You will Find Mre:** Expect find more edge cases but keep iterating, you will get it to work.
+4. **You will Find More:** Expect find more edge cases but keep iterating, you will get it to work.
 
 ### Rule 4: Master the Hot-Reload Workflow
 
