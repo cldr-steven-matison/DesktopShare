@@ -13,7 +13,7 @@ tags:
   - best-practices
 ---
 
-We are all using AI to write code. Whether you are generating synthetic data scripts or translating complex machine learning models, Large Language Models (LLMs) are incredible accelerators. But if you ask an AI to write a native Apache NiFi 2.0 Python processor, there is a very high probability it will confidently hand you code that instantly breaks your canvas.
+We are all using AI to write code. It's like the wyld wyld west out there when it comes to Apache NiFi.  Whether you are generating synthetic data scripts or translating complex machine learning models, Large Language Models (LLMs) are incredible accelerators. But if you ask an AI to write a native Apache NiFi 2.0 Python processor, there is a very high probability it will confidently hand you code that instantly breaks your canvas.
 
 NiFi 2.0’s Python API is relatively new, and most AI training data is heavily saturated with legacy NiFi 1.x `ExecuteScript` solutions (using Jython or Groovy). Even when the AI uses the correct 2.0 API, it often misconfigures the underlying Java-to-Python bridge, resulting in "ghost" processors with dashed lines and missing relationships.
 
@@ -88,7 +88,7 @@ The biggest mistake you can make is copying and pasting a complete Python proces
 
 AI models often hallucinate complex aspirational examples that do not actually work in the way you expected. When Ai gives you bad custom processor code, NiFi fails to load the processor, or worse, loads it but refuses to display the `success` and `failure` relationships in the UI.
 
-**The Pro Move:** Keep the AI focused on the *business logic* (JSON parsing, API calls, ML math). Pin the AI in a strict, proven architectural skeleton for the NiFi wrapper.  `I am going to show you one right now!`
+**The Pro Move:** Pin the AI in a strict, proven architectural skeleton for the NiFi wrapper.  `I am going to show you one right now!`  By "Pin" I mean I literally had to prove to AI that my first processor [example](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/) worked, then create and confirm this following base processor worked, then move forward with making the actual processor I needed.
 
 ### Rule 2: Prove the Skeleton First
 
