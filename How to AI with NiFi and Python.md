@@ -88,7 +88,7 @@ The biggest mistake you can make is copying and pasting a complete Python proces
 
 AI models often hallucinate complex, aspirational examples that do not function as expected in your specific environment. When an AI provides malformed custom processor code, NiFi will either fail to load the processor entirely or, worse, load it but refuse to display the `success` and `failure` relationships in the UI.
 
-**The Pro Move:** Pin the AI within a strict, proven architectural skeleton for the NiFi wrapper. *I am going to show you one right now!* By "pin," I mean I essentially had to wrestle the AI and lock it down using my first processor [example](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/). I proved to the AI that my processor worked, and together we confirmed this baseline processor framework functioned correctly. Finally, we moved forward with constructing the actual processor I needed. 💪
+**The Pro Move:** Pin the AI within a strict, proven architectural skeleton for the NiFi wrapper. *I am going to show you one right now!* By "pin," I mean I essentially had to wrestle the AI and lock it down using my first processor [example](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/). I proved to the AI that my example processor worked, and together we confirmed the baseline processor `GenericTransform` framework functioned correctly. Finally, we moved forward with constructing the actual custom nifi processor I needed. 💪
 
 ### Rule 2: Prove the Skeleton First
 
