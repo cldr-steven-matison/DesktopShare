@@ -141,7 +141,7 @@ When injecting new python logic into your data pipeline, you must code defensive
 
 ### Rule 4: Master the Hot-Reload Workflow
 
-The NiFi 2.0 Python API features auto-reloading. You do not need to restart your pod or execute scripts to test new new custom nifi pythong processor logic. 
+The NiFi 2.0 Python API features auto-reloading. You do not need to restart your pod or execute scripts to test new new custom nifi python processor logic. 
 
 If you are using a local mount (e.g., `minikube mount ~/nifi-custom-processors:/extensions`):
 1. Save your `.py` file.
