@@ -9,7 +9,7 @@ tags:
   - nifi
   - python
   - ai
-  - cloudera
+  - processor
   - best-practices
 ---
 
