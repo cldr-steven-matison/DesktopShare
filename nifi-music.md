@@ -521,6 +521,9 @@ curl.exe -X POST http://localhost:9999/musical-events -H "Content-Type: applicat
 Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 300
 Get-Content "C:\Program Files\ApacheNiFiMiNiFi\nifi-minifi-cpp\logs\minifi-app.log" -Tail 150
 dir "C:\midi\inbox"
+
+# when testing minifi port
+kubectl port-forward -n cfm-streaming pod/mynifi-0 9998:9998
 ```
 
 ### MiNiFi Terminal History
@@ -655,5 +658,16 @@ stack(
   s("bd [~ sd] bd sd").gain(0.8),
   s("hh:27*8").gain(0.4)
 )
+
+```
+
+## NiFi Mount for testing PutFile ListFile 
+
+This works to mount /home/tuna/midi_inbox to /mnt/midi_inbox on the nifi pod.
+
+```terminal
+
+minikube mount /home/tuna/midi_inbox:/home/tuna/midi_inbox
+kubectl apply -f nifi-cluster-30-nifi2x-midi.yaml -n cfm-streaming
 
 ```
