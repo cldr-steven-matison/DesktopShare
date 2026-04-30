@@ -17,7 +17,7 @@ We are all using AI to write code. Whether you are generating synthetic data scr
 
 NiFi 2.0’s Python API is relatively new, and most AI training data is heavily saturated with legacy NiFi 1.x `ExecuteScript` solutions (using Jython or Groovy). Even when the AI uses the correct 2.0 API, it often misconfigures the underlying Java-to-Python bridge, resulting in "ghost" processors with dashed lines and missing relationships.
 
-In this post, I am going to share the exact "Pro Level" methodology we use to leverage AI for writing custom NiFi processors safely, ensuring your data flows stay green and your Kubernetes clusters stay happy.
+In this post, I am going to share the exact methodology I used to leverage AI for writing custom NiFi processors safely, ensuring my data flow operate with my custom python.
 
 ### Rule 1: The AI Writes the Logic, You Own the Framework
 
@@ -82,19 +82,10 @@ The NiFi 2.0 Python API features auto-reloading. You do not need to restart your
 If you are using a local mount (e.g., `minikube mount ~/nifi-custom-processors:/extensions`):
 1. Save your `.py` file.
 2. **Wait 30 to 60 seconds.** The background thread will detect the change and compile it.
-3. **The UI Catch:** The NiFi web canvas aggressively caches UI elements. It will run your new code, but it will *not* show your updated version number or new properties. **You must delete the existing processor node and drag a fresh one onto the canvas to see UI changes.**
-
-### Rule 5: Don't Fight Data Provenance
-
-When you drop your custom `FlowFileTransform` onto the canvas, you will see an `original` relationship. NiFi enforces this to maintain data lineage whenever a payload is altered. 
-
-If you ask an AI how to get rid of it, it will suggest writing hundreds of lines of complex `FlowFileProcessor` boilerplate to bypass it. **Don't do it.** Keep your code clean, stick to the `FlowFileTransform` API, and handle the relationship natively in the UI:
-* Right-click Processor -> **Configure** -> **Settings**.
-* Check **original** under "Automatically Terminate Relationships."
-NiFi will efficiently discard the unaltered file without cluttering your code or your canvas.
+3. **The UI Catch:** The NiFi web canvas aggressively caches UI elements. Refresh and check processor list for your new version.
 
 ### The Verdict
 
 AI is an incredible tool for writing the heavy-lifting logic inside NiFi 2.0 Python processors, but it is a terrible architect for the processor framework itself. By treating the NiFi API wrapper as a rigid, protected skeleton and carefully injecting defensively coded AI logic inside of it, you can iterate at lightning speed without ever breaking your flow. 
 
-Now fire up your cluster, open your favorite LLM, and start building!
+Now fire up your cluster, open your favorite python, and start building a custom processor!
