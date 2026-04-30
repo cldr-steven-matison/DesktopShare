@@ -250,7 +250,7 @@ class FraudModel(FlowFileTransform):
 ````
 ### The Verdict
 
-AI is an incredible tool for writing the heavy-lifting logic inside NiFi 2.0 Python processors, but it is a terrible architect for the processor framework itself. By treating my example NiFi API wrapper as a rigid, protected skeleton and carefully injecting defensively introducted python logic inside of it, I was able iterate at lightning speed to create this processor.   
+AI is an incredible tool for writing the heavy-lifting logic inside NiFi 2.0 Python processors, but it is a terrible architect for the processor framework itself. By treating my example NiFi API wrapper as a rigid, protected skeleton and carefully injecting python logic inside of it, I was able create this processor at lightning speed.   
 
 How many times do you think it took me to get this python processor code to work?
 
