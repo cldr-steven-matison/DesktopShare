@@ -113,7 +113,7 @@ class GenericTransformTemplate(FlowFileTransform):
 
 ### Rule 3: Inject Python Logic Defensively
 
-Once your skeleton is proven, prompt your AI to write a strictly isolated python changes within the processor framework.  By this point AI should know exactly the approach you are taking and function python improvements should be relatively straight forward.
+Once your skeleton is proven, prompt your AI to write a strictly isolated python changes within the processor framework.  By this point AI should know exactly the approach you are taking and functional python improvements should be relatively straight forward.
 
 When injecting new python logic into your data pipeline, you must code defensively against edge cases:
 
