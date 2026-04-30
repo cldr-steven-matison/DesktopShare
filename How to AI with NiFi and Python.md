@@ -141,7 +141,7 @@ When injecting new python logic into your data pipeline, you must code defensive
 
 ### Rule 4: Master the Hot-Reload Workflow
 
-The NiFi 2.0 Python API features auto-reloading. You do not need to restart your pod or execute scripts to test new AI logic. 
+The NiFi 2.0 Python API features auto-reloading. You do not need to restart your pod or execute scripts to test new new custom nifi pythong processor logic. 
 
 If you are using a local mount (e.g., `minikube mount ~/nifi-custom-processors:/extensions`):
 1. Save your `.py` file.
@@ -250,6 +250,8 @@ class FraudModel(FlowFileTransform):
 ````
 ### The Verdict
 
-AI is an incredible tool for writing the heavy-lifting logic inside NiFi 2.0 Python processors, but it is a terrible architect for the processor framework itself. By treating my example NiFi API wrapper as a rigid, protected skeleton and carefully injecting defensively coded AI logic inside of it, I was able iterate at lightning speed to create this processor.   How many times do you think it took me to get it to work?
+AI is an incredible tool for writing the heavy-lifting logic inside NiFi 2.0 Python processors, but it is a terrible architect for the processor framework itself. By treating my example NiFi API wrapper as a rigid, protected skeleton and carefully injecting defensively introducted python logic inside of it, I was able iterate at lightning speed to create this processor.   
+
+How many times do you think it took me to get this python processor code to work?
 
 Now fire up your cluster, open your favorite python script, and see if you can make it into a custom nifi processor!
