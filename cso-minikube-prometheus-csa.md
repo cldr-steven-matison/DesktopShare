@@ -1,11 +1,10 @@
 **# 🚀 Monitoring Cloudera Streaming Analytics (CSA) SQL Stream Builder with Prometheus**
 
-If you followed our previous guides on monitoring Cloudera Streams Messaging (CSM) and Cloudera Flow Management (CFM), you now have visibility into your data ingestion (NiFi) and event streaming (Kafka). But what about the real-time processing happening in the middle with Cloudera Streaming Analytics (CSA)?
+If you followed our previous guides on monitoring Cloudera Streams Messaging (CSM) and Cloudera Flow Management (CFM), you now have visibility into your data ingestion (NiFi) and event streaming (Kafka). But what about monitoring the streams processing jobs (FLINK) in Cloudera Streaming Analytics (CSA)?
 
-When running Flink and SQL Stream Builder (SSB) via the CSA Operator, jobs spin up dynamically via Flink Native Kubernetes. Because these dynamically generated TaskManager pods don't explicitly declare metric ports in their Kubernetes spec, standard Prometheus PodMonitors will silently drop the targets—making metric discovery a bit of a K8s networking puzzle.
+When running Flink and SQL Stream Builder (SSB) via the CSA Operator, flink jobs spin up dynamically on Kubernetes. Because these dynamically generated TaskManager pods don't explicitly declare metric ports in their Kubernetes spec, standard Prometheus PodMonitors will silently drop the targets—making metric discovery a bit of a K8s networking puzzle.
 
-In this third and final post of the series, we’re going to wire up our CSA Flink jobs to our existing Prometheus + Grafana stack. By utilizing a Headless Service to bypass strict pod-spec validation natively, we will finally bridge our NiFi, Flink, and Kafka pipelines into a single, end-to-end pane of glass.
-
+In this third and final post of the series, we’re going to wire up our CSA Flink jobs to our existing Prometheus + Grafana stack. By utilizing a Headless Service to bypass strict pod-spec validation natively, we will finally complete plugging our CFM NiFi Operator, CSA Flink Operator, and CSM Kafka Operator into Prometheus and Grafana stack for monitoring.
 ---
 
 ### 🛠️ Prerequisites
@@ -210,7 +209,7 @@ sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"
 
 ### 🏁 Summary
 
-With this final piece in place, you have successfully built a complete, end-to-end observability pipeline across your entire Cloudera streaming architecture. By bridging CFM (NiFi) for ingestion, CSA (SQL Stream Builder / Flink) for real-time processing, and CSM (Kafka) for event streaming, you now have a unified view of your data's lifecycle within a single Prometheus and Grafana stack.
+With this final piece in place, you have successfully built a complete, end-to-end observability pipeline across your entire Cloudera Streaming Operators architecture. By bridging CFM (NiFi) for ingestion, CSA (SQL Stream Builder / Flink) for real-time processing, and CSM (Kafka) for event streaming, you now have a unified view of your data's lifecycle within a single Prometheus and Grafana stack.
 
 In this specific guide, we didn't just flip a switch to turn on metrics—we architected a robust, Kubernetes-native solution. By implementing a Headless Service and a ServiceMonitor, we bypassed the strict pod-spec limitations of Flink Native Kubernetes. This ensures that every dynamically provisioned JobManager and TaskManager is automatically discovered and scraped by Prometheus, completely eliminating the silent "0 targets" discovery failures.
 
