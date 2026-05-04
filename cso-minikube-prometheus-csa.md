@@ -17,7 +17,7 @@ This guide uses the **exact Helm install command** from your `ClouderaStreamingO
 
 ### 1️⃣ Create the Prometheus Values File
 
-Create this file in the **root** of your repo:
+Create this file in the **root** of your repo. This forces Flink to open port 9249 for metrics scraping.
 
 **`csa-prometheus-values.yaml`**
 ```yaml
@@ -29,7 +29,7 @@ ssb:
     flink-conf.yaml: |
       metrics.reporters: prom
       metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
-      metrics.reporter.prom.port: "9249-9250"
+      metrics.reporter.prom.port: "9249"
       taskmanager.network.detailed-metrics: "true"
 
       # Optional: cleaner metric labels for Grafana dashboards
@@ -46,7 +46,7 @@ Run this **exact** command:
 
 ```bash
 helm install csa-operator \
-  oci://container.repository.cloudera.com/cloudera-helm/csa-operator/csa-operator \
+  oci://[container.repository.cloudera.com/cloudera-helm/csa-operator/csa-operator](https://container.repository.cloudera.com/cloudera-helm/csa-operator/csa-operator) \
   --namespace cld-streaming \
   --create-namespace \
   --version 1.5.0-b275 \
@@ -77,35 +77,55 @@ helm get values csa-operator -n cld-streaming | grep -A 20 "flink-conf.yaml"
 
 ---
 
-### 4️⃣ Discovery with PodMonitor
+### 4️⃣ Discovery with Headless Service & ServiceMonitor
 
-Create this file (root of repo):
+Because Flink Native Kubernetes does not explicitly declare port 9249 in its dynamic pod specs, standard `PodMonitors` will drop the targets. Instead, we bridge the gap using a **Headless Service** and a **ServiceMonitor**.
 
-**`flink-ssb-pod-monitor.yaml`**
+**A. Create the Headless Service (`csa-flink-service.yaml`)**
 ```yaml
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
+apiVersion: v1
+kind: Service
 metadata:
-  name: flink-ssb-pod-monitor
+  name: csa-flink-metrics-service
   namespace: cld-streaming
   labels:
-    release: prometheus
+    app: csa-flink-metrics
+spec:
+  clusterIP: None  # Makes it a headless service
+  selector:
+    # This automatically captures ALL Flink pods (JobManagers & TaskManagers)
+    type: flink-native-kubernetes
+  ports:
+    - name: prom-metrics
+      port: 9249
+      targetPort: 9249
+```
+
+**B. Create the ServiceMonitor (`csa-flink-service-monitor.yaml`)**
+```yaml
+apiVersion: [monitoring.coreos.com/v1](https://monitoring.coreos.com/v1)
+kind: ServiceMonitor
+metadata:
+  name: csa-flink-metrics-monitor
+  namespace: cld-streaming
+  labels:
+    release: prometheus # Must match your Prometheus Operator release label
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/component: flink
+      app: csa-flink-metrics
   namespaceSelector:
     matchNames:
       - cld-streaming
-  podMetricsEndpoints:
-    - targetPort: 9249
-      path: /metrics
+  endpoints:
+    - port: prom-metrics
       interval: 15s
       scrapeTimeout: 10s
       relabelings:
-        - sourceLabels: [__meta_kubernetes_pod_label_flink_apache_org_deployment_name]
+        # Extracts labels so Grafana dashboards automatically map deployments
+        - sourceLabels: [__meta_kubernetes_pod_label_app]
           targetLabel: flink_deployment
-        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+        - sourceLabels: [__meta_kubernetes_pod_label_component]
           targetLabel: component
         - sourceLabels: [__meta_kubernetes_pod_name]
           targetLabel: pod
@@ -113,10 +133,13 @@ spec:
           targetLabel: namespace
 ```
 
-Apply it:
+**C. Apply both files:**
 ```bash
-kubectl apply -f flink-ssb-pod-monitor.yaml -n cld-streaming
+kubectl apply -f csa-flink-service.yaml -n cld-streaming
+kubectl apply -f csa-flink-service-monitor.yaml -n cld-streaming
 ```
+
+*Wait ~30 seconds, then check Prometheus UI (`Status -> Targets`). You should see your JobManagers and TaskManagers listed as `UP` under `serviceMonitor/cld-streaming/csa-flink-metrics-monitor/0`.*
 
 ---
 
@@ -129,9 +152,10 @@ kubectl apply -f flink-ssb-pod-monitor.yaml -n cld-streaming
 
 2. Run any SQL job (or the existing `ssb-session-admin` job will already have created a Flink pod).
 
-3. Verify metrics are exposed:
+3. Verify metrics are exposed directly from a pod:
    ```bash
-   kubectl exec -it ssb-session-admin-taskmanager-1-2 -n cld-streaming -- \
+   # Replace with your actual taskmanager pod name
+   kubectl exec -it ssb-session-admin-taskmanager-1-3 -n cld-streaming -- \
      curl -s http://localhost:9249/metrics | head -20
    ```
 
@@ -172,7 +196,7 @@ sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"
 1. Import the official Apache Flink dashboard (Grafana.com ID **`10619`**) or community ones (`12375` / `15822`).
 2. Set dashboard variables:
    - `namespace` = `cld-streaming`
-   - `flink_deployment` / `job_name` = your SSB job name
+   - `flink_deployment` / `job_name` = your SSB job name (e.g., `ssb-session-admin`)
 3. Add the cross-namespace panels you already use for NiFi + Kafka.
 
 ---
@@ -181,7 +205,7 @@ sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"
 
 You now have **complete end-to-end observability** across **CFM (NiFi) → CSA (SQL Stream Builder / Flink) → CSM (Kafka)** in one Prometheus + Grafana stack.
 
-All changes are Git-trackable (`csa-prometheus-values.yaml` + `flink-ssb-pod-monitor.yaml`) and use the exact Helm command from your repo.
+All changes are Git-trackable and bypass strict Kubernetes pod-spec validation natively using the Headless Service approach.
 
 ---
 
@@ -190,7 +214,8 @@ All changes are Git-trackable (`csa-prometheus-values.yaml` + `flink-ssb-pod-mon
 #### 1. Cleanup / Re-install
 ```bash
 helm uninstall csa-operator -n cld-streaming
-kubectl delete podmonitor flink-ssb-pod-monitor -n cld-streaming --ignore-not-found
+kubectl delete servicemonitor csa-flink-metrics-monitor -n cld-streaming --ignore-not-found
+kubectl delete service csa-flink-metrics-service -n cld-streaming --ignore-not-found
 ```
 
 #### 2. Force Prometheus to Re-discover
@@ -200,6 +225,7 @@ kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-st
 
 #### 3. Quick Verification Commands
 ```bash
-kubectl get podmonitor -n cld-streaming
-kubectl get pods -n cld-streaming -l app.kubernetes.io/component=flink
+kubectl get servicemonitor -n cld-streaming
+kubectl get service csa-flink-metrics-service -n cld-streaming
+kubectl get pods -n cld-streaming -l type=flink-native-kubernetes
 ```
