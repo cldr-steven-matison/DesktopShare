@@ -165,27 +165,27 @@ You should see `flink_` metrics.
 
 ### 6️⃣ Querying SSB / Flink Metrics in Prometheus UI
 
-**Sample Query 1: Running TaskManagers**
+**Sample Query 1: JVM CPU Load**
 ```promql
-flink_jobmanager_numRegisteredTaskManagers{namespace="cld-streaming"}
+flink_taskmanager_Status_JVM_CPU_Load{namespace="cld-streaming"}
 ```
 
-**Sample Query 2: Checkpoint Failures**
+**Sample Query 2: Job Uptime**
 ```promql
-flink_jobmanager_numFailedCheckpoints{namespace="cld-streaming"}
+flink_jobmanager_job_uptime{namespace="cld-streaming"}
 ```
 
 **Sample Query 3: Records In/Out Per Second**
 ```promql
-sum(rate(flink_taskmanager_job_task_operator_numRecordsInPerSecond{namespace="cld-streaming"}[5m])) by (job_name)
+sum(flink_taskmanager_job_task_operator_numRecordsInPerSecond{namespace="cld-streaming"}) by (job_name)
 ```
 
 **End-to-End Pipeline (NiFi → SSB → Kafka)**
 ```promql
 sum(rate(nifi_bytes_sent{namespace="cfm-streaming"}[5m])) 
-and 
-sum(rate(flink_taskmanager_job_task_operator_numRecordsInPerSecond{namespace="cld-streaming"}[5m])) 
-and 
+or 
+sum(flink_taskmanager_job_task_operator_numRecordsInPerSecond{namespace="cld-streaming"}) 
+or 
 sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"}[5m]))
 ```
 
