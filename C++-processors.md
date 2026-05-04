@@ -1,15 +1,14 @@
 **MiNiFi C++ on Kubernetes: Official Cloudera Processor List, the ExecuteScript Lesson, and How to Enable Everything**
 
-Hey everyone, Steven Matison here – Cloudera Solutions Engineer.  
+I have been slowly experimenting with MiNiFi with the **MiNiFi-Kubernetes-Playground** repo (https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground).  In my first deep dive I was able to get a MiNiFi flow running with the **official Cloudera `apacheminificpp:latest`** image inside Minikube. The goals for this blog post are simple: verify *exactly* what processors are present and functional in the C++ agent on Linux/Docker/K8s — no assumptions, no Java bleed-over, figure out how to enable the ones I needed, and produce output for further AI iterations.  
 
-I’ve been deep in my **MiNiFi-Kubernetes-Playground** repo (https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground), running the **official Cloudera `apacheminificpp:latest`** image inside Minikube. The goal was simple: verify *exactly* what processors are present and functional in the C++ agent on Linux/Docker/K8s — no assumptions, no Java bleed-over.  
+This turned into a real-world lesson I wanted to share when I hit a wall we all hit;  no `ExecuteScript` processor in MiNiFi. 
 
-This turned into a real-world lesson when I hit a wall on another project and realized some powerful processors I assumed were there… weren’t.
+Let's dig deeper.
 
 ### Verified Available Processors  
-(extracted directly from the running official Cloudera C++ MiNiFi instance)
 
-Here is the clean, complete list of processors available in the stock Cloudera `apacheminificpp:latest` Docker image (v1.26.02 on Linux):
+Below is the clean, complete list of processors available in the stock Cloudera `apacheminificpp:latest` Docker image (v1.26.02 on Linux).  This list was extracted directly from a running official Cloudera C++ MiNiFi instance.
 
 - ## Table of Contents  
 - ## AppendHostInfo  
@@ -91,10 +90,10 @@ Here is the clean, complete list of processors available in the stock Cloudera `
 
 I cross-checked this list against official Cloudera Edge Management (CEM) documentation for MiNiFi C++ Agent processor support (Linux column) and the Apache MiNiFi C++ upstream `PROCESSORS.md`.  
 
-The stock Cloudera image matches the documented production set *exactly* — cloud-native (Azure/GCS/S3/Kinesis), Kafka/MQTT, Modbus, Kubernetes metrics, Loki push, and everything else you expect from Cloudera DataFlow at the edge.  
+The stock Cloudera image matches the documented production set *exactly*.  
 
 **But here’s the lesson I learned the hard way:**  
-While working on another project, I reached for **ExecuteScript** (and ExecuteProcess, full Python scripting, etc.) thinking it was included. It *isn’t* in the official Cloudera `apacheminificpp:latest` image.  
+I reached for **ExecuteScript** (and ExecuteProcess, full Python scripting, etc.) thinking it was included. It *isn’t* in the official Cloudera `apacheminificpp:latest` image.  
 
 ExecuteScript exists in the Apache source and is listed in Cloudera docs for Linux — **but it requires build-time flags** (`-DENABLE_LUA_SCRIPTING=ON` and/or `-DENABLE_PYTHON_SCRIPTING=ON`). Cloudera ships the pre-built image as a production-hardened, minimal-footprint agent — perfect for Kubernetes sidecars and edge workloads. Scripting is optional and not compiled into the default container you pull from `container.repo.cloudera.com`.
 
@@ -134,7 +133,6 @@ You don’t have to abandon Cloudera images. Here’s exactly how to extend the 
 4. Run the updated “nuclear” rebuild script in the repo to push the new image to Minikube.  
 5. Re-deploy with `kubectl apply -f minifi-test.yaml`.
 
-I’ll push a new branch called `cloudera-cpp-with-scripting` to the playground repo in the next few days so you can cherry-pick the exact Dockerfile and CMake changes.
 
 ### Summary: Building and Testing the Java Version in the Same Setup
 
@@ -150,8 +148,6 @@ Java gives you 200+ processors and full scripting but at a larger footprint (~30
 
 **Want to try it yourself?**  
 Clone the repo: https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground  
-Follow the “nuclear” rebuild steps and drop your own `config.yml`.  
+Follow the build and “nuclear” rebuild steps and build your own `config.yml`.  
 
-This playground keeps getting better because real customers hit these exact questions every week. C++ with Cloudera images for speed and size; extend it when you need more.  
-
-I’ll be adding the full scripting-enabled C++ build + side-by-side Java examples over the next couple of weeks. 
+I will keep improving the MiNiFi Kubernetes Playground with more examples of MiNiFi C++ flows in the kubernetes space.   In future posts I will walso ork with MiNiFi Java and provide foundational examples covering common edge use cases with MiNiFi and kubernetes.
