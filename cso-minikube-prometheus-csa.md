@@ -1,8 +1,10 @@
 **# 🚀 Monitoring Cloudera Streaming Analytics (CSA) SQL Stream Builder with Prometheus**
 
-Cloudera Streaming Analytics (CSA) Operator (powered by the Flink Kubernetes Operator + SQL Stream Builder) is now fully integrated into your existing Prometheus + Grafana stack — alongside your working **CFM (NiFi)** and **CSM (Kafka)** monitoring.
+If you followed our previous guides on monitoring Cloudera Streams Messaging (CSM) and Cloudera Flow Management (CFM), you now have visibility into your data ingestion (NiFi) and event streaming (Kafka). But what about the real-time processing happening in the middle with Cloudera Streaming Analytics (CSA)?
 
-This guide uses the **exact Helm install command** from your `ClouderaStreamingOperators` repo and enables native Prometheus metrics for **all SSB jobs** via a clean, Git-trackable values file.
+When running Flink and SQL Stream Builder (SSB) via the CSA Operator, jobs spin up dynamically via Flink Native Kubernetes. Because these dynamically generated TaskManager pods don't explicitly declare metric ports in their Kubernetes spec, standard Prometheus PodMonitors will silently drop the targets—making metric discovery a bit of a K8s networking puzzle.
+
+In this third and final post of the series, we’re going to wire up our CSA Flink jobs to our existing Prometheus + Grafana stack. By utilizing a Headless Service to bypass strict pod-spec validation natively, we will finally bridge our NiFi, Flink, and Kafka pipelines into a single, end-to-end pane of glass.
 
 ---
 
@@ -193,19 +195,26 @@ sum(rate(kafka_server_brokertopicmetrics_bytesin_total{namespace="cld-streaming"
 
 ### 7️⃣ Visualizing in Grafana
 
-1. Import the official Apache Flink dashboard (Grafana.com ID **`10619`**) or community ones (`12375` / `15822`).
-2. Set dashboard variables:
-   - `namespace` = `cld-streaming`
-   - `flink_deployment` / `job_name` = your SSB job name (e.g., `ssb-session-admin`)
-3. Add the cross-namespace panels you already use for NiFi + Kafka.
+* **ID `11049` (Recommended First Test)**
+  * **Name:** Flink Dashboard
+  * **Description:** The standard, most reliable community dashboard built explicitly for the Flink Prometheus Exporter. It tracks JobManagers, TaskManagers, JVM metrics, and basic job health.
 
+* **ID `14911`**
+  * **Name:** Apache Flink Dashboard for Job / Task Manager
+  * **Description:** A slightly more modern layout that breaks down metrics specifically between the Job Manager and Task Manager. Good for digging into CPU/Memory constraints.
+
+* **ID `14840`**
+  * **Name:** Flink Metrics (with Kafka) on K8S
+  * **Description:** Since you are running CSA alongside Kafka, this dashboard is actually built to monitor Flink applications *and* includes Kafka throughput parameters alongside Kubernetes memory/CPU stats.
 ---
 
 ### 🏁 Summary
 
-You now have **complete end-to-end observability** across **CFM (NiFi) → CSA (SQL Stream Builder / Flink) → CSM (Kafka)** in one Prometheus + Grafana stack.
+With this final piece in place, you have successfully built a complete, end-to-end observability pipeline across your entire Cloudera streaming architecture. By bridging CFM (NiFi) for ingestion, CSA (SQL Stream Builder / Flink) for real-time processing, and CSM (Kafka) for event streaming, you now have a unified view of your data's lifecycle within a single Prometheus and Grafana stack.
 
-All changes are Git-trackable and bypass strict Kubernetes pod-spec validation natively using the Headless Service approach.
+In this specific guide, we didn't just flip a switch to turn on metrics—we architected a robust, Kubernetes-native solution. By implementing a Headless Service and a ServiceMonitor, we bypassed the strict pod-spec limitations of Flink Native Kubernetes. This ensures that every dynamically provisioned JobManager and TaskManager is automatically discovered and scraped by Prometheus, completely eliminating the silent "0 targets" discovery failures.
+
+Best of all, your entire monitoring configuration remains declarative and fully Git-trackable. You can now reliably execute complex PromQL queries across namespaces and correlate behavior across entirely different engines. Whether you are tracking backpressure in NiFi, measuring checkpoint durations and records-per-second in Flink, or monitoring consumer lag in Kafka, you finally have the single pane of glass required to confidently debug, tune, and scale your real-time data pipelines.
 
 ---
 
