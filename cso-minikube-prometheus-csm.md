@@ -218,7 +218,7 @@ data:
 
 ### 2️⃣ The Kafka Cluster Config 
   
-(`kafka-nodepool.yaml`)
+Create the `kafka-nodepool.yaml`:
 
 ```yaml
 apiVersion: kafka.strimzi.io/v1
@@ -243,7 +243,6 @@ spec:
 ```
 `kubectl apply -f kafka-nodepool.yaml -n cld-streaming`
 
-(`kafka-eval-prometheus.yaml`)
 
 Create the `kafka-eval-prometheus.yaml`:
 
@@ -400,13 +399,13 @@ With Prometheus feeding live data, Grafana turns those raw metrics into professi
 
 Open Grafana (`minikube service grafana -n cld-streaming`). Login with `admin` and the password from the secret (see Section 4).
 
-**Step 1: Verify the Prometheus Data Source**  
+**Verify the Prometheus Data Source**  
 Go to **Configuration → Data Sources**.  
 - The “Prometheus” source should point to something like `http://prometheus-operated.monitoring.svc:9090`.  
 - Click **Save & Test**. It must say “Data source is working”.  
 (Note: There is no separate “Test” button on every screen — use the one at the bottom of the datasource edit page.)
 
-**Step 2: Import the Strimzi Kafka Dashboard (Fixed Instructions)**  
+**Import the Strimzi Kafka Dashboard**  
 1. Download the JSON:
    ```bash
    curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/grafana-dashboards/strimzi-kafka.json
@@ -416,32 +415,6 @@ Go to **Configuration → Data Sources**.
 4. On the next screen:
    - Datasource → select your Prometheus data source  
    - Click **Import**
-
-**Step 3: Troubleshoot “No Data”**  
-- In the dashboard, set the template variables at the top:
-  - `kubernetes_namespace` = `cld-streaming`
-  - `strimzi_cluster_name` = `my-cluster` (match your Kafka CR name)
-  - `kafka_topic` = `txn1|txn2|txn_fraud`
-- Go back to Prometheus UI → **Status** → **Targets** and confirm there are UP targets for your Kafka brokers (look for port 9404 or the `tcp-prometheus` port).
-- Generate traffic to your topics (run a producer or trigger NiFi flows) — many panels only show data once messages are flowing.
-
-**Step 4: Quick Custom Panels While Fixing**  
-If the full dashboard is still empty, create a temporary dashboard and add these two panels (Time Series):
-
-- Messages In Per Second (your confirmed query):
-  ```promql
-  sum(rate(kafka_server_brokertopicmetrics_messagesinpersec[5m])) by (pod, topic)
-  ```
-- Under-Replicated Partitions:
-  ```promql
-  sum(kafka_server_replicamanager_underreplicatedpartitions) by (pod)
-  ```
-
-
-[ move to cso-minikube-prometheus-csm-debug.md ]
-[ bring out here ]
-[ likely can remove some of the troubleshooting steps above ]
-
 
 ### 🏁 Summary
 
