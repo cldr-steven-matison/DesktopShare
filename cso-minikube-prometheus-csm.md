@@ -1,9 +1,11 @@
 
 # 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus
 
-If you are running the **Cloudera Streaming Operators**, you know that visibility is everything. You can have the most complex NiFi-to-Kafka-to-Flink RAG pipeline in the world, but if you can't see your throughput or under-replicated partitions, you're flying blind.
+If you are running the Cloudera Streaming Operators, you know that visibility is everything. You can build the most complex real-time pipeline in the world, but without eyes on your throughput or under-replicated partitions, you’re essentially flying blind. While the Cloudera Streams Messaging (CSM) Operator—powered by Strimzi—makes managing Kafka easy, extracting its internal JMX metrics into a Kubernetes-native monitoring stack remains a bit of a configuration puzzle.
 
-In this post, we’re going to wire up **Cloudera Streams Messaging (CSM)**—powered by the Strimzi-based Kafka operator—to a **Prometheus + Grafana** stack. 
+Because Kafka metrics live deep within the JVM, we can't just "turn on" a Prometheus port. We need to inject a sidecar-like exporter and define precise mapping rules to transform raw JMX data into something Prometheus can actually understand.
+
+In this guide, we’re going to wire up your CSM Kafka cluster to a Prometheus + Grafana stack. By implementing a custom JMX Exporter configuration and a specialized PodMonitor, we will establish the foundational layer of our observability pipeline, ensuring your brokers are no longer a "black box" in your streaming architecture.
 
 ---
 
@@ -442,39 +444,16 @@ If the full dashboard is still empty, create a temporary dashboard and add these
 
 
 ### 🏁 Summary
-We successfully injected the Prometheus JMX exporter without breaking the Strimzi operator's strict validation. Now, as NiFi pumps data into Kafka, you can watch the `kafka_server_brokertopicmetrics_messagesinpersec_count` rise in real-time.
 
-**Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!**
+With the JMX exporter successfully injected and the PodMonitor active, you have cleared the first major hurdle in building an end-to-end observability pipeline. We didn’t just flip a switch; we architected a robust, Kubernetes-native discovery mechanism that respects the Strimzi-based Operator's strict validation rules while still providing deep, granular visibility into broker performance.
+
+By bridging the gap between Kafka’s internal JMX metrics and Prometheus, you now have a declarative, Git-trackable way to monitor everything from message rates to partition health. Whether you are troubleshooting high CPU usage on a specific broker or watching for under-replicated partitions during a scaling event, you now have the raw data required to maintain a healthy cluster.
+
+This setup serves as the foundation for the rest of your streaming stack. Now that your event backbone (Kafka) is visible, you are ready to plug in your ingestion (NiFi) and processing (Flink) engines to achieve that elusive "single pane of glass" view across your entire data lifecycle.
+
+Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!
 
 ---
-
-
-Things to add:
-
-
-1. The Full Delete
-Wipe the Kafka cluster and the storage again to prevent any ID or configuration caching.
-
-```Bash
-kubectl delete kafka my-cluster -n cld-streaming
-kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
-minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
-```
-2.  I had to helm uninstall the operator if i got it into a bad state,  maybe better than the sudo rm -rf above..  when testing this process i dont need to keep operator around.  
-
-```bash
-helm uninstall strimzi-cluster-operator --namespace cld-streaming
-
-
-helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99 
-```
-
-3.  Force Prometheus to Re-scan
-Sometimes the Prometheus Operator misses the "Create" event after a "Delete" event. You can give it a nudge by restarting the operator:
-
-```bash
-kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
-```
 
 ### Terminal History
 
