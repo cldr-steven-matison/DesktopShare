@@ -1,4 +1,4 @@
-**EXECUTION PLAN: PandasCSVTransformer – NiFi 2.0 Native Python Processor with Pandas**
+**EXECUTION PLAN: PandasJSONTransformer – NiFi 2.0 Native Python Processor with Pandas**
 
 **Starting Point**  
 
@@ -9,17 +9,31 @@ Our existing working environment has:
 - The Cloudera Streaming Operators NiFi CR is applied with the live hostPath volume mount active (minikube mount or equivalent).  
 - Our custom processors appear and run correctly in the NiFi UI.  
 
+Input Flow File:
+
+```json
+[ {
+  "ts" : "2026-05-05 14:55:11",
+  "account_id" : "943",
+  "transaction_id" : "6a9b1242-4892-11f1-b035-3a8bcd2ccadb",
+  "amount" : 64,
+  "lat" : 44.3568905517,
+  "lon" : -0.6186160357,
+  "nearest_city" : "Lagos",
+  "nearest_country" : "Nigeria"
+} ]
+```
 
 No changes to the K8s CR, mount, or pod are required to build this new python processor.
 
 **Objective**  
 Create a new, self-contained native Python processor named **PandasJSONTransformer** that:  
-- Accepts CSV content in a FlowFile (e.g. output from TransactionGenerator).  
+- Accepts JSON content in a FlowFile (e.g. output from TransactionGenerator).  
 - Loads it into a Pandas DataFrame.  
-- Performs realistic customer-style transformations (cleaning, type conversion, enrichment).  
-- Outputs the transformed CSV on the `success` relationship.  
+- Using lon/lat determines distance from home (defined in script).  
+- Outputs the transformed JSON on the `success` relationship.  
 
-This plan is written as a complete, copy-paste-ready lesson that any engineer can drop into an identical Cloudera Streaming Operators environment for immediate testing.
+This is written as a complete, copy-paste-ready lesson that any engineer can drop into an identical Cloudera Streaming Operators environment for immediate testing.
 
 **Step 1: Create the New Processor File**  
 Navigate to the exact directory where `TransactionGenerator.py` lives (the mounted extensions folder):  
@@ -30,74 +44,76 @@ cd ~/nifi-custom-processors   # ← adjust only if your local path is different
 Create the new file `PandasJSONTransformer.py` with the full code below:
 
 ```bash
-from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
-import pandas as pd
+import json
 import io
+import pandas as pd
+import numpy as np
+from nifiapi.flowfiletransform import FlowFileTransform, FlowFileTransformResult
 
 class PandasJSONTransformer(FlowFileTransform):
     class Java:
+        # Essential: Ensures success and failure relationships appear in NiFi
         implements = ['org.apache.nifi.python.processor.FlowFileTransform']
 
     class ProcessorDetails:
-        version = '1.0.0'
-        description = 'Loads JSON array of objects into Pandas DataFrame, performs cleaning + enrichment, and outputs transformed JSON'
-        tags = ['pandas', 'json', 'dataframe', 'transform']
-        dependencies = ['pandas']
+        version = '1.0.7-FINAL'
+        description = 'An example processor using python pandas.'
+        tags = ['pandas', 'poc', 'geospatial']
+        dependencies = ['pandas', 'numpy'] # NiFi auto-installs these
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        # 'pass' is the safest initialization for this environment
+        pass
 
     def transform(self, context, flowfile):
+        content_bytes = flowfile.getContentsAsBytes()
+        attributes = flowfile.getAttributes()
+
+        # Merritt Island, FL Coordinates
+        HOME_LAT, HOME_LON = 28.3181, -80.6660
+
         try:
-            # Read entire FlowFile content as bytes
-            content_bytes = flowfile.getContentsAsBytes()
+            # Step 1: Handle the "Array Trap"
+            # Even for single records, we wrap in a list so Pandas creates a proper DataFrame row
+            raw_data = json.loads(content_bytes.decode('utf-8'))
+            if not isinstance(raw_data, list):
+                raw_data = [raw_data]
 
-            # Load JSON array of objects into Pandas DataFrame
-            # (Common customer format: [{"col1": val1, "col2": val2}, ...])
-            df = pd.read_json(io.BytesIO(content_bytes), orient='records')
+            df = pd.DataFrame(raw_data)
 
-            # ====================== CUSTOMER TRANSFORMATION LOGIC ======================
-            # 1. Drop rows with any null values in key columns (configurable via code)
-            df = df.dropna()
+            # Step 2: Proof of Concept Math
+            if 'lat' in df.columns and 'lon' in df.columns:
+                df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+                df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
 
-            # 2. Enforce correct data types
-            if 'amount' in df.columns:
-                df['amount'] = pd.to_numeric(df['amount'], errors='coerce')
-            if 'quantity' in df.columns:
-                df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce')
-            if 'timestamp' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                # Calculate Euclidean distance from Merritt Island:
+                # dist = sqrt((lat1 - lat2)^2 + (lon1 - lon2)^2)
+                df['dist_from_home'] = np.sqrt(
+                    (df['lat'] - HOME_LAT)**2 + (df['lon'] - HOME_LON)**2
+                )
+                
+                # Add a simple flag to show Pandas touched the data
+                df['pandas_processed'] = True
 
-            # 3. Example enrichment / derived columns (realistic customer use case)
-            if 'quantity' in df.columns and 'amount' in df.columns:
-                df['total_value'] = df['quantity'] * df['amount']
-
-            # 4. Optional filtering example (uncomment/modify as needed)
-            # df = df[df['total_value'] > 0]
-
-            # Convert DataFrame back to JSON array (same format as input)
-            output_bytes = df.to_json(orient='records', indent=None).encode('utf-8')
-
-            # Return transformed FlowFile
+            # Step 3: Output Generation
+            output_json = df.to_json(orient='records', indent=None)
+            
             return FlowFileTransformResult(
                 relationship='success',
-                contents=output_bytes,
+                contents=output_json.encode('utf-8'),
                 attributes={
-                    'pandas.rows.processed': str(len(df)),
-                    'pandas.columns': ','.join(df.columns.tolist()),
-                    'pandas.transformed': 'true'
+                    **attributes,
+                    'pandas.transformed': 'true',
+                    'pandas.version': pd.__version__
                 }
             )
 
         except Exception as e:
-            # Route errors to failure relationship with original content
+            # Rule 3: Defensive failure routing
             return FlowFileTransformResult(
                 relationship='failure',
-                contents=flowfile.getContentsAsBytes(),
-                attributes={
-                    **flowfile.getAttributes(),
-                    'pandas.error': str(e)
-                }
+                contents=content_bytes,
+                attributes={**attributes, 'pandas.error': str(e)}
             )
 ```
 
@@ -114,23 +130,39 @@ class PandasJSONTransformer(FlowFileTransform):
 - Drag a new processor and search for **PandasJSONTransformer**.  
 - It must appear with the exact description and version from the code.  
 - Simple test flow:  
-  `TransactionGenerator` → `PandasJSONTransformer` → `PutFile` (or `LogAttribute` + `UpdateAttribute`).  
+  `TransactionGenerator` → `PandasJSONTransformer`.   [Flow Definition File](https://raw.githubusercontent.com/cldr-steven-matison/NiFi-Templates/refs/heads/main/CustomPythonProcessorWithPandas.json).
 - Run the flow.  
-- Check output: new columns (`total_value`, etc.), cleaned data, and the added attributes.
+- Check output for the new columns `dist_from_home` and `pandas_processed`.
+
 
 **Step 4: Hand-Off Framework for Any Other Environment**  
 To replicate this exact processor in a different Kubernetes/minikube/CFM environment:  
-1. Copy the entire `~/nifi-custom-processors/` folder (or just the two `.py` files).  
-2. Place `PandasJSONTransformer.py` into the same mounted Python extensions path used by your Cloudera Streaming Operators CR.  
-3. Apply the identical volume mount configuration you used for TransactionGenerator.  
-4. Run Steps 1–3 above.  
-5. Verify pandas is auto-installed by NiFi (visible in processor logs if needed).  
+1. Place `PandasJSONTransformer.py` in the same mounted Python extensions path.  
+2. Complete the Deployment Steps 1–3 above.  
+3. Verify pandas are installed by NiFi.  When the processor is first introduced to the canvas it will indicate dependencies are downloading before allowing you to route Success/Failure.  
+4. Confirm flowfile output is as expected.
 
-**Troubleshooting (Copy-Paste Commands)**  
+Output Flow File:
+
+```json
+[ {
+  "ts" : "2026-05-05 15:10:13",
+  "account_id" : "487",
+  "transaction_id" : "xxx84324584-4894-11f1-b035-3a8bcd2ccadb",
+  "amount" : 39,
+  "lat" : 48.4010217027,
+  "lon" : 4.7099962916,
+  "dist_from_home" : 87.7062397261,
+  "pandas_processed" : true
+} ]
+```
+
+**Troubleshooting**  
 ```bash
 # Check NiFi pod logs for processor loading
 kubectl logs -n cld-streaming mynifi-0 | grep -i pandas
 
-# Force processor reload (optional)
-# Edit version in PandasCSVTransformer.py → save → wait 30s
+# check pod for python extensions
+kubectl exec -n cfm-streaming mynifi-0 -- ls -la /opt/nifi/nifi-current/python/extensions
+
 ```
