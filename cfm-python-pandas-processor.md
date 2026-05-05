@@ -119,6 +119,7 @@ class PandasJSONTransformer(FlowFileTransform):
 ```
 
 **Step 2: Deploy & Activate (Live Environment)**  
+
 1. Ensure the minikube mount (or equivalent) is still running:  
    ```bash
    minikube mount ~/nifi-custom-processors:/extensions --uid 10001 --gid 10001
@@ -127,6 +128,7 @@ class PandasJSONTransformer(FlowFileTransform):
 3. When testing python changes, increment the `version` in the code (`1.0.1`) and re-save the file — this forces a clean reload.  
 
 **Step 3: Verification in NiFi UI**  
+
 - Open NiFi canvas.  
 - Drag a new processor and search for **PandasJSONTransformer**.  
 - It must appear with the exact description and version from the code.  
@@ -135,12 +137,14 @@ class PandasJSONTransformer(FlowFileTransform):
 - Run the flow.  
 - Check output for the new columns `dist_from_home` and `pandas_processed`.
 
+When the processor is first introduced to the canvas it will indicate dependencies are downloading before allowing you to route Success/Failure.
 
 **Step 4: Hand-Off Framework for Any Other Environment**  
-To replicate this exact processor in a different Kubernetes/minikube/CFM environment:  
-1. Place `PandasJSONTransformer.py` in the same mounted Python extensions path.  
+
+To replicate this exact processor in a different CFM environment:  
+1. Place `PandasJSONTransformer.py` in the Python extensions path.  
 2. Complete the Deployment Steps 1–3 above.  
-3. Verify pandas are installed by NiFi.  When the processor is first introduced to the canvas it will indicate dependencies are downloading before allowing you to route Success/Failure.  
+3. Verify pandas are installed by NiFi.  
 4. Confirm flowfile output is as expected.
 
 Output Flow File:
@@ -159,6 +163,7 @@ Output Flow File:
 ```
 
 **Troubleshooting**  
+
 ```bash
 # Check NiFi pod logs for processor loading
 kubectl logs -n cld-streaming mynifi-0 | grep -i pandas
