@@ -12,9 +12,9 @@ By the end of this journey, you won't just have basic health checks; you will ha
 
 This lesson assumes you have already:
 
-1. Learned how to deploy [Cloudera Streaming Operators]()
+1. Learned how to deploy [Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
 2. Have had the entire stack running, nifi flow is running, topics `txn`,`tnx2`,`txn_fraud`, exist, Sql Stream Builder Simple_Select Job is running.
-3. Cloned the latest [Cloudera Streaming Operators GitHub]() repo in ~/
+3. Cloned the latest [Cloudera Streaming Operators GitHub](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) repo in ~/
 
 :warning: **Warning!** Some of the excercises below include new helm install commands.  Be prepared to use your helm uninstall commands as needed.  This is good practice to reset. However if you are using AI to execute against this plan,  you can helm upgrade or apply patches to get desired outcome(s)
 {: .notice--warning}
@@ -71,5 +71,11 @@ You can now reliably execute complex PromQL queries across namespaces, correlati
 
 ---
 
-### 🔗 Resources
+### 📚 Resources
+* [Cloudera Streams Messaging (CSM) 1.6 Docs](https://docs.cloudera.com/csm-operator/1.6/index.html)
+* [Cloudera Streaming Analytics (CSA) 1.5 Docs](https://docs.cloudera.com/csa-operator/1.5/index.html)
+* [Cloudera Flow Management (CFM) 3.0 Docs](http://docs.cloudera.com/cfm-operator/3.0.0/index.html)
+* [ClouderaStreamingOperators GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators)
+* [Cloudera Streaming Operators Blog](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
 
+- 
