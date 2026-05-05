@@ -1,3 +1,17 @@
+---
+title: "Observability with Cloudera Streaming Operators"
+excerpt: "End to end observability of Nifi, Kafka, and Flink on kubernetes with prometheus and grafana."
+header:
+  teaser: "/assets/images/2026-05-XX-Observabiliy_With_CSO.png"
+categories:
+  - blog
+tags:
+  - prometheus
+  - grafana
+  - kubernetes
+  - operator
+---
+
 # 🚀 Observability with Cloudera Streaming Operators
 
 If you are running anything in kubernetes, you know that visibility is everything. You can build the most complex data pipelines in the world, but without eyes on your throughput, queues, or other streaming metrics, you’re essentially flying blind. 
@@ -78,4 +92,5 @@ You can now reliably execute complex PromQL queries across namespaces, correlati
 * [ClouderaStreamingOperators GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators)
 * [Cloudera Streaming Operators Blog](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/)
 
-- 
+## {{ page.title }}
+If you would like a deeper dive, hands on experience, demos, or are interested in speaking with me further about {{ page.title }} please reach out to schedule a discussion.
