@@ -2,7 +2,7 @@
 
 **Starting Point**  
 
-In this Python Pandas lesson we are picking up where we left off with [Custom NiFi Processors with Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/).
+In this Python Pandas lesson we are picking up where we left off with [Custom NiFi Processors with Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/) and applying the lessons learned and framework from [How to AI with NiFi and Python](How%20to%20AI%20with%20NiFi%20and%20Python.md).
 
 Our existing working environment has:  
 - `TransactionGenerator.py` is already placed in the mounted Python extensions directory.  
@@ -27,13 +27,14 @@ Input Flow File:
 No changes to the K8s CR, mount, or pod are required to build this new python processor.
 
 **Objective**  
+
 Create a new, self-contained native Python processor named **PandasJSONTransformer** that:  
 - Accepts JSON content in a FlowFile (e.g. output from TransactionGenerator).  
 - Loads it into a Pandas DataFrame.  
 - Using lon/lat determines distance from home (defined in script).  
 - Outputs the transformed JSON on the `success` relationship.  
 
-This is written as a complete, copy-paste-ready lesson that any engineer can drop into an identical Cloudera Streaming Operators environment for immediate testing.
+This is written as a complete, copy-paste-ready lesson that any engineer can drop into a new environment for immediate testing.
 
 **Step 1: Create the New Processor File**  
 Navigate to the exact directory where `TransactionGenerator.py` lives (the mounted extensions folder):  
