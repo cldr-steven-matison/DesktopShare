@@ -1,7 +1,9 @@
 
 # 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus
 
-[ new intro paragraph ]
+Apache Kafka is the undeniable backbone of modern real-time data, but monitoring its internal health on Kubernetes can often feel like trying to pick a lock. While the Strimzi-powered Cloudera Streams Messaging (CSM) Operator effortlessly spins up your brokers, the critical metrics you need to keep things running smoothly—like byte throughput and under-replicated partitions—are trapped deep inside the JVM. Because Prometheus doesn't natively speak JMX, we can't just open a port and call it a day. 
+
+In Part 1 of this series, we are going to crack open that black box. We will walk step-by-step through injecting a custom JMX Prometheus Exporter into your CSM cluster and deploying a specialized PodMonitor to translate those buried JVM metrics into  crystal-clear results in Prometheus and Grafana.
 
 ---
 
