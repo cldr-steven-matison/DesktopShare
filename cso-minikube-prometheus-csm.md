@@ -1,40 +1,7 @@
 
 # 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus
 
-If you are running the Cloudera Streaming Operators, you know that visibility is everything. You can build the most complex real-time pipeline in the world, but without eyes on your throughput or under-replicated partitions, you’re essentially flying blind. While the Cloudera Streams Messaging (CSM) Operator—powered by Strimzi—makes managing Kafka easy, extracting its internal JMX metrics into a Kubernetes-native monitoring stack remains a bit of a configuration puzzle.
-
-Because Kafka metrics live deep within the JVM, we can't just "turn on" a Prometheus port. We need to inject a sidecar-like exporter and define precise mapping rules to transform raw JMX data into something Prometheus can actually understand.
-
-In this guide, we’re going to wire up your CSM Kafka cluster to a Prometheus + Grafana stack. By implementing a custom JMX Exporter configuration and a specialized PodMonitor, we will establish the foundational layer of our observability pipeline, ensuring your brokers are no longer a "black box" in your streaming architecture.
-
----
-
-### 🛠️ Prerequisites
-
-Before we start, ensure you have the following:
-* **Cloudera Streams Messaing Operator** installed in the `cld-streaming` namespace.
-* **Prometheus Operator** installed via Helm in the `cld-streaming` namespace.
-
-```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-```
-
-Helm Install Prometheus
-
-```bash
-helm install prometheus prometheus-community/kube-prometheus-stack \
---namespace cld-streaming --create-namespace \
---set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
---set 'grafana.additionalDataSources[0].name=Prometheus' \
---set 'grafana.additionalDataSources[0].type=prometheus' \
---set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
---set 'grafana.additionalDataSources[0].access=proxy' \
---set 'grafana.additionalDataSources[0].isDefault=true' \
---set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
---set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
---set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
---set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
-```
+[ new intro paragraph ]
 
 ---
 
