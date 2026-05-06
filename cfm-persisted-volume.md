@@ -28,7 +28,8 @@ Your goal is to ensure that any flows you build/deploy directly in the NiFi UI s
    ```
    - Look for `provisioner` and `volumeBindingMode: WaitForFirstConsumer` (recommended to avoid scheduling issues).
    - If you need a new one, create `nifi-storage-class.yaml` :
-     ```yaml
+
+```bash
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -37,8 +38,13 @@ provisioner: k8s.io/minikube-hostpath
 reclaimPolicy: Retain
 volumeBindingMode: Immediate  # Changed from WaitForFirstConsumer for easier local debugging
 allowVolumeExpansion: true
-     ```
-     Apply it: `kubectl apply -f nifi-storage-class.yaml`.
+```
+
+    Apply it: 
+
+```bash
+kubectl apply -f nifi-storage-class.yaml
+```
 
 2. Export your current base NiFi CR for backup and diffing:
    ```
