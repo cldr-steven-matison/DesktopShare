@@ -5,6 +5,14 @@
   Full Cloudera Streaming Operators deployment (NiFi 2.x on Kubernetes).
 
 ### 2. Blog Posts
+- **How to AI with NiFi and Python**
+  []()
+  (Explains my approach on how to use AI to build NiFi Python Processors)
+
+- **Observability with Cloudera Streaming Operators**
+  []()
+  (Wire the entire Cloudera Streaming Operator stack to Prometheus & Grafana)
+
 - **Custom Processors with Cloudera Streaming Operators**  
   [https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/)  
   (Explains Python processor deployment, mount setup, and `nifi-cluster-30-nifi2x-python.yaml` pattern.)
@@ -16,7 +24,7 @@
 ### 3. Supporting GitHub Repositories
 - **NiFi2-Processor-Playground**  
   [https://github.com/cldr-steven-matison/NiFi2-Processor-Playground](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground)  
-  (Working Python processor examples like `TransactionGenerator.py` / `NewTransactionGenerator.py` 
+  (Working Python processor examples from various lessons such as `TransactionGenerator.py` / `NewTransactionGenerator.py` / `FraudModel.py`
 
 - **MiNiFi-Kubernetes-Playground**  
   [https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground)  

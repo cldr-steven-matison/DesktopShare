@@ -1,10 +1,10 @@
 # 🚀 Monitoring Cloudera Flow Management (CFM) with Prometheus
 
-If you followed our previous guide on monitoring Cloudera Streams Messaging (CSM), you already have visibility into your Kafka brokers. But data pipelines don't start at the broker—they often start with **NiFi**. 
+In the previous guide on monitoring Cloudera Streams Messaging (CSM) we adeded visibility into your Kafka Brokers. Data pipelines don't start at the broker—they often start with **NiFi**. 
 
-When running NiFi via the **Cloudera Flow Management (CFM) Operator**, securing the cluster with Single User Auth puts the APIs into a strict lockdown. This makes scraping native metrics a bit of a K8s networking puzzle. 
+When running NiFi via the **Cloudera Flow Management (CFM) Operator**, securing the cluster with Single User Auth puts the APIs into a strict lockdown. This makes scraping native metrics a bit of a kubernetes challenge. 
 
-In this post, we’re going to wire up a secure CFM NiFi 2.x cluster to a **Prometheus + Grafana** stack, bypassing web authentication safely using mTLS, and ultimately bridging our cross-namespace metrics into a single pane of glass.
+In this post, we’re going to wire up a secure CFM NiFi 2.x cluster to the **Prometheus + Grafana** stack, bypassing web authentication safely using mTLS, and ultimately bridging our cross-namespace metrics into a single pane of glass.
 
 ---
 
@@ -165,7 +165,14 @@ If Query A and Query B are flowing together, your pipeline is healthy. If they d
 ---
 
 ### 🏁 Summary
-By using the CFM Operator's native `mynifi-cfm-operator-user-cert`, we successfully built an mTLS bridge that bypasses NiFi's Single User Auth lockdown. You now have complete end-to-end visibility across your entire K8s streaming platform!
+
+By leveraging the CFM Operator’s native mynifi-cfm-operator-user-cert, you have successfully engineered an mTLS bridge that bypasses NiFi’s strict Single User Auth lockdown. We didn’t just find a workaround for the "401 Unauthorized" errors; we architected a secure, automated discovery path that allows Prometheus to scrape sensitive metrics without compromising the security of your data orchestration layer.
+
+This configuration effectively solves the "networking puzzle" of NiFi 2.x observability. By aligning your ServiceMonitor with NiFi’s strict SNI and Host header requirements, you’ve ensured that your monitoring stack remains as resilient and production-ready as the pipelines it tracks. You now have the declarative tools to move beyond basic health checks and into deep, cross-namespace correlation.
+
+With this piece of the puzzle in place, you can finally realize the "Master Plan": a single pane of glass where you can watch NiFi’s outbound data rates flow in perfect synchronization with Kafka’s inbound throughput. You no longer have to guess where a bottleneck resides; you have the real-time telemetry required to prove exactly how data is moving through your entire Cloudera Streaming architecture.
+
+Next Steps: Complete the trifecta by wiring up CSA (Flink) to monitor your real-time processing jobs!
 
 ---
 

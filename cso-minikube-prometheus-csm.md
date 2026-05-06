@@ -1,38 +1,9 @@
 
 # 🚀 Monitoring Cloudera Streams Messaging (CSM) with Prometheus
 
-If you are running the **Cloudera Streaming Operators**, you know that visibility is everything. You can have the most complex NiFi-to-Kafka-to-Flink RAG pipeline in the world, but if you can't see your throughput or under-replicated partitions, you're flying blind.
+Apache Kafka is the undeniable backbone of modern real-time data, but monitoring its internal health on Kubernetes can often feel like trying to pick a lock. While the Strimzi-powered Cloudera Streams Messaging (CSM) Operator effortlessly spins up your brokers, the critical metrics you need to keep things running smoothly—like byte throughput and under-replicated partitions—are trapped deep inside the JVM. Because Prometheus doesn't natively speak JMX, we can't just open a port and call it a day. 
 
-In this post, we’re going to wire up **Cloudera Streams Messaging (CSM)**—powered by the Strimzi-based Kafka operator—to a **Prometheus + Grafana** stack. 
-
----
-
-### 🛠️ Prerequisites
-
-Before we start, ensure you have the following:
-* **Cloudera Streams Messaing Operator** installed in the `cld-streaming` namespace.
-* **Prometheus Operator** installed via Helm in the `cld-streaming` namespace.
-
-```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-```
-
-Helm Install Prometheus
-
-```bash
-helm install prometheus prometheus-community/kube-prometheus-stack \
---namespace cld-streaming --create-namespace \
---set grafana.sidecar.datasources.defaultDatasourceEnabled=false \
---set 'grafana.additionalDataSources[0].name=Prometheus' \
---set 'grafana.additionalDataSources[0].type=prometheus' \
---set 'grafana.additionalDataSources[0].url=http://prometheus-kube-prometheus-prometheus.cld-streaming.svc.cluster.local:9090' \
---set 'grafana.additionalDataSources[0].access=proxy' \
---set 'grafana.additionalDataSources[0].isDefault=true' \
---set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
---set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
---set-json 'prometheus.prometheusSpec.serviceMonitorNamespaceSelector={}' \
---set-json 'prometheus.prometheusSpec.podMonitorNamespaceSelector={}'
-```
+In Part 1 of this series, we are going to crack open that black box. We will walk step-by-step through injecting a custom JMX Prometheus Exporter into your CSM cluster and deploying a specialized PodMonitor to translate those buried JVM metrics into  crystal-clear results in Prometheus and Grafana.
 
 ---
 
@@ -216,7 +187,7 @@ data:
 
 ### 2️⃣ The Kafka Cluster Config 
   
-(`kafka-nodepool.yaml`)
+Create the `kafka-nodepool.yaml`:
 
 ```yaml
 apiVersion: kafka.strimzi.io/v1
@@ -241,7 +212,6 @@ spec:
 ```
 `kubectl apply -f kafka-nodepool.yaml -n cld-streaming`
 
-(`kafka-eval-prometheus.yaml`)
 
 Create the `kafka-eval-prometheus.yaml`:
 
@@ -398,13 +368,13 @@ With Prometheus feeding live data, Grafana turns those raw metrics into professi
 
 Open Grafana (`minikube service grafana -n cld-streaming`). Login with `admin` and the password from the secret (see Section 4).
 
-**Step 1: Verify the Prometheus Data Source**  
+**Verify the Prometheus Data Source**  
 Go to **Configuration → Data Sources**.  
 - The “Prometheus” source should point to something like `http://prometheus-operated.monitoring.svc:9090`.  
 - Click **Save & Test**. It must say “Data source is working”.  
 (Note: There is no separate “Test” button on every screen — use the one at the bottom of the datasource edit page.)
 
-**Step 2: Import the Strimzi Kafka Dashboard (Fixed Instructions)**  
+**Import the Strimzi Kafka Dashboard**  
 1. Download the JSON:
    ```bash
    curl -O https://raw.githubusercontent.com/strimzi/strimzi-kafka-operator/main/examples/metrics/grafana-dashboards/strimzi-kafka.json
@@ -415,66 +385,17 @@ Go to **Configuration → Data Sources**.
    - Datasource → select your Prometheus data source  
    - Click **Import**
 
-**Step 3: Troubleshoot “No Data”**  
-- In the dashboard, set the template variables at the top:
-  - `kubernetes_namespace` = `cld-streaming`
-  - `strimzi_cluster_name` = `my-cluster` (match your Kafka CR name)
-  - `kafka_topic` = `txn1|txn2|txn_fraud`
-- Go back to Prometheus UI → **Status** → **Targets** and confirm there are UP targets for your Kafka brokers (look for port 9404 or the `tcp-prometheus` port).
-- Generate traffic to your topics (run a producer or trigger NiFi flows) — many panels only show data once messages are flowing.
-
-**Step 4: Quick Custom Panels While Fixing**  
-If the full dashboard is still empty, create a temporary dashboard and add these two panels (Time Series):
-
-- Messages In Per Second (your confirmed query):
-  ```promql
-  sum(rate(kafka_server_brokertopicmetrics_messagesinpersec[5m])) by (pod, topic)
-  ```
-- Under-Replicated Partitions:
-  ```promql
-  sum(kafka_server_replicamanager_underreplicatedpartitions) by (pod)
-  ```
-
-
-[ move to cso-minikube-prometheus-csm-debug.md ]
-[ bring out here ]
-[ likely can remove some of the troubleshooting steps above ]
-
-
 ### 🏁 Summary
-We successfully injected the Prometheus JMX exporter without breaking the Strimzi operator's strict validation. Now, as NiFi pumps data into Kafka, you can watch the `kafka_server_brokertopicmetrics_messagesinpersec_count` rise in real-time.
 
-**Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!**
+With the JMX exporter successfully injected and the PodMonitor active, you have cleared the first major hurdle in building an end-to-end observability pipeline. We didn’t just flip a switch; we architected a robust, Kubernetes-native discovery mechanism that respects the Strimzi-based Operator's strict validation rules while still providing deep, granular visibility into broker performance.
+
+By bridging the gap between Kafka’s internal JMX metrics and Prometheus, you now have a declarative, Git-trackable way to monitor everything from message rates to partition health. Whether you are troubleshooting high CPU usage on a specific broker or watching for under-replicated partitions during a scaling event, you now have the raw data required to maintain a healthy cluster.
+
+This setup serves as the foundation for the rest of your streaming stack. Now that your event backbone (Kafka) is visible, you are ready to plug in your ingestion (NiFi) and processing (Flink) engines to achieve that elusive "single pane of glass" view across your entire data lifecycle.
+
+Stay tuned for the next post: Wiring up CFM (NiFi 2.x) to this same stack!
 
 ---
-
-
-Things to add:
-
-
-1. The Full Delete
-Wipe the Kafka cluster and the storage again to prevent any ID or configuration caching.
-
-```Bash
-kubectl delete kafka my-cluster -n cld-streaming
-kubectl delete pvc -l strimzi.io/cluster=my-cluster -n cld-streaming
-minikube ssh "sudo rm -rf /tmp/hostpath-provisioner/cld-streaming/*"
-```
-2.  I had to helm uninstall the operator if i got it into a bad state,  maybe better than the sudo rm -rf above..  when testing this process i dont need to keep operator around.  
-
-```bash
-helm uninstall strimzi-cluster-operator --namespace cld-streaming
-
-
-helm install strimzi-cluster-operator --namespace cld-streaming --set 'image.imagePullSecrets[0].name=cloudera-creds' --set-file clouderaLicense.fileContent=./license.txt --set watchAnyNamespace=true oci://container.repository.cloudera.com/cloudera-helm/csm-operator/strimzi-kafka-operator --version 1.6.0-b99 
-```
-
-3.  Force Prometheus to Re-scan
-Sometimes the Prometheus Operator misses the "Create" event after a "Delete" event. You can give it a nudge by restarting the operator:
-
-```bash
-kubectl rollout restart deployment prometheus-kube-prometheus-operator -n cld-streaming
-```
 
 ### Terminal History
 

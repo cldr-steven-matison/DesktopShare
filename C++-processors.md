@@ -150,4 +150,4 @@ Java gives you 200+ processors and full scripting but at a larger footprint (~30
 Clone the repo: https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground  
 Follow the build and “nuclear” rebuild steps and build your own `config.yml`.  
 
-I will keep improving the MiNiFi Kubernetes Playground with more examples of MiNiFi C++ flows in the kubernetes space.   In future posts I will walso ork with MiNiFi Java and provide foundational examples covering common edge use cases with MiNiFi and kubernetes.
+I will keep improving the MiNiFi Kubernetes Playground with more examples of MiNiFi C++ flows in the kubernetes space.   In future posts I will also work with MiNiFi Java and provide foundational examples with MiNiFi and kubernetes.
