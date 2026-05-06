@@ -27,28 +27,26 @@ Your goal is to ensure that any flows you build/deploy directly in the NiFi UI s
    kubectl describe storageclass <your-storageclass-name>
    ```
    - Look for `provisioner` and `volumeBindingMode: WaitForFirstConsumer` (recommended to avoid scheduling issues).
-   - If you need a new one, create `nifi-storage-class.yaml` (example for most clouds):
+   - If you need a new one, create `nifi-storage-class.yaml` :
      ```yaml
-     apiVersion: storage.k8s.io/v1
-     kind: StorageClass
-     metadata:
-       name: nifi-storage
-     provisioner: kubernetes.io/aws-ebs  # or your provider (e.g., rancher.io/longhorn, etc.)
-     parameters:
-       type: gp3  # or premium, standard, etc.
-     reclaimPolicy: Retain
-     volumeBindingMode: WaitForFirstConsumer
-     allowVolumeExpansion: true
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nifi-storage
+provisioner: k8s.io/minikube-hostpath
+reclaimPolicy: Retain
+volumeBindingMode: Immediate  # Changed from WaitForFirstConsumer for easier local debugging
+allowVolumeExpansion: true
      ```
      Apply it: `kubectl apply -f nifi-storage-class.yaml`.
 
 2. Export your current base NiFi CR for backup and diffing:
    ```
-   kubectl get nifi <your-nifi-cr-name> -n <your-namespace> -o yaml > nifi-base-backup.yaml
+   kubectl get nifi mynifi -n cfm-streaming -o yaml > nifi-base-backup.yaml
    ```
 
 **Step 2: Update the NiFi Custom Resource**
-Edit your NiFi CR file (e.g., `nifi-cluster-30-nifi2x-python.yaml` or your base file).
+Edit your NiFi CR file (e.g., `nifi-cluster-30-nifi2x-python-prometheus.yaml` or your base file).
 
 Add (or expand) the `persistence` block under `spec:` (place it at the same level as `replicas`, `roles`, `resources`, etc.).
 
@@ -85,54 +83,50 @@ spec:
       storageClass: nifi-storage
 ```
 
-**Step 3: Apply the Updated CR**
+**Step 3: Delete and Apply the Updated CR**
+
+If NiFi is already deployed, delete it, this will be last time you have to re-create yuour flows.   This time when you apply, persistance is there.
 ```bash
-kubectl apply -f your-updated-nifi-cr.yaml
+kubectl delete nifi mynifi -n cfm-streaming
+kubectl apply -f nifi-cluster-30-nifi2x-python-prometheus.yaml -n cfm-streaming
 ```
 
-- The operator will detect the change → trigger a rolling update of the StatefulSet.
-- Pods will restart **one at a time** (zero-downtime if your cluster is healthy).
-- New PVCs will be created automatically (watch with `kubectl get pvc -l app.kubernetes.io/managed-by=cfm-operator` or similar labels).
+- The operator will re-role nifi and new PVCs will be created automatically (watch with `kubectl get pvc -l app.kubernetes.io/managed-by=cfm-operator` or similar labels).
 
 **Step 4: Verify Everything Works**
 1. Watch the rollout:
    ```
-   kubectl get pods -n <namespace> -l app.kubernetes.io/name=nifi -w
-   kubectl get pvc -n <namespace> -w
+   kubectl get pods -n cfm-streaming -l app.kubernetes.io/name=nifi -w
+   kubectl get pvc -n cfm-streaming -w
    ```
    You should see new PVCs like:
-   - `<nifi-name>-data-0`
-   - `<nifi-name>-state-0`
-   - etc.
+
+```bash
+^CNAME                             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+content-repository-mynifi-0      Bound    pvc-ed5daf31-e8ba-4490-b191-5b5802c2b1d2   50Gi       RWO            nifi-storage   <unset>                 3m16s
+custom-nars                      Bound    pvc-fd2b52ed-a07f-47cd-9a7a-decca19b1d08   100Mi      RWO            standard       <unset>                 27d
+data-mynifi-0                    Bound    pvc-d6054f5e-b9e6-4651-acaf-fd75430d9974   20Gi       RWO            nifi-storage   <unset>                 3m16s
+flowfile-repository-mynifi-0     Bound    pvc-ea2041f6-3480-46e4-a73f-b1c1883a306a   20Gi       RWO            nifi-storage   <unset>                 3m16s
+provenance-repository-mynifi-0   Bound    pvc-8fc752e8-b4de-4668-ac1c-444d0bf44d1c   30Gi       RWO            nifi-storage   <unset>                 3m16s
+state-mynifi-0                   Bound    pvc-37bdae77-f7c9-45ee-ab9f-2f74be877e38   5Gi        RWO            nifi-storage   <unset>                 3m16s
+```
 
 2. **Test flow persistence** (the real proof):
    - Open NiFi UI.
-   - Build a simple test flow (e.g., GenerateFlowFile → LogAttribute → connect them).
+   - Deploy NiFi flow.
    - Start the flow and confirm it runs.
    - Force a re-roll (safest way):
-     - Edit the CR again and add a harmless annotation:
-       ```yaml
-       metadata:
-         annotations:
-           test-re-roll: "1"
-       ```
-     - Re-apply the CR → watch the pods roll.
+
+```yaml
+kubectl rollout restart statefulset mynifi -n cfm-streaming
+```
+
    - After all pods are Running/Ready again, refresh NiFi UI → **your test flow must still be there**.
-   - (Advanced check) Exec into a pod and verify:
-     ```
-     kubectl exec -it <nifi-pod-name> -n <ns> -- bash -c "ls -la /opt/nifi/data/flow.xml.gz"
-     ```
+
 
 3. Check logs for any mount issues:
    ```
    kubectl logs <nifi-pod-name> -n <ns> | grep -i persist
    ```
-
-**Step 5: Production Hardening & Monitoring **
-- **Size tuning**: Monitor PVC usage with Prometheus/Grafana (you already have this integrated). Adjust sizes based on your workload (contentRepo is usually the biggest).
-- **Backup strategy**: The PVCs are now the source of truth. Use Velero or your cloud’s snapshotting for PVC backups.
-- **Scaling test**: Scale replicas up/down in the CR and confirm data offloading works (operator handles it).
-- **Cleanup**: If you ever delete the entire NiFi CR, PVCs remain (ReclaimPolicy=Retain by default on most StorageClasses). Delete them manually only when you’re sure.
-
 **Expected Outcome**
 After this change, your NiFi flows will be persisted: completely resilient to re-rolls, restarts, and even node failures (Kubernetes re-attaches the volumes).
