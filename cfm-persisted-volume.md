@@ -91,7 +91,7 @@ spec:
 
 **Step 3: Delete and Apply the Updated CR**
 
-If NiFi is already deployed, delete it, this will be last time you have to re-create yuour flows.   This time when you apply, persistance is there.
+If NiFi is already deployed, delete it, this will be last time you have to re-create your flows.   This time when you apply, persistance is there.
 ```bash
 kubectl delete nifi mynifi -n cfm-streaming
 kubectl apply -f nifi-cluster-30-nifi2x-python-prometheus.yaml -n cfm-streaming
