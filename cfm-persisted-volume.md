@@ -36,11 +36,11 @@ metadata:
   name: nifi-storage
 provisioner: k8s.io/minikube-hostpath
 reclaimPolicy: Retain
-volumeBindingMode: Immediate  # Changed from WaitForFirstConsumer for easier local debugging
+volumeBindingMode: Immediate
 allowVolumeExpansion: true
 ```
 
-    Apply it: 
+apply the yaml:
 
 ```bash
 kubectl apply -f nifi-storage-class.yaml
