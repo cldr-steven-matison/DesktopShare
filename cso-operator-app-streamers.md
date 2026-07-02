@@ -248,6 +248,8 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **Post to real X account** — ✓ PLANNED (see section below)
 - **GPU optimization** — Whisper CPU + 5B caption model — see [`gpu-optimization-plan.md`](gpu-optimization-plan.md)
 - **Live Streamer Alert** — FUTURE IDEA (added session 12): when a watched streamer goes live, ramp up clip fetch/publish frequency for that streamer and possibly post an X alert that they're live now. Built entirely in NiFi, likely needs a custom Python processor to poll Twitch/Kick live status and branch the flow (idle vs. live-heavy) — not scoped or designed yet.
+- **Video title/description/CTA/category** — PUNTED (session 12): needs an X Ads account for @TunaStreetTest before it's buildable. See "Untitled Videos" section above for what's confirmed.
+- **Subtitles from transcript** — unblocked, deprioritized (session 12): `POST /2/media/subtitles` + existing Whisper segment timestamps could give real closed captions with no new credentials. See "Untitled Videos" section above.
 
 ---
 
@@ -497,6 +499,22 @@ for wav in glob.glob(str(storage / "*.wav")):
 
 ---
 
+## Untitled Videos / Video Title, Description, CTA, Category — PUNTED (session 12)
+
+X Media Studio shows every published clip as "Untitled" and has a per-video Settings panel (Title, Description, Category, Call-to-action, embed/download toggles, content restrictions) that our pipeline doesn't touch. Investigated setting these programmatically — punted for now. Findings, so this isn't re-investigated from scratch:
+
+- **Not settable via the standard/organic X API** (`POST /2/media/metadata`, `POST /2/tweets`) — confirmed no `title`/`description`/`category`/CTA params exist there. This part of Session 10's original conclusion was right, just for a more specific reason than first assumed.
+- **Is settable via the X Ads API** — `POST accounts/:account_id/tweet` accepts `video_id`, `video_title`, `video_description`, `video_cta`, `video_cta_value`. Separately, `media_library` (`POST`/`PUT accounts/:account_id/media_library[/:media_key]`) accepts `title`, `description`, `name`, `file_name`, `poster_media_key` — no CTA/category field there. "Ads API" is just the name of that API surface — using it does not require spending money on a promoted/paid tweet.
+- **`video_cta` confirmed values**: `GO_TO`, `SEE_MORE`, `SHOP`, `VISIT_SITE`, `WATCH_NOW` (from preroll-ad CTA docs). **Unconfirmed**: whether a "Follow @handle" CTA exists at all — the documented CTAs look link-style (site/app/shop), not account-follow. May require a different creative type, or may not be supported for this use case.
+- **Category** (Esports & Video Games, Comedy, etc. — see Media Studio Settings modal): not found on any documented `media_library` or tweet-creation param. Unclear if it's UI-only or lives somewhere undocumented (possibly tied to `curated_categories`/targeting rather than a per-video tag).
+- **Blocking prerequisite**: none of this can be built or even empirically verified without an X Ads account tied to @TunaStreetTest. Checked `~/.env` — zero ads-related credentials or account_id configured. This is the actual blocker, not the API design.
+
+**To resume this**: get an Ads account (unfunded/$0 is fine) set up for @TunaStreetTest first, get an `account_id`, then the CTA/category questions can be answered empirically against the live API instead of guessing from docs.
+
+**Separate, unblocked idea from the same investigation — subtitles**: `POST /2/media/subtitles` (v2, standard API, no Ads account needed) can attach an `.srt` to an already-uploaded video, using the same OAuth1 creds already in use (confirmed `tweepy.Client.create_tweet` already signs v2 calls with our existing OAuth1 creds — no new auth setup needed). Blocker there is smaller: the Whisper ConfigMap (`whisper-server-code`) already computes per-segment timestamps (`return_timestamps=True` is set) but the server only returns `result["text"]`, discarding `result["chunks"]` needed to build a valid SRT. Not built yet — deprioritized alongside the title/CTA work, but not blocked on anything external.
+
+---
+
 ## Session History
 
 ### Session 12 (2026-07-02)
@@ -505,6 +523,7 @@ for wav in glob.glob(str(storage / "*.wav")):
 |---|---|
 | **PublishClipPeakTimeCron PG added** | New cron-driven PG publishes pending-approved clips during peak hours (3pm-9pm EST) instead of a fixed idle-interval GenerateFlowFile. `Peak Time 3-9pm` GenerateFlowFile: `CRON_DRIVEN`, `0 0/18 15-21 * * ?` (every 18 min, hours 15-21) → `InvokeHTTP POST /api/streamers/publish-next`, the same endpoint the original `PublishClip` PG calls. No backend changes needed. Original `PublishClip`'s `Publish On Demand` GenerateFlowFile throttled to `1 day`, demoting it to manual/backup. Flow exported to `StreamersApp_PeakTime_Cron.json`; not yet folded into the committed `streamers/StreamersApp.json` snapshot |
 | **Future item logged: Live Streamer Alert** | When a watched streamer goes live, ramp up clip activity for them and possibly post an X "live now" alert. Scoped as NiFi-native, likely needs a custom Python processor for live-status polling + flow branching. Not designed yet — see "What's Next" |
+| **Untitled video investigation — punted** | Chased title/description/CTA/category settability across the organic API, Ads API `media_library`, and Ads API tweet-creation endpoint. Confirmed it's only settable via the Ads API, but we have zero Ads account credentials configured — punted until an Ads account exists for @TunaStreetTest. See "Untitled Videos" section above. Surfaced a separate, unblocked opportunity: subtitles via `/2/media/subtitles` using our existing Whisper transcript + OAuth1 creds |
 
 ### Session 11 (2026-07-01)
 
