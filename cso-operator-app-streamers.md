@@ -524,8 +524,9 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | Change | Details |
 |---|---|
 | **PublishClipPeakTimeCron fired early — pod is UTC, not EST** | Cron `15-21` was written assuming pod-local time = EST, but `mynifi-0`'s clock is UTC (confirmed via `kubectl exec ... date`). Actual window was 11am-5pm EDT. Corrected the `Peak Time 3-9pm` GenerateFlowFile cron to `0 0/18 19-23,0-1 * * ?` (UTC-equivalent of 3pm-9pm EDT) — **applied via NiFi UI, not yet re-exported to `StreamersApp_PeakTime_Cron.json`**. Needs revisiting at DST changeover (November) or a `TZ=America/New_York` fix on the statefulset. See "PublishClipPeakTimeCron" section above |
-| **`publish-next` 502 — Twitch clip exceeded X's 2-min post limit** | Live `InvokeHTTP` log showed `502` wrapping X's real error: `403 — This user is not allowed to post a video longer than 2 minutes`. Root cause: `_get_clips` (Twitch fetch, `services/streamers.py`) only enforced a lower duration bound (`>= 45`) with no upper bound, unlike Kick's `45 <= duration <= 90`. A long clip slipped through fetch → review → approve → publish and got rejected at post time. **Fixed in code, not yet rebuilt/redeployed** (holding off — system was actively fetching/publishing live, see [[feedback-prod-no-manual-patches]]): capped Twitch fetch to `45 <= duration <= 100`, matching Kick's pattern |
-| **`publish_next()` silently dropped clips on publish failure** | Found while fixing the above: `publish_next()` popped the clip off `.pending_publish.json` *before* attempting the X post; when the post raised (as with the oversized clip), the clip was gone from the queue with no record and no retry. Fixed to push the clip back to the front of the queue on any publish exception, so a stuck/bad clip stays visible in `/pending` and can be cancelled via the review UI instead of vanishing silently. Same caveat: code-only, pending rebuild+redeploy |
+| **`publish-next` 502 — Twitch clip exceeded X's 2-min post limit** | Live `InvokeHTTP` log showed `502` wrapping X's real error: `403 — This user is not allowed to post a video longer than 2 minutes`. Root cause: `_get_clips` (Twitch fetch, `services/streamers.py`) only enforced a lower duration bound (`>= 45`) with no upper bound, unlike Kick's `45 <= duration <= 90`. A long clip slipped through fetch → review → approve → publish and got rejected at post time. Capped Twitch fetch to `45 <= duration <= 100`, matching Kick's pattern. Fixed, rebuilt, redeployed, rollout confirmed settled |
+| **`publish_next()` silently dropped clips on publish failure** | Found while fixing the above: `publish_next()` popped the clip off `.pending_publish.json` *before* attempting the X post; when the post raised (as with the oversized clip), the clip was gone from the queue with no record and no retry. Fixed to push the clip back to the front of the queue on any publish exception, so a stuck/bad clip stays visible in `/pending` and can be cancelled via the review UI instead of vanishing silently. Deployed alongside the duration-cap fix |
+| New Kick streamer: ac7ionman | Added `ac7ionman` to `_KICK_LOGINS` and `_STREAMER_CATALOG` (`"ac7ionman": "Ac7ionMann"`) in `services/streamers.py` |
 
 ### Session 12 (2026-07-02)
 
@@ -581,33 +582,21 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | Recovered already-bloated pending clips | Since `pad` never touches pixels below the bar, wrote a one-off script to crop the old bar off + re-apply the new (smaller) overlay in one pass for clips already bloated by the `ultrafast` run, instead of re-fetching from Kick/Twitch. Stopped partway through at user's direction — accepted that already-queued bloated clips still publish successfully (just slowly), and only bothered fixing ones not yet in flight |
 | Resumable batch pattern | Reprocessing scripts persist per-clip status to a JSON state file in `/clips/`, so a killed/interrupted run resumes without redoing finished clips or double-stamping |
 
-### Session 2 (2026-06-28)
-
-| Feature | Details |
-|---|---|
-| Kafka topic panels | Live message count + last 5 records for `new_clips` and `processed_clips` in the Streamers UI |
-| Reset Kafka button | Deletes topics via Kafka Admin API, wipes `/clips/*.mp4`, resets `.seen_clips.json` |
-| Dismiss on publish | Cards vanish after 1.2s "Posted ✓" flash; Refresh clears stale dismissed state |
-| Fallback captions | 5 rotating Tuna Street fallbacks when vLLM returns empty |
-| Duration filter | Fetch 20 clips per streamer, drop < 45s, sort longest-first, cap at 3 per streamer |
-| File-exists gate | Review queue only surfaces clips whose MP4 is on disk |
-| 404 on missing file | Publish endpoint returns actionable 404 instead of opaque 502 |
-| RBAC | Added `kafkatopics get/list/delete` to `cso-operator-app-writer` role in `cld-streaming` |
-
-### Session 3 (2026-06-29)
+### Session 8 (2026-06-30)
 
 | Change | Details |
 |---|---|
-| NiFi group ID cache | `_resolve_streamer_groups` BFS result cached 5 min |
-| Parallel Kafka consumers | `topic_stats` runs both consumers concurrently via `asyncio.gather` |
-| topic_stats result cache | 30s TTL — repeated Refresh clicks don't spin new consumers |
-| Flow poll 5s → 30s | Frontend poll interval reduced 6× |
-| Page-visibility pause | Poll stops when browser tab is hidden, resumes on focus |
-| Lazy thumbnails | `loading="lazy"` on clip thumbnail images |
-| Skip persistence | Skip writes clip_id to `/clips/.skipped.json`; filtered from queue on next load |
-| Publish persistence | `publish_clip` writes clip_id to `/clips/.published.json` on successful tweet |
-| Reset clears skip+publish | Reset Kafka button also wipes `.skipped.json` and `.published.json` |
-| Video player in review | `<video controls preload="none">` in each ClipCard, served via `GET /api/streamers/clip/{clip_id}` |
+| Fetch mode toggle | Watch List card has `Recent \| Top Clips` toggle + period selector (`1 Month \| All Time`). Mode persisted to `/clips/.fetch_mode.json` — survives pod restarts |
+| Twitch top clips | Top mode sets `started_at` to 30 days ago (month) or omits it (all time); sorts by `view_count` instead of duration. Pulled many high-view historical clips successfully |
+| Kick top clips | Kick channel endpoint only accepts `sort=date` — 422 on any other sort value. No time window support. Top mode fetches 20 most recent and sorts by `view_count` client-side |
+| Kick wrong-channel bug fixed | Global `kick.com/api/v2/clips?channel=slug` param is ignored server-side — was returning random global clips. Switched to `kick.com/api/v2/channels/{slug}/clips` (channel-specific endpoint). Added client-side `channel.slug` validation as safety net |
+| Clip card links + metadata | Title links to clip URL on platform; streamer name links to Twitch/Kick profile; `@x_handle` links to X. View count and created date shown inline |
+| x_handle in queue response | `get_x_handle()` called at queue-read time in `clip_queue()`; injected into each clip dict returned to frontend |
+| Commentary textarea removed | Caption field is the only editable field — commentary box removed. Caption textarea taller (rows=4) |
+| Approve message cleaned | Removed "~2 min" time estimate from post-approve confirmation |
+| X multi-account plan | Documented OAuth 1.0a dance to post to real account via app registered under @TunaStreetTest — see "Posting to a Real X Account" section |
+| GPU optimization plan | New `gpu-optimization-plan.md` — VRAM analysis for RTX 4060 8GB, three options for running 5B model alongside Whisper, open questions before acting |
+| Full Kafka reset | Wiped 76 stale clips + both topics after Kick bug discovered — fresh start with correct channel filtering |
 
 ### Session 6 (2026-06-29)
 
@@ -637,22 +626,6 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | HealthBar operators call removed | HealthBar was calling `k8sOperators()` every tick on every tab just for the Flink dot — removed. Operators component (Operator tab only) already covers it |
 | NiFi URL for internal calls | Always `http://cso-operator-app.default.svc.cluster.local:8090/api/...` — not NodePort 30090 |
 
-### Session 8 (2026-06-30)
-
-| Change | Details |
-|---|---|
-| Fetch mode toggle | Watch List card has `Recent \| Top Clips` toggle + period selector (`1 Month \| All Time`). Mode persisted to `/clips/.fetch_mode.json` — survives pod restarts |
-| Twitch top clips | Top mode sets `started_at` to 30 days ago (month) or omits it (all time); sorts by `view_count` instead of duration. Pulled many high-view historical clips successfully |
-| Kick top clips | Kick channel endpoint only accepts `sort=date` — 422 on any other sort value. No time window support. Top mode fetches 20 most recent and sorts by `view_count` client-side |
-| Kick wrong-channel bug fixed | Global `kick.com/api/v2/clips?channel=slug` param is ignored server-side — was returning random global clips. Switched to `kick.com/api/v2/channels/{slug}/clips` (channel-specific endpoint). Added client-side `channel.slug` validation as safety net |
-| Clip card links + metadata | Title links to clip URL on platform; streamer name links to Twitch/Kick profile; `@x_handle` links to X. View count and created date shown inline |
-| x_handle in queue response | `get_x_handle()` called at queue-read time in `clip_queue()`; injected into each clip dict returned to frontend |
-| Commentary textarea removed | Caption field is the only editable field — commentary box removed. Caption textarea taller (rows=4) |
-| Approve message cleaned | Removed "~2 min" time estimate from post-approve confirmation |
-| X multi-account plan | Documented OAuth 1.0a dance to post to real account via app registered under @TunaStreetTest — see "Posting to a Real X Account" section |
-| GPU optimization plan | New `gpu-optimization-plan.md` — VRAM analysis for RTX 4060 8GB, three options for running 5B model alongside Whisper, open questions before acting |
-| Full Kafka reset | Wiped 76 stale clips + both topics after Kick bug discovered — fresh start with correct channel filtering |
-
 ### Session 4 (2026-06-29)
 
 | Change | Details |
@@ -664,3 +637,31 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | Kafka Topics auto-load | Topics panel fetches on page mount; 30s backend TTL cache |
 | Temp file `.wav` → `.mp4` | Whisper server now writes clips with correct extension |
 | Router imports cleaned up | `os` and `json` moved to module level in `routers/streamers.py` |
+
+### Session 3 (2026-06-29)
+
+| Change | Details |
+|---|---|
+| NiFi group ID cache | `_resolve_streamer_groups` BFS result cached 5 min |
+| Parallel Kafka consumers | `topic_stats` runs both consumers concurrently via `asyncio.gather` |
+| topic_stats result cache | 30s TTL — repeated Refresh clicks don't spin new consumers |
+| Flow poll 5s → 30s | Frontend poll interval reduced 6× |
+| Page-visibility pause | Poll stops when browser tab is hidden, resumes on focus |
+| Lazy thumbnails | `loading="lazy"` on clip thumbnail images |
+| Skip persistence | Skip writes clip_id to `/clips/.skipped.json`; filtered from queue on next load |
+| Publish persistence | `publish_clip` writes clip_id to `/clips/.published.json` on successful tweet |
+| Reset clears skip+publish | Reset Kafka button also wipes `.skipped.json` and `.published.json` |
+| Video player in review | `<video controls preload="none">` in each ClipCard, served via `GET /api/streamers/clip/{clip_id}` |
+
+### Session 2 (2026-06-28)
+
+| Feature | Details |
+|---|---|
+| Kafka topic panels | Live message count + last 5 records for `new_clips` and `processed_clips` in the Streamers UI |
+| Reset Kafka button | Deletes topics via Kafka Admin API, wipes `/clips/*.mp4`, resets `.seen_clips.json` |
+| Dismiss on publish | Cards vanish after 1.2s "Posted ✓" flash; Refresh clears stale dismissed state |
+| Fallback captions | 5 rotating Tuna Street fallbacks when vLLM returns empty |
+| Duration filter | Fetch 20 clips per streamer, drop < 45s, sort longest-first, cap at 3 per streamer |
+| File-exists gate | Review queue only surfaces clips whose MP4 is on disk |
+| 404 on missing file | Publish endpoint returns actionable 404 instead of opaque 502 |
+| RBAC | Added `kafkatopics get/list/delete` to `cso-operator-app-writer` role in `cld-streaming` |
