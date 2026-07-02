@@ -527,6 +527,7 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | **`publish-next` 502 — Twitch clip exceeded X's 2-min post limit** | Live `InvokeHTTP` log showed `502` wrapping X's real error: `403 — This user is not allowed to post a video longer than 2 minutes`. Root cause: `_get_clips` (Twitch fetch, `services/streamers.py`) only enforced a lower duration bound (`>= 45`) with no upper bound, unlike Kick's `45 <= duration <= 90`. A long clip slipped through fetch → review → approve → publish and got rejected at post time. Capped Twitch fetch to `45 <= duration <= 100`, matching Kick's pattern. Fixed, rebuilt, redeployed, rollout confirmed settled |
 | **`publish_next()` silently dropped clips on publish failure** | Found while fixing the above: `publish_next()` popped the clip off `.pending_publish.json` *before* attempting the X post; when the post raised (as with the oversized clip), the clip was gone from the queue with no record and no retry. Fixed to push the clip back to the front of the queue on any publish exception, so a stuck/bad clip stays visible in `/pending` and can be cancelled via the review UI instead of vanishing silently. Deployed alongside the duration-cap fix |
 | New Kick streamer: ac7ionman | Added `ac7ionman` to `_KICK_LOGINS` and `_STREAMER_CATALOG` (`"ac7ionman": "Ac7ionMann"`) in `services/streamers.py` |
+| n3on X handle updated | `_STREAMER_CATALOG["n3on"]` corrected `@N3on` → `@n3ononyt` |
 
 ### Session 12 (2026-07-02)
 
