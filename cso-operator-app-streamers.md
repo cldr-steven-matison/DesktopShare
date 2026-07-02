@@ -212,8 +212,10 @@ New PG (added session 12) that publishes pending-approved clips on a cron schedu
 
 | Processor | Config |
 |---|---|
-| `Peak Time 3-9pm` (GenerateFlowFile) | `CRON_DRIVEN`, schedule `0 0/18 15-21 * * ?` — every 18 min, hours 15-21 (3pm-9pm, pod-local time / EST) |
+| `Peak Time 3-9pm` (GenerateFlowFile) | `CRON_DRIVEN`, schedule `0 0/18 19-23,0-1 * * ?` — every 18 min, hours 19-23 + 0-1 UTC (= 3pm-9pm EDT) |
 | `InvokeHTTP` | `POST http://cso-operator-app.default.svc.cluster.local:8090/api/streamers/publish-next` — same endpoint the original `PublishClip` PG calls |
+
+**Correction (session 13):** the original `15-21` cron assumed the NiFi pod's clock was pod-local EST. It isn't — `mynifi-0` runs in UTC (`date` in the pod returns `UTC`, confirmed 2026-07-02: pod showed 18:52 while local system showed 14:52 EDT). So `15-21` was actually firing 11am-5pm EDT, an hour(s) early. Corrected to the UTC-equivalent of 3pm-9pm EDT above. **This expression is EDT-specific and will need to shift by an hour when DST ends in November** (3pm-9pm EST = 20:00-02:00 UTC → `20-23,0-2`). A more permanent fix would be setting `TZ=America/New_York` on the NiFi statefulset so pod-local time tracks DST automatically — not done yet, would require a pod restart so deferred to a maintenance window.
 
 Both processors are `ENABLED`. The original `PublishClip` PG's `Publish On Demand` GenerateFlowFile was throttled from its prior interval down to `1 day`, effectively demoting it to a manual/backup trigger now that the cron PG owns regular peak-hour publishing. No new backend endpoint was needed — both PGs hit the same `/api/streamers/publish-next`, which pops one clip off `.pending_publish.json` per call.
 
@@ -516,6 +518,14 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 ---
 
 ## Session History
+
+### Session 13 (2026-07-02)
+
+| Change | Details |
+|---|---|
+| **PublishClipPeakTimeCron fired early — pod is UTC, not EST** | Cron `15-21` was written assuming pod-local time = EST, but `mynifi-0`'s clock is UTC (confirmed via `kubectl exec ... date`). Actual window was 11am-5pm EDT. Corrected the `Peak Time 3-9pm` GenerateFlowFile cron to `0 0/18 19-23,0-1 * * ?` (UTC-equivalent of 3pm-9pm EDT) — **applied via NiFi UI, not yet re-exported to `StreamersApp_PeakTime_Cron.json`**. Needs revisiting at DST changeover (November) or a `TZ=America/New_York` fix on the statefulset. See "PublishClipPeakTimeCron" section above |
+| **`publish-next` 502 — Twitch clip exceeded X's 2-min post limit** | Live `InvokeHTTP` log showed `502` wrapping X's real error: `403 — This user is not allowed to post a video longer than 2 minutes`. Root cause: `_get_clips` (Twitch fetch, `services/streamers.py`) only enforced a lower duration bound (`>= 45`) with no upper bound, unlike Kick's `45 <= duration <= 90`. A long clip slipped through fetch → review → approve → publish and got rejected at post time. **Fixed in code, not yet rebuilt/redeployed** (holding off — system was actively fetching/publishing live, see [[feedback-prod-no-manual-patches]]): capped Twitch fetch to `45 <= duration <= 100`, matching Kick's pattern |
+| **`publish_next()` silently dropped clips on publish failure** | Found while fixing the above: `publish_next()` popped the clip off `.pending_publish.json` *before* attempting the X post; when the post raised (as with the oversized clip), the clip was gone from the queue with no record and no retry. Fixed to push the clip back to the front of the queue on any publish exception, so a stuck/bad clip stays visible in `/pending` and can be cancelled via the review UI instead of vanishing silently. Same caveat: code-only, pending rebuild+redeploy |
 
 ### Session 12 (2026-07-02)
 
