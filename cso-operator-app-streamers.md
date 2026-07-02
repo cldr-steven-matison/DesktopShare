@@ -49,13 +49,18 @@ ProcessClips NiFi flow
       │
       ▼
 Streamers Page — Review UI
-  Watch clip · Edit caption · Add commentary · Approve → POST /api/streamers/publish
+  Watch clip · Edit caption · Add commentary · Approve → queues in .pending_publish.json
+      │
+      ▼
+PublishClip NiFi flow (manual/backup — GenerateFlowFile now 1/day)
+PublishClipPeakTimeCron NiFi flow (primary — cron 3pm-9pm)
+  → InvokeHTTP POST /api/streamers/publish-next → pops one pending clip
       │
       ▼
 X API: tweepy v1 media_upload (chunked) + v2 create_tweet
 ```
 
-All NiFi flows live under a `StreamersApp` parent PG — separate from `CSOOperatorApp`.
+All NiFi flows live under a `StreamersApp` parent PG — separate from `CSOOperatorApp`. Four process groups: `FetchClips`, `ProcessClips`, `PublishClip`, `PublishClipPeakTimeCron`.
 
 ---
 
@@ -201,6 +206,21 @@ pipe(tmp_path, chunk_length_s=60, batch_size=24, return_timestamps=True)
 
 ---
 
+## PublishClipPeakTimeCron
+
+New PG (added session 12) that publishes pending-approved clips on a cron schedule during peak viewing hours, instead of relying on the old fixed-interval `PublishClip` GenerateFlowFile.
+
+| Processor | Config |
+|---|---|
+| `Peak Time 3-9pm` (GenerateFlowFile) | `CRON_DRIVEN`, schedule `0 0/18 15-21 * * ?` — every 18 min, hours 15-21 (3pm-9pm, pod-local time / EST) |
+| `InvokeHTTP` | `POST http://cso-operator-app.default.svc.cluster.local:8090/api/streamers/publish-next` — same endpoint the original `PublishClip` PG calls |
+
+Both processors are `ENABLED`. The original `PublishClip` PG's `Publish On Demand` GenerateFlowFile was throttled from its prior interval down to `1 day`, effectively demoting it to a manual/backup trigger now that the cron PG owns regular peak-hour publishing. No new backend endpoint was needed — both PGs hit the same `/api/streamers/publish-next`, which pops one clip off `.pending_publish.json` per call.
+
+Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folded into the committed `streamers/StreamersApp.json` snapshot.
+
+---
+
 ## Key Technical Gotchas
 
 | Issue | Fix |
@@ -227,6 +247,7 @@ pipe(tmp_path, chunk_length_s=60, batch_size=24, return_timestamps=True)
 - **Auto-publish mode** — bypass review queue, post top clips on a schedule
 - **Post to real X account** — ✓ PLANNED (see section below)
 - **GPU optimization** — Whisper CPU + 5B caption model — see [`gpu-optimization-plan.md`](gpu-optimization-plan.md)
+- **Live Streamer Alert** — FUTURE IDEA (added session 12): when a watched streamer goes live, ramp up clip fetch/publish frequency for that streamer and possibly post an X alert that they're live now. Built entirely in NiFi, likely needs a custom Python processor to poll Twitch/Kick live status and branch the flow (idle vs. live-heavy) — not scoped or designed yet.
 
 ---
 
@@ -477,6 +498,13 @@ for wav in glob.glob(str(storage / "*.wav")):
 ---
 
 ## Session History
+
+### Session 12 (2026-07-02)
+
+| Change | Details |
+|---|---|
+| **PublishClipPeakTimeCron PG added** | New cron-driven PG publishes pending-approved clips during peak hours (3pm-9pm EST) instead of a fixed idle-interval GenerateFlowFile. `Peak Time 3-9pm` GenerateFlowFile: `CRON_DRIVEN`, `0 0/18 15-21 * * ?` (every 18 min, hours 15-21) → `InvokeHTTP POST /api/streamers/publish-next`, the same endpoint the original `PublishClip` PG calls. No backend changes needed. Original `PublishClip`'s `Publish On Demand` GenerateFlowFile throttled to `1 day`, demoting it to manual/backup. Flow exported to `StreamersApp_PeakTime_Cron.json`; not yet folded into the committed `streamers/StreamersApp.json` snapshot |
+| **Future item logged: Live Streamer Alert** | When a watched streamer goes live, ramp up clip activity for them and possibly post an X "live now" alert. Scoped as NiFi-native, likely needs a custom Python processor for live-status polling + flow branching. Not designed yet — see "What's Next" |
 
 ### Session 11 (2026-07-01)
 
