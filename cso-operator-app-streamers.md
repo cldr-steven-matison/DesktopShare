@@ -528,8 +528,9 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 
 ### Future Ideas (not built)
 
-- **Clip Comment** — first reply to each posted clip auto-links back to the source platform (the original Twitch/Kick clip URL).
-- **Auto-reply with transcript highlight** — after posting, reply to the same tweet with a short quotable excerpt from the Whisper transcript — the single most "narrative"/quotable line or moment, not the full transcript. Not scoped — likely needs vLLM (already in the pipeline) to pick the excerpt rather than a naive heuristic.
+- **Reply Guy** (added session 15) — auto-reply bot behavior, threaded onto every posted clip's tweet:
+  - Reply 1 — link to the streamer's own stream/channel page (their Twitch/Kick profile URL, e.g. `twitch.tv/<streamer>` or `kick.com/<streamer>`; already have this value on every clip record as `clip.streamer` + `clip.source`, same link the review-queue card uses). Supersedes the earlier "Clip Comment" idea (which pointed at the clip URL specifically) — streamer channel page drives more value to the streamer than a clip permalink.
+  - Reply 2 — the clip's transcript. Likely the same "most quotable/narrative excerpt, not the full wall of text" scope as originally discussed, but not finalized — could also just be the raw transcript if that reads fine in a reply. Not scoped either way; needs vLLM (already in the pipeline) if excerpting rather than dumping raw text.
 - **More Telegram scripts** — `Fetch Clips` and `Publish Clips` triggers, same reply-to-chat pattern as `agent-PostNow.sh`. Post Now is the first one built.
 
 ---
