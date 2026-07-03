@@ -32,3 +32,10 @@
 | Ice Poseidon   | @REALIcePoseidon        |
 | AdinRoss       | @adinross               |
 | N3on           | @N3on                   |
+
+Features:
+
+move to main app page editing here for pass th
+
+1.  change/improve the clip glitch effect ... we are goin full tuna street streams ... make glitch longer then reverse it to the snap back,  whatever the glitch effect is reverse before snap.
+2. we are also going to add a talking tunafish clip art that talks over the stream. Like charlie the talking tuna.  Similar to theburntpeanut.  the tuna script needs to be obnoxious and wild.
