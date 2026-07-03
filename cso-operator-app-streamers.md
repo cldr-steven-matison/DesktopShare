@@ -666,3 +666,22 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | File-exists gate | Review queue only surfaces clips whose MP4 is on disk |
 | 404 on missing file | Publish endpoint returns actionable 404 instead of opaque 502 |
 | RBAC | Added `kafkatopics get/list/delete` to `cso-operator-app-writer` role in `cld-streaming` |
+
+# New ideas:
+
+
+Post Now:   Use telegram bot to execute script to post a clip right now.  Add on-demand flow.  Message back with link to post.
+
+
+Telegram Scripts Needed
+Post Now
+Fetch Clips
+Publish Clips 
+
+All scripts should reply back completion output 
+
+
+Clip Comment:  Add stream platform link as a first reply 
+
+
+
