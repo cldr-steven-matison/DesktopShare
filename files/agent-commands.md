@@ -45,7 +45,7 @@ Streamers pipeline — Telegram bot scripts:
 
 /bash source .env && bash ./DesktopShare/files/agent-PostNow.sh
 
-/bash source .env && bash ./DesktopShare/files/agent-approvePost.sh
+/bash source .env && bash ./DesktopShare/files/agent-approvePosts.sh
 
 # t:username -> Twitch, k:username -> Kick — 1 to 4 args, replaces the whole watch list
 /bash source .env && bash ./DesktopShare/files/agent-watchList.sh t:xqc k:adinross

@@ -162,9 +162,9 @@ Restore: `--replicas=1` and `kubectl apply -f ~/ClouderaStreamingOperators/minif
 |---|---|
 | `POST /api/streamers/fetch-clips` | NiFi FetchClips (every 15 min) |
 | `POST /api/streamers/process-clip` | NiFi ProcessClips (per Kafka message) |
-| `GET  /api/streamers/queue` | Review UI on load; `agent-approvePost.sh` |
+| `GET  /api/streamers/queue` | Review UI on load; `agent-approvePosts.sh` |
 | `GET  /api/streamers/clip/{clip_id}` | Video player in ClipCard |
-| `POST /api/streamers/approve` | Approve button; `agent-approvePost.sh` — queues a clip into `.pending_publish.json` |
+| `POST /api/streamers/approve` | Approve button; `agent-approvePosts.sh` — queues a clip into `.pending_publish.json` |
 | `POST /api/streamers/publish` | Post Now button on a Review card (direct/immediate publish, bypasses the pending queue) |
 | `POST /api/streamers/publish-next` | NiFi `PublishClip`/`PublishClipPeakTimeCron` timers; `agent-PostNow.sh` — pops the front of the pending queue |
 | `GET  /api/streamers/pending` | Pending Publish panel |
@@ -691,7 +691,7 @@ Added session 14. New tile gallery at the bottom of the Streamers page, showing 
 | Script | Does |
 |---|---|
 | `agent-PostNow.sh` | Pops and publishes the next clip in the **pending** (already-approved) queue — `POST /api/streamers/publish-next` |
-| `agent-approvePost.sh` (added session 14) | Approves whatever's at the top of the **review** queue, if anything — `GET /api/streamers/queue` then `POST /api/streamers/approve` with that clip's full metadata. Moves a clip from Review into Pending; doesn't post it |
+| `agent-approvePosts.sh` (added session 14) | Approves **every** clip currently in the review queue, if any — `GET /api/streamers/queue`, loops the whole array, `POST /api/streamers/approve` per clip with full metadata. Moves clips from Review into Pending; doesn't post them. Renamed from the singular `agent-approvePost.sh` after it was changed to hit the full queue instead of just the top clip |
 | `agent-watchList.sh` (added session 14) | Accepts 1-4 args like `t:username` (Twitch) or `k:username` (Kick), translates to the `login`/`kick:login` format the backend expects, and **replaces the whole watch list** with exactly those entries — `POST /api/streamers/watchlist`. Rejects bad prefixes or >4 args before touching the live list |
 
 All three follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` env vars, do the HTTP work against `APP_URL` (default `http://127.0.0.1:8090`), then `curl` a plain-text result back to the Telegram chat. All three were live-tested this session against the running app (`agent-watchList.sh` tested as a round-trip against the real 4-streamer watch list — same streamers in, same streamers out, so no net change to live fetch behavior).
@@ -717,12 +717,13 @@ All three follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHA
 | Future Ideas relocated | Moved the "Future Ideas" subsection out from under "Post Now" into the main "What's Next" list, so all forward-looking ideas live in one place |
 | **Post Now dismiss delay bumped** | User tried the first live Post Now in the app and confirmed it works, but the card/row vanished (1.2s) before the tweet URL was readable/clickable. Bumped to 6s on both the Review-card and Pending-row Post Now paths |
 | **Posted Clips tile gallery shipped** | New section at the bottom of the app. `mark_published()` now also appends a full record (title/source/streamer/url/thumbnail/x_handle/tweet_id/tweet_url/published_at) to a new `.published_history.json` log (capped at 500), alongside the existing flat id-set membership check it already did. New `GET /api/streamers/published` serves the most recent 60 to a new `PostedClipsPanel` tile grid. Delivers the "Publish history tab" item that had been sitting in What's Next since session 4/5 |
-| **`agent-approvePost.sh` shipped** | Approves whatever's at the top of the Review queue (`GET /queue` → `POST /approve` with full metadata), if anything. Live-tested: approved one real clip, confirmed it landed in Pending Publish |
+| **`agent-approvePosts.sh` shipped** | Approves whatever's at the top of the Review queue (`GET /queue` → `POST /approve` with full metadata), if anything. Live-tested: approved one real clip, confirmed it landed in Pending Publish |
 | **`agent-watchList.sh` shipped** | Accepts 1-4 `t:`/`k:`-prefixed args, translates and replaces the whole watch list. Live-tested as a round-trip against the real 4-streamer list (same streamers in as out — no net change) plus two rejected-input cases (bad prefix, 5 args), confirming validation runs before any mutation |
 | **Missing thumbnails — root cause + backfill** | User reported no thumbnails in Pending Publish / Posted Clips. Root cause: not a bug — new approvals/publishes correctly capture full metadata (verified live), but ~40 pending clips and 4 published clips already existed from *before* the enrichment code was deployed, so those JSON records structurally never had the fields. Added `POST /api/streamers/admin/backfill-metadata` — full scan of `processed_clips` (every message still carries the original fetch metadata, since Kafka topics aren't mutated by later approve/publish) to fill in only the missing fields on existing entries; idempotent, safe to re-run. Ran once after redeploy via plain `curl`: patched 40/41 pending and 4/4 published entries, thumbnails confirmed live |
 | **Session-numbering corrected** | Had split one day's work into "Session 14" and "Session 15" — corrected: one calendar day is one session, so everything from today lives in this Session 14 table. Session History going forward follows that rule |
 | **`x-clip-usertags.md` expanded — X growth research** | Appended a research-backed analysis of the clip-account landscape and 2026 X algorithm/growth mechanics, checked against our actual publish code. Confirmed native video upload + no links in tweet body already match best practice; flagged `PublishClipPeakTimeCron`'s cadence (~53 posts/day at full queue) as well past the 3-5/day the research says gets the best engagement per post. Logged X Premium, a 1-hashtag A/B test, and manual reply-guy activity as concrete next ideas |
 | **`PublishClipPeakTimeCron` scaled back — was posting too much** | Directly acting on the above: interval loosened `0 0/9 16-23 * * ?` → `0 0/33 16-23 * * ?` (every 9 min → every 33 min, same 16-23 UTC window). Ceiling drops from ~53 posts/day to ~16/day at full queue. Still above the research-ideal 3-5/day but a big step down |
+| **`agent-approvePost.sh` → `agent-approvePosts.sh` — full queue, not just one clip** | Changed to loop the entire review queue and approve every clip present (was: approve only the top/first clip). Renamed singular → plural to match. Live-tested against the real queue: approved 19/19 clips in one run, review queue confirmed drained to 0, pending queue grew by 19 |
 
 ### Session 13 (2026-07-02)
 
