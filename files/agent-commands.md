@@ -50,6 +50,10 @@ Streamers pipeline — Telegram bot scripts:
 # t:username -> Twitch, k:username -> Kick — 1 to 4 args, replaces the whole watch list
 /bash source .env && bash ./DesktopShare/files/agent-watchList.sh t:xqc k:adinross
 
+# arg is 'start' or 'stop'
+/bash source .env && bash ./DesktopShare/files/agent-fetchClips.sh stop
+/bash source .env && bash ./DesktopShare/files/agent-fetchClips.sh start
+
 /bash source .env && bash ./DesktopShare/files/agent-minikube-reset.sh
 
 ```

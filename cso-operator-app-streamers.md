@@ -179,7 +179,7 @@ Restore: `--replicas=1` and `kubectl apply -f ~/ClouderaStreamingOperators/minif
 | `POST /api/streamers/watchlist` | Watch List add/remove; `agent-watchList.sh` (full replace) |
 | `POST /api/streamers/watchlist/rotate` | Rotate button |
 | `GET  /api/streamers/flows` | Pipeline Status panel (30s polled) |
-| `POST /api/streamers/flows/{name}/start\|stop` | Flow start/stop buttons |
+| `POST /api/streamers/flows/{name}/start\|stop` | Flow start/stop buttons; `agent-fetchClips.sh` (FetchClips only) |
 
 ---
 
@@ -693,8 +693,9 @@ Added session 14. New tile gallery at the bottom of the Streamers page, showing 
 | `agent-PostNow.sh` | Pops and publishes the next clip in the **pending** (already-approved) queue — `POST /api/streamers/publish-next` |
 | `agent-approvePosts.sh` (added session 14) | Approves **every** clip currently in the review queue, if any — `GET /api/streamers/queue`, loops the whole array, `POST /api/streamers/approve` per clip with full metadata. Moves clips from Review into Pending; doesn't post them. Renamed from the singular `agent-approvePost.sh` after it was changed to hit the full queue instead of just the top clip |
 | `agent-watchList.sh` (added session 14) | Accepts 1-4 args like `t:username` (Twitch) or `k:username` (Kick), translates to the `login`/`kick:login` format the backend expects, and **replaces the whole watch list** with exactly those entries — `POST /api/streamers/watchlist`. Rejects bad prefixes or >4 args before touching the live list |
+| `agent-fetchClips.sh` (added session 14) | Takes one arg, `start` or `stop` — starts/stops the `FetchClips` NiFi process group via `POST /api/streamers/flows/FetchClips/{start\|stop}`, same endpoint the Pipeline Status panel's Start/Stop buttons call. Replies with the resulting state (`RUNNING`/`STOPPED`) or a usage error if the arg is missing/wrong |
 
-All three follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` env vars, do the HTTP work against `APP_URL` (default `http://127.0.0.1:8090`), then `curl` a plain-text result back to the Telegram chat. All three were live-tested this session against the running app (`agent-watchList.sh` tested as a round-trip against the real 4-streamer watch list — same streamers in, same streamers out, so no net change to live fetch behavior).
+All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` env vars, do the HTTP work against `APP_URL` (default `http://127.0.0.1:8090`), then `curl` a plain-text result back to the Telegram chat. All were live-tested this session against the running app (`agent-watchList.sh` tested as a round-trip against the real 4-streamer watch list — same streamers in, same streamers out, so no net change to live fetch behavior; `agent-fetchClips.sh` tested stop → start round-trip against the live `FetchClips` PG, confirmed restored to `RUNNING`).
 
 ---
 
@@ -724,6 +725,7 @@ All three follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHA
 | **`x-clip-usertags.md` expanded — X growth research** | Appended a research-backed analysis of the clip-account landscape and 2026 X algorithm/growth mechanics, checked against our actual publish code. Confirmed native video upload + no links in tweet body already match best practice; flagged `PublishClipPeakTimeCron`'s cadence (~53 posts/day at full queue) as well past the 3-5/day the research says gets the best engagement per post. Logged X Premium, a 1-hashtag A/B test, and manual reply-guy activity as concrete next ideas |
 | **`PublishClipPeakTimeCron` scaled back — was posting too much** | Directly acting on the above: interval loosened `0 0/9 16-23 * * ?` → `0 0/33 16-23 * * ?` (every 9 min → every 33 min, same 16-23 UTC window). Ceiling drops from ~53 posts/day to ~16/day at full queue. Still above the research-ideal 3-5/day but a big step down |
 | **`agent-approvePost.sh` → `agent-approvePosts.sh` — full queue, not just one clip** | Changed to loop the entire review queue and approve every clip present (was: approve only the top/first clip). Renamed singular → plural to match. Live-tested against the real queue: approved 19/19 clips in one run, review queue confirmed drained to 0, pending queue grew by 19 |
+| **`agent-fetchClips.sh` shipped** | Telegram script taking one arg, `start` or `stop` — calls `POST /api/streamers/flows/FetchClips/{start\|stop}`, the same start/stop endpoint the Pipeline Status panel buttons use. Live-tested a full stop → start round-trip against the real `FetchClips` PG, confirmed restored to `RUNNING` |
 
 ### Session 13 (2026-07-02)
 
