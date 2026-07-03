@@ -162,14 +162,21 @@ Restore: `--replicas=1` and `kubectl apply -f ~/ClouderaStreamingOperators/minif
 |---|---|
 | `POST /api/streamers/fetch-clips` | NiFi FetchClips (every 15 min) |
 | `POST /api/streamers/process-clip` | NiFi ProcessClips (per Kafka message) |
-| `GET  /api/streamers/queue` | Review UI on load |
+| `GET  /api/streamers/queue` | Review UI on load; `agent-approvePost.sh` |
 | `GET  /api/streamers/clip/{clip_id}` | Video player in ClipCard |
-| `POST /api/streamers/publish` | Approve button |
+| `POST /api/streamers/approve` | Approve button; `agent-approvePost.sh` — queues a clip into `.pending_publish.json` |
+| `POST /api/streamers/publish` | Post Now button on a Review card (direct/immediate publish, bypasses the pending queue) |
+| `POST /api/streamers/publish-next` | NiFi `PublishClip`/`PublishClipPeakTimeCron` timers; `agent-PostNow.sh` — pops the front of the pending queue |
+| `GET  /api/streamers/pending` | Pending Publish panel |
+| `POST /api/streamers/pending/{clip_id}/cancel` | Cancel button in Pending Publish |
+| `POST /api/streamers/pending/{clip_id}/publish-now` | Post Now button on a Pending Publish row — publishes that specific clip regardless of queue position |
+| `GET  /api/streamers/published` | Posted Clips tile gallery |
 | `POST /api/streamers/skip` | Skip button |
 | `GET  /api/streamers/topics` | Topics panel (30s cached) |
 | `POST /api/streamers/reset` | Reset Kafka button |
 | `GET  /api/streamers/watchlist` | Watch List section |
-| `POST /api/streamers/watchlist` | Watch List add/remove |
+| `POST /api/streamers/watchlist` | Watch List add/remove; `agent-watchList.sh` (full replace) |
+| `POST /api/streamers/watchlist/rotate` | Rotate button |
 | `GET  /api/streamers/flows` | Pipeline Status panel (30s polled) |
 | `POST /api/streamers/flows/{name}/start\|stop` | Flow start/stop buttons |
 
@@ -248,7 +255,7 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 
 - **NiFi-native refactor (Fetch, Process, Publish)** — ✓ PLANNED, expanded from Process-only to all three legs (see section below)
 - **Post Now (Telegram + UI)** — ✓ SHIPPED (session 14, see section below)
-- **Publish history tab** — `.published.json` already written per clip; just needs a UI to surface tweet URLs + timestamps
+- **Publish history tab** — ✓ SHIPPED (session 15, as "Posted Clips") — see section below
 - **Auto-publish mode** — bypass review queue, post top clips on a schedule
 - **Post to real X account** — ✓ PLANNED (see section below)
 - **GPU optimization** — Whisper CPU + 5B caption model — see [`gpu-optimization-plan.md`](gpu-optimization-plan.md)
@@ -647,9 +654,44 @@ Two distinct fast paths, both skip a wait — but they target two different queu
 
 Neither path needed a new backend endpoint — both reuse existing ones.
 
-- **UI**: every card in the Clip Review Queue has a `Post Now` button next to `Approve`/`Skip` (`ClipCard` in `frontend/src/components/StreamersPage.tsx`). Calls `api.streamersPublish(clip_path, tweet_text, clip_id, title)` with that card's own clip/caption, shows the returned tweet URL inline, and dismisses the card on success.
+There's now a third Post Now surface, added session 15: a per-row **Post Now** button in the **Pending Publish** panel itself — publishes that one specific already-approved clip immediately, regardless of where it sits in the queue (`POST /api/streamers/pending/{clip_id}/publish-now` → `services.publish_pending()`). This is safe out of order because the pending queue is a flat JSON file, not Kafka — see "Pending Publish panel" below for the full explanation.
+
+- **UI (Review queue)**: every card in the Clip Review Queue has a `Post Now` button next to `Approve`/`Skip` (`ClipCard` in `frontend/src/components/StreamersPage.tsx`). Calls `api.streamersPublish(...)` with that card's own clip/caption/thumbnail/streamer metadata, shows the returned tweet URL inline, and dismisses the card on success.
+- **UI (Pending queue)**: every row in Pending Publish has its own `Post Now` button, calling `api.streamersPendingPublishNow(clip_id)`.
 - **Telegram**: `agent-PostNow.sh` (DesktopShare `files/`) — `POST /api/streamers/publish-next`, replies to the Telegram chat with the resulting X URL + remaining queue depth, or the "pending queue is empty" / error case. Modeled on `agent-minikube-reset.sh`'s env-check → do the thing → curl a reply back to Telegram pattern. Verified live end-to-end (session 14): posted one real clip off the 49-deep pending queue, confirmed `queue_remaining` ticked down and the Telegram reply landed correctly.
 - **No new NiFi PG.** Post Now is an ad-hoc trigger, not a scheduled/polled action, so it doesn't need one to work. We're planning a larger redo later that moves fetch/process/post logic natively into NiFi processors (see NiFi-Native Refactor Plan below) instead of NiFi being a thin caller into FastAPI — Post Now is a candidate to fold into that redo rather than getting its own throwaway interim PG now.
+- **Dismiss delay bumped (session 15)**: both Post Now surfaces used to hide the clip preview/result 1.2s after posting (matching Approve's dismiss timing) — too fast to actually read the result or click the tweet link before it vanished. Bumped to 6s on both the Review card and the Pending row.
+
+---
+
+## Pending Publish Panel
+
+Added session 15. Previously each row showed only `clip_id` + a truncated `tweet_text` — no way to tell which clip it actually was without reading the caption. `approve_clip()` (`services/streamers.py`) and the `/approve`/`PublishRequest` model now carry `source`, `streamer`, `url`, `thumbnail_url`, and `x_handle` through from the Review card into `.pending_publish.json`, so each pending row renders a thumbnail, platform badge, streamer/X links, and a title linked to the clip URL — the same layout language as a Review `ClipCard`, just more compact. Older entries queued before this change won't have these fields (`approve_clip` calls made before the deploy) — the frontend falls back to `clip_id`/no-thumbnail gracefully for those.
+
+**Is it safe to Post Now a clip out of order in this panel?** Yes. The pending queue (`.pending_publish.json`) is a flat JSON list on the PVC, not a Kafka topic — Kafka is only involved earlier, in the Fetch→Process leg (`new_clips`/`processed_clips` topics), and the Review tab's `clip_queue()` already filters those by clip_id membership in the pending/skipped/published sets at *read* time, not by mutating Kafka state. `publish_pending(clip_id)` (new in `services/streamers.py`) removes one specific `clip_id` from wherever it sits in the list — the same "find and remove by id" shape `cancel_pending()` already used for the Cancel button — publishes it, and restores it to the front of the list if the publish attempt fails (matching `publish_next()`'s existing safety net). The relative order of the *remaining* clips, and the normal cron rotation popping index 0, are both unaffected.
+
+---
+
+## Posted Clips
+
+Added session 15. New tile gallery at the bottom of the Streamers page, showing recently-published clips: thumbnail, platform badge, streamer, title, publish timestamp, and a link to the live tweet.
+
+- `mark_published()` (`services/streamers.py`) used to just add `clip_id` to a flat id set (`.published.json`) for membership checks (used by `clip_queue()` to exclude already-posted clips from the Review queue) — that set stays, unchanged, for that purpose. It now *also* appends a full record — title/source/streamer/url/thumbnail_url/x_handle/tweet_id/tweet_url/published_at — to a new append-only log, `.published_history.json` (capped at the most recent 500 entries), written under the same `_pending_lock()` flock already used for `.pending_publish.json` writes.
+- `publish_clip()` gained the same optional metadata parameters as `approve_clip()`/`publish_clip`'s callers already carry (`publish_next()`, `publish_pending()`, and the `/publish` direct-endpoint all thread their known clip metadata through), so every successful publish — cron-drained, Post Now'd, or direct — gets logged with full display data, not just an id.
+- New `GET /api/streamers/published` → `get_published_history()` returns the most recent 60 (newest first) for the frontend gallery.
+- This also finally delivers the "Publish history tab" item that had been sitting in What's Next since session 4/5 (`.published.json already written per clip; just needs a UI to surface tweet URLs + timestamps`).
+
+---
+
+## Telegram Scripts (DesktopShare `files/`)
+
+| Script | Does |
+|---|---|
+| `agent-PostNow.sh` | Pops and publishes the next clip in the **pending** (already-approved) queue — `POST /api/streamers/publish-next` |
+| `agent-approvePost.sh` (added session 15) | Approves whatever's at the top of the **review** queue, if anything — `GET /api/streamers/queue` then `POST /api/streamers/approve` with that clip's full metadata. Moves a clip from Review into Pending; doesn't post it |
+| `agent-watchList.sh` (added session 15) | Accepts 1-4 args like `t:username` (Twitch) or `k:username` (Kick), translates to the `login`/`kick:login` format the backend expects, and **replaces the whole watch list** with exactly those entries — `POST /api/streamers/watchlist`. Rejects bad prefixes or >4 args before touching the live list |
+
+All three follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` env vars, do the HTTP work against `APP_URL` (default `http://127.0.0.1:8090`), then `curl` a plain-text result back to the Telegram chat. All three were live-tested this session against the running app (`agent-watchList.sh` tested as a round-trip against the real 4-streamer watch list — same streamers in, same streamers out, so no net change to live fetch behavior).
 
 ---
 
@@ -666,9 +708,18 @@ Neither path needed a new backend endpoint — both reuse existing ones.
 | Live-tested end-to-end | Ran `agent-PostNow.sh` against the live app/cluster twice: first version posted the one real clip sitting in the Review queue (confirmed drained, no reappearance in Pending Publish); corrected version posted one real clip off the 49-deep pending queue (confirmed `queue_remaining` ticked down) |
 | New future idea logged | **Reply Guy** — auto-reply to a posted clip's tweet with (1) a link to the streamer's own channel page and (2) the clip's transcript — see "What's Next" above |
 | **NiFi-Native Refactor Plan expanded to Fetch + Process + Publish** | Prior plan only covered Process (Whisper/vLLM via InvokeHTTP chaining). Expanded to all three legs per direction from the repo owner (a NiFi person) — real pipeline logic should live in NiFi, backend becomes an orchestrator that loops and queues work into NiFi rather than NiFi calling back into the backend. Identified two hard custom-Python-processor cases grounded in real local precedent (`nifi-custom-processors`' `nifiapi.flowfilesource`/`FlowFileTransform` pattern, `hatch build` → hostPath `/extensions` deployment): `ClipOverlayProcessor` (Fetch — ffmpeg overlay/glitch-intro orchestration) and `XPublishProcessor` (Publish — OAuth1-signed chunked X media upload, which `InvokeHTTP` can't do natively). Everything else mapped to native processors (`StandardOauth2AccessTokenProvider`, `InvokeHTTP`/`EvaluateJsonPath` chains, loop-back pagination, `ExecuteStreamCommand` for ffmpeg remux, `DetectDuplicate` for dedup, `Wait`/`ControlRate` for rate limiting). Recommended rollout order: Publish → Process → Fetch (smallest/highest-value first, riskiest custom processor last). See "NiFi-Native Refactor Plan" section above |
+### Session 15 (2026-07-03)
+
+| Change | Details |
+|---|---|
 | **Pending Publish panel enriched + per-row Post Now** | `PendingPanel` was clip_id + truncated tweet text only. `approve_clip()`/`PublishRequest` now carry `source`/`streamer`/`url`/`thumbnail_url`/`x_handle` through from the Review card into `.pending_publish.json`, so each pending row now shows thumbnail, platform badge, streamer/X links, and title-linked-to-clip-URL, matching the Review card's layout. Added a per-row `Post Now` button — new `POST /api/streamers/pending/{clip_id}/publish-now` → `services.publish_pending(clip_id)`, which removes that specific `clip_id` from wherever it sits in the pending list (same pattern `cancel_pending` already used) and publishes it immediately, restoring it to the front of the queue on failure (same safety net as `publish_next`) |
 | **Confirmed: out-of-order pending publish is safe** | The pending queue is a flat JSON file (`.pending_publish.json`), not Kafka — Kafka's `processed_clips` topic is only read by the Review tab, which already filters by clip_id membership in the pending/skipped/published sets at read time. Publishing a specific pending clip out of order just removes that one entry from the list wherever it sits; the relative order of the remaining clips (and the normal cron rotation popping index 0) is unaffected |
 | `PublishClipPeakTimeCron` renamed/re-tuned | `Peak Time 3-9pm` (`0 0/18 19-23,0-1 * * ?`, an EDT-converted wraparound window) → `Peak Time 4-11pm` (`0 0/9 16-23 * * ?`) — wider single-range window, tighter interval (18min → 9min), defined directly in UTC hours instead of converted from EDT, sidestepping the earlier DST-shift concern |
+| Future Ideas relocated | Moved the "Future Ideas" subsection out from under "Post Now" into the main "What's Next" list, so all forward-looking ideas live in one place |
+| **Post Now dismiss delay bumped** | User tried the first live Post Now in the app and confirmed it works, but the card/row vanished (1.2s) before the tweet URL was readable/clickable. Bumped to 6s on both the Review-card and Pending-row Post Now paths |
+| **Posted Clips tile gallery shipped** | New section at the bottom of the app. `mark_published()` now also appends a full record (title/source/streamer/url/thumbnail/x_handle/tweet_id/tweet_url/published_at) to a new `.published_history.json` log (capped at 500), alongside the existing flat id-set membership check it already did. New `GET /api/streamers/published` serves the most recent 60 to a new `PostedClipsPanel` tile grid. Delivers the "Publish history tab" item that had been sitting in What's Next since session 4/5 |
+| **`agent-approvePost.sh` shipped** | Approves whatever's at the top of the Review queue (`GET /queue` → `POST /approve` with full metadata), if anything. Live-tested: approved one real clip, confirmed it landed in Pending Publish |
+| **`agent-watchList.sh` shipped** | Accepts 1-4 `t:`/`k:`-prefixed args, translates and replaces the whole watch list. Live-tested as a round-trip against the real 4-streamer list (same streamers in as out — no net change) plus two rejected-input cases (bad prefix, 5 args), confirming validation runs before any mutation |
 
 ### Session 13 (2026-07-02)
 
