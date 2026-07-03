@@ -244,7 +244,7 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 
 ## What's Next
 
-- **ProcessClips NiFi refactor** — ✓ PLANNED (see section below)
+- **NiFi-native refactor (Fetch, Process, Publish)** — ✓ PLANNED, expanded from Process-only to all three legs (see section below)
 - **Post Now (Telegram + UI)** — ✓ SHIPPED (session 14, see section below)
 - **Publish history tab** — `.published.json` already written per clip; just needs a UI to surface tweet URLs + timestamps
 - **Auto-publish mode** — bypass review queue, post top clips on a schedule
@@ -320,17 +320,83 @@ Post a test clip through the review UI — it should appear on the real account,
 
 ---
 
-## ProcessClips NiFi Refactor Plan
+## NiFi-Native Refactor Plan — Fetch, Process, Publish
 
-Move Whisper transcription and vLLM caption generation out of the Python backend into NiFi-native InvokeHTTP processors — same pattern as the existing `StreamToWhisper` and `StreamTovLLM` RAG flows. Eliminates backend HTTP timeout risk; all intermediate state is visible in NiFi as flowfile attributes.
+Today all three legs of the pipeline — `FetchClips`, `ProcessClips`, `PublishClip` — are thin NiFi process groups (`ConsumeKafka`/`HandleHttpRequest` in, one `InvokeHTTP` out) that hand ALL the real work to Python in `backend/services/streamers.py`: Twitch/Kick API calls, ffmpeg overlay/glitch-intro/remux, Whisper/vLLM calls, tweepy X posting. That's backwards from the intended shape of this system — the repo owner is a NiFi person, and NiFi should own the actual flow logic, with the app backend reduced to orchestration. This plan expands the earlier Process-only refactor (kept below, close to verbatim — it's already reviewed and correct) to cover all three legs, and describes what's left of the backend once the real work moves into NiFi.
 
-### Why
+### The integration direction flips
+
+Today: NiFi calls the backend (`InvokeHTTP POST /api/streamers/{fetch-clips,process-clip,publish}`) and blocks on a synchronous HTTP response while the backend does everything.
+
+After this refactor: the backend calls NiFi. It becomes a looper/orchestrator — walk the watch list, react to UI actions (Approve/Skip/Post Now/Reset) — and POSTs each unit of work into a NiFi HTTP listener (`HandleHttpRequest`/`ListenHTTP`) so NiFi's own native/custom processors execute it and drive the flow forward. This isn't a novel idea here — `/home/tunas/DesktopShare/files/midi_melody2.py` already does exactly this shape against a MiNiFi flow: a standalone Python loop (`send_to_pipeline()`) `requests.post()`s each unit of work (one note at a time) to a `HandleHttpRequest`/`ListenHTTP` endpoint (`http://localhost:9998/contentListener`) and lets the flow take it from there. Same pattern: backend loops over data, POSTs into a NiFi listener, NiFi executes — just applied to clips instead of MIDI notes.
+
+### Native vs. custom-Python split logic
+
+Default to native NiFi processors — `InvokeHTTP`, `EvaluateJsonPath`, `UpdateAttribute`, `ExecuteStreamCommand`, `Wait`/`ControlRate`, `DetectDuplicate`, and the built-in `StandardOauth2AccessTokenProvider` controller service cover most of what Fetch/Process/Publish actually need. Drop to a custom Python processor only where a native processor genuinely can't do the job — not just because Python is more familiar. Concretely there are two hard blockers in this pipeline: (1) X's chunked media upload is OAuth 1.0a-signed, and `InvokeHTTP` has no OAuth1 signing support (only OAuth2, via the access-token-provider controller service); and (2) the ffmpeg overlay/glitch-intro pipeline is a long, conditional, randomized multi-step orchestration with hard-won gotcha-fixes (thread pinning, B-frame-free encodes for stream-copy concat) that would be brittle and painful to re-express as a chain of `ExecuteStreamCommand` calls stitched together with NiFi expression language.
+
+---
+
+### Custom Python Processor Strategy
+
+NiFi 2.x's native Python processor API (`nifiapi`) has two processor shapes in the same package family:
+
+- **Source-style** — `nifiapi.flowfilesource.FlowFileSource`, used when a processor has no incoming flowfile and originates content itself. This is the pattern actually demonstrated locally, in `/home/tunas/nifi-custom-processors/NewTransactionGenerator.py` and its packaged/`hatch`-built form `/home/tunas/nifi-custom-processors/TransactionGenerator/python/processors/TransactionGenerator.py` (built into `custom-transaction-generator.nar`). Both declare:
+  ```python
+  class Java:
+      implements = ['org.apache.nifi.python.processor.FlowFileSource']
+  class ProcessorDetails:
+      version = '0.0.x-SNAPSHOT'
+      description = '...'
+  ```
+  and implement `create(self, context)`, returning `FlowFileSourceResult(relationship='success', attributes={...}, contents=...)`.
+- **Transform-style** — `nifiapi.flowfiletransform.FlowFileTransform`, same package family, different base class: takes an incoming flowfile and returns a transformed one via `transform(self, context, flowfile)` → `FlowFileTransformResult`. **This repo only demonstrates the source-style API directly** — there's no local transform-style example checked in — but it's the same `nifiapi` family, and it's what all three custom processors below actually need (flowfile in, transformed/enriched flowfile + attributes out), not the source-style no-input shape.
+
+**Deployment/packaging** — proven locally via the CFM `Nifi` CRD manifests and `DesktopShare/files/`:
+- `nifi-cluster-30-nifi2x-nar.yaml` — NAR-only (Java) baseline, no Python.
+- `nifi-cluster-30-nifi2x-python.yaml` — adds a `hostPath: /extensions` volume mounted at `/opt/nifi/nifi-current/python/extensions` on the NiFi statefulset, plus `narProvider.volumes` pointing at a `custom-nars` PVC for Java NARs.
+- `/home/tunas/DesktopShare/files/nifi-cluster-30-nifi2x-statefulset-2.yaml` and `-3.yaml` — the most complete/authoritative version: sets `nifi.python.extensions.directories: "./python_extensions,/opt/nifi/nifi-current/python/extensions"` under `configOverride.nifiProperties.upsert`, and adds env vars `NIFI_PYTHON_LISTENER_STARTUP_TIMEOUT: "600 sec"` (gives `pip` time to install heavy deps) and `NIFI_PYTHON_PROXIED_LOG_LEVEL: "DEBUG"` (verbose `nifi-python.log` output on load failure). Both explicitly comment that the extensions directory is expected to be built with `hatch build` and dropped onto that host path.
+- `nar-loader.yaml` — a `custom-nars` PVC + throwaway `ubuntu` pod used to `kubectl cp` built NAR files onto the shared volume the NiFi statefulset mounts — how NARs land on the cluster without rebuilding the NiFi image itself.
+
+**Candidate custom processors**:
+
+| Processor | Leg | Replaces | Why native can't do it |
+|---|---|---|---|
+| `ClipOverlayProcessor` | Fetch | `_burn_platform_overlay` (~line 478) + `_burn_glitch_intro` (~line 544) | Multi-step ffmpeg orchestration — `ffprobe`-driven dimension detection, computed pixel-perfect overlay sizing, randomized freeze-frame/mosaic-color-sample/strobe intro — with hard-won gotcha-fixes (B-frame-free stream-copy concat to avoid VLC DTS-discontinuity crashes, `-threads 1` pinning to avoid silent zero-frame encodes under the pod's cgroup limit) that would be brittle to reproduce as chained `ExecuteStreamCommand` calls glued together with expression language |
+| `CaptionCleanProcessor` (optional) | Process | `_clean_caption` (~line 1185) + `_build_tweet` (~line 1247) | Not a hard blocker — just an awkward chain of `ReplaceText` regexes vs. one small Python function; noted as an option, not a requirement (see Process below) |
+| `XPublishProcessor` | Publish | `_publish_sync` (~line 1417) | X media upload is OAuth 1.0a-signed (`tweepy.OAuth1UserHandler` + chunked `media_upload`); `InvokeHTTP` has no OAuth1 signing support at all (OAuth2 only, via the access-token-provider controller service) |
+
+---
+
+### Fetch
+
+Today: `FetchClips` PG (`InvokeHTTP POST /api/streamers/fetch-clips`) calls `fetch_clips()` (~line 940), which does everything itself — token refresh, pagination, GQL lookup, download, overlay/glitch burn, dedup, and the Kafka publish.
+
+| Current backend function | Native replacement | Custom processor |
+|---|---|---|
+| `_twitch_token_refresh` / `_kick_token_refresh` (~209, ~366) | `StandardOauth2AccessTokenProvider` controller service (client-credentials grant), wired into every InvokeHTTP's "OAuth2 Access Token Provider" property. This is general NiFi capability, not a local precedent — noting that explicitly rather than misattributing it. | — |
+| `_get_broadcaster_id`, `_get_clips` (~238, ~251 — pages up to 5×100 in top_mode) | `InvokeHTTP` (`GET /helix/users`, `GET /helix/clips`) + `EvaluateJsonPath`; pagination via a self-looping connection — `UpdateAttribute` increments a `cursor`/`page` attribute, `RouteOnAttribute` routes back into the same InvokeHTTP vs. downstream — a standard NiFi loop-back idiom, not custom code | — |
+| `_gql_clip_mp4_url` (~318) | `InvokeHTTP` POST to `gql.twitch.tv/gql` with a templated JSON body via `ReplaceText`, then `EvaluateJsonPath` to pull `sourceURL`/`signature`/`value`, then `UpdateAttribute` expression language to assemble the signed MP4 URL (`${sourceURL}?sig=${signature}&token=${value:urlEncode()}`) | — |
+| `_download_clip` (~713); Kick's `_get_kick_clips` (~408, needs browser UA/Referer headers) | `InvokeHTTP` (static header properties for UA/Referer; binary content is fine), then `PutFile` to the `/clips` PVC | — |
+| `_download_hls_sync` (~1136 — Kick HLS `.m3u8` → MP4 via `ffmpeg -c copy -movflags +faststart`) | `ExecuteStreamCommand`/`ExecuteProcess` invoking ffmpeg directly — fixed-argument invocation, exactly what `files/Streamers.md`'s own draft already suggests ("DownloadClip — InvokeHTTP... or ExecuteStreamCommand with curl/wget") | — |
+| `_burn_platform_overlay` (~478) + `_burn_glitch_intro` (~544) | — | `ClipOverlayProcessor` (see Custom Python Processor Strategy above — the strongest custom-processor case in Fetch) |
+| `.seen_clips.json` dedup (keyed on `clip_id`) | `DetectDuplicate` + `DistributedMapCache` — demoed locally in `/home/tunas/NiFi-Templates`'s 1.x `DetectDuplicate` + `DistributedMapCache` template | — |
+| `_publish_clips_to_kafka` (~1155) | Already native (`PublishKafka_2_6`) — no change | — |
+
+Rate limiting: Twitch Helix is 800 points/minute — add `Wait`/`ControlRate` between paginated `GET /helix/clips` calls, per `files/Streamers.md`'s own anti-ban guidance ("space requests... 1-5 min intervals").
+
+---
+
+### Process
+
+Move Whisper transcription and vLLM caption generation out of the Python backend into NiFi-native InvokeHTTP processors — same pattern as the existing `StreamToWhisper` and `StreamTovLLM` RAG flows. Eliminates backend HTTP timeout risk; all intermediate state is visible in NiFi as flowfile attributes. This subsection is the original Process-only plan, carried over close to verbatim since it's already reviewed and correct.
+
+#### Why
 
 Current `ProcessClips` PG: `ConsumeKafka → InvokeHTTP POST /process-clip → PublishKafka`
 
 The backend's `/process-clip` does: ffmpeg WAV extract → POST whisper:8001 → POST vllm:8000 → clean caption → build tweet → return JSON. If Whisper takes 120s on a long Kick clip, NiFi's InvokeHTTP timeout fires and the clip is lost. In NiFi we can set per-step timeouts, see intermediate flowfile content, and retry individual steps.
 
-### New ProcessClips NiFi Flow (12 processors)
+#### New ProcessClips NiFi Flow (12 processors)
 
 ```
 ConsumeKafka_2_6 (new_clips)
@@ -420,9 +486,49 @@ PublishKafka_2_6  (processed_clips)
   bootstrap.servers: my-cluster-kafka-bootstrap.cld-streaming.svc:9092
 ```
 
+#### Optional Addendum — CaptionCleanProcessor
+
+`_clean_caption` (~line 1185) and `_build_tweet` (~line 1247) currently run at UI-read-time in `clip_queue()` (see Backend Changes Required #2 below), doing multi-step regex cleanup: strip model label prefixes, strip surrounding quotes, strip hashtags, cap emoji spam, normalize the platform/handle suffix. This is a second, optional custom-processor candidate — could be lifted into a small `CaptionCleanProcessor` (`FlowFileTransform`) inserted right after the vLLM `InvokeHTTP` step above, replacing what would otherwise be an awkward chain of `ReplaceText` regex processors. Noted as an option, not a requirement — keeping it backend-side at read-time also works fine and is simpler, since it only runs when the review UI loads the queue, not on the hot path.
+
+#### Process Rollout Steps
+
+1. Add `GET /wav/{clip_id}` endpoint — deploy app
+2. Test endpoint manually: `curl http://localhost:8090/api/streamers/wav/<clip_id> -o test.wav`
+3. Update `clip_queue()` to compute caption from `raw_caption` — deploy app
+4. Update `setup-streamers-flows.py` to build new 12-processor ProcessClips PG
+5. Stop current ProcessClips PG in NiFi UI
+6. Run updated `setup-streamers-flows.py` to replace ProcessClips PG
+7. Start new ProcessClips PG — verify flowfile attributes visible in NiFi
+8. End-to-end test: fetch clips → watch NiFi → processed_clips → review UI shows transcripts + captions
+9. Update `StreamersApp.json` to snapshot the new flow for future import
+
+---
+
+### Publish
+
+Today: the `PublishClip` PG already uses `HandleHttpRequest`(:9001)/`HandleHttpResponse` (per `setup-streamers-flows.py`: `HandleHttpRequest(:9001) → InvokeHTTP → /api/streamers/publish → HandleHttpResponse`) — this native listener pattern is correct and should be **kept as-is**. The only thing that changes is what sits between the request and the response.
+
+- **Keep**: `HandleHttpRequest`(:9001) / `HandleHttpResponse` — already the right shape for an ad-hoc/triggered publish, and it's also the eventual landing spot for the backend-pushes-into-NiFi direction described below (the backend already POSTs into this pattern today — see "App Backend's Role" below).
+- **Replace**: the inner `InvokeHTTP → backend /api/streamers/publish` step is replaced by `XPublishProcessor`, the custom `FlowFileTransform` processor described in the Custom Python Processor Strategy table above. It takes `clip_path` + `tweet_text` (flowfile content/attributes) in and returns `tweet_id`/`url` as output attributes, lifting `_publish_sync` (~line 1417) nearly verbatim — chunked `tweepy.OAuth1UserHandler` media upload + `Client.create_tweet(media_ids=[...])`. This cuts the backend out of the posting path entirely: the backend only forwards the HTTP call in, it doesn't build or sign the tweet itself anymore.
+- **Rate limiting**: X's anti-ban pacing (~2,400 posts/day, semi-hourly rolling windows, target 10-20/hour with randomized 3-6 min gaps, per `files/Streamers.md`'s own guidance) → native `Wait`/`ControlRate` processors ahead of `XPublishProcessor`, no custom code needed for the pacing itself — only the OAuth1-signed post is a custom-processor case.
+
+---
+
+### App Backend's Role After the Refactor
+
+The backend keeps watch-list management and UI-triggered orchestration (Approve / Post Now / Skip / Reset) — it does not go away. What changes is that it stops doing the Twitch/ffmpeg/Whisper/vLLM/tweepy work itself. Instead it loops over data (e.g. iterating the watch list on a timer, or reacting to a UI button click) and POSTs into NiFi's own `HandleHttpRequest`/`ListenHTTP` listeners to queue work into the appropriate flow, the same way `/home/tunas/DesktopShare/files/midi_melody2.py` loops over a melody and `requests.post()`s each note into a MiNiFi `HandleHttpRequest`/`ListenHTTP` endpoint (`http://localhost:9998/contentListener`) rather than doing anything with the note itself. Concretely:
+
+- **Fetch trigger**: instead of `fetch_clips()` reaching out to Twitch/Kick directly, the backend loops the watch list and POSTs `{login, source}` into a new `HandleHttpRequest` listener on the `FetchClips` PG, one call per streamer — NiFi's native/custom processors do the actual API calls, download, and overlay burn from there.
+- **Process trigger**: unchanged in shape — already Kafka-driven (`ConsumeKafka` on `new_clips`), no backend involvement either before or after this refactor.
+- **Publish trigger**: unchanged in shape — the backend already POSTs into `HandleHttpRequest`(:9001) for Post Now / cron-driven publish today; after the refactor it's still the backend doing the POST, just landing on `XPublishProcessor` instead of an `InvokeHTTP`-to-backend hop.
+
+---
+
 ### Backend Changes Required
 
-#### 1. Add `GET /api/streamers/wav/{clip_id}` (router + service)
+**Process leg** (unchanged from the original plan — still required regardless of Fetch/Publish timing):
+
+##### 1. Add `GET /api/streamers/wav/{clip_id}` (router + service)
 
 New endpoint in `routers/streamers.py`:
 ```python
@@ -448,7 +554,7 @@ async def serve_wav(clip_id: str):
 
 WAV files accumulate alongside MP4s in `/clips/`. Add `*.wav` to reset cleanup in `reset_kafka()`.
 
-#### 2. Update `clip_queue()` in `services/streamers.py`
+##### 2. Update `clip_queue()` in `services/streamers.py`
 
 Kafka messages now store `raw_caption` (not final tweet text). Apply `_clean_caption` + `_build_tweet` at queue-read time so the catalog and suffix format are always fresh:
 
@@ -466,11 +572,11 @@ if raw and not raw.startswith("["):
 # Fall through: old records with pre-built "caption" field are used as-is
 ```
 
-#### 3. Keep `POST /api/streamers/process-clip`
+##### 3. Keep `POST /api/streamers/process-clip`
 
 Endpoint stays for manual/debug use. NiFi will no longer call it once the new ProcessClips PG is live.
 
-#### 4. Kafka reset — wipe WAV files
+##### 4. Kafka reset — wipe WAV files
 
 In `reset_kafka()`, add WAV cleanup alongside MP4:
 ```python
@@ -478,17 +584,23 @@ for wav in glob.glob(str(storage / "*.wav")):
     Path(wav).unlink(missing_ok=True)
 ```
 
-### Rollout Steps
+**Fetch/Publish legs** — mostly *removal*, not addition. Once native/custom NiFi processors own the work:
 
-1. Add `GET /wav/{clip_id}` endpoint — deploy app
-2. Test endpoint manually: `curl http://localhost:8090/api/streamers/wav/<clip_id> -o test.wav`
-3. Update `clip_queue()` to compute caption from `raw_caption` — deploy app
-4. Update `setup-streamers-flows.py` to build new 12-processor ProcessClips PG
-5. Stop current ProcessClips PG in NiFi UI
-6. Run updated `setup-streamers-flows.py` to replace ProcessClips PG
-7. Start new ProcessClips PG — verify flowfile attributes visible in NiFi
-8. End-to-end test: fetch clips → watch NiFi → processed_clips → review UI shows transcripts + captions
-9. Update `StreamersApp.json` to snapshot the new flow for future import
+- `fetch_clips()`, `_twitch_token_refresh`/`_kick_token_refresh`, `_get_broadcaster_id`/`_get_clips`, `_gql_clip_mp4_url`, `_download_clip`, `_get_kick_clips`, `_download_hls_sync`, `_burn_platform_overlay`/`_burn_glitch_intro`, and the `.seen_clips.json` dedup logic can all be deleted from `services/streamers.py` — that logic now lives in the `FetchClips` PG (native processors + `ClipOverlayProcessor`).
+- `_publish_sync` can be deleted once `XPublishProcessor` is live; `publish_clip()`/`publish_next()` shrink to thin wrappers that just POST into `HandleHttpRequest`(:9001) instead of calling tweepy directly.
+- New small pieces needed for the backend-pushes-into-NiFi direction: a `HandleHttpRequest` listener added to the `FetchClips` PG (new — Fetch doesn't have one today, since Fetch is Kafka-consumer-free and currently only entered via `InvokeHTTP` from NiFi's own timer-driven PG), and a small backend loop (replacing `fetch_clips()`'s body) that walks the watch list and POSTs each `{login, source}` pair into it.
+
+---
+
+### Rollout Sequencing
+
+Recommended order: **Publish → Process → Fetch**.
+
+1. **Publish first** — smallest scope, highest value-per-effort. The `HandleHttpRequest`(:9001)/`HandleHttpResponse` skeleton already exists and doesn't change; only one custom processor (`XPublishProcessor`) needs to be built and swapped in for the inner `InvokeHTTP`. Low design risk, immediate payoff (removes the OAuth1 tweepy dependency from the backend's request path).
+2. **Process second** — already fully planned and reviewed (see Process subsection above) — lowest new-design risk of the three, since the flow and backend changes are already spelled out precisely.
+3. **Fetch last** — the most complex leg: multiple native-loop patterns (pagination, dedup) plus the highest-risk custom processor in the whole plan (`ClipOverlayProcessor`, carrying the ffmpeg overlay/glitch-intro gotcha-fixes). Doing this last means the custom-processor deployment pattern (hatch build → hostPath volume → NiFi Python listener restart) is already proven out by `XPublishProcessor` and (optionally) `CaptionCleanProcessor` before attempting the riskiest lift.
+
+---
 
 ### Key Gotchas
 
@@ -499,6 +611,10 @@ for wav in glob.glob(str(storage / "*.wav")):
 | Old processed_clips records have `caption` not `raw_caption` | clip_queue() falls back to raw `caption` field for old records |
 | InvokeHTTP WAV URL uses EL `${clip_id}` — must set Dynamic Property disabled | clip_id comes from EvaluateJsonPath attribute, use it directly in URL field |
 | Return Timestamps must be True in Whisper for clips >30s | Already set in Whisper ConfigMap — no change needed |
+| Custom Python processor changes require a full rebuild/redeploy cycle, not a simple app redeploy | `hatch build` → copy output onto the `/extensions` hostPath (or `custom-nars` PVC via the `nar-loader.yaml` pattern) → restart NiFi's Python process (`NIFI_PYTHON_LISTENER_STARTUP_TIMEOUT` gives it up to 600s to reload) — budget for this, it's slower than `kubectl rollout restart` on the app |
+| OAuth1 signing has no native NiFi equivalent | Must stay in `XPublishProcessor` — don't attempt to hand-roll OAuth1 HMAC-SHA1 signing in expression language |
+| ffmpeg thread-pinning and B-frame gotchas already fixed in `_burn_platform_overlay`/`_burn_glitch_intro` | Preserve verbatim when lifting into `ClipOverlayProcessor` — don't rewrite the ffmpeg calls from scratch; re-deriving `-threads 1`/`-bf 0` from first principles is exactly how these bugs got reintroduced before |
+| Reversed integration direction means the backend and NiFi must agree on listener contracts | Version/document each `HandleHttpRequest` payload shape (Fetch's new listener, Publish's existing one) in `setup-streamers-flows.py` comments so backend and flow don't drift independently |
 
 ---
 
@@ -552,6 +668,7 @@ Neither path needed a new backend endpoint — both reuse existing ones.
 | **No new NiFi PG this session** | Considered adding a stopped placeholder `PostNow` PG for parity with FetchClips/ProcessClips/PublishClip, but skipped — Post Now is ad-hoc, not scheduled, so it doesn't need one, and a bigger future redo will move fetch/process/post logic natively into NiFi processors anyway (see NiFi-Native Refactor Plan). Not worth building throwaway interim infra for |
 | Live-tested end-to-end | Ran `agent-PostNow.sh` against the live app/cluster twice: first version posted the one real clip sitting in the Review queue (confirmed drained, no reappearance in Pending Publish); corrected version posted one real clip off the 49-deep pending queue (confirmed `queue_remaining` ticked down) |
 | New future idea logged | **Reply Guy** — auto-reply to a posted clip's tweet with (1) a link to the streamer's own channel page and (2) the clip's transcript — see "Future Ideas" above |
+| **NiFi-Native Refactor Plan expanded to Fetch + Process + Publish** | Prior plan only covered Process (Whisper/vLLM via InvokeHTTP chaining). Expanded to all three legs per direction from the repo owner (a NiFi person) — real pipeline logic should live in NiFi, backend becomes an orchestrator that loops and queues work into NiFi rather than NiFi calling back into the backend. Identified two hard custom-Python-processor cases grounded in real local precedent (`nifi-custom-processors`' `nifiapi.flowfilesource`/`FlowFileTransform` pattern, `hatch build` → hostPath `/extensions` deployment): `ClipOverlayProcessor` (Fetch — ffmpeg overlay/glitch-intro orchestration) and `XPublishProcessor` (Publish — OAuth1-signed chunked X media upload, which `InvokeHTTP` can't do natively). Everything else mapped to native processors (`StandardOauth2AccessTokenProvider`, `InvokeHTTP`/`EvaluateJsonPath` chains, loop-back pagination, `ExecuteStreamCommand` for ffmpeg remux, `DetectDuplicate` for dedup, `Wait`/`ControlRate` for rate limiting). Recommended rollout order: Publish → Process → Fetch (smallest/highest-value first, riskiest custom processor last). See "NiFi-Native Refactor Plan" section above |
 
 ### Session 13 (2026-07-02)
 
