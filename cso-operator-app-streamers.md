@@ -245,6 +245,7 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 ## What's Next
 
 - **ProcessClips NiFi refactor** — ✓ PLANNED (see section below)
+- **Post Now (Telegram + UI)** — ✓ SHIPPED (session 14, see section below)
 - **Publish history tab** — `.published.json` already written per clip; just needs a UI to surface tweet URLs + timestamps
 - **Auto-publish mode** — bypass review queue, post top clips on a schedule
 - **Post to real X account** — ✓ PLANNED (see section below)
@@ -517,7 +518,33 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 
 ---
 
+## Post Now — Immediate Single-Clip Publish (UI + Telegram)
+
+**Not the same thing as the pending-publish rotation.** Approve → `/api/streamers/approve` queues a clip in `.pending_publish.json`, where it waits for a NiFi timer (`PublishClip` backup, 1/day, or `PublishClipPeakTimeCron`, 3pm-9pm EDT) to drain it via `/publish-next`. **Post Now** is a second, immediate path: publish *this specific clip* right now, bypassing that wait entirely. It reuses the existing direct-publish endpoint — `POST /api/streamers/publish` (`services.publish_clip()`) — which already posts via tweepy and calls `mark_published(clip_id)` on success, so a Post Now'd clip is excluded from the normal Approve/rotation flow afterward (no double-post). **No new backend endpoint was needed.**
+
+- **UI**: every card in the Clip Review Queue now has a `Post Now` button next to `Approve`/`Skip` (`ClipCard` in `frontend/src/components/StreamersPage.tsx`). Calls `api.streamersPublish(clip_path, tweet_text, clip_id, title)` with that card's own clip/caption, shows the returned tweet URL inline, and dismisses the card on success.
+- **Telegram**: `agent-PostNow.sh` (DesktopShare `files/`) — `GET /api/streamers/queue`, takes the top clip (same one shown first in the Review tab; `clip_queue()` already excludes skipped/pending/published clips), `POST`s it to `/api/streamers/publish`, and replies to the Telegram chat with the resulting X URL (or "queue empty" / error). Modeled on `agent-minikube-reset.sh`'s env-check → do the thing → curl a reply back to Telegram pattern. Verified live end-to-end (session 14): posted the one real queued clip, confirmed the queue drained to 0 and stayed drained, then confirmed the empty-queue reply path on a second run.
+- **No new NiFi PG.** Post Now is an ad-hoc trigger, not a scheduled/polled action, so it doesn't need one to work. We're planning a larger redo later that moves fetch/process/post logic natively into NiFi processors (see "ProcessClips NiFi Refactor Plan" above) instead of NiFi being a thin caller into FastAPI — Post Now is a candidate to fold into that redo rather than getting its own throwaway interim PG now.
+
+### Future Ideas (not built)
+
+- **Clip Comment** — first reply to each posted clip auto-links back to the source platform (the original Twitch/Kick clip URL).
+- **Auto-reply with transcript highlight** — after posting, reply to the same tweet with a short quotable excerpt from the Whisper transcript — the single most "narrative"/quotable line or moment, not the full transcript. Not scoped — likely needs vLLM (already in the pipeline) to pick the excerpt rather than a naive heuristic.
+- **More Telegram scripts** — `Fetch Clips` and `Publish Clips` triggers, same reply-to-chat pattern as `agent-PostNow.sh`. Post Now is the first one built.
+
+---
+
 ## Session History
+
+### Session 14 (2026-07-03)
+
+| Change | Details |
+|---|---|
+| **Post Now shipped — UI button + Telegram script** | New direct-publish path for a specific clip, bypassing the pending-queue/rotation wait. Reused the existing `POST /api/streamers/publish` endpoint as-is (no backend changes). Added a `Post Now` button to every `ClipCard` in the Review Queue (`StreamersPage.tsx`) and a new `agent-PostNow.sh` Telegram script (posts the top-of-queue clip, replies with the X URL). See "Post Now" section above |
+| **Design correction mid-session** | First pass mistakenly modeled Post Now on `/publish-next` (pop the pending FIFO queue, same thing the cron timers do). Corrected: Post Now publishes *the specific clip you're on* — the card you're viewing in the UI, or the top of the review queue via Telegram — not whatever's already been Approved into the pending queue |
+| **No new NiFi PG this session** | Considered adding a stopped placeholder `PostNow` PG for parity with FetchClips/ProcessClips/PublishClip, but skipped — Post Now is ad-hoc, not scheduled, so it doesn't need one, and a bigger future redo will move fetch/process/post logic natively into NiFi processors anyway (see "ProcessClips NiFi Refactor Plan"). Not worth building throwaway interim infra for |
+| Live-tested end-to-end | Ran `agent-PostNow.sh` against the live app/cluster: posted the one real clip sitting in the review queue, confirmed the queue drained to 0 clips and the clip did not reappear in Pending Publish, then confirmed the "queue empty" reply on a second run |
+| New future idea logged | Auto-reply to a posted clip's tweet with a short quotable transcript excerpt (not the full transcript) — see "Future Ideas" above |
 
 ### Session 13 (2026-07-02)
 
@@ -666,22 +693,4 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 | File-exists gate | Review queue only surfaces clips whose MP4 is on disk |
 | 404 on missing file | Publish endpoint returns actionable 404 instead of opaque 502 |
 | RBAC | Added `kafkatopics get/list/delete` to `cso-operator-app-writer` role in `cld-streaming` |
-
-# New ideas:
-
-
-Post Now:   Use telegram bot to execute script to post a clip right now.  Add on-demand flow.  Message back with link to post.
-
-
-Telegram Scripts Needed
-Post Now
-Fetch Clips
-Publish Clips 
-
-All scripts should reply back completion output 
-
-
-Clip Comment:  Add stream platform link as a first reply 
-
-
 
