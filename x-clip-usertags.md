@@ -58,3 +58,12 @@ If you want a deeper dive into accounts for a **specific streamer** (e.g., xQc, 
 | [@xQcClips](https://x.com/xQcClips) | xQc | Twitch | xQc-specific clips | xQc | ~1,800 |
 | [@IShowSpeedCIips](https://x.com/IShowSpeedCIips) | I Show Speed Clips | Twitch | Daily clips & highlights | IShowSpeed | ~1,400 |
 | [@KickClipCraze](https://x.com/KickClipCraze) | KickClipCraze | Kick | Best moments, no-fluff highlights | Various Kick streamers | ~1,300 |
+
+
+| Account | Display Name | Platform | Niche / Specialty | Preferred Streamers / Focus | Followers | Recent Performance (Examples) |
+|---------|--------------|----------|-------------------|-----------------------------|-----------|-------------------------------|
+| [@kick_clips](https://x.com/kick_clips) | Kick Clips 🎬 | Kick | Viral drama, funny & shocking moments | Adrien Broner, DeenTheGreat, Celina Powell, Neon & similar Kick personalities | High (very active) | Multiple posts with **500k–1.4M views** in recent days (e.g. 1.17M, 1.46M, 631k views) |
+| [@clippedszn](https://x.com/clippedszn) | clip 🛸 | Kick (mainly) | High-engagement viral clips | HSTikkyTokky & other viral Kick moments | ~237,000 | Recent post hit **631k views** + 13k+ likes |
+| [@clipsbyryze](https://x.com/clipsbyryze) | Clipsbyryze | Kick & Twitch | Daily streamer clips | Various Kick streamers (secret talent / viewer growth clips) | Growing | Consistent daily clips with solid views |
+| [@KickClipsGoWild](https://x.com/KickClipsGoWild) | Kick Clips Go Wild | Kick | Wild / unfiltered Kick moments | Various Kick streamers (e.g. Oblivion cake shaking clip) | Active | Regular viral-style clips |
+| [@ClipperSznn](https://x.com/ClipperSznn) | ClipperSznn | Kick & Twitch | General clipping | Broad streamer clips | ~9,000 | Active in the "Clipper Szn" niche |
