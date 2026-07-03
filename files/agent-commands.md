@@ -45,6 +45,9 @@ Streamers pipeline — Telegram bot scripts:
 
 /bash source .env && bash ./DesktopShare/files/agent-PostNow.sh
 
+# optional usertag arg -> posts that streamer's pending clip out of order; falls back to next-in-queue if none found
+/bash source .env && bash ./DesktopShare/files/agent-PostNow.sh xqc
+
 /bash source .env && bash ./DesktopShare/files/agent-approvePosts.sh
 
 # t:username -> Twitch, k:username -> Kick — 1 to 4 args, replaces the whole watch list
