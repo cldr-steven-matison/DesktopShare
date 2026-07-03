@@ -12,34 +12,19 @@ fi
 
 APP_URL="${APP_URL:-http://127.0.0.1:8090}"
 
-echo "🚀 Post Now: checking review queue..."
+echo "🚀 Post Now: popping next pending (approved) clip..."
 
-QUEUE=$(curl -s "$APP_URL/api/streamers/queue")
-TOP_CLIP=$(echo "$QUEUE" | jq -c '.[0] // empty')
+RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/publish-next")
 
-if [ -z "$TOP_CLIP" ]; then
-    FINAL_MSG="⚠️ Post Now: review queue is empty — nothing to post."
+if echo "$RESPONSE" | jq -e '.published == false' > /dev/null 2>&1; then
+    REASON=$(echo "$RESPONSE" | jq -r '.reason // "unknown"')
+    FINAL_MSG="⚠️ Post Now: pending queue is empty — nothing to post (${REASON})."
+elif echo "$RESPONSE" | jq -e '.ok == true' > /dev/null 2>&1; then
+    URL=$(echo "$RESPONSE" | jq -r '.url')
+    REMAINING=$(echo "$RESPONSE" | jq -r '.queue_remaining // 0')
+    FINAL_MSG="✅ Posted: ${URL} (${REMAINING} left in pending queue)"
 else
-    CLIP_PATH=$(echo "$TOP_CLIP" | jq -r '.clip_path')
-    TWEET_TEXT=$(echo "$TOP_CLIP" | jq -r '.caption')
-    CLIP_ID=$(echo "$TOP_CLIP" | jq -r '.clip_id // ""')
-    TITLE=$(echo "$TOP_CLIP" | jq -r '.title // ""')
-
-    echo "=== Posting clip: $CLIP_ID ==="
-    BODY=$(jq -n --arg clip_path "$CLIP_PATH" --arg tweet_text "$TWEET_TEXT" \
-                  --arg clip_id "$CLIP_ID" --arg title "$TITLE" \
-                  '{clip_path: $clip_path, tweet_text: $tweet_text, clip_id: $clip_id, title: $title}')
-
-    RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/publish" \
-        -H "Content-Type: application/json" \
-        -d "$BODY")
-
-    if echo "$RESPONSE" | jq -e '.ok == true' > /dev/null 2>&1; then
-        URL=$(echo "$RESPONSE" | jq -r '.url')
-        FINAL_MSG="✅ Posted: ${URL}"
-    else
-        FINAL_MSG="❌ Post Now failed: ${RESPONSE}"
-    fi
+    FINAL_MSG="❌ Post Now failed: ${RESPONSE}"
 fi
 
 echo "$FINAL_MSG"
