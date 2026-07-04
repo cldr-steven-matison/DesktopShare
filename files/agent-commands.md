@@ -63,22 +63,26 @@ Streamers pipeline — Telegram bot scripts:
 
 These are tested and work:
 
+post now with user
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-PostNow.sh xqc"
 ```
 
+start fetch clips 
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-fetchClips.sh start"
 ```
 
+stop fetch clips
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-fetchClips.sh stop"
 ```
 
+approve posts 
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-approvePosts.sh"
 ```
-
+update watch list
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh t:extremely k:deenthegreat"
 ```
