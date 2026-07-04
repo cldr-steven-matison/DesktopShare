@@ -60,3 +60,25 @@ Streamers pipeline — Telegram bot scripts:
 /bash source .env && bash ./DesktopShare/files/agent-minikube-reset.sh
 
 ```
+
+These are tested and work:
+
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-PostNow.sh xqc"
+```
+
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-fetchClips.sh start"
+```
+
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-fetchClips.sh stop"
+```
+
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-approvePosts.sh"
+```
+
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh t:extremely k:deenthegreat"
+```
