@@ -685,22 +685,7 @@ Confirmed no live-status check exists anywhere in the current code (the session-
 
 Sources: [Kick API docs](https://docs.kick.com/) (llms-full.txt endpoint index).
 
-### Draft — Kick feedback email (not sent)
-
-> Subject: Feature request — public clips endpoint with sort/date-range support
->
-> Hi Kick team,
->
-> We run a small automated highlight-clipping bot (Twitch + Kick) and rely on your API for channel and live-status data. We noticed the Public API v1 has no `/clips` endpoint at all — Categories, Users, Channels, Chat, Livestreams, Rewards, Moderation, and the KICKs leaderboard are documented, but nothing for clips. Right now the only way to list a channel's clips is the unofficial `kick.com/api/v2/channels/{slug}/clips` endpoint, which only supports `sort=date` — no sort-by-views, no date-range filtering.
->
-> Twitch's official `Get Clips` endpoint supports exactly this (time-window + pagination, with view-count rankable client-side across the full window), and it's a meaningful gap for anyone building clip-discovery or highlight tooling on Kick versus Twitch. A public `/clips` endpoint with `sort=view_count|date` and a date-range filter would make Kick clip-tooling on par with Twitch's, and would likely encourage more third-party highlight/clip accounts to build on Kick specifically instead of scraping the web client.
->
-> Happy to share more detail on what we're building if useful.
->
-> Thanks,
-> [name / @TunaStreetTest]
-
-Ready to send as-is or edit — not sent yet, no email address for Kick's feedback contact confirmed.
+**Kick feedback email:** sent by Steven directly (2026-07-10) — no draft kept here.
 
 ---
 
