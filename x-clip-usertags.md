@@ -98,7 +98,7 @@ The vLLM prompt (`services/streamers.py`, ProcessClips) already asks for: a punc
 ### Ideas to test, in priority order
 
 1. **Throttle `PublishClipPeakTimeCron` toward the research-backed 3-5/day**, or at minimum add a per-day cap independent of queue depth, and watch whether engagement-per-post improves even as post *count* drops. This is the single biggest mismatch between what we do and what the 2026 data says works — worth a real before/after comparison using the new Posted Clips history (`.published_history.json` now has timestamps + can be joined against X analytics).
-2. **Get X Premium on @TunaStreetTest** if not already active — the 6-10x impression multiplier plus reply-priority is the highest-leverage paid lever available, and the account already clears the "3+ posts/week, 30+ days old" bar Premium is worth it past.
+2. ~~**Get X Premium on @TunaStreetTest**~~ — **already active** (confirmed 2026-07-10; was required just to get X API access in the first place). See "Backend investigation" below for what this actually unlocks re: video length.
 3. **A/B test exactly one hashtag** on a subset of posts (e.g. `#Kick` or `#Twitch` or the streamer's name) against the current zero-hashtag baseline, using the Posted Clips gallery + X analytics to compare — the research is genuinely split here, so this is better resolved empirically against our own data than by reading more blog posts.
 4. **Manual "reply guy" activity on bigger clip/streaming accounts** — this is a human/operator behavior, not a pipeline feature, but it's cited as the highest-leverage zero-to-growth tactic across nearly every 2026 source found. Not something to automate (spammy automated replies are exactly what gets accounts suspended) — a deliberate, small daily habit.
 5. **First-hour engagement matters more than we can currently influence** — nothing to build here, just a reason peak-hour timing (see `PublishClipPeakTimeCron`) matters more than raw volume: a post at a dead hour with zero early replies decays before it has a chance, regardless of caption quality.
@@ -127,3 +127,59 @@ The vLLM prompt (`services/streamers.py`, ProcessClips) already asks for: a punc
 - [ScreenRant — Twitch Streamer Gets DMCA Strike On Twitter For His Own Year-Old Clip](https://screenrant.com/twitch-streamer-xqc-dmca-copyright-strike-twitter-clip/)
 - [Wardrome — Maximizing engagement: best times to post about gaming on Twitter](https://wardrome.com/maximizing-engagement-the-best-times-to-post-about-gaming-on-twitter-in-the-us/)
 - [Buffer — The Best Time to Post on Twitter/X in 2026: 1 Million Posts Analyzed](https://buffer.com/resources/best-time-to-post-on-twitter-x/)
+
+---
+
+## Backend investigation — clip selection, duration caps, live timing (2026-07-10)
+
+Prompted by: uncertainty about whether fetched clips are actually the *best* moments, whether the duration cap is discarding good longer clips, whether Twitch/Kick are both being used to full capability, and interest in posting closer to when a streamer is actually live. Read against the real code (`backend/services/streamers.py`), not guessed.
+
+### Clip selection — confirmed gap
+
+`get_fetch_mode()` defaults to `{"mode": "recent"}` (and that's what's live right now: `recent/all`). In `recent` mode, Twitch's `_get_clips` ranks candidates by **longest duration**, not views (`sorted(valid, key=lambda c: c.get("duration", 0), reverse=True)`) — we are not selecting for quality at all in the default mode, only for length within the cap. View-based ranking only happens in `top` mode, and even then only for Twitch. **Not touched yet** — flagged for a future decision, not urgent per current priority.
+
+### Kick vs. Twitch — structural asymmetry, not a bug
+
+Twitch `top_mode` pages up to 5×100 clips and ranks by `view_count` — real work. Kick cannot do this: confirmed via Kick's own docs (`docs.kick.com`) that **no `/clips` endpoint exists anywhere in the official Public API v1** — Categories, Users, Channels, Chat, Livestreams, Channel Rewards, Moderation, KICKs leaderboard are the entire surface. Our `_get_kick_clips` uses the *unofficial* web endpoint (`kick.com/api/v2/channels/{slug}/clips`), which only supports `sort=date` — no view-count sort, no date-range filter server-side. That's why `_get_kick_clips` always pulls the 20 most recent clips and ranks by views only among those 20, regardless of `top_mode`/`period` (both parameters are accepted but silently ignored for Kick). A viral Kick clip that ages out of the most-recent-20 can never surface — this is a platform ceiling, not something fixable in our code.
+
+**Kick feedback opportunity:** worth emailing Kick's dev/feedback contact to ask for a public `/clips` endpoint with view-count sort + date-range filtering (Twitch's Get Clips already does this) — a concrete, specific, well-grounded ask now that we've confirmed the gap against their actual docs rather than assuming. Draft below.
+
+### Duration cap — why it exists, and what Premium actually changes
+
+Twitch capped to 45–100s, Kick to 45–90s, because session 13 hit a live X 403 ("video longer than 2 minutes") — the caps are a safety margin under X's **standard 2:20 (140s) non-Premium API limit**.
+
+**@TunaStreetTest already has X Premium** (confirmed 2026-07-10). Researched what that actually unlocks via the *API* (not the web-upload UI, which quotes much bigger numbers — hours — that don't apply to programmatic posting):
+
+- Standard API limit: 2:20 (140s), any account.
+- Premium/Amplify-eligible accounts can post **up to ~10 minutes** via chunked upload — but only when the upload explicitly sets `media_category=amplify_video` instead of the default `tweet_video`. A real dev-community report (2026) shows a Premium account still hitting a 403 at >10 min even with the right category — so ~10 min looks like the actual API ceiling regardless of what the marketing pages for the web app claim.
+- **Our code never sets `media_category`** — `_publish_sync` calls `api_v1.media_upload(str(path), chunked=True)` (`services/streamers.py:1601`) with no category, which defaults to `tweet_video` and the standard 2:20 limit. Premium being active on the account doesn't help until the upload call explicitly asks for the Premium-eligible category.
+- **Not implemented yet** — per current priority, nothing to build until fetch-mode/selection direction is settled. When it's time: change `media_category="amplify_video"` on that one call and test against a real >2:20 clip before touching the fetch-side duration caps at all.
+
+Sources: [X Developer Community — Premium 403 at >10min with amplify_video](https://devcommunity.x.com/t/gettiing-a-403-error-that-user-cant-post-a-video-longer-than-10-mins-unless-verified-but-already-on-premium/258219), [X Chunked Media Upload docs](https://docs.x.com/x-api/media/quickstart/media-upload-chunked), [help.x.com — Longer videos for Premium subscribers](https://help.x.com/en/using-x/premium-longer-videos)
+
+### Live-status timing — cheaper than expected on both platforms
+
+Confirmed no live-status check exists anywhere in the current code (the session-12 "Live Streamer Alert" idea is still just a one-liner, not designed). Checked what each platform's *official* API actually offers, since this is the piece closest to what's driving the ReplyGuy views:
+
+- **Twitch**: `GET /helix/streams?user_login=...` — up to 100 logins per call, well-documented, already how similar bots do it. No research needed, just not built.
+- **Kick**: confirmed via official docs — `GET /public/v1/users/livestreams` takes up to 100 `user_id`s in one call (app access token / client_credentials is sufficient, same auth we already use for `_kick_token_refresh`), returns `started_at` + `viewer_count` per currently-live streamer. Kick also has a deprecated `GET /public/v1/livestreams` with a `sort=viewer_count|started_at` param, but the non-deprecated `users/livestreams` is the right one for "is X currently live."
+- Both platforms make a whole-watch-list live check cheap (one call each, not per-streamer), which is the missing piece for "fetch more aggressively while live, publish faster after a good clip lands."
+
+Sources: [Kick API docs](https://docs.kick.com/) (llms-full.txt endpoint index).
+
+### Draft — Kick feedback email (not sent)
+
+> Subject: Feature request — public clips endpoint with sort/date-range support
+>
+> Hi Kick team,
+>
+> We run a small automated highlight-clipping bot (Twitch + Kick) and rely on your API for channel and live-status data. We noticed the Public API v1 has no `/clips` endpoint at all — Categories, Users, Channels, Chat, Livestreams, Rewards, Moderation, and the KICKs leaderboard are documented, but nothing for clips. Right now the only way to list a channel's clips is the unofficial `kick.com/api/v2/channels/{slug}/clips` endpoint, which only supports `sort=date` — no sort-by-views, no date-range filtering.
+>
+> Twitch's official `Get Clips` endpoint supports exactly this (time-window + pagination, with view-count rankable client-side across the full window), and it's a meaningful gap for anyone building clip-discovery or highlight tooling on Kick versus Twitch. A public `/clips` endpoint with `sort=view_count|date` and a date-range filter would make Kick clip-tooling on par with Twitch's, and would likely encourage more third-party highlight/clip accounts to build on Kick specifically instead of scraping the web client.
+>
+> Happy to share more detail on what we're building if useful.
+>
+> Thanks,
+> [name / @TunaStreetTest]
+
+Ready to send as-is or edit — not sent yet, no email address for Kick's feedback contact confirmed.
