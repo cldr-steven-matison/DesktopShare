@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: custom-python-extensions
+  namespace: cfm-streaming
+spec:
+  storageClassName: "standard"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: python-extensions-loader
+  namespace: cfm-streaming
+spec:
+  containers:
+  - name: ubuntu
+    command:
+    - /bin/bash
+    image: ubuntu:latest
+    stdin: true
+    tty: true
+    volumeMounts:
+    - name: custom-python-extensions-vol
+      mountPath: /home/ubuntu/extensions
+  volumes:
+    - name: custom-python-extensions-vol
+      persistentVolumeClaim:
+        claimName: custom-python-extensions

@@ -336,79 +336,44 @@ Post a test clip through the review UI — it should appear on the real account,
 
 ## NiFi-Native Refactor Plan — Fetch, Process, Publish
 
-Today all three legs of the pipeline — `FetchClips`, `ProcessClips`, `PublishClip` — are thin NiFi process groups (`ConsumeKafka`/`HandleHttpRequest` in, one `InvokeHTTP` out) that hand ALL the real work to Python in `backend/services/streamers.py`: Twitch/Kick API calls, ffmpeg overlay/glitch-intro/remux, Whisper/vLLM calls, tweepy X posting. That's backwards from the intended shape of this system — the repo owner is a NiFi person, and NiFi should own the actual flow logic, with the app backend reduced to orchestration. This plan expands the earlier Process-only refactor (kept below, close to verbatim — it's already reviewed and correct) to cover all three legs, and describes what's left of the backend once the real work moves into NiFi.
+Today `FetchClips`/`ProcessClips`/`PublishClip` are thin NiFi shells that hand all real work to Python (`backend/services/streamers.py`). Goal: NiFi owns the actual flow logic; backend shrinks to orchestration (loops the watch list / reacts to UI actions, POSTs work into a NiFi listener — same shape as `files/midi_melody2.py` already does against MiNiFi).
 
-### The integration direction flips
+**Native vs. custom Python:** default to native processors (`InvokeHTTP`, `EvaluateJsonPath`, `StandardOauth2AccessTokenProvider`, etc.) — custom Python only where native genuinely can't do the job. Two real blockers: OAuth1-signed X media upload (`InvokeHTTP` only supports OAuth2), and the ffmpeg overlay/glitch-intro orchestration (too many hard-won gotcha-fixes to safely re-express as chained `ExecuteStreamCommand`).
 
-Today: NiFi calls the backend (`InvokeHTTP POST /api/streamers/{fetch-clips,process-clip,publish}`) and blocks on a synchronous HTTP response while the backend does everything.
+**Custom processor deployment — now validated**, not just planned: see "LiveStreamerAlert" above for the actual working setup (`FlowFileTransform` base class, PVC-backed extensions dir since `minikube mount` failed on this host, `nifi.python.extensions.directories` config, NiFi must be 2.x). `XPublishProcessor` below is superseded by `XLivePostProcessor` for the text-post case — the same processor extends to chunked media upload once video posting moves here too.
 
-After this refactor: the backend calls NiFi. It becomes a looper/orchestrator — walk the watch list, react to UI actions (Approve/Skip/Post Now/Reset) — and POSTs each unit of work into a NiFi HTTP listener (`HandleHttpRequest`/`ListenHTTP`) so NiFi's own native/custom processors execute it and drive the flow forward. This isn't a novel idea here — `/home/tunas/DesktopShare/files/midi_melody2.py` already does exactly this shape against a MiNiFi flow: a standalone Python loop (`send_to_pipeline()`) `requests.post()`s each unit of work (one note at a time) to a `HandleHttpRequest`/`ListenHTTP` endpoint (`http://localhost:9998/contentListener`) and lets the flow take it from there. Same pattern: backend loops over data, POSTs into a NiFi listener, NiFi executes — just applied to clips instead of MIDI notes.
-
-### Native vs. custom-Python split logic
-
-Default to native NiFi processors — `InvokeHTTP`, `EvaluateJsonPath`, `UpdateAttribute`, `ExecuteStreamCommand`, `Wait`/`ControlRate`, `DetectDuplicate`, and the built-in `StandardOauth2AccessTokenProvider` controller service cover most of what Fetch/Process/Publish actually need. Drop to a custom Python processor only where a native processor genuinely can't do the job — not just because Python is more familiar. Concretely there are two hard blockers in this pipeline: (1) X's chunked media upload is OAuth 1.0a-signed, and `InvokeHTTP` has no OAuth1 signing support (only OAuth2, via the access-token-provider controller service); and (2) the ffmpeg overlay/glitch-intro pipeline is a long, conditional, randomized multi-step orchestration with hard-won gotcha-fixes (thread pinning, B-frame-free encodes for stream-copy concat) that would be brittle and painful to re-express as a chain of `ExecuteStreamCommand` calls stitched together with NiFi expression language.
-
----
-
-### Custom Python Processor Strategy
-
-NiFi 2.x's native Python processor API (`nifiapi`) has two processor shapes in the same package family:
-
-- **Source-style** — `nifiapi.flowfilesource.FlowFileSource`, used when a processor has no incoming flowfile and originates content itself. This is the pattern actually demonstrated locally, in `/home/tunas/nifi-custom-processors/NewTransactionGenerator.py` and its packaged/`hatch`-built form `/home/tunas/nifi-custom-processors/TransactionGenerator/python/processors/TransactionGenerator.py` (built into `custom-transaction-generator.nar`). Both declare:
-  ```python
-  class Java:
-      implements = ['org.apache.nifi.python.processor.FlowFileSource']
-  class ProcessorDetails:
-      version = '0.0.x-SNAPSHOT'
-      description = '...'
-  ```
-  and implement `create(self, context)`, returning `FlowFileSourceResult(relationship='success', attributes={...}, contents=...)`.
-- **Transform-style** — `nifiapi.flowfiletransform.FlowFileTransform`, same package family, different base class: takes an incoming flowfile and returns a transformed one via `transform(self, context, flowfile)` → `FlowFileTransformResult`. **This repo only demonstrates the source-style API directly** — there's no local transform-style example checked in — but it's the same `nifiapi` family, and it's what all three custom processors below actually need (flowfile in, transformed/enriched flowfile + attributes out), not the source-style no-input shape.
-
-**Deployment/packaging** — proven locally via the CFM `Nifi` CRD manifests and `DesktopShare/files/`:
-- `nifi-cluster-30-nifi2x-nar.yaml` — NAR-only (Java) baseline, no Python.
-- `nifi-cluster-30-nifi2x-python.yaml` — adds a `hostPath: /extensions` volume mounted at `/opt/nifi/nifi-current/python/extensions` on the NiFi statefulset, plus `narProvider.volumes` pointing at a `custom-nars` PVC for Java NARs.
-- `/home/tunas/DesktopShare/files/nifi-cluster-30-nifi2x-statefulset-2.yaml` and `-3.yaml` — the most complete/authoritative version: sets `nifi.python.extensions.directories: "./python_extensions,/opt/nifi/nifi-current/python/extensions"` under `configOverride.nifiProperties.upsert`, and adds env vars `NIFI_PYTHON_LISTENER_STARTUP_TIMEOUT: "600 sec"` (gives `pip` time to install heavy deps) and `NIFI_PYTHON_PROXIED_LOG_LEVEL: "DEBUG"` (verbose `nifi-python.log` output on load failure). Both explicitly comment that the extensions directory is expected to be built with `hatch build` and dropped onto that host path.
-- `nar-loader.yaml` — a `custom-nars` PVC + throwaway `ubuntu` pod used to `kubectl cp` built NAR files onto the shared volume the NiFi statefulset mounts — how NARs land on the cluster without rebuilding the NiFi image itself.
-
-**Candidate custom processors**:
+**Candidate custom processors:**
 
 | Processor | Leg | Replaces | Why native can't do it |
 |---|---|---|---|
-| `ClipOverlayProcessor` | Fetch | `_burn_platform_overlay` (~line 478) + `_burn_glitch_intro` (~line 544) | Multi-step ffmpeg orchestration — `ffprobe`-driven dimension detection, computed pixel-perfect overlay sizing, randomized freeze-frame/mosaic-color-sample/strobe intro — with hard-won gotcha-fixes (B-frame-free stream-copy concat to avoid VLC DTS-discontinuity crashes, `-threads 1` pinning to avoid silent zero-frame encodes under the pod's cgroup limit) that would be brittle to reproduce as chained `ExecuteStreamCommand` calls glued together with expression language |
-| `CaptionCleanProcessor` (optional) | Process | `_clean_caption` (~line 1185) + `_build_tweet` (~line 1247) | Not a hard blocker — just an awkward chain of `ReplaceText` regexes vs. one small Python function; noted as an option, not a requirement (see Process below) |
-| `XPublishProcessor` | Publish | `_publish_sync` (~line 1417) | X media upload is OAuth 1.0a-signed (`tweepy.OAuth1UserHandler` + chunked `media_upload`); `InvokeHTTP` has no OAuth1 signing support at all (OAuth2 only, via the access-token-provider controller service) |
+| `ClipOverlayProcessor` | Fetch | `_burn_platform_overlay` + `_burn_glitch_intro` | Multi-step ffmpeg orchestration with hard-won gotcha-fixes (B-frame-free concat, `-threads 1` pinning) — brittle to reproduce as chained `ExecuteStreamCommand` |
+| `CaptionCleanProcessor` (optional) | Process | `_clean_caption` + `_build_tweet` | Not a hard blocker — simpler to leave backend-side at read-time |
+| `XPublishProcessor`/`XLivePostProcessor` | Publish | `_publish_sync` | OAuth1-signed — `InvokeHTTP` has no OAuth1 support. **Built** (see LiveStreamerAlert) |
 
 ---
 
 ### Fetch
 
-Today: `FetchClips` PG (`InvokeHTTP POST /api/streamers/fetch-clips`) calls `fetch_clips()` (~line 940), which does everything itself — token refresh, pagination, GQL lookup, download, overlay/glitch burn, dedup, and the Kafka publish.
+`FetchClips` PG calls `fetch_clips()`, which does everything itself — token refresh, pagination, GQL lookup, download, overlay/glitch burn, dedup, Kafka publish.
 
-| Current backend function | Native replacement | Custom processor |
-|---|---|---|
-| `_twitch_token_refresh` / `_kick_token_refresh` (~209, ~366) | `StandardOauth2AccessTokenProvider` controller service (client-credentials grant), wired into every InvokeHTTP's "OAuth2 Access Token Provider" property. This is general NiFi capability, not a local precedent — noting that explicitly rather than misattributing it. | — |
-| `_get_broadcaster_id`, `_get_clips` (~238, ~251 — pages up to 5×100 in top_mode) | `InvokeHTTP` (`GET /helix/users`, `GET /helix/clips`) + `EvaluateJsonPath`; pagination via a self-looping connection — `UpdateAttribute` increments a `cursor`/`page` attribute, `RouteOnAttribute` routes back into the same InvokeHTTP vs. downstream — a standard NiFi loop-back idiom, not custom code | — |
-| `_gql_clip_mp4_url` (~318) | `InvokeHTTP` POST to `gql.twitch.tv/gql` with a templated JSON body via `ReplaceText`, then `EvaluateJsonPath` to pull `sourceURL`/`signature`/`value`, then `UpdateAttribute` expression language to assemble the signed MP4 URL (`${sourceURL}?sig=${signature}&token=${value:urlEncode()}`) | — |
-| `_download_clip` (~713); Kick's `_get_kick_clips` (~408, needs browser UA/Referer headers) | `InvokeHTTP` (static header properties for UA/Referer; binary content is fine), then `PutFile` to the `/clips` PVC | — |
-| `_download_hls_sync` (~1136 — Kick HLS `.m3u8` → MP4 via `ffmpeg -c copy -movflags +faststart`) | `ExecuteStreamCommand`/`ExecuteProcess` invoking ffmpeg directly — fixed-argument invocation, exactly what `files/Streamers.md`'s own draft already suggests ("DownloadClip — InvokeHTTP... or ExecuteStreamCommand with curl/wget") | — |
-| `_burn_platform_overlay` (~478) + `_burn_glitch_intro` (~544) | — | `ClipOverlayProcessor` (see Custom Python Processor Strategy above — the strongest custom-processor case in Fetch) |
-| `.seen_clips.json` dedup (keyed on `clip_id`) | `DetectDuplicate` + `DistributedMapCache` — demoed locally in `/home/tunas/NiFi-Templates`'s 1.x `DetectDuplicate` + `DistributedMapCache` template | — |
-| `_publish_clips_to_kafka` (~1155) | Already native (`PublishKafka_2_6`) — no change | — |
+| Current backend function | Native replacement |
+|---|---|
+| `_twitch_token_refresh`/`_kick_token_refresh` | `StandardOauth2AccessTokenProvider` (client-credentials) |
+| `_get_broadcaster_id`, `_get_clips` (pages 5×100 in top_mode) | `InvokeHTTP`+`EvaluateJsonPath`, self-looping connection for pagination |
+| `_gql_clip_mp4_url` | `InvokeHTTP` POST to `gql.twitch.tv/gql` → `EvaluateJsonPath` → `UpdateAttribute` assembles signed URL |
+| `_download_clip`, Kick's `_get_kick_clips` (needs browser UA/Referer) | `InvokeHTTP` w/ static headers → `PutFile` |
+| `_download_hls_sync` (Kick HLS → MP4) | `ExecuteStreamCommand` invoking ffmpeg directly |
+| `_burn_platform_overlay`+`_burn_glitch_intro` | `ClipOverlayProcessor` (custom — strongest case in Fetch) |
+| `.seen_clips.json` dedup | `DetectDuplicate` + `MapCacheServer`/`MapCacheClientService` (same pair LiveStreamerAlert uses) |
+| `_publish_clips_to_kafka` | Already native (`PublishKafka_2_6`) |
 
-Rate limiting: Twitch Helix is 800 points/minute — add `Wait`/`ControlRate` between paginated `GET /helix/clips` calls, per `files/Streamers.md`'s own anti-ban guidance ("space requests... 1-5 min intervals").
+Rate limiting: Twitch Helix is 800 points/min — `Wait`/`ControlRate` between paginated calls.
 
 ---
 
 ### Process
 
-Move Whisper transcription and vLLM caption generation out of the Python backend into NiFi-native InvokeHTTP processors — same pattern as the existing `StreamToWhisper` and `StreamTovLLM` RAG flows. Eliminates backend HTTP timeout risk; all intermediate state is visible in NiFi as flowfile attributes. This subsection is the original Process-only plan, carried over close to verbatim since it's already reviewed and correct.
-
-#### Why
-
-Current `ProcessClips` PG: `ConsumeKafka → InvokeHTTP POST /process-clip → PublishKafka`
-
-The backend's `/process-clip` does: ffmpeg WAV extract → POST whisper:8001 → POST vllm:8000 → clean caption → build tweet → return JSON. If Whisper takes 120s on a long Kick clip, NiFi's InvokeHTTP timeout fires and the clip is lost. In NiFi we can set per-step timeouts, see intermediate flowfile content, and retry individual steps.
+Move Whisper transcription + vLLM caption generation out of the Python backend into NiFi-native `InvokeHTTP` — same pattern as the existing `StreamToWhisper`/`StreamTovLLM` RAG flows. Fixes the current risk: `ConsumeKafka → InvokeHTTP POST /process-clip → PublishKafka`, where a slow Whisper transcription (120s+ on a long Kick clip) can trip NiFi's InvokeHTTP timeout and lose the clip. Per-step timeouts + visible intermediate state fix that.
 
 #### New ProcessClips NiFi Flow (12 processors)
 
@@ -500,9 +465,9 @@ PublishKafka_2_6  (processed_clips)
   bootstrap.servers: my-cluster-kafka-bootstrap.cld-streaming.svc:9092
 ```
 
-#### Optional Addendum — CaptionCleanProcessor
+#### Optional — CaptionCleanProcessor
 
-`_clean_caption` (~line 1185) and `_build_tweet` (~line 1247) currently run at UI-read-time in `clip_queue()` (see Backend Changes Required #2 below), doing multi-step regex cleanup: strip model label prefixes, strip surrounding quotes, strip hashtags, cap emoji spam, normalize the platform/handle suffix. This is a second, optional custom-processor candidate — could be lifted into a small `CaptionCleanProcessor` (`FlowFileTransform`) inserted right after the vLLM `InvokeHTTP` step above, replacing what would otherwise be an awkward chain of `ReplaceText` regex processors. Noted as an option, not a requirement — keeping it backend-side at read-time also works fine and is simpler, since it only runs when the review UI loads the queue, not on the hot path.
+`_clean_caption`/`_build_tweet` currently run at UI-read-time in `clip_queue()`. Could become a `CaptionCleanProcessor` (`FlowFileTransform`) after the vLLM step instead of chained `ReplaceText` regexes — not a requirement, backend-side is simpler and only runs on queue-read, not the hot path.
 
 #### Process Rollout Steps
 
@@ -520,21 +485,13 @@ PublishKafka_2_6  (processed_clips)
 
 ### Publish
 
-Today: the `PublishClip` PG already uses `HandleHttpRequest`(:9001)/`HandleHttpResponse` (per `setup-streamers-flows.py`: `HandleHttpRequest(:9001) → InvokeHTTP → /api/streamers/publish → HandleHttpResponse`) — this native listener pattern is correct and should be **kept as-is**. The only thing that changes is what sits between the request and the response.
-
-- **Keep**: `HandleHttpRequest`(:9001) / `HandleHttpResponse` — already the right shape for an ad-hoc/triggered publish, and it's also the eventual landing spot for the backend-pushes-into-NiFi direction described below (the backend already POSTs into this pattern today — see "App Backend's Role" below).
-- **Replace**: the inner `InvokeHTTP → backend /api/streamers/publish` step is replaced by `XPublishProcessor`, the custom `FlowFileTransform` processor described in the Custom Python Processor Strategy table above. It takes `clip_path` + `tweet_text` (flowfile content/attributes) in and returns `tweet_id`/`url` as output attributes, lifting `_publish_sync` (~line 1417) nearly verbatim — chunked `tweepy.OAuth1UserHandler` media upload + `Client.create_tweet(media_ids=[...])`. This cuts the backend out of the posting path entirely: the backend only forwards the HTTP call in, it doesn't build or sign the tweet itself anymore.
-- **Rate limiting**: X's anti-ban pacing (~2,400 posts/day, semi-hourly rolling windows, target 10-20/hour with randomized 3-6 min gaps, per `files/Streamers.md`'s own guidance) → native `Wait`/`ControlRate` processors ahead of `XPublishProcessor`, no custom code needed for the pacing itself — only the OAuth1-signed post is a custom-processor case.
+`PublishClip`'s `HandleHttpRequest`(:9001)/`HandleHttpResponse` listener shape is already correct and stays as-is. Only the inner step changes: `InvokeHTTP → backend /api/streamers/publish` → `XPublishProcessor` (custom, takes `clip_path`+`tweet_text` in, returns `tweet_id`/`url`, lifts `_publish_sync`'s chunked OAuth1 media upload nearly verbatim). Rate limiting (X's ~10-20/hr anti-ban pacing) is native `Wait`/`ControlRate` ahead of it — only the signed post itself needs custom code.
 
 ---
 
 ### App Backend's Role After the Refactor
 
-The backend keeps watch-list management and UI-triggered orchestration (Approve / Post Now / Skip / Reset) — it does not go away. What changes is that it stops doing the Twitch/ffmpeg/Whisper/vLLM/tweepy work itself. Instead it loops over data (e.g. iterating the watch list on a timer, or reacting to a UI button click) and POSTs into NiFi's own `HandleHttpRequest`/`ListenHTTP` listeners to queue work into the appropriate flow, the same way `/home/tunas/DesktopShare/files/midi_melody2.py` loops over a melody and `requests.post()`s each note into a MiNiFi `HandleHttpRequest`/`ListenHTTP` endpoint (`http://localhost:9998/contentListener`) rather than doing anything with the note itself. Concretely:
-
-- **Fetch trigger**: instead of `fetch_clips()` reaching out to Twitch/Kick directly, the backend loops the watch list and POSTs `{login, source}` into a new `HandleHttpRequest` listener on the `FetchClips` PG, one call per streamer — NiFi's native/custom processors do the actual API calls, download, and overlay burn from there.
-- **Process trigger**: unchanged in shape — already Kafka-driven (`ConsumeKafka` on `new_clips`), no backend involvement either before or after this refactor.
-- **Publish trigger**: unchanged in shape — the backend already POSTs into `HandleHttpRequest`(:9001) for Post Now / cron-driven publish today; after the refactor it's still the backend doing the POST, just landing on `XPublishProcessor` instead of an `InvokeHTTP`-to-backend hop.
+Backend keeps watch-list management and UI-triggered orchestration (Approve/Post Now/Skip/Reset) — doesn't go away, just stops doing the Twitch/ffmpeg/Whisper/vLLM/tweepy work itself. Instead it POSTs work into NiFi's own `HandleHttpRequest`/`ListenHTTP` listeners (same shape `files/midi_melody2.py` already uses against MiNiFi). Fetch trigger is the only one that changes shape (backend loops the watch list, POSTs `{login, source}` into a new Fetch listener); Process and Publish triggers are already this shape today.
 
 ---
 
@@ -598,21 +555,13 @@ for wav in glob.glob(str(storage / "*.wav")):
     Path(wav).unlink(missing_ok=True)
 ```
 
-**Fetch/Publish legs** — mostly *removal*, not addition. Once native/custom NiFi processors own the work:
-
-- `fetch_clips()`, `_twitch_token_refresh`/`_kick_token_refresh`, `_get_broadcaster_id`/`_get_clips`, `_gql_clip_mp4_url`, `_download_clip`, `_get_kick_clips`, `_download_hls_sync`, `_burn_platform_overlay`/`_burn_glitch_intro`, and the `.seen_clips.json` dedup logic can all be deleted from `services/streamers.py` — that logic now lives in the `FetchClips` PG (native processors + `ClipOverlayProcessor`).
-- `_publish_sync` can be deleted once `XPublishProcessor` is live; `publish_clip()`/`publish_next()` shrink to thin wrappers that just POST into `HandleHttpRequest`(:9001) instead of calling tweepy directly.
-- New small pieces needed for the backend-pushes-into-NiFi direction: a `HandleHttpRequest` listener added to the `FetchClips` PG (new — Fetch doesn't have one today, since Fetch is Kafka-consumer-free and currently only entered via `InvokeHTTP` from NiFi's own timer-driven PG), and a small backend loop (replacing `fetch_clips()`'s body) that walks the watch list and POSTs each `{login, source}` pair into it.
+**Fetch/Publish legs** — mostly *removal* once native/custom NiFi processors own the work: `fetch_clips()` and everything it calls (`_twitch_token_refresh`/`_kick_token_refresh`, `_get_broadcaster_id`/`_get_clips`, `_gql_clip_mp4_url`, `_download_clip`, `_get_kick_clips`, `_download_hls_sync`, overlay/glitch burn, `.seen_clips.json` dedup) can be deleted from `services/streamers.py`. `_publish_sync` deletes once `XPublishProcessor` is live; `publish_clip()`/`publish_next()` shrink to thin POST-into-`HandleHttpRequest` wrappers. New: a `HandleHttpRequest` listener on `FetchClips` (doesn't have one today) + a backend loop replacing `fetch_clips()`'s body that POSTs `{login, source}` into it.
 
 ---
 
 ### Rollout Sequencing
 
-Recommended order: **Publish → Process → Fetch**.
-
-1. **Publish first** — smallest scope, highest value-per-effort. The `HandleHttpRequest`(:9001)/`HandleHttpResponse` skeleton already exists and doesn't change; only one custom processor (`XPublishProcessor`) needs to be built and swapped in for the inner `InvokeHTTP`. Low design risk, immediate payoff (removes the OAuth1 tweepy dependency from the backend's request path).
-2. **Process second** — already fully planned and reviewed (see Process subsection above) — lowest new-design risk of the three, since the flow and backend changes are already spelled out precisely.
-3. **Fetch last** — the most complex leg: multiple native-loop patterns (pagination, dedup) plus the highest-risk custom processor in the whole plan (`ClipOverlayProcessor`, carrying the ffmpeg overlay/glitch-intro gotcha-fixes). Doing this last means the custom-processor deployment pattern (hatch build → hostPath volume → NiFi Python listener restart) is already proven out by `XPublishProcessor` and (optionally) `CaptionCleanProcessor` before attempting the riskiest lift.
+Recommended order: **Publish → Process → Fetch** (smallest/highest-value first, riskiest custom processor — `ClipOverlayProcessor`'s ffmpeg gotcha-fixes — last, once the custom-processor deployment pattern is proven). **Publish is now underway** — `XLivePostProcessor` proves the pattern for text posts; extending it to chunked media upload for real clip-posting is the remaining piece of this leg.
 
 ---
 
@@ -648,7 +597,7 @@ X Media Studio shows every published clip as "Untitled" and has a per-video Sett
 
 ---
 
-## Clip Selection, Duration Cap & Live-Timing Investigation (session 15, 2026-07-10)
+## Clip Selection, Duration Cap & Live-Timing Investigation
 
 Prompted by: uncertainty about whether fetched clips are actually the *best* moments, whether the duration cap is discarding good longer clips, whether Twitch/Kick are both being used to full capability, and interest in posting closer to when a streamer is actually live. Read against the real code (`backend/services/streamers.py`), not guessed. Research-only — nothing implemented yet, per current priority.
 
@@ -691,39 +640,53 @@ Sources: [Kick API docs](https://docs.kick.com/) (llms-full.txt endpoint index).
 
 ## Post Now — Immediate Single-Clip Publish (UI + Telegram)
 
-Two distinct fast paths, both skip a wait — but they target two different queues:
+Three fast paths, all reuse existing endpoints (no new backend needed):
 
-- **UI Post Now** — publish *the specific clip you're looking at* in the Clip Review Queue, before it's even been Approved. Bypasses Approve → pending-queue entirely. Reuses the existing direct-publish endpoint — `POST /api/streamers/publish` (`services.publish_clip()`) — which posts via tweepy and calls `mark_published(clip_id)` on success, so it's excluded from the normal Approve/rotation flow afterward (no double-post).
-- **Telegram Post Now** — publish *the next already-approved clip sitting in the pending-publish queue*, right now, instead of waiting for a NiFi timer (`PublishClip` backup, 1/day, or `PublishClipPeakTimeCron`, 3pm-9pm EDT) to drain it. Reuses the existing rotation-pop endpoint — `POST /api/streamers/publish-next` (`services.publish_next()`) — same call the cron timers make, just triggered on demand. **Corrected mid-session**: first draft had this hitting the Review queue (`/api/streamers/queue` + `/publish`) like the UI button — wrong target; the Telegram command is meant to drain the *pending* backlog (there were 49 real approved clips sitting there waiting), not jump the Review queue.
+- **UI, Review queue** — `Post Now` button on each `ClipCard` publishes *that specific clip*, pre-Approve. `POST /api/streamers/publish` (`publish_clip()`), marks published, excluded from normal rotation after.
+- **UI, Pending queue** — per-row `Post Now` publishes that one already-approved clip immediately regardless of queue position. `POST /api/streamers/pending/{clip_id}/publish-now` (`publish_pending()`) — safe out of order since the pending queue is a flat JSON file, not Kafka (see Pending Publish Panel below).
+- **Telegram** (`agent-PostNow.sh`) — no arg pops the pending queue (`/publish-next`, same as the cron timers); optional usertag arg finds that streamer's pending clip and posts it out of order via the same endpoint the Pending-row button uses, falling back to `/publish-next` if no match. Live-tested all 4 paths.
 
-Neither path needed a new backend endpoint — both reuse existing ones.
-
-There's now a third Post Now surface, added session 14: a per-row **Post Now** button in the **Pending Publish** panel itself — publishes that one specific already-approved clip immediately, regardless of where it sits in the queue (`POST /api/streamers/pending/{clip_id}/publish-now` → `services.publish_pending()`). This is safe out of order because the pending queue is a flat JSON file, not Kafka — see "Pending Publish panel" below for the full explanation.
-
-- **UI (Review queue)**: every card in the Clip Review Queue has a `Post Now` button next to `Approve`/`Skip` (`ClipCard` in `frontend/src/components/StreamersPage.tsx`). Calls `api.streamersPublish(...)` with that card's own clip/caption/thumbnail/streamer metadata, shows the returned tweet URL inline, and dismisses the card on success.
-- **UI (Pending queue)**: every row in Pending Publish has its own `Post Now` button, calling `api.streamersPendingPublishNow(clip_id)`.
-- **Telegram**: `agent-PostNow.sh` (DesktopShare `files/`) — no arg pops the pending queue via `POST /api/streamers/publish-next`; an optional usertag arg (streamer login or X handle, case-insensitive, `@` optional) instead searches `GET /api/streamers/pending` for that streamer's clip and posts it out of order via `POST /api/streamers/pending/{clip_id}/publish-now` — same endpoint the Pending panel's per-row button uses. If no pending clip matches the usertag, replies saying so and falls back to `publish-next`. Modeled on `agent-minikube-reset.sh`'s env-check → do the thing → curl a reply back to Telegram pattern. Verified live end-to-end (session 14): usertag match by streamer login, usertag match by X handle (different case + leading `@`), usertag with no match (fell back correctly), and the plain no-arg default — all four posted real clips successfully.
-- **No new NiFi PG.** Post Now is an ad-hoc trigger, not a scheduled/polled action, so it doesn't need one to work. We're planning a larger redo later that moves fetch/process/post logic natively into NiFi processors (see NiFi-Native Refactor Plan below) instead of NiFi being a thin caller into FastAPI — Post Now is a candidate to fold into that redo rather than getting its own throwaway interim PG now.
-- **Dismiss delay bumped (session 14)**: both Post Now surfaces used to hide the clip preview/result 1.2s after posting (matching Approve's dismiss timing) — too fast to actually read the result or click the tweet link before it vanished. Bumped to 6s on both the Review card and the Pending row.
+No NiFi PG needed — ad-hoc, not scheduled (candidate to fold into the NiFi-Native Refactor later). Dismiss delay on both UI surfaces is 6s (was 1.2s — too fast to read/click the tweet link).
 
 ---
 
 ## Pending Publish Panel
 
-Added session 14. Previously each row showed only `clip_id` + a truncated `tweet_text` — no way to tell which clip it actually was without reading the caption. `approve_clip()` (`services/streamers.py`) and the `/approve`/`PublishRequest` model now carry `source`, `streamer`, `url`, `thumbnail_url`, and `x_handle` through from the Review card into `.pending_publish.json`, so each pending row renders a thumbnail, platform badge, streamer/X links, and a title linked to the clip URL — the same layout language as a Review `ClipCard`, just more compact. Older entries queued before this change won't have these fields (`approve_clip` calls made before the deploy) — the frontend falls back to `clip_id`/no-thumbnail gracefully for those.
+Each row shows thumbnail, platform badge, streamer/X links, title linked to the clip — `approve_clip()` threads `source`/`streamer`/`url`/`thumbnail_url`/`x_handle` through into `.pending_publish.json`. Older pre-change entries fall back gracefully (no thumbnail).
 
-**Is it safe to Post Now a clip out of order in this panel?** Yes. The pending queue (`.pending_publish.json`) is a flat JSON list on the PVC, not a Kafka topic — Kafka is only involved earlier, in the Fetch→Process leg (`new_clips`/`processed_clips` topics), and the Review tab's `clip_queue()` already filters those by clip_id membership in the pending/skipped/published sets at *read* time, not by mutating Kafka state. `publish_pending(clip_id)` (new in `services/streamers.py`) removes one specific `clip_id` from wherever it sits in the list — the same "find and remove by id" shape `cancel_pending()` already used for the Cancel button — publishes it, and restores it to the front of the list if the publish attempt fails (matching `publish_next()`'s existing safety net). The relative order of the *remaining* clips, and the normal cron rotation popping index 0, are both unaffected.
+**Safe to Post Now out of order?** Yes — `.pending_publish.json` is a flat JSON list, not Kafka. `publish_pending(clip_id)` removes that one id from wherever it sits (same pattern as `cancel_pending()`), restores it to the front on failure. Rest of the queue and the normal cron pop-index-0 rotation are unaffected.
 
 ---
 
 ## Posted Clips
 
-Added session 14. New tile gallery at the bottom of the Streamers page, showing recently-published clips: thumbnail, platform badge, streamer, title, publish timestamp, and a link to the live tweet.
+Tile gallery (now its own sub-page, session 15) showing recently-published clips: thumbnail, platform badge, streamer, title, timestamp, link to the live tweet.
 
-- `mark_published()` (`services/streamers.py`) used to just add `clip_id` to a flat id set (`.published.json`) for membership checks (used by `clip_queue()` to exclude already-posted clips from the Review queue) — that set stays, unchanged, for that purpose. It now *also* appends a full record — title/source/streamer/url/thumbnail_url/x_handle/tweet_id/tweet_url/published_at — to a new append-only log, `.published_history.json` (capped at the most recent 500 entries), written under the same `_pending_lock()` flock already used for `.pending_publish.json` writes.
-- `publish_clip()` gained the same optional metadata parameters as `approve_clip()`/`publish_clip`'s callers already carry (`publish_next()`, `publish_pending()`, and the `/publish` direct-endpoint all thread their known clip metadata through), so every successful publish — cron-drained, Post Now'd, or direct — gets logged with full display data, not just an id.
-- New `GET /api/streamers/published` → `get_published_history()` returns the most recent 60 (newest first) for the frontend gallery.
-- This also finally delivers the "Publish history tab" item that had been sitting in What's Next since session 4/5 (`.published.json already written per clip; just needs a UI to surface tweet URLs + timestamps`).
+- `mark_published()` still adds to the flat `.published.json` id set (dedup check), and now also appends a full record to `.published_history.json` (capped at 500).
+- `GET /api/streamers/published` serves the most recent 60 for the gallery.
+
+---
+
+## LiveStreamerAlert — NiFi-Native "Streamer Is Live" Post (session 15)
+
+**Status: LIVE — first real post confirmed 2026-07-10.**
+
+New process group under `StreamersApp`, built entirely in NiFi (no backend business logic) — the first real leg of the NiFi-Native Refactor Plan below, proven out end-to-end.
+
+**Flow:** `PollTimer` (manual/1-day, Steven starts it to test) → `GET /watchlist` (only backend touch — passive data read) → split per streamer → Twitch/Kick live-status branches (`Get Streams` / `users/livestreams`, both OAuth2 client-credentials) → `RouteOnAttribute` on `is_live` → `DetectDuplicate` (keyed `login-started_at`, so a still-live stream doesn't re-alert but a new session does) → `GET /x-handle/{login}` (new backend endpoint, passive lookup) → build tweet → `XLivePostProcessor` (posts) → `XLivePostProcessor` again as a reply (platform URL only, avoids the link-in-body reach penalty).
+
+**Tweet format:** `🔴 {streamer} is LIVE now! Follow me on X @{handle} — join me on @Twitch` (or `@Kick`) — no link in the main post. Reply posts the platform URL (`twitch.tv/{login}` or `kick.com/{login}`) immediately after.
+
+**Custom processor — `XLivePostProcessor`** (`cso-operator-app/nifi-processors/`): OAuth1-signed `POST /2/tweets` via `requests-oauthlib`. `Dry Run` property (default true) logs instead of posting. Optional `Reply To Tweet ID` property reuses the same processor for both the main post and the reply. Credentials come from a NiFi Parameter Context (`streamers-x-creds`, sensitive params) bound to `StreamersApp` — not env vars, since this NiFi instance is CFM-operator-managed and env-var drift on the reconciled StatefulSet doesn't stick.
+
+**Pacing:** `XLivePostProcessor` itself is scheduled every 3 minutes (not a separate rate-limit processor) — if several streamers go live in the same poll, they post one at a time instead of bursting. `PollTimer` is left at 1-day/stopped; Steven starts/stops it manually to trigger a real check-and-post cycle.
+
+**Infra notes:**
+- Custom Python processors need a `custom-python-extensions` PVC mounted at `/opt/nifi/nifi-current/python/extensions` (a live `minikube mount` bridge failed on this WSL2/docker-driver host — PVC + a small loader pod for `kubectl cp` is the reliable path here) plus `nifi.python.extensions.directories` set in `configOverride.nifiProperties.upsert`.
+- The live NiFi image was actually pinned to 1.28.1 despite the CR's `nifiVersion: "2.6.0"` label — Python processors don't exist in 1.x at all. Fixed by correcting `image.tag` to the real 2.6.0 build.
+- Framework followed: [How to Build and Test Custom NiFi Processors with AI](https://stevenmatison.com/blog/How-to-AI-with-NiFi-and-Python/) — prove a bare `GenericTransformTemplate` skeleton on canvas first, inject logic only after, defensive error handling (route to `failure`, never crash).
+
+**Still open:** codify into `setup-streamers-flows.py` + export `StreamersApp.json` (canvas was manually tidied post-build — re-export once settled), mirror `XLivePostProcessor` into the `nifi-custom-processors` playground repo. Custom card/media for the alert — future idea, not scoped yet.
 
 ---
 
@@ -741,6 +704,21 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 ---
 
 ## Session History
+
+### Session 15 (2026-07-10)
+
+| Change | Details |
+|---|---|
+| `agent-startup.sh` shipped | Resumes minikube after a host restart, restores headless port-forwards (`vllm-service:8000`, `cso-operator-app:8090`) without needing `minikube tunnel` |
+| `agent-commands.md` fixed | `bash -c "..."` wrapper is the real fix for OpenClaw `/bash` — confirmed live via Telegram for all 5 streamers scripts |
+| New Kick streamers | `adrienbroner`, `bbjess` added to catalog, deployed |
+| Clip selection / duration cap / live-timing research | See "Clip Selection..." section above — default fetch mode ranks by duration not views; Kick's official API has no `/clips` endpoint (feedback emailed to Kick); X Premium needs `media_category=amplify_video` to unlock longer video (not implemented); both platforms support cheap batch live-status checks — seeded the LiveStreamerAlert build below |
+| Approve All button | Clip Review Queue header — approves the whole visible queue in one click, reuses existing `/approve` endpoint |
+| Posted Clips → own sub-page | Pill nav ("Overview" / "Posted Clips") added to Streamers page instead of one long scroll |
+| Watch list `show`/`rotate` added to `agent-watchList.sh` | Wraps the already-existing `GET /watchlist` / `POST /watchlist/rotate` endpoints |
+| **LiveStreamerAlert shipped, first real post confirmed** | New NiFi-native PG: polls Twitch/Kick for the watch list going live, posts "streamer is live" to X, then replies with the platform URL. First real custom NiFi Python processor in this project — see "LiveStreamerAlert" section below. Along the way: discovered the live NiFi image was actually 1.28.1 (Python needs 2.x) and upgraded it; a pod delete to force a config reload wiped `StreamersApp` (ephemeral `emptyDir`, not PVCs) — Steven restored it from his own backup; confirmed live NiFi state is authoritative over this doc going forward |
+
+
 
 ### Session 14 (2026-07-03)
 
@@ -804,17 +782,17 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 | Reginald / DGDecor removed | Both had no known X handle; policy going forward is no streamer without a known X handle. They were already absent from code, only present in the doc — doc now matches code |
 | Watch List "Rotate" button | `POST /api/streamers/watchlist/rotate` + `rotate_watchlist()` swaps in 2 fresh Twitch + 2 fresh Kick streamers not already on the list. Takes effect on the next FetchClips stop/start (NiFi reads the watch list once at flow start) |
 | Fetch mode label clarified | "Fetch mode:" → "Twitch Fetch Mode:" in the Watch List card — Kick has no real time-windowed "Top Clips" API (only `sort=date`, no view-count sort or window), so the toggle only meaningfully applies to Twitch |
-| Fixed "Untitled" on X Analytics | X's media analytics reads the MP4 container's own title tag, not the tweet text — clips uploaded without one always showed "Untitled". `_stamp_video_title()` now does a cheap `-c copy` remux to embed a title before upload: the source clip's own title if it passes a junk filter (`_is_junk_title`), else the vLLM-generated caption body. Threaded through Approve → pending queue → publish-next → `_publish_sync` |
-| **Glitch intro effect** (new clips only) | `_burn_glitch_intro()` prepends a freeze-frame → color-mosaic fade+strobe → hard-snap intro to every freshly fetched clip, called right after `_burn_platform_overlay()` inside the `if not dest.exists()` branch in both `_fetch_twitch_clips` and `_fetch_kick_clips` — so it only ever touches brand-new downloads, never clips already sitting in `/clips/`. Sequence: ~1s frozen first frame → crossfade *directly* into a flickering strobe of mosaic-color variants (fade and flash happen concurrently, not fade-then-strobe) → instant hard cut into the real clip, no fade out. The platform overlay bar (already burned in) is cropped out, held perfectly crisp the whole time, and stacked back on top — only the footage below it animates. Mosaic colors are sampled from the clip's own first frame. Hold/fade duration and which mosaic variants get used are randomized per clip so consecutive intros don't look identical |
-| **Gotcha:** B-frames break stream-copy concat | Every intro segment must be encoded with `-bf 0` (no B-frames). A version using default B-frames produced a file ffmpeg itself decoded fine (just a "Non-monotonic DTS" warning) but crashed VLC on playback — stream-copy concatenating independently-encoded B-frame segments creates DTS discontinuities at each splice that VLC's demuxer doesn't tolerate |
-| **Gotcha:** bar-height detection needs a real signal | Clips predate the platform overlay (1080p, no bar) vs. post-overlay clips (1240p, 160px bar) look almost the same height-wise under a naive ratio guess — a formula-based estimate incorrectly detected a phantom bar on a bar-less 1080p clip. Fixed by using the exact `_burn_platform_overlay` return value (bar height in pixels, 0 if none) instead of re-deriving it after the fact |
-| **PublishClip ordering/race bug fixed** | `approve_clip`/`publish_next`/`cancel_pending` all did an unlocked read-modify-write on `.pending_publish.json`. Two near-simultaneous approvals (or an approval racing a slow `publish_next`, e.g. from NiFi's GenerateFlowFile timer overlapping a previous InvokeHTTP call) could each read the same list and overwrite each other's write, silently dropping an approved clip or letting one get published twice — symptom: newer clips appearing to jump ahead of older un-published ones. Fixed with the same `fcntl.flock` pattern already used for `_overlay_lock` — pop-and-save now happens atomically, and the slow X upload itself still runs outside the lock so it doesn't block new approvals |
-| Watch List moved under Pipeline Status | Reordered `StreamersPage.tsx` sections — was last (after Pending Publish), now Section 2 |
-| Health bar is module-aware | `/api/health` only pings services owned by an active `MODULES` flag (vllm/nifi/kafka for rag+streamers, qdrant/embedding for rag, whisper for streamers, efm only if the efm module is active) instead of unconditionally probing all 7, including EFM when it isn't even deployed. Frontend `HealthBar` only renders dots for keys the backend actually returns |
-| **Gotcha:** configmap `MODULES` was stale | `k8s/configmap.yaml` hardcoded `MODULES: "efm,rag,streamers"` — out of sync with the actual `rag,streamers` standard deploy. This is the backend's *runtime* env var (via `configMapRef`), completely separate from the Docker `--build-arg MODULES` that only bakes `VITE_MODULES` into the frontend bundle. Frontend correctly hid the EFM tab while the backend kept pinging a nonexistent EFM service and reporting `ok: false` forever. Fixed the configmap value to `"rag,streamers"` |
-| Clips-per-streamer cap tightened for 4+ streamers | `_clips_per_streamer_cap()` gained a 4th tier: 1 clip/streamer once the watch list has 4+ entries (was 2/streamer, so a 4-streamer list — e.g. right after Rotate — pulled up to 8 clips/run). Now caps at 4 clips/run for any watch list of 4 or more |
-| **Gotcha:** glitch intro silently no-op'd in the pod — libx264 thread oversubscription | First real fetch after deploying the glitch intro showed clips with the platform bar but no intro, and pod logs had zero errors. Root cause: every ffmpeg encode in `_burn_glitch_intro` let libx264 auto-detect thread count from the *host's* CPU count (seen: `threads=24`) instead of the pod's 1-CPU cgroup limit — unlike `_burn_platform_overlay`, which already pins `-threads 1`. Under real cgroup constraints this produced a silent zero-frame encode (exits with a real non-zero returncode, not a timeout, so no exception either) — reproduced directly inside the pod via `kubectl exec`, confirmed fixed by adding `-threads 1` + `x264opts threads=1:sliced-threads=0` to every libx264 call. Also added failure logging (`print` of the failing command + stderr tail) since `_burn_glitch_intro` previously swallowed every error with zero visibility |
-| Backlog of ~20 pre-fix clips batch-patched in place | Clips fetched before the thread-pinning fix (both in the review queue and already-approved in the pending-publish queue) had the overlay bar but no glitch intro. Rather than re-fetch, ran `_burn_glitch_intro` directly against each existing file in `/clips/` via a one-off `kubectl exec` script (bar height re-derived per clip by inverting the `orig_h + round(orig_h*0.1481/2)*2 == total_h` formula since the original pre-overlay height isn't stored) — no code change needed, just applying the now-fixed function to already-downloaded files |
+| Fixed "Untitled" on X Analytics | `_stamp_video_title()` embeds a title into the MP4 container via `-c copy` remux before upload (source title if it passes `_is_junk_title`, else the vLLM caption). *(Later reverted session 11 — X Analytics never reads container metadata for organic tweets, see Session 11.)* |
+| **Glitch intro effect** shipped | `_burn_glitch_intro()` — freeze-frame → color-mosaic fade+strobe → hard-snap intro, only on brand-new downloads. Overlay bar stays crisp/static, only footage below animates; mosaic colors sampled from the clip's own first frame, hold/fade randomized per clip |
+| Gotcha: B-frames break stream-copy concat | Every intro segment needs `-bf 0` — B-frame segments concat fine in ffmpeg but crash VLC (DTS discontinuities at splices) |
+| Gotcha: bar-height detection | Use `_burn_platform_overlay`'s actual return value (bar height in px), not a re-derived formula guess — formula falsely detected a bar on bar-less clips |
+| **PublishClip race bug fixed** | `approve_clip`/`publish_next`/`cancel_pending` did unlocked read-modify-write on `.pending_publish.json` — concurrent writes could silently drop or double-publish a clip. Fixed with the same `fcntl.flock` pattern as `_overlay_lock` |
+| Watch List moved to Section 2 | Was last on the page, now under Pipeline Status |
+| Health bar is module-aware | `/api/health` only pings services owned by the active `MODULES` flag instead of always probing all 7 |
+| Gotcha: configmap `MODULES` was stale | `k8s/configmap.yaml` hardcoded `"efm,rag,streamers"`, out of sync with the real `rag,streamers` deploy — backend kept pinging a nonexistent EFM service. Fixed |
+| Clips-per-streamer cap: 4th tier | 1 clip/streamer once watch list hits 4+ entries (was pulling up to 8/run right after Rotate) |
+| Gotcha: glitch intro silently no-op'd — libx264 thread oversubscription | ffmpeg auto-detected the *host's* CPU count (24) instead of the pod's 1-CPU cgroup limit, causing a silent zero-frame encode with no exception. Fixed with `-threads 1` + `x264opts threads=1:sliced-threads=0` on every libx264 call, matching `_burn_platform_overlay`'s existing pin |
+| Backlog of ~20 pre-fix clips patched in place | Re-ran the now-fixed `_burn_glitch_intro` directly against existing `/clips/` files via `kubectl exec`, no re-fetch needed |
 
 ### Session 9 (2026-06-30)
 
@@ -824,14 +802,13 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 | Clip cap scales with watch list size | 1 streamer → 5 clips/run, 2 → 3, 3+ → unchanged at 2. Added `_clips_per_streamer_cap()` |
 | Tab order changed | Streamers, RAG, Operator (was Operator, EFM, RAG, Streamers). First tab is now the default landing view |
 | Pending Publish panel added | New `GET /api/streamers/pending` + `POST /api/streamers/pending/{clip_id}/cancel`; frontend card shows the X-publish queue with per-clip cancel |
-| Platform logo overlay on clips | Burns a bar with the Kick/Twitch logo + `PLATFORM.COM/HANDLE` above each fetched clip. Rejected a frontend-only badge (looked wrong, made videos look "weird") and a compositing overlay (covered footage) in favor of extending the canvas via ffmpeg `pad` — original footage is fully preserved below the bar, output is simply taller (1080p → 1240p) |
-| Logo assets | User-supplied Kick/Twitch logo images pre-cropped + colorkeyed to transparent PNGs at `backend/assets/logos/{kick,twitch}.png`; `DejaVuSans-Bold.ttf` bundled at `backend/assets/fonts/` for the handle text (avoids relying on fonts being present in the slim Python image) |
-| **Gotcha:** `scale2ref` silently breaks tiny images | Used to scale the logo relative to the main video's height; collapsed the 151x51 Twitch logo down to ~9x5px instead of scaling up, making it invisible. Fixed by `ffprobe`-ing the clip's real dimensions up front and computing all overlay sizes as literal pixel values instead |
-| **Gotcha:** `ultrafast` preset bloats files 5-7x | First batch used `-preset ultrafast -tune zerolatency -bf 0` to minimize ffmpeg memory/CPU (see below) — but that setting produces much bigger output for the same CRF. Clips went from ~50-100MB to 130-230MB, which is almost certainly why NiFi's `PublishClip` InvokeHTTP started timing out on the X upload. Switched to `-preset veryfast` with B-frames re-enabled — files came back down near original size (~44-63MB) at the cost of ~2-3x slower encode (45s → ~90-120s/clip) |
-| **Gotcha:** in-memory semaphore doesn't protect across processes | First serialized ffmpeg overlay burns with a `threading.Semaphore(1)` — this only guards one Python process. A standalone reprocessing script (its own process) ran concurrently with the live app's own fetch pipeline, and two ffmpeg encodes at once pegged the pod's 1 CPU / 1Gi limits and nearly OOM-killed it. Replaced with an `fcntl.flock` on a shared `/tmp` lock file, which correctly serializes across every process in the pod |
-| **Gotcha:** NiFi client timeout ≠ backend failure | `PublishClip`'s InvokeHTTP gave up waiting on a slow (bloated-file) upload and reported "timeout" to the user, but the FastAPI backend kept running server-side and completed the tweepy upload successfully anyway — confirmed via `.published.json`. Don't assume a NiFi-reported timeout means the underlying action failed; check backend state first |
-| Recovered already-bloated pending clips | Since `pad` never touches pixels below the bar, wrote a one-off script to crop the old bar off + re-apply the new (smaller) overlay in one pass for clips already bloated by the `ultrafast` run, instead of re-fetching from Kick/Twitch. Stopped partway through at user's direction — accepted that already-queued bloated clips still publish successfully (just slowly), and only bothered fixing ones not yet in flight |
-| Resumable batch pattern | Reprocessing scripts persist per-clip status to a JSON state file in `/clips/`, so a killed/interrupted run resumes without redoing finished clips or double-stamping |
+| Platform logo overlay on clips | Extends the canvas via ffmpeg `pad` (1080p → 1240p) to add a Kick/Twitch logo + `PLATFORM.COM/HANDLE` bar — original footage fully preserved below it. Rejected a frontend-only badge and a compositing overlay (both looked worse) |
+| Logo assets | Pre-cropped/colorkeyed PNGs at `backend/assets/logos/{kick,twitch}.png`; `DejaVuSans-Bold.ttf` bundled locally for the handle text |
+| Gotcha: `scale2ref` breaks tiny images | Collapsed a 151x51 logo to ~9x5px instead of scaling up. Fixed by `ffprobe`-ing real dimensions and computing overlay sizes as literal pixels |
+| Gotcha: `ultrafast` preset bloats files 5-7x | `-preset ultrafast -tune zerolatency -bf 0` ballooned clips 50-100MB → 130-230MB, likely causing X-upload timeouts. Switched to `-preset veryfast` w/ B-frames — back to ~44-63MB at 2-3x slower encode |
+| Gotcha: in-memory semaphore doesn't protect across processes | A standalone reprocessing script running alongside the live app's own fetch pipeline caused two concurrent ffmpeg encodes, nearly OOM-killing the pod. Replaced `threading.Semaphore` with an `fcntl.flock` on a shared file — serializes across every process |
+| Gotcha: NiFi client timeout ≠ backend failure | A slow (bloated-file) upload timed out client-side but the backend completed the tweepy post anyway (confirmed via `.published.json`) — check backend state before assuming a NiFi timeout means real failure |
+| Resumable batch pattern | Reprocessing scripts persist per-clip status to a JSON state file — a killed/interrupted run resumes without redoing finished clips |
 
 ### Session 8 (2026-06-30)
 
