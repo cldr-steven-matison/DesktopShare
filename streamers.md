@@ -32,6 +32,8 @@
 | Ice Poseidon   | @REALIcePoseidon        |
 | AdinRoss       | @adinross               |
 | N3on           | @N3on                   |
+| adrienbroner   | @AdrienBroner           |
+| bbjess         | @bbjess                 |
 
 Features:
 
