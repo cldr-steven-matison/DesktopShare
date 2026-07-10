@@ -262,7 +262,8 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **Auto-publish mode** — bypass review queue, post top clips on a schedule
 - **Post to real X account** — ✓ PLANNED (see section below)
 - **GPU optimization** — Whisper CPU + 5B caption model — see [`gpu-optimization-plan.md`](gpu-optimization-plan.md)
-- **Live Streamer Alert** — FUTURE IDEA (added session 12): when a watched streamer goes live, ramp up clip fetch/publish frequency for that streamer and possibly post an X alert that they're live now. Built entirely in NiFi, likely needs a custom Python processor to poll Twitch/Kick live status and branch the flow (idle vs. live-heavy) — not scoped or designed yet.
+- **Live Streamer Alert** — ✓ SHIPPED (session 15, as "LiveStreamerAlert") — see section below
+- **TODO: bring in the `nifi-custom-processors` repo** — the real GitHub repo exists but isn't cloned locally yet (currently just a local, non-git folder at `~/nifi-custom-processors` with `XLivePostProcessor.py` sitting in it uncommitted). Planned for next week.
 - **Video title/description/CTA/category** — PUNTED (session 12): needs an X Ads account for @TunaStreetTest before it's buildable. See "Untitled Videos" section above for what's confirmed.
 - **Subtitles from transcript** — unblocked, deprioritized (session 12): `POST /2/media/subtitles` + existing Whisper segment timestamps could give real closed captions with no new credentials. See "Untitled Videos" section above.
 - **Reply Guy** — FUTURE IDEA (added session 14): auto-reply bot behavior, threaded onto every posted clip's tweet. Reply 1 — link to the streamer's own stream/channel page (their Twitch/Kick profile URL; already have this value on every clip record as `clip.streamer` + `clip.source`). Reply 2 — the clip's transcript, likely a quotable excerpt rather than the full wall of text (not finalized; would need vLLM if excerpting rather than dumping raw text). Not scoped or built yet.
@@ -686,7 +687,7 @@ New process group under `StreamersApp`, built entirely in NiFi (no backend busin
 - The live NiFi image was actually pinned to 1.28.1 despite the CR's `nifiVersion: "2.6.0"` label — Python processors don't exist in 1.x at all. Fixed by correcting `image.tag` to the real 2.6.0 build.
 - Framework followed: [How to Build and Test Custom NiFi Processors with AI](https://stevenmatison.com/blog/How-to-AI-with-NiFi-and-Python/) — prove a bare `GenericTransformTemplate` skeleton on canvas first, inject logic only after, defensive error handling (route to `failure`, never crash).
 
-**Still open:** codify into `setup-streamers-flows.py` + export `StreamersApp.json` (canvas was manually tidied post-build — re-export once settled), mirror `XLivePostProcessor` into the `nifi-custom-processors` playground repo. Custom card/media for the alert — future idea, not scoped yet.
+`XLivePostProcessor.py` is mirrored into `~/nifi-custom-processors/` (now has a `README.md`) as the first local example of a `FlowFileTransform`-style (not source-style) custom processor — that folder isn't a git repo yet locally, see What's Next. Custom card/media for the alert — future idea, not scoped yet.
 
 ---
 
