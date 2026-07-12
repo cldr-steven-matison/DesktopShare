@@ -271,10 +271,14 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **Subtitles from transcript** — unblocked, deprioritized (session 12): `POST /2/media/subtitles` + existing Whisper segment timestamps could give real closed captions with no new credentials. See "Untitled Videos" section above.
 - **Reply Guy** — FUTURE IDEA (added session 14): auto-reply bot behavior, threaded onto every posted clip's tweet. Reply 1 — link to the streamer's own stream/channel page (their Twitch/Kick profile URL; already have this value on every clip record as `clip.streamer` + `clip.source`). Reply 2 — the clip's transcript, likely a quotable excerpt rather than the full wall of text (not finalized; would need vLLM if excerpting rather than dumping raw text). Not scoped or built yet.
 - **More Telegram scripts** — FUTURE IDEA: `Fetch Clips` and `Publish Clips` on-demand triggers, same reply-to-chat pattern as `agent-PostNow.sh`. Post Now is the first one built.
-- **LiveStreamerAlert silent-drop fixes** — ✓ FIXED live in two rounds (session 16, 2026-07-12): real HTTP retry on all 5 `InvokeHTTP` calls + failure/unmatched logging across the whole PG, not just the original dedup gap. **Not yet verified against a real multi-streamer-live event** — no one was live at fix time. See "LiveStreamerAlert — Known Issues" section below.
-- **LiveStreamerAlert tweet format (🟢 + "link in first comment")** — ✓ APPLIED live (session 16, 2026-07-12) — see section below.
-- **Clear the LiveStreamerAlert dedup cache** — investigated, deliberately not run (risk of duplicate real X posts for still-live sessions) — needs Steven's explicit go-ahead. See section below.
-- **Auto-add live streamers to the watch list** — ✓ SHIPPED AND WIRED LIVE (session 16, 2026-07-12) — `LiveStreamerAlert` now polls the full roster (`GET /api/streamers/roster`, `GetRoster`) instead of the 4-entry watch list, and pins any discovered-live streamer onto the watch list via `AddToWatchlist`. Live-tested: 7 streamers found live in one poll, all added for real. See section below.
+- **LiveStreamerAlert silent-drop fixes** — ✓ FIXED and confirmed working live (session 16, 2026-07-12): real HTTP retry on all 5 `InvokeHTTP` calls + failure/unmatched logging across the whole PG. Confirmed against a real 11-streamer-live event with successful posts. See "LiveStreamerAlert — Known Issues" section below.
+- **LiveStreamerAlert tweet format (🟢 + "link in first comment")** — ✓ APPLIED and confirmed live (session 16, 2026-07-12) — see section below.
+- **Clear the LiveStreamerAlert dedup cache** — technique confirmed working in practice (used twice this session) — still only do it when nothing burned represents a real un-posted duplicate risk.
+- **Auto-add live streamers to the watch list** — ✓ SHIPPED AND CONFIRMED WORKING (session 16, 2026-07-12) — `LiveStreamerAlert` polls the full roster (`GET /api/streamers/roster`, `GetRoster`) instead of the 4-entry watch list, pins any discovered-live streamer onto the watch list via `AddToWatchlist`. See section below.
+- **X credential incident + fix** — ✓ RESOLVED (session 16, 2026-07-12) — a processor edit accidentally destroyed the live X credentials (NiFi's sensitive-property GET-mask, PUT-echoed literally); root-caused and fixed by wiring `XLivePostProcessor`/`XReplyWithPlatformUrl` to the `streamers-x-creds` Parameter Context instead of literal values (the originally-intended architecture). See "Real live run + credential incident" section below — **read this before ever editing those two processors again.**
+- **Watch list persistence** — ✓ FIXED (session 16, 2026-07-12) — was in-memory only, wiped by every pod restart (this actually happened mid-session to Steven's manual curation). Now persisted to `.watchlist.json` on the `/clips` PVC. See "Auto-add live streamers" section below.
+- **Pending Publish panel view counts** — ✓ SHIPPED (session 16, 2026-07-12) — `view_count` now carried from fetch through to the Pending Publish panel, matching the Review queue. See "Pending Publish Panel" section below.
+- **Clip quality/scale gating** — OPEN DESIGN QUESTION (session 16, 2026-07-12): watching 11+ streamers surfaced a scale problem (same watch list drives clip-fetching volume). Discussed gating on Twitch `viewer_count`/clip view thresholds before fetch/auto-post; not designed or built. See "Clip Selection..." section below.
 - **Clip glitch effect rework + Talking Tuna Fish ("Charlie") overlay** — BACKLOG (session 16, moved from `streamers.md`) — see "Feature Backlog — Clip Overlay & Glitch Effect" section below.
 
 ---
@@ -383,9 +387,9 @@ Target (Steven's sample): `🟢 {login} is LIVE now! Follow on X @{x_handle} —
 - New branch: `RouteIsLive`'s `is_live` relationship now fans out to *both* the existing `GetXHandle` chain (builds and posts the alert) *and* a new `BuildWatchlistAddBody` (`ReplaceText`, builds `{"login": "...", "platform": "..."}`) → `AddToWatchlist` (`InvokeHTTP POST /watchlist/add`) — so a discovered-live streamer gets pinned onto the watch list (which still separately drives `FetchClips`) as a side effect of being found live, independent of whether the alert itself posts.
 - `AddToWatchlist`'s `Failure` relationship routes to `LogAlertResult`, same convention as the rest of the flow.
 
-**Important: this write path is *not* gated by `XLivePostProcessor`'s `Dry Run` flag** — it's a separate, always-real call. Confirmed live-tested 2026-07-12 (see below) — flagged and confirmed with Steven before the first live-write run, since a "test" poll would otherwise silently mutate the real watch list.
+**Not gated by `Dry Run`** — always a real write, confirmed with Steven before the first live run.
 
-**Gotcha discovered this session:** the watch list is in-memory only (`_watchlist` module global) — it resets to a fresh random 2-Twitch/2-Kick sample on every `cso-operator-app` pod restart (redeploys, crashes, etc.), same as it always has, but this interacts with `AddToWatchlist` now: a redeploy right before/during a poll cycle silently drops whatever was manually curated. Not fixed this session — no persistence layer for the watch list exists yet.
+**Persistence gotcha, found and fixed:** the watch list was in-memory only, reset to random on every pod restart. Bit Steven mid-session — a manual trim got wiped by an unrelated redeploy. Fixed: `.watchlist.json` on the `/clips` PVC, same pattern as `.fetch_mode.json` — loads on startup, saves on every mutation.
 
 ### Dry-run roster test (2026-07-12) — 7 streamers found live, watch list updated for real
 
@@ -398,6 +402,18 @@ Ran the same dry-run pattern as before (`Dry Run=true` on both `XLivePostProcess
 **Confirmed real side effects:** all 7 found-live streamers got added to the watch list via `AddToWatchlist` (`GET /api/streamers/watchlist` after the run showed all 7 present). No alerts posted to X (dry run held).
 
 **State restored after:** `Dry Run` back to `false` on both `XLivePostProcessor` instances, whole PG back to `STOPPED` — same resting-state pattern as the previous test.
+
+### Credential incident (2026-07-12) — root cause and fix
+
+Real run 1: zero results past dedupe — expected, the earlier dry-run test still ran real dedup checks (not `Dry Run`-gated), so those sessions were already marked "seen." Real run 2 (after Steven cleared the dedup cache): 7 flowfiles reached `XLivePostProcessor`, zero posts — `app-log` showed `X API 401: Unauthorized` on all of them.
+
+**Root cause, self-inflicted:** `GET /processors/{id}` always masks sensitive properties as the literal string `"********"`. Every edit this session that did a GET-then-PUT round trip on `XLivePostProcessor`/`XReplyWithPlatformUrl` (relationship rewiring, Dry Run toggles) wrote that mask back as if it were the real value, destroying all four X credentials on the first such edit.
+
+**Fix:** wired both processors to the `streamers-x-creds` NiFi Parameter Context (`#{x-consumer-key}` etc., write-only via the API — no more GET-mask risk) instead of literal properties, and populated it from `cso-operator-app`'s own working env vars (same X account, confirmed with Steven, values piped through and never printed). This was the originally-intended architecture anyway — the parameter context already existed but had zero components referencing it.
+
+**Confirmed fixed:** cleared dedup again (safe — nothing had actually posted yet) and reran live. 11 streamers were live, posts went out, e.g. `🟢 stableronaldo is LIVE now!...` → `https://x.com/i/status/2076375747443257672`.
+
+**Hard rule now in memory:** never GET-then-PUT a full processor entity with sensitive properties unless supplying real values for all of them — see `reference-nifi-api-access`.
 
 ---
 
@@ -736,6 +752,10 @@ Prompted by: uncertainty about whether fetched clips are actually the *best* mom
 
 `get_fetch_mode()` defaults to `{"mode": "recent"}` (and that's what's live right now: `recent/all`). In `recent` mode, Twitch's `_get_clips` ranks candidates by **longest duration**, not views (`sorted(valid, key=lambda c: c.get("duration", 0), reverse=True)`) — we are not selecting for quality at all in the default mode, only for length within the cap. View-based ranking only happens in `top` mode, and even then only for Twitch. **Not touched yet** — flagged for a future decision, not urgent per current priority.
 
+**Update (session 16, 2026-07-12):** the "Twitch Fetch Mode" Recent/Top toggle referenced here is already built in the UI (top of the Review section) — Steven just hadn't flipped it. Confirmed pending clips were showing very low view counts (2-3) because the live setting is still `recent` — 6-hour window, 1 page, duration-sorted. Flipping to `top` (30-day or all-time, up to 500 clips paged, sorted by real `view_count`) is a pure config change, no code needed.
+
+**Scale problem surfaced once `LiveStreamerAlert` started roster-wide watching:** the same watch list drives `FetchClips`, so watching 11+ streamers means fetching clips from all of them too — noisy, and the per-streamer cap (`_clips_per_streamer_cap`) already scales down hard: 5/3/2/1 clips for 1/2/3/4+ streamers watched. Steven's framing: gate on "exciting" signals before fetching/posting at all, not just rank what's already been pulled. Concrete lever identified: Twitch's live-status response (already polled by `LiveStreamerAlert` for every roster streamer) includes `viewer_count` for free — could gate whether `FetchClips` bothers with a streamer at all. Clip-side, adding a views/engagement threshold before a clip is eligible for auto-approve (keeping Post Now as the manual override it already is) turns "post everything" into "post what's good." **Discussed only, not designed or built.**
+
 ### Kick vs. Twitch — structural asymmetry, not a bug
 
 Twitch `top_mode` pages up to 5×100 clips and ranks by `view_count` — real work. Kick cannot do this: confirmed via Kick's own docs (`docs.kick.com`) that **no `/clips` endpoint exists anywhere in the official Public API v1** — Categories, Users, Channels, Chat, Livestreams, Channel Rewards, Moderation, KICKs leaderboard are the entire surface. Our `_get_kick_clips` uses the *unofficial* web endpoint (`kick.com/api/v2/channels/{slug}/clips`), which only supports `sort=date` — no view-count sort, no date-range filter server-side. That's why `_get_kick_clips` always pulls the 20 most recent clips and ranks by views only among those 20, regardless of `top_mode`/`period` (both parameters are accepted but silently ignored for Kick). A viral Kick clip that ages out of the most-recent-20 can never surface — this is a platform ceiling, not something fixable in our code.
@@ -783,7 +803,9 @@ No NiFi PG needed — ad-hoc, not scheduled (candidate to fold into the NiFi-Nat
 
 ## Pending Publish Panel
 
-Each row shows thumbnail, platform badge, streamer/X links, title linked to the clip — `approve_clip()` threads `source`/`streamer`/`url`/`thumbnail_url`/`x_handle` through into `.pending_publish.json`. Older pre-change entries fall back gracefully (no thumbnail).
+Each row shows thumbnail, platform badge, streamer/X links, title linked to the clip, and (session 16) **view count** — `approve_clip()` threads `source`/`streamer`/`url`/`thumbnail_url`/`x_handle`/`view_count` through into `.pending_publish.json`. Older pre-change entries fall back gracefully (no thumbnail, no views badge).
+
+`view_count` was already captured at fetch time (`_fetch_twitch_clips`/`_fetch_kick_clips`) and shown on the Review queue's `ClipCard`, but silently dropped when a clip got approved into the pending queue — `PublishRequest`/`approve_clip()` just didn't have the field. Fixed: added to the request model, service function, and `.pending_publish.json` schema; frontend `PendingClip` type + `PendingPanel` render it the same `· N views` style as `ClipCard`. `POST /admin/backfill-metadata` extended to patch `view_count` onto pre-existing entries (same mechanism already used for source/streamer/url/thumbnail_url/x_handle) — ran once, patched 11/13 pending and 169/209 published-history entries.
 
 **Safe to Post Now out of order?** Yes — `.pending_publish.json` is a flat JSON list, not Kafka. `publish_pending(clip_id)` removes that one id from wherever it sits (same pattern as `cancel_pending()`), restores it to the front on failure. Rest of the queue and the normal cron pop-index-0 rotation are unaffected.
 
@@ -852,7 +874,11 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 | Roster catalog additions | `joe_bartolozzi` (twitch, `@JoeBartolozzi_`) and `whiz` (kick, `@crashoverride`) added to `streamers.md` and the backend catalog, redeployed |
 | `LiveStreamerAlert` repointed to poll the full roster, not the watch list | Steven's explicit correction to the earlier "open design question." New `GET /api/streamers/roster` endpoint; `GetWatchlist` renamed to `GetRoster` and repointed live via the NiFi REST API; new `BuildWatchlistAddBody` → `AddToWatchlist` branch pins a discovered-live streamer onto the watch list. Confirmed with Steven before running live, since this write path isn't Dry-Run-gated. See "Auto-add live streamers" section above |
 | Second dry-run test, full roster (30 streamers) | 7 found live (`eliasn97`, `joe_bartolozzi`, `roshtein`, `deenthegreat`, `n3on`, `adrienbroner`, `whiz`), zero HTTP failures/retries, all added to the watch list for real. One discrepancy noted (`adinross` reported live by Steven, checked clean but not-live by the time this poll ran — likely just went offline in the interim, not chased further). See "Dry-run roster test" section above |
-| Credential re-injection tightened | Dropped `STREAMERS_WATCH_LIST` from the standard post-deploy `kubectl set env` command — grepped the codebase and confirmed it's never read anywhere, was a stale/unused var from the doc's example |
+| Credential re-injection tightened | Dropped `STREAMERS_WATCH_LIST` from the standard post-deploy `kubectl set env` command — never read anywhere in the codebase |
+| **X credential incident + fix** | A processor edit destroyed the live X credentials via NiFi's sensitive-property GET-mask/PUT-echo bug. Fixed by wiring to the `streamers-x-creds` Parameter Context instead of literal values. Confirmed working: 11 streamers live, real posts went out. See "Credential incident" section above |
+| Pending Publish panel now shows view counts | `view_count` was captured at fetch but dropped at approve — now threaded through end to end; backfill patched 11/13 pending + 169/209 published entries |
+| Watch list persistence fixed | Was in-memory only, wiped by every redeploy (bit Steven's manual trim mid-session) — now saved to `.watchlist.json` on the `/clips` PVC |
+| Fetch-mode/scale discussion | Confirmed the Recent/Top toggle already exists in UI (was on Recent, hence low view counts); discussed but didn't build a viewer-count gate for the scale problem 11+ watched streamers created |
 
 ---
 
