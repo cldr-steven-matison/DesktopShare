@@ -86,3 +86,11 @@ rotate watch list (added session 15, not yet confirmed via Telegram bot)
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh rotate"
 ```
+
+add to watch list without replacing it (added session 16, not yet confirmed via Telegram bot)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add t:jasontheween"
+```
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add k:n3on"
+```
