@@ -35,9 +35,4 @@
 | adrienbroner   | @AdrienBroner           |
 | bbjess         | @bbjess                 |
 
-Features:
-
-move to main app page editing here for pass th
-
-1.  change/improve the clip glitch effect ... we are goin full tuna street streams ... make glitch longer then reverse it to the snap back,  whatever the glitch effect is reverse before snap.
-2. we are also going to add a talking tunafish clip art that talks over the stream. Like charlie the talking tuna.  Similar to theburntpeanut.  the tuna script needs to be obnoxious and wild.
+Feature notes for this module now live in `cso-operator-app-streamers.md` ("Feature Backlog — Clip Overlay & Glitch Effect" section) — this file is the streamer roster only.

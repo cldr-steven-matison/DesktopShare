@@ -76,3 +76,13 @@ update watch list
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh t:extremely k:deenthegreat"
 ```
+
+show watch list (added session 15, not yet confirmed via Telegram bot)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh show"
+```
+
+rotate watch list (added session 15, not yet confirmed via Telegram bot)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh rotate"
+```

@@ -268,6 +268,75 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **Subtitles from transcript** — unblocked, deprioritized (session 12): `POST /2/media/subtitles` + existing Whisper segment timestamps could give real closed captions with no new credentials. See "Untitled Videos" section above.
 - **Reply Guy** — FUTURE IDEA (added session 14): auto-reply bot behavior, threaded onto every posted clip's tweet. Reply 1 — link to the streamer's own stream/channel page (their Twitch/Kick profile URL; already have this value on every clip record as `clip.streamer` + `clip.source`). Reply 2 — the clip's transcript, likely a quotable excerpt rather than the full wall of text (not finalized; would need vLLM if excerpting rather than dumping raw text). Not scoped or built yet.
 - **More Telegram scripts** — FUTURE IDEA: `Fetch Clips` and `Publish Clips` on-demand triggers, same reply-to-chat pattern as `agent-PostNow.sh`. Post Now is the first one built.
+- **LiveStreamerAlert dedup/failure visibility fix** — ✓ FIXED live (session 16, 2026-07-12): silent-failure bug where a burned dedup entry never retried and never logged is resolved — see "LiveStreamerAlert — Known Issues" section below.
+- **LiveStreamerAlert tweet format (🟢 + "link in first comment")** — ✓ APPLIED live (session 16, 2026-07-12) — see section below.
+- **Clear the LiveStreamerAlert dedup cache** — investigated, deliberately not run (risk of duplicate real X posts for still-live sessions) — needs Steven's explicit go-ahead. See section below.
+- **Auto-add live streamers to the watch list** — ✓ BACKEND SHIPPED (`POST /api/streamers/watchlist/add`, session 16), not wired into NiFi yet — needs a decision on data source (full roster vs. current watch list). See section below.
+- **Clip glitch effect rework + Talking Tuna Fish ("Charlie") overlay** — BACKLOG (session 16, moved from `streamers.md`) — see "Feature Backlog — Clip Overlay & Glitch Effect" section below.
+
+---
+
+## Feature Backlog — Clip Overlay & Glitch Effect (session 16, 2026-07-11)
+
+Moved here from `streamers.md` (was sitting under the streamer roster, undocumented elsewhere). Two related asks, both about the clip visual identity — "full Tuna Street streams" branding push. Backlog only, not scoped or built.
+
+**1. Glitch effect rework.** Current clip-processing glitch transition is too short/abrupt. Ask: make the glitch run longer, then *reverse the same distortion* for the snap-back instead of a hard cut — whatever the effect does going in, unwind it symmetrically on the way out, rather than an instant discontinuity. Lives wherever the glitch is implemented today (ffmpeg filter chain in `services/streamers.py`'s clip processing), or its equivalent once the ProcessClips NiFi-native refactor's `ClipOverlayProcessor` is built (see "NiFi-Native Refactor Plan" below) — natural to build once there rather than twice.
+
+**2. Talking Tuna Fish overlay — "Charlie the Tuna" (expanded concept).** A recurring animated tuna-fish clip-art mascot ("Charlie") that talks over the streamed clip footage, same spirit as TheBurntPeanut's fruit-mascot overlays (`@theburntpeanut` in the roster is the reference/comp).
+
+- **Tone**: obnoxious and wild — a personality that fights for attention on screen, not a subtle brand bug, in line with the "Tuna Street Streams" identity.
+- **Script/voice — open question**: reuse the existing vLLM caption pipeline to generate a line per clip and TTS it, vs. hand-write a stock bank of obnoxious one-liners/reactions picked randomly or by context. vLLM route is more "alive" per-clip; stock bank is far cheaper to ship first.
+- **Trigger timing — open question**: overlay for the whole clip, or pop in at a specific beat (e.g. right after the glitch snap-back above)?
+- **Visual fidelity — open question, cheapest-to-priciest**: static clip-art with a looping talking-mouth animation → a few discrete mouth-shape frames swapped on audio amplitude (still cheap, more alive) → full animation (likely overkill for v1).
+- **Pipeline dependency**: both land in the same ffmpeg/overlay processing stage — batch this with the `ClipOverlayProcessor` work already flagged as the highest-risk remaining piece of the ProcessClips native refactor, rather than building throwaway logic in the current Python path first.
+
+---
+
+## LiveStreamerAlert — Known Issues & Session 16 Investigation (2026-07-11 → 2026-07-12)
+
+Follow-up to the "LiveStreamerAlert" build section above, after Steven reported: some live streamers never post even after repeated poll runs, and no error surfaces anywhere. Investigated read-only via the live `flow.json` (`kubectl exec mynifi-0 ... gunzip data/flow.json.gz`) and both NiFi log containers (`nifi`, `app-log`) over a 72h window — no live-flow changes made initially, per [[feedback-nifi-live-state-authoritative]] and [[feedback-prod-no-manual-patches]]. Steven then explicitly authorized direct canvas edits for this PG specifically ("you built the flow... NiFi is not my own space, especially if you built the flow") — see the update on [[feedback-nifi-live-state-authoritative]]. Fixes below were applied live via the NiFi REST API (authenticated with the existing `nifi-admin-creds` k8s secret, called directly from `mynifi-0` — not routed through the `cso-operator-app` prod pod, per [[feedback-prod-no-manual-patches]]).
+
+### Root cause — silent failure past dedup — ✓ FIXED (2026-07-12)
+
+- `DedupLiveSession` (`DetectDuplicate`, cache key `${login}-${started_at}`) sits **upstream** of `BuildTweetText` → `XLivePostProcessor` — it marks a login+session as "seen" *before* the tweet is actually posted, not after.
+- `DedupLiveSession`'s `duplicate` relationship was auto-terminated (silently dropped, no log, no bulletin).
+- Both `XLivePostProcessor` instances' (main post + reply) `failure` relationship was also auto-terminated — the Python processor's exception handler routes to `failure` but never calls `getLogger().error()`, so nothing surfaced in the NiFi UI either.
+- **Net effect**: if the post failed for any reason *after* dedup marked it seen (X API error, transient network blip, a processor getting stopped mid-cycle during manual testing), that live session was burned — every later poll for the same `started_at` hit `duplicate` and dropped silently. Only the 24h `Age Off Duration` on `DedupLiveSession` eventually cleared it. This matched the symptom exactly: streamers that "were live and didn't come out, more runs even after some time, no results past dedupe."
+- Confirmed **not** a Twitch/Kick asymmetry — `LogAlertResult` (fires only on a fully-successful main-post+reply) shows real successful posts for `stableronaldo` (twitch) and both `n3on`/`hstikkytokky` (kick) on 2026-07-10, plus `extraemily` (twitch) and a second `hstikkytokky` session (kick) on 2026-07-11. Both platforms worked end-to-end; the gap was silent failures on the unlucky runs, not a platform gap.
+
+**Fix applied:** `DedupLiveSession`'s `duplicate` relationship and both `XLivePostProcessor` instances' `failure` relationship are now wired into the existing `LogAlertResult` (`LogAttribute`) processor instead of auto-terminating — a burned/failed entry now logs to `app-log` (same place the successful-post confirmations already show up) instead of vanishing. All 5 touched processors stopped/reconfigured/restarted cleanly, confirmed back to `RUNNING` + `VALID` afterward. `DedupLiveSession` still auto-terminates its own `failure` relationship (untouched — that's DetectDuplicate's cache-lookup-itself-errored path, not the symptom reported) and `XReplyWithPlatformUrl` still auto-terminates `original` (untouched, unrelated).
+
+### Clearing the dedup cache manually — investigated, NOT run
+
+Backing service is `LiveAlert MapCacheServer` (`org.apache.nifi.distributed.cache.server.map.MapCacheServer`) — in-memory only, no `Persistence Directory` set, so a NiFi restart clears it but stop/starting the *processors* doesn't (it's a separate controller service). NiFi has no "Clear" action for this service type in the UI. Standard technique: **disable, then re-enable `LiveAlert MapCacheServer`** (the server, not the client service) — reinitializes its internal map from scratch, wiping every cached dedup key.
+
+**Deliberately not run this session.** Unlike the routing/text fixes above, clearing the cache has a real public side effect: any streamer whose live session is still ongoing would look "new" again on the next poll and could get **re-posted to X** — a duplicate real tweet, not just an internal state change. That crosses into "ask first" territory. Steven: say the word and it's a 2-line script (disable → re-enable the controller service), or just let the 24h age-off handle the currently-burned entries from testing.
+
+### Re-occurrence / scheduling — open design question
+
+`PollTimer` (`GenerateFlowFile`) is 1-day/stopped today, started manually per test run. Options, for Steven to pick:
+
+- **CRON_DRIVEN** (e.g. every 5-15 min), always running — closest to real live-alert behavior. The silent-failure gap that made this risky is fixed now (see above), so this is more viable than it was; confirm Twitch/Kick rate-limit headroom at that cadence first.
+- **TIMER_DRIVEN, longer period** (e.g. 30-60 min) — lighter touch, still gives visible failures if something goes wrong.
+- **Stay manual** (current) — safest, no urgency to change now that failures are logged instead of silent.
+
+### Tweet format — 🟢 instead of 🔴, add "(link in first comment)" — ✓ APPLIED (2026-07-12)
+
+Target (Steven's sample): `🟢 {login} is LIVE now! Follow on X @{x_handle} — join me on @{platform_tag} (link in first comment)`
+
+`BuildTweetText`'s (`ReplaceText`) "Replacement Value" property is now live as:
+
+```
+🟢 ${login} is LIVE now! Follow on X @${x_handle} — join me on @${platform_tag} (link in first comment)
+```
+
+(was: `🔴 ${login} is LIVE now! Follow me on X @${x_handle} — join me on @${platform_tag}`)
+
+### Auto-add live streamers to the watch list
+
+Shipped this session: `POST /api/streamers/watchlist/add` (`{"login": "...", "platform": "twitch"|"kick"}`) — additive/idempotent, appends one login without touching the rest of the list. See `add_to_watchlist()` in `services/streamers.py`, distinct from `set_watchlist()` (full replace) and `rotate_watchlist()` (swap 4).
+
+**Not wired into the live NiFi flow yet, on purpose.** `LiveStreamerAlert` currently only checks logins already on the watch list (`GetWatchlist` → `SplitLogins`), so calling this endpoint on an "is_live" hit today would just re-add someone already there — a no-op. For "add anyone online" to discover someone *not* currently watched, `GetWatchlist` would need to poll the full roster (`streamers.md` — 14 Twitch + 13 Kick) instead of the 4-entry watch list, which multiplies Twitch/Kick API calls per poll roughly 7x (Kick's path is 2 HTTP calls per streamer: channel-id lookup, then live-status). Open decision for Steven: is broader-roster polling worth the added API load, or should "add to watch list" instead mean "don't let Rotate swap out someone who's currently live" (much cheaper, no source-list change)? The endpoint is ready either way once the choice is made.
 
 ---
 
@@ -697,7 +766,7 @@ New process group under `StreamersApp`, built entirely in NiFi (no backend busin
 |---|---|
 | `agent-PostNow.sh [usertag]` | No arg: pops and publishes the next clip in the **pending** queue — `POST /api/streamers/publish-next`. With a usertag (streamer login or X handle, case-insensitive, leading `@` optional): finds that streamer's pending clip via `GET /api/streamers/pending` and publishes that one specific clip out of order via `POST /api/streamers/pending/{clip_id}/publish-now`. If no pending clip matches, replies saying so and falls back to `publish-next` instead |
 | `agent-approvePosts.sh` (added session 14) | Approves **every** clip currently in the review queue, if any — `GET /api/streamers/queue`, loops the whole array, `POST /api/streamers/approve` per clip with full metadata. Moves clips from Review into Pending; doesn't post them. Renamed from the singular `agent-approvePost.sh` after it was changed to hit the full queue instead of just the top clip |
-| `agent-watchList.sh` (added session 14) | Accepts 1-4 args like `t:username` (Twitch) or `k:username` (Kick), translates to the `login`/`kick:login` format the backend expects, and **replaces the whole watch list** with exactly those entries — `POST /api/streamers/watchlist`. Rejects bad prefixes or >4 args before touching the live list |
+| `agent-watchList.sh` (added session 14; `show`/`rotate` added session 15) | 1-4 args like `t:username` (Twitch) or `k:username` (Kick): translates to the `login`/`kick:login` format the backend expects and **replaces the whole watch list** with exactly those entries — `POST /api/streamers/watchlist`. Rejects bad prefixes or >4 args before touching the live list. `show`: prints the current list, no changes — `GET /api/streamers/watchlist`. `rotate`: swaps in 4 fresh streamers not already on the list — `POST /api/streamers/watchlist/rotate` |
 | `agent-fetchClips.sh` (added session 14) | Takes one arg, `start` or `stop` — starts/stops the `FetchClips` NiFi process group via `POST /api/streamers/flows/FetchClips/{start\|stop}`, same endpoint the Pipeline Status panel's Start/Stop buttons call. Replies with the resulting state (`RUNNING`/`STOPPED`) or a usage error if the arg is missing/wrong |
 
 All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` env vars, do the HTTP work against `APP_URL` (default `http://127.0.0.1:8090`), then `curl` a plain-text result back to the Telegram chat. All were live-tested this session against the running app (`agent-watchList.sh` tested as a round-trip against the real 4-streamer watch list — same streamers in, same streamers out, so no net change to live fetch behavior; `agent-fetchClips.sh` tested stop → start round-trip against the live `FetchClips` PG, confirmed restored to `RUNNING`).
@@ -705,6 +774,20 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 ---
 
 ## Session History
+
+### Session 16 (2026-07-11)
+
+| Change | Details |
+|---|---|
+| Feature notes moved out of `streamers.md` | Roster file now stays roster-only; glitch-effect rework + Talking Tuna Fish overlay concept moved and expanded into "Feature Backlog — Clip Overlay & Glitch Effect" above |
+| **LiveStreamerAlert dedup/failure root cause found and fixed live** | Read-only investigation (live `flow.json` + `app-log`/`nifi` container logs, 72h) found `DedupLiveSession` marks an entry seen *before* the post succeeds, and both its `duplicate` relationship and `XLivePostProcessor`'s `failure` relationship were auto-terminated — a downstream failure silently burned that live session with zero log until the 24h age-off. Confirmed successful posts both days/both platforms (`stableronaldo`, `n3on`, `hstikkytokky` on 07-10; `extraemily`, `hstikkytokky` again on 07-11), ruling out a Twitch/Kick asymmetry. Steven then authorized direct canvas edits ("you built the flow... go ahead and finish the changes") — fixed live via the NiFi REST API (rerouted both relationships into `LogAlertResult`), confirmed all touched processors back to `RUNNING`/`VALID`. See "LiveStreamerAlert — Known Issues" section above |
+| Mapcache-clear technique identified, not run | `LiveAlert MapCacheServer` is in-memory, no UI "Clear" action exists for the type — disable/re-enable the controller service is the standard reset. Deliberately not executed — would risk duplicate real X posts for any still-live session. Needs Steven's explicit go-ahead |
+| `POST /api/streamers/watchlist/add` shipped | New additive endpoint (`add_to_watchlist()` in `services/streamers.py`) so LiveStreamerAlert can pin a discovered-live streamer without replacing the whole list. Not wired into the NiFi flow yet — needs Steven's call on whether `GetWatchlist` should poll the full roster instead of the current 4-entry list first |
+| Tweet format applied live (🟢 + "link in first comment") | `BuildTweetText`'s Replacement Value updated via the NiFi REST API to match Steven's requested copy exactly |
+| `agent-commands.md` gaps from session 15 patched | Added `show`/`rotate` Telegram commands that were missing from the bottom command list |
+| NiFi API access pattern established | Auth via the existing `nifi-admin-creds` k8s secret + NiFi's `/access/token` endpoint, called from `mynifi-0` directly (never through the `cso-operator-app` prod pod, never printing credentials to the transcript) — reusable for future Claude-built-flow edits |
+
+---
 
 ### Session 15 (2026-07-10)
 
