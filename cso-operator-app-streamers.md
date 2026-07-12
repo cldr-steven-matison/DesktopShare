@@ -128,9 +128,10 @@ kubectl set env deploy/cso-operator-app \
   X_API_KEY="${X_API_KEY}" \
   X_API_SECRET="${X_API_SECRET}" \
   X_ACCESS_TOKEN="${X_ACCESS_TOKEN}" \
-  X_ACCESS_TOKEN_SECRET="${X_ACCESS_TOKEN_SECRET}" \
-  STREAMERS_WATCH_LIST="stableronaldo"
+  X_ACCESS_TOKEN_SECRET="${X_ACCESS_TOKEN_SECRET}"
 ```
+
+(`STREAMERS_WATCH_LIST` dropped 2026-07-12 — grepped, never read anywhere in the codebase; the in-memory watch list is seeded by `_init_watchlist()` instead, see "Auto-add live streamers" section.)
 
 ### Rebuild Whisper image
 
@@ -178,6 +179,8 @@ Restore: `--replicas=1` and `kubectl apply -f ~/ClouderaStreamingOperators/minif
 | `GET  /api/streamers/watchlist` | Watch List section |
 | `POST /api/streamers/watchlist` | Watch List add/remove; `agent-watchList.sh` (full replace) |
 | `POST /api/streamers/watchlist/rotate` | Rotate button |
+| `POST /api/streamers/watchlist/add` | `agent-watchList.sh add`; `LiveStreamerAlert`'s `AddToWatchlist` (pins a discovered-live streamer, additive) |
+| `GET  /api/streamers/roster` | `LiveStreamerAlert`'s `GetRoster` (was `GetWatchlist`) — every catalog streamer, not just the 4-ish entry watch list |
 | `GET  /api/streamers/flows` | Pipeline Status panel (30s polled) |
 | `POST /api/streamers/flows/{name}/start\|stop` | Flow start/stop buttons; `agent-fetchClips.sh` (FetchClips only) |
 
@@ -271,7 +274,7 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **LiveStreamerAlert silent-drop fixes** — ✓ FIXED live in two rounds (session 16, 2026-07-12): real HTTP retry on all 5 `InvokeHTTP` calls + failure/unmatched logging across the whole PG, not just the original dedup gap. **Not yet verified against a real multi-streamer-live event** — no one was live at fix time. See "LiveStreamerAlert — Known Issues" section below.
 - **LiveStreamerAlert tweet format (🟢 + "link in first comment")** — ✓ APPLIED live (session 16, 2026-07-12) — see section below.
 - **Clear the LiveStreamerAlert dedup cache** — investigated, deliberately not run (risk of duplicate real X posts for still-live sessions) — needs Steven's explicit go-ahead. See section below.
-- **Auto-add live streamers to the watch list** — ✓ BACKEND SHIPPED (`POST /api/streamers/watchlist/add`, session 16), not wired into NiFi yet — needs a decision on data source (full roster vs. current watch list). See section below.
+- **Auto-add live streamers to the watch list** — ✓ SHIPPED AND WIRED LIVE (session 16, 2026-07-12) — `LiveStreamerAlert` now polls the full roster (`GET /api/streamers/roster`, `GetRoster`) instead of the 4-entry watch list, and pins any discovered-live streamer onto the watch list via `AddToWatchlist`. Live-tested: 7 streamers found live in one poll, all added for real. See section below.
 - **Clip glitch effect rework + Talking Tuna Fish ("Charlie") overlay** — BACKLOG (session 16, moved from `streamers.md`) — see "Feature Backlog — Clip Overlay & Glitch Effect" section below.
 
 ---
@@ -324,6 +327,23 @@ Verified after: all 20 processors in the PG `RUNNING` + `VALID`, all new connect
 
 **Not yet verified end-to-end.** No streamers were live at the time of this fix, so none of this — the retry loop, the new logging, or the pacing theory — has been confirmed against a real "4 live, only 2 post" scenario. Next time that happens, `app-log` should show exactly where and why each missing streamer dropped (HTTP failure/retry-exhausted, parse miss, or just still queued behind the 3-minute pacing) instead of nothing at all.
 
+### Dry-run test poll (2026-07-12) — pipeline confirmed working, both watch-list streamers offline
+
+Ran one real poll cycle in test mode to sanity-check the round-2 fix: set `Dry Run` to `true` on both `XLivePostProcessor` instances (main + reply — so nothing could actually post), started `PollTimer` once, watched the queue drain, then read back the NiFi provenance log filtered to this PG's processor IDs.
+
+**Found first: the whole PG (everything except `PollTimer`) was `STOPPED`** — not something this session touched; the round-2 verification earlier had confirmed everything `RUNNING`, so this changed sometime between then and now (most likely Steven stopping it deliberately). The first poll attempt sat queued for ~7 minutes at `GetWatchlist` because of this, until noticed and the whole PG was started via the bulk PG-level run-status endpoint. Not treated as a bug — restored to the same all-`STOPPED` state afterward, per [[feedback-nifi-live-state-authoritative]].
+
+**Also found: two extra `LogAlertResult`-named `LogAttribute` processors** sitting on the canvas (IDs `b926ca7f...` and `066fb920...`), unconnected, not present in earlier flow.json snapshots — Steven's own addition at some point, left alone.
+
+**Provenance trace, current watch list (`extraemily` twitch, `kick:hstikkytokky`):**
+- `extraemily` — `GetTwitchLiveStatus` succeeded, `RouteIsLive` → `unmatched` (not live).
+- `hstikkytokky` — `GetKickChannelId` → `GetKickLiveStatus` both succeeded, `RouteIsLive` → `unmatched` (not live).
+- Zero `Retry`/`Failure`/`unmatched`-on-parse events for either — both real API calls succeeded cleanly, the pipeline correctly determined neither is live, and (correctly) didn't alert. No errors to exercise the new logging this time, but confirms the happy path runs end-to-end without regressions after the round-2 rewiring.
+
+Restored after: `Dry Run` back to `false` on both `XLivePostProcessor` instances, whole PG back to `STOPPED` (matching the state it was found in).
+
+**Still open:** the actual "4 live, only 2 posted" scenario, and the new retry/logging paths under a real failure, remain unverified — this run only had two streamers to check and both were offline, so nothing exercised the retry loop.
+
 ### Clearing the dedup cache manually — investigated, NOT run
 
 Backing service is `LiveAlert MapCacheServer` (`org.apache.nifi.distributed.cache.server.map.MapCacheServer`) — in-memory only, no `Persistence Directory` set, so a NiFi restart clears it but stop/starting the *processors* doesn't (it's a separate controller service). NiFi has no "Clear" action for this service type in the UI. Standard technique: **disable, then re-enable `LiveAlert MapCacheServer`** (the server, not the client service) — reinitializes its internal map from scratch, wiping every cached dedup key.
@@ -350,13 +370,34 @@ Target (Steven's sample): `🟢 {login} is LIVE now! Follow on X @{x_handle} —
 
 (was: `🔴 ${login} is LIVE now! Follow me on X @${x_handle} — join me on @${platform_tag}`)
 
-### Auto-add live streamers to the watch list
+### Auto-add live streamers to the watch list — ✓ WIRED LIVE (2026-07-12)
 
-Shipped this session: `POST /api/streamers/watchlist/add` (`{"login": "...", "platform": "twitch"|"kick"}`) — additive/idempotent, appends one login without touching the rest of the list. See `add_to_watchlist()` in `services/streamers.py`, distinct from `set_watchlist()` (full replace) and `rotate_watchlist()` (swap 4).
+`POST /api/streamers/watchlist/add` (`{"login": "...", "platform": "twitch"|"kick"}`) — additive/idempotent, appends one login without touching the rest of the list. See `add_to_watchlist()` in `services/streamers.py`, distinct from `set_watchlist()` (full replace) and `rotate_watchlist()` (swap 4).
 
-**Telegram command added:** `agent-watchList.sh add t:username` / `add k:username` — same additive behavior via the bot. Script logic syntax-checked and reviewed against the endpoint's contract; not yet confirmed via a real Telegram round-trip (didn't want to mutate the live watch list feeding LiveStreamerAlert to self-test — see [[feedback-no-manual-data-into-live-triggers]]). Follows the same `show`/`add`-before-catch-all dispatch pattern as `show`/`rotate`.
+**Telegram command:** `agent-watchList.sh add t:username` / `add k:username` — same additive behavior via the bot.
 
-**Not wired into `LiveStreamerAlert`'s own NiFi flow yet, on purpose** — this is the manual "I'm adding someone to watch" path (Telegram/UI), separate from the open question below about the flow auto-discovering live streamers on its own. `LiveStreamerAlert` currently only checks logins already on the watch list (`GetWatchlist` → `SplitLogins`), so calling this endpoint on an "is_live" hit today would just re-add someone already there — a no-op. For "add anyone online" to discover someone *not* currently watched, `GetWatchlist` would need to poll the full roster (`streamers.md` — 14 Twitch + 13 Kick) instead of the 4-entry watch list, which multiplies Twitch/Kick API calls per poll roughly 7x (Kick's path is 2 HTTP calls per streamer: channel-id lookup, then live-status). Open decision for Steven: is broader-roster polling worth the added API load, or should "add to watch list" instead mean "don't let Rotate swap out someone who's currently live" (much cheaper, no source-list change)? The endpoint is ready either way once the choice is made.
+**The open design question is resolved: check the full roster, not the watch list.** Steven's call: "You should be checking the entire list of streamers to see who is online, NOT the watch list." Implemented live:
+
+- New backend endpoint `GET /api/streamers/roster` — every catalog streamer (`_TWITCH_LOGINS` + `_KICK_LOGINS`, same `login`/`kick:login` shape as `/watchlist`), see `get_roster()` in `services/streamers.py`.
+- `GetWatchlist` (the `InvokeHTTP` processor) renamed to **`GetRoster`** and repointed from `/api/streamers/watchlist` to `/api/streamers/roster` — done live via the NiFi REST API, no canvas rewiring needed beyond the URL/name.
+- New branch: `RouteIsLive`'s `is_live` relationship now fans out to *both* the existing `GetXHandle` chain (builds and posts the alert) *and* a new `BuildWatchlistAddBody` (`ReplaceText`, builds `{"login": "...", "platform": "..."}`) → `AddToWatchlist` (`InvokeHTTP POST /watchlist/add`) — so a discovered-live streamer gets pinned onto the watch list (which still separately drives `FetchClips`) as a side effect of being found live, independent of whether the alert itself posts.
+- `AddToWatchlist`'s `Failure` relationship routes to `LogAlertResult`, same convention as the rest of the flow.
+
+**Important: this write path is *not* gated by `XLivePostProcessor`'s `Dry Run` flag** — it's a separate, always-real call. Confirmed live-tested 2026-07-12 (see below) — flagged and confirmed with Steven before the first live-write run, since a "test" poll would otherwise silently mutate the real watch list.
+
+**Gotcha discovered this session:** the watch list is in-memory only (`_watchlist` module global) — it resets to a fresh random 2-Twitch/2-Kick sample on every `cso-operator-app` pod restart (redeploys, crashes, etc.), same as it always has, but this interacts with `AddToWatchlist` now: a redeploy right before/during a poll cycle silently drops whatever was manually curated. Not fixed this session — no persistence layer for the watch list exists yet.
+
+### Dry-run roster test (2026-07-12) — 7 streamers found live, watch list updated for real
+
+Ran the same dry-run pattern as before (`Dry Run=true` on both `XLivePostProcessor` instances, so no alert could actually post) but against the newly-repointed full-roster check (30 catalog streamers — includes `joe_bartolozzi` and `whiz`, added to the catalog this session at Steven's request). `AddToWatchlist` was explicitly confirmed with Steven to run for real before triggering (see above).
+
+**Found live:** `eliasn97` (twitch), `joe_bartolozzi` (twitch), `roshtein` (kick), `deenthegreat` (kick), `n3on` (kick), `adrienbroner` (kick), `whiz` (kick) — 7 total, all via provenance-confirmed real API responses (`live_id` populated, `RouteIsLive` → `is_live`), zero HTTP failures/retries across all 30 streamers checked.
+
+**Discrepancy worth flagging, not chased down further:** Steven had reported `adinross` live too; this poll's real Kick API check for `adinross` came back clean (`GetKickChannelId`/`GetKickLiveStatus` both succeeded, no errors) but with `live_id` empty → correctly routed `unmatched` (not live). Most likely explanation: enough time passed between Steven's message and this poll actually running (~10 min of deploy/wiring work) that the stream ended in between — not treated as a bug, no code changes made chasing this specific case.
+
+**Confirmed real side effects:** all 7 found-live streamers got added to the watch list via `AddToWatchlist` (`GET /api/streamers/watchlist` after the run showed all 7 present). No alerts posted to X (dry run held).
+
+**State restored after:** `Dry Run` back to `false` on both `XLivePostProcessor` instances, whole PG back to `STOPPED` — same resting-state pattern as the previous test.
 
 ---
 
@@ -807,6 +848,11 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 | Tweet format applied live (🟢 + "link in first comment") | `BuildTweetText`'s Replacement Value updated via the NiFi REST API to match Steven's requested copy exactly |
 | `agent-commands.md` gaps from session 15 patched | Added `show`/`rotate` Telegram commands that were missing from the bottom command list |
 | NiFi API access pattern established | Auth via the existing `nifi-admin-creds` k8s secret + NiFi's `/access/token` endpoint, called from `mynifi-0` directly (never through the `cso-operator-app` prod pod, never printing credentials to the transcript) — reusable for future Claude-built-flow edits |
+| Dry-run test poll run against the round-2 fix | Set `Dry Run=true`, ran one real `PollTimer` cycle, read back via provenance. Found the whole PG had been stopped since the round-2 verification (restored after, not investigated further — Steven's own state); both current watch-list streamers (`extraemily`, `kick:hstikkytokky`) checked cleanly and were offline, no errors to exercise the new retry/logging paths. Also found two extra unconnected `LogAlertResult` processors on the canvas (Steven's own addition, left alone). See "Dry-run test poll" section above |
+| Roster catalog additions | `joe_bartolozzi` (twitch, `@JoeBartolozzi_`) and `whiz` (kick, `@crashoverride`) added to `streamers.md` and the backend catalog, redeployed |
+| `LiveStreamerAlert` repointed to poll the full roster, not the watch list | Steven's explicit correction to the earlier "open design question." New `GET /api/streamers/roster` endpoint; `GetWatchlist` renamed to `GetRoster` and repointed live via the NiFi REST API; new `BuildWatchlistAddBody` → `AddToWatchlist` branch pins a discovered-live streamer onto the watch list. Confirmed with Steven before running live, since this write path isn't Dry-Run-gated. See "Auto-add live streamers" section above |
+| Second dry-run test, full roster (30 streamers) | 7 found live (`eliasn97`, `joe_bartolozzi`, `roshtein`, `deenthegreat`, `n3on`, `adrienbroner`, `whiz`), zero HTTP failures/retries, all added to the watch list for real. One discrepancy noted (`adinross` reported live by Steven, checked clean but not-live by the time this poll ran — likely just went offline in the interim, not chased further). See "Dry-run roster test" section above |
+| Credential re-injection tightened | Dropped `STREAMERS_WATCH_LIST` from the standard post-deploy `kubectl set env` command — grepped the codebase and confirmed it's never read anywhere, was a stale/unused var from the doc's example |
 
 ---
 
