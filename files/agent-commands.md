@@ -50,7 +50,7 @@ don't reliably run (the bot sometimes just chats back instead of executing)
 without it.
 
 Confirmed tested and working — live-tested end-to-end against the real
-cluster/app, see `cso-operator-app-streamers.md` Session 14 for test details.
+cluster/app, see `cso-operator-app-streamers.md` Session 14/16 for test details.
 
 post now with user
 ```bash
@@ -77,20 +77,12 @@ update watch list
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh t:extremely k:deenthegreat"
 ```
 
-show watch list (added session 15, not yet confirmed via Telegram bot)
+show watch list
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh show"
 ```
 
-rotate watch list (added session 15, not yet confirmed via Telegram bot)
+rotate watch list
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh rotate"
-```
-
-add to watch list without replacing it (added session 16, not yet confirmed via Telegram bot)
-```bash
-/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add t:jasontheween"
-```
-```bash
-/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add k:n3on"
 ```
