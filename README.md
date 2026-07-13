@@ -39,6 +39,7 @@ Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) ru
 | **`completed/`** | Fully tested, operationally validated documents moved out of root. |
 | **`files/`**   | Supporting files (JSON, `.py`, YAML, Dockerfiles, etc.). These are also synced to the appropriate dedicated repos. |
 | **`history/`** | Archive of previous history and terminal output (`.txt`). |
+| **`research/`** | MD files in a research state. |
 
 ---
 
