@@ -36,5 +36,3 @@
 | adrienbroner   | @AdrienBroner           |
 | bbjess         | @bbjess                 |
 | whiz           | @crashoverride          |
-
-Feature notes for this module now live in `cso-operator-app-streamers.md` ("Feature Backlog — Clip Overlay & Glitch Effect" section) — this file is the streamer roster only.
