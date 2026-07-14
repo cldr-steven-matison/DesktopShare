@@ -1,1 +1,5 @@
 /.claude
+/files/tuna-test/input/
+/files/tuna-test/output/
+/files/tuna-test/.env.local
+/files/tuna-test/__pycache__/

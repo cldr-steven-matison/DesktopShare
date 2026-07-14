@@ -6,17 +6,18 @@ An original cartoon tuna mascot (name/look TBD — not modeled on any existing c
 - **Phase A — Clip overlay (build first).** Burned onto already-recorded clips in the existing Tuna Street Streams pipeline (`cso-operator-app`), fully offline/batch. Lowest risk, fastest to something real, and proves out the character/voice before any live-audio complexity.
 - **Phase B — Live stream co-host (after A works).** A real-time version running locally on the Beelink SER9 Pro during the actual stream, reusing the persona, voice, and visual assets Phase A already built and validated.
 
-Everything stays local — no cloud LLM/TTS calls for either phase.
+Everything stays local and free — no cloud LLM/TTS/avatar-generation calls for either phase, and no per-generation cost. (A HeyGen-based version of Phase A was prototyped and worked, but was dropped in favor of this fully local route — see the Session Log below and `heygen-avatar-api.md` if that path is ever revisited.)
 
 ---
 
 ## Shared Foundation (build once, reuse in both phases)
 
-- **Persona / system prompt** — original writing. Pick 2-3 personality traits (e.g. loud, easily distracted, tuna-pun-obsessed) and write a short system prompt around them. This is the one piece of writing that should stay identical across Phase A and Phase B, so the mascot reads as the same character in a clip and live.
-- **Voice** — one local TTS voice (Piper works for both an offline batch job and a real-time loop). Same voice file used in both phases.
-- **Visual asset — start cheap.** A static image plus 2-3 mouth-shape frames (closed / mid / open) is enough for a convincing talking effect when swapped in time with the TTS audio's amplitude. This works for *both* phases:
-  - Phase A: ffmpeg overlays the frame sequence onto the clip video.
-  - Phase B: a browser source in OBS swaps the same frames live, driven off the TTS audio as it plays.
+- **Persona / system prompt** — original writing. Pick 2-3 personality traits (e.g. loud, easily distracted, tuna-pun-obsessed) and write a short system prompt around them, with an explicit rule to never use slurs/profanity/hate speech regardless of source material tone (see safety-gate finding below — this is not optional). This is the one piece of writing that stays identical across Phase A and Phase B, so the mascot reads as the same character in a clip and live. It also becomes the prompt vLLM uses to write the per-clip *script* that gets spoken — one prompt, two consumers.
+- **Voice — now identical across both phases.** Both Phase A and Phase B synthesize speech with **Piper** (local TTS), the same voice model file in both places. This is a simplification from the earlier HeyGen-based design, which needed a separate cloud voice for Phase A and a "look-matched" local voice for Phase B — with everything local now, there's only one voice to pick, ever.
+- **Visual asset — one photo, not a frame set.** A local lip-sync model (Wav2Lip or SadTalker — see Phase A) generates the talking video from a single source image + the Piper audio.
+  - Needs a **clean, solid (or removable) background**, not the transparent-checkerboard-style artwork used during prototyping — that checkerboard is baked into any exported video as literal pixels, not real alpha, so it has to be cropped or chroma-keyed out downstream either way. Cleanest fix is a version of the mascot art on a plain/green background so a simple crop or chroma-key does the job.
+  - Phase A feeds this photo + audio straight into the lip-sync model.
+  - Phase B still needs its own cheap 2-3 mouth-shape PNGs, since neither Wav2Lip nor SadTalker run fast enough for a live loop (both are batch/offline-oriented, same constraint HeyGen had) — pull a clean frame from a Phase A-generated video as the base for those, so the two phases look like the same character instead of being drawn twice.
   - **Full Live2D/VTube Studio rig is optional and deferred indefinitely** — only worth the time investment once the cheap version has proven people actually want to watch this. Don't start there.
 
 ---
@@ -27,18 +28,21 @@ This is the easier problem by a wide margin: a clip's transcript and duration ar
 
 **Where it lives**: `cso-operator-app`'s `services/streamers.py`, in the same processing stage that already burns the platform bar and glitch intro onto every clip (`_burn_platform_overlay`, `_burn_glitch_intro`) — same ffmpeg-overlay pattern, one more step in the chain.
 
-**Per-clip pipeline (all offline, no new infra beyond what's already running in-cluster):**
+**Per-clip pipeline** (fully local/offline — no external API calls):
 
 1. Reuse the Whisper transcript already captured for that clip (it's already produced for the existing tweet-caption step — no new transcription work needed).
-2. A new, separate vLLM prompt (distinct from the existing tweet-caption prompt) asks for one short in-character line reacting to the transcript. Keep it short — a couple seconds of TTS audio, not a monologue.
-3. TTS the line locally (Piper) to a short WAV.
-4. ffmpeg: overlay the mascot's mouth-frame sequence (selected per time-window from the WAV's amplitude) onto a corner of the clip for exactly the line's duration, and mix the TTS audio into the clip's own track.
-5. **Trigger timing**: start simple — right after the glitch snap-back (a beat that already exists in every clip today), one line, fixed short duration. Don't try to time it to specific transcript content yet.
+2. A new, separate vLLM prompt (distinct from the existing tweet-caption prompt) asks for one short in-character line reacting to the transcript — this becomes the **script**. Keep it short, a couple seconds spoken, not a monologue. **Must pass through a content-safety gate before going any further** — see the safety-gate finding below; the 3B model has been observed generating real slurs when reacting to rough transcripts.
+3. **Piper** synthesizes the script into audio locally.
+4. **Wav2Lip or SadTalker** (pick one during setup — see Execution Order) generates a lip-synced video from the mascot photo + that audio. Runs on the same local GPU already serving vLLM. Not instant — budget real wall-clock render time per clip, similar order of magnitude to what HeyGen needed, but GPU-time-bounded rather than credit-bounded, so there's no per-generation dollar cost to gate against.
+5. ffmpeg: overlay the generated video onto a corner of the clip. **Size it off the base clip's height, not width** — the lip-sync output is portrait while real clips are landscape/16:9-ish, and sizing off width was measured to cover ~70% of frame height instead of reading as a small corner bug. Mix its audio into the clip's own track.
+6. **Trigger timing / duration**: since generation is no longer credit-metered, a full-clip-duration presence (tuna stays on screen the whole clip, reacts at more than one point) is back on the table and worth designing for properly, rather than the single-short-line-then-gone approach the HeyGen prototype used to control cost. Still an open design question — see below.
 
 **Open questions to settle before building:**
-- Exact mascot visual (name, look, the 2-3 mouth frames) — your call, this is the one genuinely creative piece.
-- Tone/personality for the system prompt.
-- Where the TTS line should sit relative to the clip's own audio — full mix, or a brief duck of the original audio while the tuna talks.
+- The mascot's actual photo (name, look) — your call, this is the one genuinely creative piece. Needs a clean/solid-background version for compositing (see Shared Foundation).
+- Tone/personality for the system prompt — a placeholder draft exists at `files/tuna-test/persona.txt` from the prototype, ready to be tuned further.
+- Wav2Lip vs. SadTalker — which one to standardize on; try both on one clip during setup and compare quality/speed.
+- Whether the tuna stays visible for the whole clip (vs. one short window) and whether the script should react at multiple points through the clip instead of a single line at the start — no longer cost-constrained the way it was under HeyGen, so this is worth designing properly now instead of deferring.
+- Where the tuna's audio should sit relative to the clip's own audio — full mix, or a brief duck of the original audio while the tuna talks.
 
 ---
 
@@ -51,7 +55,7 @@ Once the persona, voice, and visual read well on clips, the same pieces move to 
 - **Streaming**: OBS Studio + obs-websocket
 - **LLM**: Ollama (local) — reuse the exact system prompt from Phase A
 - **STT**: faster-whisper (real-time)
-- **TTS**: Piper — same voice model file as Phase A
+- **TTS**: Piper — same voice model file as Phase A (no translation step needed now — it's literally the same voice)
 - **Visual**: Phase A's mouth-swap frames as a browser source first; Live2D/VTube Studio only if/when that's proven worth it
 - **Orchestration**: single Python 3.12+ script (`tuna_brain.py`)
 - **Audio Routing**: VB-Audio Virtual Cable
@@ -138,7 +142,23 @@ Put in `config.yaml`: `listen_interval_seconds`, `emotion_mappings`, `max_commen
 
 ## Execution Order (Recommended)
 
-1. **Phase A end to end**, one clip, manually triggered — persona prompt, TTS line, mouth-frame overlay burned in. Get this looking/sounding right before touching anything live.
-2. Wire Phase A into the real ProcessClips pipeline so it runs on every new clip automatically.
-3. Only then start Phase B, reusing everything Phase A already validated (prompt, voice, visual frames).
-4. Live2D/VTube Studio, if ever — last, optional, after Phase B's cheap version is running and worth upgrading.
+1. Set up **Wav2Lip and/or SadTalker** locally on the GPU already serving vLLM. Get the mascot photo (clean/solid background), pick a Piper voice, and make **one manual lip-sync generation** outside the pipeline entirely — confirm quality and real generation latency before writing any pipeline code.
+2. **Phase A end to end**, one clip, manually triggered — persona prompt → vLLM script (through the safety gate) → Piper TTS → Wav2Lip/SadTalker → ffmpeg overlay burned in. Get this looking/sounding right before touching anything live.
+3. Wire Phase A into the real ProcessClips pipeline so it runs automatically. No cost-based gating needed now (unlike the HeyGen design) — the constraint is GPU render time, not credits, so it can reasonably run on every processed clip.
+4. Only then start Phase B, reusing the persona prompt and the same Piper voice/mouth-frames derived from Phase A's output.
+5. Live2D/VTube Studio, if ever — last, optional, after Phase B's cheap version is running and worth upgrading.
+
+---
+
+## Session Log — Execution Order step 1-2, prototyped manually (standalone, outside the app)
+
+A working standalone prototype was built at `/home/tunas/DesktopShare/files/tuna-test/` (Whisper transcribe → vLLM commentary → HeyGen Avatar IV → ffmpeg overlay) to validate the character/voice/pipeline shape before writing any pipeline code, per the Execution Order above. It used **HeyGen** for the avatar-video step at the time; that choice was since replaced with the free/local Wav2Lip-or-SadTalker route described above, so the HeyGen-specific API details were moved out to `heygen-avatar-api.md` (kept for reference in case a paid service is ever revisited). The findings below are the parts that carry forward regardless of which generation method is used:
+
+**Findings — still applicable to the local route:**
+- **Safety gap (important, must be in the real pipeline, not just a prototype script)**: the 3B model, reacting to a rough/aggressive transcript, generated real slurs on 3 of 4 attempts in one run. Nothing in `process_clip`'s existing caption path (in `services/streamers.py`) filters for this today. The prototype added a hard word-boundary blocklist gate + bounded retry + an explicit no-slurs rule in the persona prompt — this needs to live in `services/streamers.py` itself once Phase A is wired in for real, since whatever text comes out of vLLM ends up as spoken audio one way or another.
+- The original sample file used for early testing (`Avatar_Video.mp4`) was **not** a stream clip — it was the tuna's own reference art/video. The actual base clip for overlay testing must be a real fetched clip from `/clips`.
+- Overlay sizing must be computed off frame **height**, not width — the avatar-video output is portrait (720x1280) while real clips are landscape/16:9-ish; sizing off width made the overlay cover ~70% of frame height instead of reading as a small corner bug. (Carries over directly to Wav2Lip/SadTalker output, which will have the same portrait-vs-landscape mismatch.)
+- Any avatar-video output with a "transparent" background is not a real alpha channel — it's baked into the pixels as a checkerboard (or whatever the source photo's background was). Whatever tool generates the video, plan to crop or chroma-key, not alpha-composite.
+- Tested end-to-end on a real clip copied from prod `/clips` (read-only): small, bottom-left overlay, appearing only during its spoken line and gone afterward — mechanically correct positioning/timing logic to reuse.
+
+**Separately found and fixed, live production bug** (unrelated to the mascot work, found while testing): `backend/config.py` and `k8s/configmap.yaml` both still had `VLLM_MODEL` set to the old `Qwen/Qwen2.5-1.5B-Instruct` after `vllm-server` was upgraded to the 3B model — every vLLM call in `process_clip` (title + caption) was 404ing against the live server, silently swallowed by the existing try/except, so ProcessClips returned HTTP 200 with empty/error captions on every clip. Fixed both files to `Qwen/Qwen2.5-3B-Instruct`, rebuilt and redeployed via `make deploy MODULES=rag,streamers`, confirmed the new pod calls vLLM successfully.
