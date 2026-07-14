@@ -94,3 +94,8 @@ add to watch list without replacing it
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add k:n3on"
 ```
+
+run LiveStreamerAlert once (manual PollTimer pulse, one poll cycle then stops itself)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-liveStreamerAlert.sh"
+```
