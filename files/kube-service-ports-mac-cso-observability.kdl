@@ -1,39 +1,51 @@
+// Zellij layout: pinned localhost ports for every service we care about.
+//
+// Design choice: NO `minikube tunnel`, NO `minikube service` panes.
+// - `minikube tunnel` needs sudo, drops LoadBalancer EXTERNAL-IPs to
+//   <pending> when it dies, and requires re-fetching URLs every restart.
+// - `minikube service <name>` opens throwaway tunnels on ephemeral ports
+//   (55xxx) that rotate every launch — you have to re-type them constantly.
+//
+// Instead: `kubectl port-forward` per service on FIXED loopback ports.
+// URLs never change:
+//
+//   EFM UI          → http://127.0.0.1:10090/efm/ui/
+//   CSO Operator App→ http://127.0.0.1:8090/
+//   Grafana         → http://127.0.0.1:3000/
+//   Kafka bootstrap → 127.0.0.1:9092 (external clients)
+//
+// If a pane dies, Ctrl-C then it auto-restarts (or `zellij action new-pane`).
 layout {
     split_direction "Horizontal"
 
+    // Mount the custom NiFi processors dir into the minikube VM.
     pane {
         command "/opt/homebrew/bin/minikube"
         args "mount" "/Users/steven.matison/Documents/GitHub/NiFi2 Processor Playground/nifi-custom-processors/:/extensions" "--uid" "10001" "--gid" "10001"
     }
 
+    // EFM UI  → http://127.0.0.1:10090/efm/ui/
     pane {
-        command "bash"
-        args "-lc" "sudo /opt/homebrew/bin/minikube tunnel"
+        command "/usr/local/bin/kubectl"
+        args "port-forward" "--address" "0.0.0.0" "service/efm" "10090:10090" "-n" "cld-streaming"
     }
 
+    // CSO Operator App → http://127.0.0.1:8090/
     pane {
-        command "/opt/homebrew/bin/minikube"
-        args "service" "efm" "-n" "cld-streaming"
+        command "/usr/local/bin/kubectl"
+        args "port-forward" "--address" "0.0.0.0" "service/cso-operator-app" "8090:8090"
     }
 
+    // Grafana → http://127.0.0.1:3000/
+    // (grafana Service spec port is 3000 after we patched it off ClusterIP:80)
     pane {
-        command "/opt/homebrew/bin/minikube"
-        args "service" "cloudera-surveyor-service" "--namespace" "cld-streaming"
+        command "/usr/local/bin/kubectl"
+        args "port-forward" "--address" "0.0.0.0" "service/prometheus-grafana" "3000:3000" "-n" "cld-streaming"
     }
 
-    pane {
-        command "/opt/homebrew/bin/minikube"
-        args "service" "prometheus-grafana" "--namespace" "cld-streaming"
-    }
-
+    // Kafka bootstrap (external clients on 127.0.0.1:9092)
     pane {
         command "/usr/local/bin/kubectl"
         args "port-forward" "--address" "0.0.0.0" "service/my-cluster-kafka-bootstrap" "9092:9092" "-n" "cld-streaming"
     }
-
-    // NOTE: EFM is reached via `minikube tunnel` above (LoadBalancer
-    // EXTERNAL-IP 127.0.0.1 → 10090). Do NOT also `kubectl port-forward`
-    // svc/efm on 10090 here — it collides with the tunnel.
-
-
 }
