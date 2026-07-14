@@ -43,17 +43,15 @@ Every service the developer touches from a browser or client tool answers on a *
 | **CSO Operator App** | `http://127.0.0.1:8090/` | `kubectl port-forward svc/cso-operator-app 8090:8090` |
 | **EFM UI** | `http://127.0.0.1:10090/efm/ui/` | `kubectl port-forward svc/efm 10090:10090 -n cld-streaming` |
 | **EFM API** | `http://127.0.0.1:10090/efm/api/` | (same forward) |
-| **NiFi UI** | `https://127.0.0.1:8443/nifi` | `kubectl port-forward svc/mynifi-web 8443:8443 -n cfm-streaming` (self-signed TLS — browser will warn) |
+| **NiFi UI** | `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/` | Served by the nginx Ingress on 443. `/etc/hosts` maps the name → `127.0.0.1`; **needs `sudo minikube tunnel`** to bind 443. `kubectl port-forward` doesn't work here — NiFi's pod binds only its cluster-IP interface, not loopback. Self-signed TLS. |
 | **Grafana** | `http://127.0.0.1:3000/` | `kubectl port-forward deployment/prometheus-grafana 3000:3000 -n cld-streaming` |
 | **Kafka bootstrap (external)** | `127.0.0.1:9092` | `kubectl port-forward svc/my-cluster-kafka-bootstrap 9092:9092 -n cld-streaming` |
 
-### Why `kubectl port-forward` and not `minikube tunnel` / `minikube service`?
+### Why `kubectl port-forward` (mostly), and where `minikube tunnel` is still required
 
-Tried both. Neither is a good fit for a daily driver.
-
-- **`minikube tunnel`** — needs `sudo`, dies unpredictably, and when it dies every LoadBalancer service silently drops its EXTERNAL-IP to `<pending>`. You don't notice until curl hangs. Restart cycle interrupts your work.
-- **`minikube service <name>`** — opens a *throwaway* tunnel on an ephemeral port (`55xxx`) that rotates every launch. That's the port you kept re-fetching. Perfect for one-off inspection, terrible for muscle memory.
-- **`kubectl port-forward`** — no `sudo`, binds a **fixed** loopback port, self-heals if you Ctrl-C the pane. Works against any Service type (ClusterIP, NodePort, LoadBalancer) and even against Deployments/Pods when the Service spec is inconvenient. This is what the layout uses.
+- **`kubectl port-forward`** — no `sudo`, binds a **fixed** loopback port, self-heals if you Ctrl-C the pane. Works against any Service type (ClusterIP, NodePort, LoadBalancer) and even against Deployments/Pods. This is what the layout uses for CSO App, EFM, Grafana, and Kafka.
+- **`minikube tunnel`** — required for **NiFi**, because the CFM operator's pod binds NiFi's HTTPS listener only to the pod's cluster IP (`10.244.x.x:8443`), not to `0.0.0.0` or loopback. `kubectl port-forward` proxies via the kubelet into the pod's loopback namespace and gets `Connection refused` there. The tunnel binds the nginx Ingress on 443 and `/etc/hosts` completes the URL. Downside: needs `sudo`, dies unpredictably, and when it dies every LoadBalancer service drops its EXTERNAL-IP to `<pending>` — but for NiFi it's the only option.
+- **`minikube service <name>`** — opens a *throwaway* tunnel on an ephemeral port (`55xxx`) that rotates every launch. That's the port you kept re-fetching. Perfect for one-off inspection, terrible for muscle memory. Not used in the pinned layout.
 
 The one Service that gets special treatment: **Grafana**. Its Helm chart defaults to `ClusterIP:80`; we port-forward the **Deployment** (`deployment/prometheus-grafana 3000:3000`) instead of the Service so the pane keeps working whether the Service is ClusterIP:80 or LoadBalancer:3000.
 
