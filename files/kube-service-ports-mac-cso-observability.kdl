@@ -37,10 +37,12 @@ layout {
     }
 
     // Grafana → http://127.0.0.1:3000/
-    // (grafana Service spec port is 3000 after we patched it off ClusterIP:80)
+    // Point at the Grafana pod's container port (3000) instead of the
+    // Service port so this keeps working whether the Service is
+    // ClusterIP:80 (Helm default) or LoadBalancer:3000 (our patched form).
     pane {
         command "/usr/local/bin/kubectl"
-        args "port-forward" "--address" "0.0.0.0" "service/prometheus-grafana" "3000:3000" "-n" "cld-streaming"
+        args "port-forward" "--address" "0.0.0.0" "deployment/prometheus-grafana" "3000:3000" "-n" "cld-streaming"
     }
 
     // Kafka bootstrap (external clients on 127.0.0.1:9092)
