@@ -31,10 +31,9 @@ layout {
         args "port-forward" "--address" "0.0.0.0" "service/my-cluster-kafka-bootstrap" "9092:9092" "-n" "cld-streaming"
     }
 
-    pane {
-        command "/usr/local/bin/kubectl"
-        args "port-forward" "--address" "0.0.0.0" "service/efm" "10090:10090" "-n" "cld-streaming"
-    }
+    // NOTE: EFM is reached via `minikube tunnel` above (LoadBalancer
+    // EXTERNAL-IP 127.0.0.1 → 10090). Do NOT also `kubectl port-forward`
+    // svc/efm on 10090 here — it collides with the tunnel.
 
 
 }

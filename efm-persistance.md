@@ -1,34 +1,100 @@
-## How to Install a Persisted Edge Flow Manager on Kubernetes
+# EFM Persistence on Minikube
 
-To avoid loosing Edge Flow Manager (EFM) data after EFM pod rollouts we need can use `ssb-postgres` to persist our EFM metadata.
+Full recipe for running Cloudera Edge Flow Manager (EFM) 2.3.1.0-2 on minikube with **all** state surviving pod restarts:
 
+- **Metadata** (agent classes, flows, agents, manifests) → PostgreSQL (`ssb-postgresql`)
+- **Agent binaries** (cpp/java installers) → PVC `efm-agent-binaries`
+- **Resources / Assets** (uploaded Python scripts, JARs, etc.) → PVC `efm-resources` *(this is the piece a bare EFM install loses on restart)*
 
-### Working with Postges
+End state after this doc: EFM comes back with all agent classes, flows, and uploaded resources intact after `kubectl rollout restart deployment/efm` or a `minikube stop / start`.
+
+---
+
+## Storage Layout — What Lives Where
+
+| State | Backing Store | Path in Pod | Survives Pod Restart? |
+|---|---|---|---|
+| Agent classes, manifests, flows, flow_content, agents | Postgres `efm` DB in `ssb-postgresql` | — | Yes (via `ssb-postgresql-db` PVC) |
+| Uploaded agent binaries (`minifi.tar.gz`, `minifi.msi`) | PVC `efm-agent-binaries` (2 Gi) | `/opt/efm/efm-2.3.1.0-2/agent-deployer/binaries` | Yes |
+| Uploaded resources / assets (Python scripts, JARs) | PVC `efm-resources` (1 Gi) | `/opt/efm/efm-2.3.1.0-2/resources` | Yes |
+| EFM properties (Postgres connection, etc.) | ConfigMap `efm-config` | `/opt/efm/efm-2.3.1.0-2/conf/efm.properties` (subPath mount) | Yes |
+| DB credentials | Secret `efm-db-pass` | env var | Yes |
+| Encryption password | Secret `efm-encryption` | env var | Yes |
+| Cloudera image pull | Secret `cloudera-registry` | imagePullSecrets | Yes |
+
+**Why the resources PVC matters:** by default EFM writes uploaded resources to `./resources` relative to CWD (`/opt/efm/efm-2.3.1.0-2/resources`). The DB `resource_metadata` and `asset` tables track them, but the actual bytes live on the pod's ephemeral filesystem. Without the PVC the DB rows point to files that vanish on restart, breaking every flow that references an uploaded script. The `efm-resources` PVC fixes this.
+
+---
+
+## Key Files
+
+Repo: `github.com/cldr-steven-matison/ClouderaStreamingOperators` (`~/ClouderaStreamingOperators/`)
+
+- `efm-configMap.yaml` — full `efm.properties` (Postgres URL inline)
+- `efm-pvc.yaml` — both `efm-agent-binaries` and `efm-resources` PVCs
+- `efm-deployment-persisted.yaml` — deployment + service; mounts both PVCs + the ConfigMap; reads secrets
+
+---
+
+## Phase 0 — Cluster Up Check
 
 ```bash
-kubectl get pods -n cld-streaming | grep postgres
+kubectl get pods -n cld-streaming | grep -E "postgres|kafka|efm"
 ```
 
-Copy the pod name (e.g. `ssb-postgresql-abc123-xyz`).
+Must be Running before proceeding:
+- `ssb-postgresql-*` — EFM's persistence backend
+- Kafka pods (if flows publish to Kafka)
 
-Now run these one-time psql commands **inside** that pod:
+---
+
+## Phase 1 — PostgreSQL One-Time Setup
+
+Skip this section if `ssb-postgresql` already has an `efm` database and user.
 
 ```bash
-kubectl exec -it <ssb-postgresql-pod-name> -n cld-streaming -- psql -U postgres -c "CREATE DATABASE efm;"
-kubectl exec -it <ssb-postgresql-pod-name> -n cld-streaming -- psql -U postgres -c "CREATE USER efm WITH PASSWORD 'efm_password';"
-kubectl exec -it <ssb-postgresql-pod-name> -n cld-streaming -- psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE efm TO efm;"
-kubectl exec -it <ssb-postgresql-pod-name> -n cld-streaming -- psql -U postgres -c "ALTER DATABASE efm OWNER TO efm;"
+PG=$(kubectl get pods -n cld-streaming | grep postgres | awk '{print $1}' | head -1)
+kubectl exec $PG -n cld-streaming -- psql -U postgres -c "CREATE DATABASE efm;"
+kubectl exec $PG -n cld-streaming -- psql -U postgres -c "CREATE USER efm WITH PASSWORD 'efm_password';"
+kubectl exec $PG -n cld-streaming -- psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE efm TO efm;"
+kubectl exec $PG -n cld-streaming -- psql -U postgres -c "ALTER DATABASE efm OWNER TO efm;"
 ```
 
-### Create the EFM Database Password Secret
+Verify:
 
 ```bash
+kubectl exec $PG -n cld-streaming -- psql -U postgres -c "\l" | grep efm
+```
+
+---
+
+## Phase 2 — Secrets
+
+```bash
+# DB password (must match efm.db.password in ConfigMap)
 kubectl create secret generic efm-db-pass \
   --from-literal=password=efm_password \
   --namespace cld-streaming
+
+# Encryption password (required by the deployment)
+kubectl create secret generic efm-encryption \
+  --from-literal=encryption.password=efm_encryption_key \
+  --namespace cld-streaming
+
+# Cloudera registry pull secret (if not already present)
+source ~/.env
+kubectl create secret docker-registry cloudera-registry \
+  --docker-server=container.repo.cloudera.com \
+  --docker-username=$CLOUDERA_USER \
+  --docker-password=$CLOUDERA_PASS \
+  --namespace=cld-streaming
 ```
 
-### Pull the Official EFM Docker Image into Minikube
+`already exists` errors from prior sessions are fine — skip those.
+
+---
+
+## Phase 3 — Pull the EFM Image into Minikube
 
 ```bash
 eval $(minikube docker-env)
@@ -36,291 +102,145 @@ docker login container.repo.cloudera.com
 docker pull container.repo.cloudera.com/cloudera/efm:2.3.1.0-2
 ```
 
-Use the exact tag that matches your CSO / CEM entitlement — 2.3.1.0-2 is the one I’m running in the lab right now. Check your Cloudera archive for the latest matching version.
+Match the tag to your CSO / CEM entitlement.
 
-### Working with EFM Deployment YAML
-
-Create these files in your working directory:
-
-`efm-configMap.yaml`
-
-```bash
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: efm-config
-  namespace: cld-streaming
-data:
-  efm.properties: |
-    # Web Server Properties
-    efm.server.address=0.0.0.0
-    efm.server.port=10090
-    efm.server.servlet.contextPath=/efm
-
-    # Cluster Properties
-    efm.cluster.enabled=false
-
-    # Web Server TLS Properties
-    efm.server.ssl.enabled=false
-    efm.server.ssl.keyStore=./conf/keystore.jks
-    efm.server.ssl.keyStoreType=jks
-    efm.server.ssl.keyStorePassword=
-    efm.server.ssl.keyPassword=
-    efm.server.ssl.trustStore=./conf/truststore.jks
-    efm.server.ssl.trustStoreType=jks
-    efm.server.ssl.trustStorePassword=
-    efm.server.ssl.clientAuth=WANT
-
-    # User Authentication Properties
-    efm.security.user.auth.enabled=false
-    efm.security.user.auth.adminIdentities=admin
-    efm.security.user.auth.autoRegisterNewUsers=true
-    efm.security.user.auth.authTokenExpiration=12h
-    efm.security.user.auth.groups.manager=INTERNAL
-    efm.security.user.auth.groups.adminIdentities=
-    efm.security.user.auth.groups.filter=.*
-    efm.security.user.certificate.enabled=false
-    efm.security.user.oidc.enabled=false
-    efm.security.user.saml.enabled=false
-    efm.security.user.knox.enabled=false
-    efm.security.user.proxy.enabled=false
-
-    # Database Properties (PostgreSQL Persistence)
-    efm.db.url=jdbc:postgresql://ssb-postgresql.cld-streaming.svc:5432/efm
-    efm.db.driverClass=org.postgresql.Driver
-    efm.db.username=efm
-    efm.db.password=efm_password
-    efm.db.maxConnections=50
-    efm.db.sqlDebug=false
-    efm.db.l2CacheEnabled=false
-
-    # Heartbeat Properties
-    efm.heartbeat.maxAgeToKeep=0
-    efm.heartbeat.persistContent=false
-    efm.heartbeat.kafka.publishEnabled=false
-
-    # Edge Event Retention Properties
-    efm.event.cleanupInterval=30s
-    efm.event.maxAgeToKeep.debug=0m
-    efm.event.maxAgeToKeep.info=1h
-    efm.event.maxAgeToKeep.warn=1d
-    efm.event.maxAgeToKeep.error=7d
-
-    # Agent Class Flow Monitor Properties
-    efm.agentClassMonitor.interval=15s
-
-    # Agent Monitoring Properties
-    efm.monitor.maxHeartbeatInterval=5m
-    efm.monitor.agentCertExpiryWarningInterval=30d
-
-    # Operation Properties
-    efm.operation.monitoring.enabled=true
-    efm.operation.monitoring.inQueuedStateTimeoutHeartbeatRate=1.0
-    efm.operation.monitoring.inDeployedStateTimeout=5m
-    efm.operation.monitoring.inDeployedStateCheckFrequency=1m
-    efm.operation.monitoring.rollingBatchOperationsFrequency=10s
-    efm.operation.monitoring.rollingBatchOperationsSize=100
-    efm.operation.monitoring.rollingOperationsSize.update.asset=10
-    efm.operation.monitoring.rollingOperationsSize.update.configuration=100
-    efm.operation.monitoring.rollingOperationsSize.update.properties=100
-    efm.operation.monitoring.rollingOperationsSize.sync.resource=10
-
-    # Bulletin Registry Properties
-    efm.bulletinregistry.agentBulletinMaxAgeToKeep=5m
-    efm.bulletinregistry.agentClassBulletinMinAgeToKeep=10s
-    efm.bulletinregistry.agentClassBulletinMaxAgeToKeep=5m
-
-    # Metrics Properties
-    management.metrics.efm.enabled=true
-    management.simple.metrics.export.enabled=false
-    management.prometheus.metrics.export.enabled=true
-    management.prometheus.metrics.export.descriptions=true
-    management.metrics.enable.efm.heartbeat=true
-    management.metrics.enable.efm.repo=true
-    management.metrics.efm.enableTag.host=true
-    management.metrics.efm.enableTag.protocol=false
-    management.metrics.efm.enableTag.agentClass=true
-    management.metrics.efm.enableTag.agentManifestId=true
-    management.metrics.efm.enableTag.agentId=true
-    management.metrics.efm.maxTags.agentClass=20
-    management.metrics.efm.maxTags.agentManifestId=10
-    management.metrics.efm.maxTags.agentId=100
-    management.metrics.tags.application=efm
-    management.metrics.distribution.percentiles.all=.75,.95,.99
-
-    # Health and Info Properties
-    efm.actuator.clusterHealthUpdateFrequency=10s
-    efm.actuator.clusterInfoUpdateFrequency=1m
-    management.endpoint.health.showDetails=never
-    management.endpoint.health.showComponents=always
-    management.health.refresh.enabled=false
-    management.health.livenessstate.enabled=false
-    management.health.readinessstate.enabled=false
-    spring.cloud.discovery.client.compositeIndicator.enabled=false
-
-    # EL Specification Properties
-    efm.el.specifications.dir=./specs
-
-    # Logging Properties
-    logging.pattern.level=%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]
-    logging.level.com.cloudera.cem.efm=INFO
-    logging.level.com.hazelcast=WARN
-    logging.level.com.hazelcast.internal.cluster.ClusterService=INFO
-    logging.level.com.hazelcast.internal.nio.tcp.TcpIpConnection=ERROR
-    logging.level.com.hazelcast.internal.nio.tcp.TcpIpConnector=ERROR
-
-    # General System Settings
-    efm.data.transfer.maxFileSize=16MB
-    efm.data.transfer.cleanupInterval=1h
-    efm.data.transfer.maxAgeToKeep=1d
-    efm.data.transfer.maxEntriesToKeep=100
-    efm.agentManager.commands.displayLimit=20
-    spring.main.banner-mode=log
-    efm.asset.s3.downloadRootPath=/tmp/efm-asset-download
-    efm.diagnosticBundle.enabled=false
-    efm.agent-deployer.security.autoConfiguration=false
-    efm.agent-deployer.security.ca.privateKeyPassword=
-    spring.servlet.multipart.max-file-size=100MB
-    spring.servlet.multipart.max-request-size=100MB
-```
-
-`efm-pvc.yaml`
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: efm-agent-binaries
-  namespace: cld-streaming
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 2Gi
-  storageClassName: standard
-````
-
-`efm-deployment-persisted.yaml`
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: efm
-  namespace: cld-streaming
-  labels:
-    app: efm
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: efm
-  template:
-    metadata:
-      labels:
-        app: efm
-    spec:
-      imagePullSecrets:
-      - name: cloudera-registry
-      containers:
-      - name: efm
-        image: container.repo.cloudera.com/cloudera/efm:2.3.1.0-2
-        ports:
-        - containerPort: 10090
-        - containerPort: 9092
-        env:
-        - name: EF_DB_URL
-          value: "jdbc:postgresql://ssb-postgresql.cld-streaming.svc:5432/efm"
-        - name: JAVA_OPTS
-          value: "-Dspring.datasource.driver-class-name=org.postgresql.Driver -Def.db.driver.class.name=org.postgresql.Driver"
-        - name: EF_JAVA_OPTS
-          value: "-Dspring.datasource.driver-class-name=org.postgresql.Driver -Def.db.driver.class.name=org.postgresql.Driver"
-        - name: EFM_DB_USER
-          value: efm
-        - name: EFM_DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: efm-db-pass
-              key: password
-        - name: EFM_ENCRYPTION_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: efm-encryption
-              key: encryption.password
-        resources:
-          requests:
-            cpu: "250m"
-            memory: "4Gi"
-          limits:
-            cpu: "250m"
-            memory: "4Gi"
-        volumeMounts:
-        - name: agent-binaries
-          mountPath: /opt/efm/efm-2.3.1.0-2/agent-deployer/binaries
-        - name: efm-config
-          mountPath: /opt/efm/efm-2.3.1.0-2/conf/efm.properties
-          subPath: efm.properties
-          readOnly: true
-
-      volumes:
-      - name: agent-binaries
-        persistentVolumeClaim:
-          claimName: efm-agent-binaries
-      - name: efm-config
-        configMap:
-          name: efm-config
 ---
 
-apiVersion: v1
-kind: Service
-metadata:
-  name: efm
-  namespace: cld-streaming
-  labels:
-    app: efm
-spec:
-  type: LoadBalancer
-  ports:
-  - port: 10090
-    targetPort: 10090
-    protocol: TCP
-    name: efm-ui
-  - port: 9092
-    targetPort: 9092
-    protocol: TCP
-    name: metrics
-  selector:
-    app: efm
+## Phase 4 — Deploy EFM with Full Persistence
 
-```
-
-Apply YAMLs:
+All three files live in `~/ClouderaStreamingOperators/`. Applied together, they wire up ConfigMap + both PVCs + the deployment.
 
 ```bash
+cd ~/ClouderaStreamingOperators
 kubectl apply -f efm-configMap.yaml -n cld-streaming
-kubectl apply -f efm-pvc.yaml -n cld-streaming
-kubectl apply -f efm-deployment.yaml -n cld-streaming
+kubectl apply -f efm-pvc.yaml         -n cld-streaming
+kubectl apply -f efm-deployment-persisted.yaml -n cld-streaming
+kubectl rollout status deployment/efm -n cld-streaming --timeout=180s
 ```
 
-### Verify EFM Properties File Path
+### Verify the persistence is wired
 
 ```bash
 EFM_POD=$(kubectl get pod -n cld-streaming -l app=efm -o jsonpath='{.items[0].metadata.name}')
-kubectl exec $EFM_POD -n cld-streaming -- find /opt/efm -name efm.properties
+
+# 1. Postgres connection (should show jdbc:postgresql://...)
+kubectl exec $EFM_POD -n cld-streaming -- sh -c \
+  'grep -E "db\.url|db\.driverClass" /opt/efm/efm-2.3.1.0-2/conf/efm.properties'
+
+# 2. Both PVC mounts present
+kubectl exec $EFM_POD -n cld-streaming -- mount | grep efm-2.3.1.0-2
+# Expect:
+#   /dev/... on /opt/efm/efm-2.3.1.0-2/agent-deployer/binaries type ext4
+#   /dev/... on /opt/efm/efm-2.3.1.0-2/resources                 type ext4
 ```
 
-### Apply Changes When Needed
+If you see `h2` in the DB url output, the ConfigMap didn't mount — re-apply `efm-configMap.yaml` and restart the deployment.
+
+---
+
+## Phase 5 — Stage Agent Binaries (One-Time per PVC)
+
+If `kubectl exec $EFM_POD -- ls /opt/efm/efm-2.3.1.0-2/agent-deployer/binaries` returns the four platforms, skip this. Otherwise see `efm-binaries.md` for the full build; the streaming command is:
 
 ```bash
-kubectl apply -f efm-deployment.yaml -n cld-streaming
+EFM_POD=$(kubectl get pod -n cld-streaming -l app=efm -o jsonpath='{.items[0].metadata.name}')
+cd ~/efm-binaries/staging/ && tar -cf - binaries/ | \
+  kubectl exec -i $EFM_POD -n cld-streaming -- tar -xf - -C /opt/efm/efm-2.3.1.0-2/agent-deployer/
+
 kubectl rollout restart deployment/efm -n cld-streaming
-kubectl wait --for=condition=ready pod -l app=efm -n cld-streaming --timeout=120s
 ```
 
-### Verify EFM is using PostgreSQL
+---
+
+## Phase 6 — Reach the EFM UI
 
 ```bash
-kubectl exec $EFM_POD -n cld-streaming -- sh -c 'find /opt/efm -name efm.properties -exec grep -E "db\.url|db\.driverClass" {} +'
+kubectl port-forward -n cld-streaming svc/efm 10090:10090
 ```
-   You should now see the `jdbc:postgresql://...` line.
+
+Then open `http://127.0.0.1:10090/efm/ui/`.
+
+If a previous port-forward is stuck bound to `:10090` after a rollout, kill it first (`lsof -iTCP:10090 -sTCP:LISTEN`) — its target pod is gone.
+
+---
+
+## Phase 7 — Upload Resources (Python Scripts, JARs, etc.)
+
+EFM UI → **Resources** → Upload:
+
+- **File / Name**: match whatever your flow's `Script File` property expects (e.g. `cpu_nifi_tensorRT.py`)
+- **Agent Class**: the class the flow will run under (`KubernetesPod`, `WindowsDesktop`, `NvidiaNano`, etc.)
+- **Relative path on agent**: leave blank — the file lands in the agent's `asset/` directory
+
+After upload:
+
+```bash
+PG=$(kubectl get pods -n cld-streaming | grep postgres | awk '{print $1}' | head -1)
+kubectl exec $PG -n cld-streaming -- psql -U postgres -d efm -c \
+  "SELECT name, file_name, resource_type FROM resource_metadata;"
+
+EFM_POD=$(kubectl get pod -n cld-streaming -l app=efm -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $EFM_POD -n cld-streaming -- ls -la /opt/efm/efm-2.3.1.0-2/resources/
+```
+
+The DB row and a UUID-named file on the PVC should both exist. On the agent side the file syncs to `<minifi-install>/asset/<file_name>` on the next heartbeat.
+
+---
+
+## Phase 8 — Persistence Test
+
+Bounce EFM deliberately and confirm nothing disappears:
+
+```bash
+kubectl rollout restart deployment/efm -n cld-streaming
+kubectl rollout status deployment/efm -n cld-streaming --timeout=180s
+
+# Metadata survived?
+kubectl exec $PG -n cld-streaming -- psql -U postgres -d efm -c \
+  "SELECT 'agent_class', count(*) FROM agent_class
+   UNION ALL SELECT 'flow', count(*) FROM flow
+   UNION ALL SELECT 'resource_metadata', count(*) FROM resource_metadata;"
+
+# Resources survived on disk?
+EFM_POD=$(kubectl get pod -n cld-streaming -l app=efm -o jsonpath='{.items[0].metadata.name}')
+kubectl exec $EFM_POD -n cld-streaming -- ls -la /opt/efm/efm-2.3.1.0-2/resources/
+```
+
+Refresh EFM UI → **Resources** — the upload should still be there. Agents re-download from the PVC-backed file on next sync.
+
+---
+
+## Cluster Cold-Start Recovery (`minikube stop` → `minikube start`)
+
+Once the three YAMLs are applied, a fresh minikube start just needs:
+
+```bash
+minikube start
+kubectl rollout status deployment/efm -n cld-streaming --timeout=180s
+kubectl port-forward -n cld-streaming svc/efm 10090:10090 &
+```
+
+Everything else — agent classes, flows, resources — reloads from Postgres + PVCs automatically. Nothing to re-upload.
+
+---
+
+## Failure Modes
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| EFM pod crashes on startup | `efm-encryption` or `efm-db-pass` secret missing | Recreate secrets (Phase 2) |
+| EFM logs `Connection refused` to PostgreSQL | `ssb-postgresql` not running | Phase 0 |
+| EFM UI shows H2-style URLs (no persistence) | ConfigMap not mounted at correct path | Verify Phase 4 volumeMount `subPath: efm.properties`, re-apply |
+| Uploaded resource disappears after restart | `efm-resources` PVC not mounted | Confirm both PVCs in `kubectl describe pod efm-... \| grep -A1 Volumes` |
+| Agent processor: `Script File ... does not exist` | Resource `file_name` in EFM doesn't match `Script File` path in the flow | Rename resource in EFM to match, or update flow to reference the actual file_name |
+| Port-forward returns HTTP 000 / RST | Old port-forward bound to dead pod after rollout | `lsof -iTCP:10090 -sTCP:LISTEN`, kill, re-forward |
+| Postgres: `remaining connection slots are reserved` | Too many idle EFM connections | `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state='idle' AND datname='efm';` |
+
+---
+
+## Reference
+
+- Version: EFM `2.3.1.0-2`, MiNiFi C++ `1.26.02`, MiNiFi Java `2.24.08.0-19`, Postgres via `ssb-postgresql`
+- Related: `efm-binaries.md` (binary staging + Windows Python fix)
+- YAMLs: `~/ClouderaStreamingOperators/{efm-configMap,efm-pvc,efm-deployment-persisted}.yaml`
+- Property that governs the resources path: `efm.resourcemanager.repositoryPath` (defaults to `./resources`, i.e. `/opt/efm/efm-2.3.1.0-2/resources` given EFM's CWD)
