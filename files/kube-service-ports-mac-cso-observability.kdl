@@ -30,6 +30,12 @@ layout {
         args "port-forward" "--address" "0.0.0.0" "service/efm" "10090:10090" "-n" "cld-streaming"
     }
 
+    // NiFi UI → https://127.0.0.1:8443/nifi  (self-signed TLS)
+    pane {
+        command "/usr/local/bin/kubectl"
+        args "port-forward" "--address" "0.0.0.0" "service/mynifi-web" "8443:8443" "-n" "cfm-streaming"
+    }
+
     // CSO Operator App → http://127.0.0.1:8090/
     pane {
         command "/usr/local/bin/kubectl"

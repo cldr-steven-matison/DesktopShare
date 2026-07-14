@@ -34,6 +34,69 @@ A demo app that exercises every concept from the **RAG with Cloudera Streaming O
 
 ---
 
+## Local Access & URLs
+
+Every service the developer touches from a browser or client tool answers on a **fixed, permanent** `127.0.0.1:<port>` URL. Bookmark these — they don't rotate:
+
+| Service | URL | How it's reached |
+|---|---|---|
+| **CSO Operator App** | `http://127.0.0.1:8090/` | `kubectl port-forward svc/cso-operator-app 8090:8090` |
+| **EFM UI** | `http://127.0.0.1:10090/efm/ui/` | `kubectl port-forward svc/efm 10090:10090 -n cld-streaming` |
+| **EFM API** | `http://127.0.0.1:10090/efm/api/` | (same forward) |
+| **NiFi UI** | `https://127.0.0.1:8443/nifi` | `kubectl port-forward svc/mynifi-web 8443:8443 -n cfm-streaming` (self-signed TLS — browser will warn) |
+| **Grafana** | `http://127.0.0.1:3000/` | `kubectl port-forward deployment/prometheus-grafana 3000:3000 -n cld-streaming` |
+| **Kafka bootstrap (external)** | `127.0.0.1:9092` | `kubectl port-forward svc/my-cluster-kafka-bootstrap 9092:9092 -n cld-streaming` |
+
+### Why `kubectl port-forward` and not `minikube tunnel` / `minikube service`?
+
+Tried both. Neither is a good fit for a daily driver.
+
+- **`minikube tunnel`** — needs `sudo`, dies unpredictably, and when it dies every LoadBalancer service silently drops its EXTERNAL-IP to `<pending>`. You don't notice until curl hangs. Restart cycle interrupts your work.
+- **`minikube service <name>`** — opens a *throwaway* tunnel on an ephemeral port (`55xxx`) that rotates every launch. That's the port you kept re-fetching. Perfect for one-off inspection, terrible for muscle memory.
+- **`kubectl port-forward`** — no `sudo`, binds a **fixed** loopback port, self-heals if you Ctrl-C the pane. Works against any Service type (ClusterIP, NodePort, LoadBalancer) and even against Deployments/Pods when the Service spec is inconvenient. This is what the layout uses.
+
+The one Service that gets special treatment: **Grafana**. Its Helm chart defaults to `ClusterIP:80`; we port-forward the **Deployment** (`deployment/prometheus-grafana 3000:3000`) instead of the Service so the pane keeps working whether the Service is ClusterIP:80 or LoadBalancer:3000.
+
+### Zellij layout — pins everything at once
+
+The layout file lives in two places (identical content):
+
+- `~/.config/zellij/layouts/kube-service-ports-mac-cso-observability.kdl` — active copy Zellij reads
+- `~/Documents/GitHub/DesktopShare/files/kube-service-ports-mac-cso-observability.kdl` — canonical version-controlled copy
+
+Launch:
+
+```bash
+zellij --layout kube-service-ports-mac-cso-observability
+```
+
+Each pane runs one long-lived `kubectl port-forward`. If a pane dies (usually because the target pod restarted mid-forward), Ctrl-C then re-run the same command — the port opens again on the same number.
+
+### Adding a new service to the pinned set
+
+1. Pick a memorable loopback port (match the container port when possible: Grafana:3000, EFM:10090, etc).
+2. Add a `pane` block to the layout with either `service/<name>` or `deployment/<name>`:
+   ```kdl
+   pane {
+       command "/usr/local/bin/kubectl"
+       args "port-forward" "--address" "0.0.0.0" "service/<name>" "<local>:<remote>" "-n" "<namespace>"
+   }
+   ```
+3. Mirror the change: copy the file from `~/.config/zellij/layouts/` to `~/Documents/GitHub/DesktopShare/files/` (or vice-versa) and commit to `DesktopShare`.
+4. Update the URLs table above.
+
+### Killing stale forwards
+
+Occasionally a rollout swaps pods faster than the old forward notices and it stays bound to a dead pod. Symptoms: `HTTP 000` / `Connection reset by peer` even though the service is healthy. Fix:
+
+```bash
+lsof -tiTCP:10090 -sTCP:LISTEN | xargs kill    # or whichever port
+```
+
+Then Ctrl-C the zellij pane so it restarts.
+
+---
+
 ## Module System
 
 `MODULES` is a build-time flag passed as a Docker build arg and baked into the image. It controls which optional tabs appear in the frontend and which backend routes are registered.
@@ -277,3 +340,13 @@ make deploy MODULES=rag,streamers   # unchanged
 - **Auto-publish mode** — skip review queue, post top clips on schedule
 - **Kick support** — credentials set, API integration not built
 - **Streamer X handle mapping** — credit tagging in published tweets
+
+---
+
+## TODO — cross-station work
+
+Items already done on one machine that still need to be replicated / documented on the other.
+
+- **[ ] `/extensions` mount → PVC** *(done on the other station; not yet on this one)*
+  The zellij layout currently starts `minikube mount /Users/.../nifi-custom-processors/:/extensions --uid 10001 --gid 10001` on every launch. That mount is fragile: it dies with the zellij session, needs the same absolute host path on every machine, and doesn't survive `minikube stop/start` unless the pane is running.
+  The other station replaced it with a **PersistentVolumeClaim** (`nifi-extensions` or similar) that NiFi mounts directly — the custom processors survive cluster restarts and there's no zellij pane needed. Bring that setup over: capture the PVC YAML, the population workflow (init container? `kubectl cp`? mounted from host once?), the NiFi Deployment `volumeMounts` diff, and the migration steps from the current bind-mount. Document under **Backing Services** once done and delete the `minikube mount` pane from `kube-service-ports-mac-cso-observability.kdl`.
