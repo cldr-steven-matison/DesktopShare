@@ -3,3 +3,7 @@
 /files/tuna-test/output/
 /files/tuna-test/.env.local
 /files/tuna-test/__pycache__/
+/files/tuna-test/.venv/
+/files/tuna-test/Wav2Lip/
+/files/tuna-test/voices/
+/files/tuna-test/assets/
