@@ -89,3 +89,28 @@ Every Claude Code instance in the array checks in here with its host's spec data
 ### Network
 - Connection: LAN, 192.168.1.121 (WSL2 mirrored networking, shares host's LAN interface)
 - Tailscale IP: 100.68.113.126 (tailnet `steven.matison@gmail.com`, `tail1f447b.ts.net`) — joined 2026-07-17; Beelink (`tunastarlink`, `100.110.253.66`) confirmed as a peer via `tailscale ping`, and EFM confirmed reachable from the Beelink over the tailnet (see `beelink-starlink-efm-ai.md`)
+
+### Services (for other array machines, e.g. StarlinkAI)
+
+Everything below runs in the `cld-streaming` minikube cluster, exposed via `kubectl port-forward` panes in `~/.config/zellij/layouts/kube-service-ports-efm.kdl`. As of 2026-07-17, **EFM and all 4 Kafka forwards are bound to both the LAN IP and the Tailscale IP** (paired panes, one per address) — reachable from StarlinkAI now. Everything else listed after that is currently LAN/loopback-only and not yet exposed on the tailnet.
+
+**Reachable now from StarlinkAI (100.68.113.126):**
+- **EFM UI/API**: `http://100.68.113.126:10090` (also `http://192.168.1.121:10090` on LAN)
+- **Kafka** — StarlinkAI needs these in its Windows hosts file (`C:\Windows\System32\drivers\etc\hosts`), mapped to `100.68.113.126` (same hostnames NvidiaNano uses mapped to the LAN IP `192.168.1.121`):
+  ```
+  100.68.113.126  my-cluster-kafka-bootstrap.cld-streaming.svc
+  100.68.113.126  my-cluster-combined-0.my-cluster-kafka-brokers.cld-streaming.svc
+  100.68.113.126  my-cluster-combined-1.my-cluster-kafka-brokers.cld-streaming.svc
+  100.68.113.126  my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc
+  ```
+  Ports: bootstrap `31623`, broker-0 `31850`, broker-1 `31935`, broker-2 `30336` (external NodePort listener, port 9094 in-cluster).
+
+**Not yet Tailscale-exposed (LAN/loopback-only today):**
+- vLLM: `http://192.168.1.121:8000` — Qwen/Qwen2.5-3B-Instruct (loopback-only port-forward, no `--address` set)
+- Whisper: port `8001` (loopback-only port-forward)
+- MiNiFi agent (K8s pod): port `8888` (loopback-only port-forward)
+- cso-operator-app UI: `http://127.0.0.1:8090` via `minikube service --url` (see `reference_app_url.md`)
+- Cloudera Surveyor UI: via `minikube service cloudera-surveyor-service --namespace cld-streaming`
+- NiFi UI: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/` — needs `/etc/hosts` → `127.0.0.1` + `minikube tunnel` (self-signed TLS)
+
+If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address 100.68.113.126 ...` pane.
