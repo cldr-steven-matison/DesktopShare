@@ -59,4 +59,33 @@ Every Claude Code instance in the array checks in here with its host's spec data
 
 ### Network
 - Connection: Starlink
-- Tailscale IP: 100.91.44.109
+- Tailscale IP: 100.110.253.66 (rejoined 2026-07-17 under tailnet `steven.matison@gmail.com`, was previously `100.91.44.109` on a different account before both machines were aligned onto the same tailnet — confirmed reachable from the gaming PC via `tailscale ping`)
+
+---
+
+## MINI-Gaming-G1 (Windows gaming PC)
+
+- **Role**: EFM/minikube host — runs the `cld-streaming` cluster (NiFi, EFM, Kafka/Strimzi, vLLM, cso-operator-app); the control-plane counterpart the Beelink's MiNiFi agent will call into over Tailscale
+- **Checked in**: 2026-07-17
+- **Claude Code version**: 2.1.212
+
+### Hardware
+- CPU: 13th Gen Intel(R) Core(TM) i9-13900HK
+- GPU: NVIDIA GeForce RTX 4060, Intel(R) Iris(R) Xe Graphics (integrated)
+- RAM: 32GB
+- Storage: ~1TB, 920GB free at time of check-in
+
+### OS
+- Windows host: Windows 11 Pro, build 26200
+- Linux (WSL2, dev/Claude Code + minikube environment): Ubuntu 24.04.4 LTS, kernel 6.6.87.2-microsoft-standard-WSL2
+
+### Key tool versions
+- Git: 2.43.0
+- Python: 3.12.3
+- kubectl: v1.35.4
+- minikube: v1.38.1
+- Tailscale: 1.98.9, installed and joined to array tailnet (`steven.matison@gmail.com`) via reusable auth key
+
+### Network
+- Connection: LAN, 192.168.1.121 (WSL2 mirrored networking, shares host's LAN interface)
+- Tailscale IP: 100.68.113.126 (tailnet `steven.matison@gmail.com`, `tail1f447b.ts.net`) — joined 2026-07-17; Beelink (`tunastarlink`, `100.110.253.66`) confirmed as a peer via `tailscale ping`, and EFM confirmed reachable from the Beelink over the tailnet (see `beelink-starlink-efm-ai.md`)
