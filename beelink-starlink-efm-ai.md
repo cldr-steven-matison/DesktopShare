@@ -41,7 +41,9 @@ tailscale up
 ```
 `tailscale up` opens an interactive browser auth — run by hand, join the same tailnet as the other array machines.
 
-**Assigned Tailscale IP: `100.110.253.66`**
+**Assigned Tailscale IP: `100.110.253.66`** (reassigned after re-authenticating under steven.matison@gmail.com; was `100.91.44.109` under a different account)
+
+**EFM host (gaming PC, `mini-gaming-g1`) Tailscale IP: `100.68.113.126`** — this is the `baseUrl` target for the agent deployer script below.
 
 ### 2. EFM / MiNiFi agent (Windows host, router only)
 Deploy via the agent-deployer script from the existing EFM server (same pattern as the gaming PC):
@@ -83,13 +85,53 @@ For this Beelink's EFM agent to reach the EFM server across networks (Starlink h
 2. Hit the EFM `ListenHTTP` port on `localhost` — confirms `InvokeHTTP` → Lemonade round trip.
 3. From the gaming PC or Mac, hit this box's `100.110.253.66` Tailscale IP on the EFM port — confirms cross-network access.
 
+## Flow design (deployed)
+
+`ListenHTTP` (port 8080, path `/contentListener`) → extract client-supplied `request_id` → `InvokeHTTP` (`http://localhost:13305/api/v1/chat/completions`) → `PublishKafka` (`my-cluster-kafka-bootstrap.cld-streaming.svc:31623`, key = `${request_id}`).
+
+`ListenHTTP` is fire-and-forget by design (MiNiFi C++ has no `HandleHttpRequest`/`HandleHttpResponse` pair like Java NiFi — confirmed absent from the full 50-processor manifest for this agent build). It acks immediately with an empty 200; the actual LLM response only ever reaches the caller via the Kafka message, keyed on the `request_id` the caller supplied up front. This is intentional, not a workaround.
+
+Kafka reachability from this Beelink requires 4 entries in the Windows hosts file (`C:\WINDOWS\System32\drivers\etc\hosts`), mapping the same K8s service hostnames NvidiaNano uses (against the LAN IP) to this box's path instead — the gaming PC's Tailscale IP:
+```
+100.68.113.126  my-cluster-kafka-bootstrap.cld-streaming.svc
+100.68.113.126  my-cluster-combined-0.my-cluster-kafka-brokers.cld-streaming.svc
+100.68.113.126  my-cluster-combined-1.my-cluster-kafka-brokers.cld-streaming.svc
+100.68.113.126  my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc
+```
+
+## Flow verification (2026-07-17)
+
+**`ListenHTTP` reachability** — POST to `/contentListener` with a JSON body containing `request_id`:
+| Target | Status | Body | Elapsed |
+|---|---|---|---|
+| `http://localhost:8080/contentListener` | 200 | empty (expected) | ~2.7s |
+| `http://100.110.253.66:8080/contentListener` (Tailscale) | 200 | empty (expected) | ~0.7s |
+
+`netstat` confirms `ListenHTTP` bound to `0.0.0.0:8080`, not restricted to loopback.
+
+**MiNiFi log findings** (`nifi-minifi-cpp\logs\minifi-app.log`):
+- Service running, flow loaded from EFM at 18:20:29 (startup at 17:46:35 had briefly run with an empty flow for ~34 min before the C2 config push landed — expected, not an error).
+- Kafka bootstrap hostname failed to resolve (`No such host is known`) from flow-load until ~18:44:17, matching when the hosts file entries above were added mid-session.
+- **Bug #1**: once DNS resolves, `PublishKafka` connects to **port 9092** (Kafka's internal cluster port) instead of **31623** (the external NodePort bootstrap port). The processor's broker config has the wrong port — publishing has never succeeded as a result. **Fix needed in EFM UI**: set `PublishKafka`'s bootstrap servers to `my-cluster-kafka-bootstrap.cld-streaming.svc:31623`, not `:9092`.
+- **Bug #2 (likely the bigger blocker, confirmed processor bug, not a config issue)**: `ListenHTTP` defaults to `Batch Size: 5` and `Buffer Size: 5` (confirmed via the agent manifest's `propertyDescriptors`). It only creates a FlowFile once the buffer is full — single test requests get silently dropped (`ListenHTTP buffer is NOT full 1/5, 'POST' request for '/contentListener' uri was dropped`). Set both to `1` in EFM UI and redeployed — still dropped, now logging `1/1` as "not full," which is a confirmed off-by-one in the buffer-full check. This is **MINFICPP-2243**, a known upstream bug fixed by reworking `ListenHTTP` to process requests only within `onTrigger` (fixed on MiNiFi C++ main, Dec 2024) — unclear whether the installed agent version (`1.26.02`) includes that fix. **Nothing has ever actually entered the flow**, independent of the Kafka port bug. Next steps: check whether a newer MiNiFi C++ build is available through the EFM deployer; or test with `Batch Size`/`Buffer Size: 2` and two requests sent together, to see if the bug is specific to the size=1 edge case.
+- Secondary, possibly transient: repeated EFM C2 heartbeat timeouts to `100.68.113.126:10090` starting ~18:34 (`curl_easy_perform() failed ... Timeout was reached`, 90s timeout). Not yet investigated.
+- **Bug #3 (gaming-PC-side, not fixable from here)**: `InvokeHTTP`'s `HTTP Method` was persisted as `GET` instead of `POST` — fixed in EFM UI, confirmed in `config.yml`. Separately, `ListenHTTP`'s `Batch Size`/`Buffer Size` reverted to `5`/`5` on a clean service restart despite being set to `1`/`1` in EFM — the in-memory fix didn't survive a restart, needed a fresh republish from EFM to resync (confirmed `1`/`1` persisted correctly after republish, but the `1/1`-still-dropped symptom persists — see Bug #2, unresolved).
+- **Bug #4 (Kafka/Strimzi listener config, gaming-PC-side)**: with the Kafka bootstrap port fixed (`31623`) and `InvokeHTTP` fixed to `POST`, a real end-to-end test finally got `PublishKafka` actually attempting to connect — bootstrap connects fine (via the hostname), but broker-2's metadata response advertises `192.168.1.121:30336` (the gaming PC's **raw LAN IP**), not the hostname (`my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc`) that bootstrap and the hosts file expect. Unreachable from this Beelink — different network. The Strimzi `advertisedHost` config needs the same hostname treatment applied consistently across all 3 per-broker NodePort listeners, not just bootstrap.
+
 ## Status
 
-- [x] Repo cloned, doc created
-- [x] Tailscale installed and joined to array tailnet (100.110.253.66)
+**Done, on this Beelink:**
+- [x] Tailscale installed and joined to array tailnet (100.110.253.66), gaming PC confirmed reachable at 100.68.113.126
 - [x] Lemonade Server 11.0.0 installed, `llamacpp:vulkan` backend installed
-- [ ] Model pulled and loaded, Vulkan GPU offload confirmed active
-- [ ] EFM agent installed and routing (deployer script needs Windows target regenerated, and `baseUrl` pointed at the EFM server's Tailscale IP instead of `127.0.0.1`)
-- [x] EFM host (gaming PC) prerequisites — Windows Firewall rules for 10090/agent-deployer bridge already present (no changes needed); Tailscale installed on the gaming PC and joined the same tailnet as the Beelink (`steven.matison@gmail.com`); zellij pane for the gaming PC's Tailscale IP (`100.68.113.126`) added to the layout
-- [x] EFM reachable from the Beelink over Tailscale — confirmed via `curl http://100.68.113.126:10090/efm/ui` from TunaStarlink itself (2026-07-17)
-- [ ] End-to-end verified from another array machine (full MiNiFi agent → EFM flow — still blocked on the Beelink's own EFM agent install, item above)
+- [x] Qwen3-4B-GGUF loaded, Vulkan GPU offload confirmed active (39% GPU compute engine utilization during generation, 26.6 tok/s decode)
+- [x] Embedding, reranking, transcription (Whisper), and TTS (Kokoro) models pulled and loaded alongside the LLM (Lemonade supports 1 concurrent model per category)
+- [x] EFM agent (`StarlinkAI` class) installed on Windows and confirmed **Online** in the EFM UI, heartbeating to the server at `100.68.113.126:10090`
+- [x] Flow built and deployed (`ListenHTTP` → `EvaluateJsonPath` → `InvokeHTTP` → `PublishKafka`), wiring and `HTTP Method: POST` fixed, `ListenHTTP` verified reachable both locally and over Tailscale
+- [x] `PublishKafka` bootstrap port fixed (`31623`, not `9092`), `Known Brokers` set directly to `100.68.113.126:31623`, `Kafka Key: ${request_id}` confirmed wired — bootstrap connects successfully
+
+**Blocked, needs fixing on the gaming PC (Kafka/Strimzi side) — not fixable from this Beelink:**
+- [ ] Broker-2's Kafka metadata advertises `192.168.1.121:30336` (raw LAN IP) instead of something reachable from this Beelink — `PublishKafka` connects to bootstrap fine but hangs/fails trying to reach broker-2. Needs the same `advertisedHost` treatment as bootstrap applied to all 3 per-broker NodePort listeners (check for an incomplete Strimzi rollout, or an incomplete listener config edit).
+- [ ] EFM C2 heartbeat timeouts (~18:34 onward, `100.68.113.126:10090`) — not yet investigated, may be related to the same network path issues.
+- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — intermittent, not fully resolved; some requests get through, most don't. Not yet root-caused.
+
+**Once broker-2 is fixed**: re-test end to end, confirm a message actually lands in the Kafka topic with the correct `request_id` key.

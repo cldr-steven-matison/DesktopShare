@@ -54,8 +54,8 @@ Every Claude Code instance in the array checks in here with its host's spec data
 - Git: 2.53.0
 - Python: 3.14.4
 - Tailscale: 1.98.9, installed and logged in
-- Lemonade Server: 11.0.0, installed (Windows host, via winget) — first-run/model setup in progress
-- EFM/MiNiFi agent: pending — deployer script pending update for Windows target + correct EFM server baseUrl
+- Lemonade Server: 11.0.0, installed (Windows host, via winget) — Qwen3-4B-GGUF (LLM), jina-reranker-v1-tiny (reranking), Whisper-Large-v3-Turbo (transcription), kokoro-v1 (TTS) loaded and ready; Vulkan GPU offload confirmed active. Embedding slot still empty — Qwen3-Embedding-0.6B is downloaded but not loaded, pending a decision on nomic-embed-text-v1-GGUF instead (would keep the existing Qdrant vector space compatible vs. re-indexing)
+- EFM/MiNiFi agent: installed on Windows (`StarlinkAI` class), confirmed Online in EFM UI, heartbeating to 100.68.113.126:10090 — flow (ListenHTTP → InvokeHTTP → Lemonade) not yet built
 
 ### Network
 - Connection: Starlink
