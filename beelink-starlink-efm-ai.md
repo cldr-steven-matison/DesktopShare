@@ -101,13 +101,35 @@ Kafka reachability from this Beelink requires 4 entries in the Windows hosts fil
 
 ## Flow verification (2026-07-17)
 
+**Test command** (swap the URI for local vs. Tailscale target, `request_id` should be unique per call so it's usable as the Kafka key):
+```powershell
+Invoke-WebRequest -Uri 'http://localhost:8080/contentListener' -Method Post `
+  -Body '{"request_id":"test-001","model":"Qwen3-4B-GGUF","messages":[{"role":"user","content":"Say hello in exactly one word."}],"max_tokens":20}' `
+  -ContentType 'application/json' -UseBasicParsing
+```
+
 **`ListenHTTP` reachability** — POST to `/contentListener` with a JSON body containing `request_id`:
 | Target | Status | Body | Elapsed |
 |---|---|---|---|
 | `http://localhost:8080/contentListener` | 200 | empty (expected) | ~2.7s |
 | `http://100.110.253.66:8080/contentListener` (Tailscale) | 200 | empty (expected) | ~0.7s |
 
-`netstat` confirms `ListenHTTP` bound to `0.0.0.0:8080`, not restricted to loopback.
+`netstat` confirms `ListenHTTP` bound to `0.0.0.0:8080`, not restricted to loopback (`netstat -ano | findstr :8080`).
+
+**Checking whether it actually worked** — the HTTP response is always an empty 200 ack (fire-and-forget), so that alone doesn't confirm anything. Check instead:
+```powershell
+# Tail the MiNiFi log for buffer-drop warnings or Kafka connection errors
+Get-Content 'C:\Users\tunas\efm-agent\nifi-minifi-cpp\logs\minifi-app.log' -Tail 30
+
+# Confirm what Lemonade itself returns for the same payload, bypassing MiNiFi entirely
+Invoke-WebRequest -Uri 'http://localhost:13305/api/v1/chat/completions' -Method Post `
+  -Body '{"model":"Qwen3-4B-GGUF","messages":[{"role":"user","content":"say hi"}],"max_tokens":10}' `
+  -ContentType 'application/json' -UseBasicParsing
+
+# Check ListenHTTP's actual bound port/interface
+netstat -ano | findstr :8080
+```
+Also check the EFM UI's per-processor In/Out counters directly (`ListenHTTP` → `InvokeHTTP` → `PublishKafka`) — more reliable than inferring from the HTTP response or log tailing alone.
 
 **MiNiFi log findings** (`nifi-minifi-cpp\logs\minifi-app.log`):
 - Service running, flow loaded from EFM at 18:20:29 (startup at 17:46:35 had briefly run with an empty flow for ~34 min before the C2 config push landed — expected, not an error).
