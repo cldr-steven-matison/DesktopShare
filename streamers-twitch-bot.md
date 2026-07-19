@@ -71,6 +71,12 @@ Also worth remembering for next time: **EFM has no in-place asset update.** Chan
 - `InvokeGamingPC`'s URL is hardcoded to the pod's current IP (`10.244.2.115`) — will break if the pod restarts/reschedules and gets a new IP.
 - No kiosk escape hatch wired up (fine for the eventual dedicated-screen deployment; for ad-hoc testing, `Alt+F4` or `Ctrl+Shift+Esc` gets out manually, or `Stop-Process -Name chrome -Force` via the same Windows access used to build this).
 
+**Future feature, not yet built: check the streamer is actually live before shipping the command to a device.** Right now `!load <streamer> [screen]` fires the whole kill/relaunch chain regardless of whether `<streamer>` is live — a typo'd or offline channel still tears down whatever's currently showing. Plan:
+- Add a Twitch Helix API check (`GET https://api.twitch.tv/helix/streams?user_login=<streamer>`, needs `Client-Id` header + a token — the existing user OAuth token already used for chat should work fine, Helix's "Get Streams" doesn't need a special scope) into `TwitchChatListenerProcessor` right where it parses `!load`, before it emits a flowfile — the processor already owns the persistent IRC socket used for `!commands`/`!help`, so it's the natural place to both make this check and post the response.
+- **If offline (empty `data` array in the response):** don't emit a flowfile at all (nothing gets routed to `InvokeNvidiaNano`/`InvokeGamingPC`), and have `TunaStreetTest` reply in chat, e.g. `"<streamer> is not live right now."`
+- **If live:** emit the flowfile as today, and also have `TunaStreetTest` reply confirming it's proceeding, e.g. `"<streamer> is live — loading on screen<N>."` — gives chat immediate feedback instead of silence while the kill/relaunch cycle runs.
+- Bump `TwitchChatListenerProcessor` to the next `-SNAPSHOT` version per the existing convention when this lands.
+
 ---
 
 **Full Detailed Implementation Plan (original draft — superseded by the as-built section above for the single-screen MVP)**  
