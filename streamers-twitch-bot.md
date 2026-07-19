@@ -307,3 +307,65 @@ You will maintain separate Python scripts (or conditional logic) per OS inside t
 6. Connect everything end-to-end.
 
 ---
+
+### Architecture Diagram with Gemini
+
+![StreamChat Architecture](/images/streamChat.png)
+
+Here is the architectural diagram for your current setup. This maps the control flow from your Twitch bot through the Kubernetes-based brain to your edge devices.
+
+```mermaid
+graph TD
+    %% External Inputs
+    Twitch["Twitch Chat (@tunastarlink)"] -->|"!load <streamer>"| NiFi
+
+    %% Kubernetes Cluster (cld-streaming)
+    subgraph K8s ["Kubernetes Cluster (cld-streaming)"]
+        direction TB
+        
+        CSM["CSM Operator"]
+        CFM["CFM Operator"]
+        Kafka["Kafka"]
+        
+        subgraph MasterBrain ["Master Brain (NiFi)"]
+            NifiProc["TwitchChatListenerProcessor"]
+            Route["RouteOnAttribute"]
+            NifiProc --> Route
+        end
+        
+        EFM["Edge Flow Manager (EFM)"]
+        
+        %% Management Connections
+        CSM ~~~ CFM
+        CFM -.->|Manage/Deploy| NifiProc
+        EFM -.->|C2/Flow Updates| Agents
+    end
+
+    %% Edge Layer
+    subgraph Agents ["Edge Devices (EFM Managed)"]
+        Nano["NvidiaNano (Jetson)"]
+        Pod["KubernetesPod (Gaming PC)"]
+        Win["WindowsDesktop"]
+        Starlink["StarlinkAI"]
+    end
+
+    %% Command/Data Flow
+    Route -->|InvokeHTTP| Nano
+    Route -->|InvokeHTTP| Pod
+    Route -->|InvokeHTTP| Win
+    
+    %% Styles
+    style K8s fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style MasterBrain fill:#e1f5fe,stroke:#01579b
+    style Agents fill:#fff3e0,stroke:#e65100
+
+```
+
+### Architectural Notes
+
+* **The Brain (NiFi):** The `TwitchChatListenerProcessor` acts as your entry point, parsing chat commands into NiFi FlowFiles. The `RouteOnAttribute` processor logic determines which physical agent receives the instruction.
+* **Control Plane (EFM):** While NiFi handles the real-time *trigger* via HTTP, EFM remains the source of truth for the *code* running on those devices. Your flow deployments (via the API reverse-engineering you performed) ensure the local Python scripts (`agent-NvidiaNano-launch_stream.py`, etc.) are consistently synchronized.
+* **Infrastructure:** The CSM and CFM Operators facilitate the lifecycle of the services inside your `cld-streaming` namespace, keeping your Kafka, NiFi, and EFM instances resilient.
+* **Execution:** The HTTP POST from NiFi directly hits the `ListenHTTP` endpoint on each edge device, bypassing the EFM control plane for execution speed, which is exactly how you want it for low-latency browser launching.
+
+___ 
