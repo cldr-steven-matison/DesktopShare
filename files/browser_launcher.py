@@ -9,14 +9,13 @@ CHROME_PATHS = [
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
 ]
 
-# This is "screen2" — the secondary monitor, confirmed via
-# [System.Windows.Forms.Screen]::AllScreens (DISPLAY1, non-primary, 1280x720
-# at (-1920,137)). Chrome's --kiosk fullscreens whichever monitor the window
-# is actually on at launch time, so it has to be positioned here first —
-# without --window-position it lands on the primary monitor (DISPLAY2) by
-# default, which is not what a dedicated second screen needs.
-SCREEN2_POSITION = "-1920,137"
-SCREEN2_SIZE = "1280,720"
+# This is "screen2" — the physical right-hand monitor, confirmed by Steven
+# directly (left=Screen1=Display1=DISPLAY1 non-primary at -1920,137;
+# right=Screen2=Display2=DISPLAY2 primary at 0,0,1920x1080) via
+# [System.Windows.Forms.Screen]::AllScreens. Position is force-applied after
+# launch via reposition_chrome.ps1 (MoveWindow), not trusted from the flag.
+SCREEN2_POSITION = "0,0"
+SCREEN2_SIZE = "1920,1080"
 
 
 def find_chrome():
@@ -50,37 +49,44 @@ class Handler(BaseHTTPRequestHandler):
             chrome = find_chrome()
             subprocess.Popen(
                 [chrome, "--new-window",
+                 r"--user-data-dir=C:\minifi-manual\chrome-kiosk-profile",
                  f"--window-position={SCREEN2_POSITION}",
                  f"--window-size={SCREEN2_SIZE}",
-                 "--kiosk", url],
+                 url],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             # Chrome hands off to an already-running instance via IPC and the
             # specific process we launched exits cleanly regardless of whether
             # a real window appeared — checking that Popen handle's exit code
-            # (like the Jetson script does for chromium-browser) is a false
-            # negative here. Instead poll for an actual top-level Chrome window,
-            # same "verify the visible state, don't trust process launch alone"
-            # discipline as the Jetson's wmctrl check.
-            if self._wait_for_chrome_window(timeout=10):
-                self._respond(200, {"ok": True, "url": url})
+            # is a false negative here. No --kiosk here on purpose: kiosk
+            # fullscreen locks its rendered output to whichever monitor the
+            # cursor is on at launch, and that stays wrong even after
+            # MoveWindow relocates the window frame afterward (frame moves,
+            # pixels don't). Instead: launch windowed, force it onto the
+            # right monitor via MoveWindow, then trigger fullscreen (F11)
+            # only once it's already there — done in reposition_chrome.ps1.
+            x, y = (int(v) for v in SCREEN2_POSITION.split(","))
+            w, h = (int(v) for v in SCREEN2_SIZE.split(","))
+            ok, detail = self._reposition_chrome(x, y, w, h, timeout=10)
+            if ok:
+                self._respond(200, {"ok": True, "url": url, "rect": detail})
             else:
-                self._respond(500, {"ok": False, "error": "no Chrome window appeared within timeout"})
+                self._respond(500, {"ok": False, "error": detail})
         except Exception as e:
             self._respond(500, {"ok": False, "error": str(e)})
 
-    def _wait_for_chrome_window(self, timeout):
-        deadline = time.time() + timeout
-        check = [r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", "-NoProfile", "-Command",
-                 "(Get-Process chrome -ErrorAction SilentlyContinue | "
-                 "Where-Object { $_.MainWindowTitle -ne '' }).Count"]
-        while time.time() < deadline:
-            result = subprocess.run(check, capture_output=True, text=True)
-            count = result.stdout.strip()
-            if count.isdigit() and int(count) > 0:
-                return True
-            time.sleep(0.5)
-        return False
+    def _reposition_chrome(self, x, y, w, h, timeout):
+        result = subprocess.run(
+            [r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe", "-NoProfile", "-File",
+             r"C:\minifi-manual\reposition_chrome.ps1",
+             "-X", str(x), "-Y", str(y), "-W", str(w), "-H", str(h),
+             "-TimeoutSeconds", str(timeout)],
+            capture_output=True, text=True,
+        )
+        out = result.stdout.strip()
+        if out.startswith("OK"):
+            return True, out
+        return False, out or result.stderr.strip()
 
     def _respond(self, code, body):
         self.send_response(code)
@@ -93,6 +99,22 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = HTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"browser_launcher listening on 0.0.0.0:{PORT}")
-    server.serve_forever()
+    import datetime
+    import traceback
+
+    LOG_PATH = r"C:\minifi-manual\browser_launcher_crash.log"
+
+    def log(msg):
+        with open(LOG_PATH, "a") as f:
+            f.write(f"[{datetime.datetime.now().isoformat()}] {msg}\n")
+
+    log(f"Starting, pid check next")
+    try:
+        server = HTTPServer(("0.0.0.0", PORT), Handler)
+        log(f"Listening on 0.0.0.0:{PORT}")
+        server.serve_forever()
+    except Exception:
+        log("CRASHED:\n" + traceback.format_exc())
+        raise
+    finally:
+        log("Process exiting (serve_forever returned or crashed)")

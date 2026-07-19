@@ -28,6 +28,12 @@ def onTrigger(context, session):
             if not streamer:
                 raise ValueError("payload missing 'streamer' field")
 
+            # player.twitch.tv (bare embed player) was tried and rejected as an
+            # offline/embed-not-allowed fallback regardless of `parent` value —
+            # its embed-parent check doesn't work with direct top-level
+            # navigation. Real page instead; sidebar/chat are hidden below by
+            # triggering Twitch's own player fullscreen (its 'f' hotkey), same
+            # approach as the Windows side's reposition_chrome.ps1.
             url = f"https://www.twitch.tv/{streamer}"
 
             env = os.environ.copy()
@@ -72,6 +78,17 @@ def onTrigger(context, session):
             # to a minute would stall the whole agent (heartbeats, Kafka, the other
             # listener) exactly like the matrix-rain screensaver's force_fullscreen()
             # backgrounds+disowns itself for the same reason.
+            # wmctrl above only forces the window manager's fullscreen state —
+            # Twitch's own page still renders its sidebar/chat/nav around the
+            # video. Twitch's player has its own fullscreen (the expand icon
+            # on the player, hotkey 'f') which hides everything but the video.
+            # Simulates the real user action via xdotool: click the video to
+            # give it focus (Twitch does not toggle play/pause on a plain
+            # click, unlike some other players), then send 'f'. The 2.5s
+            # sleep gives Twitch's SPA time to finish rendering the player
+            # after navigation — pressing 'f' before that does nothing.
+            # Requires xdotool installed on this device — not done yet, see
+            # streamers-twitch-bot.md's on-device TODO for this fix.
             fullscreen_poll = (
                 "for i in $(seq 1 240); do "
                 "  if wmctrl -l | grep -qF -- ' - Twitch - Chromium'; then "
@@ -79,7 +96,12 @@ def onTrigger(context, session):
                 "    break; "
                 "  fi; "
                 "  sleep 0.25; "
-                "done"
+                "done; "
+                "sleep 2.5; "
+                "read w h < <(xdotool getdisplaygeometry); "
+                "xdotool mousemove $((w/2)) $((h/2)) click 1; "
+                "sleep 0.3; "
+                "xdotool key f"
             )
             subprocess.Popen(
                 ["bash", "-c", fullscreen_poll],

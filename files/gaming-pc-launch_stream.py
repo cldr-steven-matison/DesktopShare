@@ -32,6 +32,13 @@ def onTrigger(context, session):
             if not streamer:
                 raise ValueError("payload missing 'streamer' field")
 
+            # player.twitch.tv (the bare embed player) rejected this as an
+            # offline/embed-not-allowed fallback regardless of `parent` value —
+            # its embed-parent check doesn't play nice with direct top-level
+            # navigation. Back to the real page, which reliably shows the
+            # actual live stream; hiding the sidebar/chat is handled by
+            # triggering Twitch's own player fullscreen (its 'f' hotkey) after
+            # launch, in reposition_chrome.ps1, instead of an embed URL.
             url = f"https://www.twitch.tv/{streamer}"
 
             # 2. Hand off to the native Windows listener — it does the actual
