@@ -119,7 +119,7 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 
 ## FTF3XR2065 (MacBook Pro, work laptop)
 
-- **Role**: Steven's Cloudera-issued daily driver — docs/plans authoring, DesktopShare golden source, Claude Code sessions on `~/Documents/GitHub/` repos (`cso-operator-app`, `ClouderaStreamingOperators`, etc.); not part of the serving array — no minikube cluster runs here, and no MiNiFi/EFM agents live on this host. Consumes services on the array via LAN when on-site.
+- **Role**: Steven's Cloudera-issued daily driver — full local minikube (123 days old, docker driver, k8s v1.34.0) running the same CSO/CFM/CSA + monitoring stack the gaming PC does, plus the macOS build of the cso-operator-app RAG stack (`default` namespace: cso-operator-app + vLLM + Whisper + Qdrant + embedding-server, all `-cpu`). EFM/MiNiFi have been intentionally disabled here (not deployed today) but the rest is live. Also serves as docs/plans authoring host and DesktopShare golden source.
 - **Checked in**: 2026-07-20
 - **Claude Code version**: 2.1.169
 
@@ -136,11 +136,41 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 ### Key tool versions
 - Git: 2.53.0
 - Python: 3.14.3
-- kubectl: v1.35.0 (client only — no local cluster on this host)
-- minikube: v1.37.0 (installed, unused on this host — the array's minikube runs on MINI-Gaming-G1)
+- kubectl: v1.35.0
+- minikube: v1.37.0 — profile `minikube`, docker driver, k8s v1.34.0, node IP `192.168.49.2`, up 123 days
+- Helm releases in-cluster: `cfm-operator` (cfm-streaming), `csa-operator` (cld-streaming, license valid to 2026-11-12), `strimzi-cluster-operator`, `schema-registry`, `prometheus` (kube-prometheus-stack 84.0.0)
 - Tailscale: not installed on this host (corp laptop; joins the array over LAN only when on-site)
 
 ### Network
-- Connection: LAN, `192.168.1.124` (same subnet as MINI-Gaming-G1 at `192.168.1.121` — reaches EFM/Kafka/vLLM/etc. directly on the LAN IP without needing the tailnet)
+- Connection: LAN, `192.168.1.124` (same subnet as MINI-Gaming-G1 at `192.168.1.121`)
 - Cloudera VPN: `10.19.12.160` (utun, up when on the corp VPN)
 - Tailscale IP: n/a — not joined to `tail1f447b.ts.net`
+
+### Minikube cluster on this host
+
+Same shape as the gaming PC's `cld-streaming` cluster, running locally. Namespaces and what's live in each:
+
+**`default` — cso-operator-app RAG stack (macOS build):**
+- `cso-operator-app` — LoadBalancer, `8090:30090/TCP` (also exposed via `kubectl port-forward --address 0.0.0.0 service/cso-operator-app 8090:8090`)
+- `vllm-cpu-server` (`vllm-cpu-service` / `vllm-service` alias, ClusterIP `8000`) — Whisper counterpart `whisper-cpu-server` at `8001`
+- `qdrant` ClusterIP `6333/6334`, `embedding-server-cpu` ClusterIP `80`
+- `minifi-test-service` — leftover NodePort `8080:30080` (service only, no MiNiFi pod today — kept for future)
+
+**`cld-streaming` — full CSO stack + monitoring:**
+- Strimzi Kafka: `my-cluster-combined-0/1/2` StatefulSet, external LoadBalancers on `9094:31218/31812/32280`, in-cluster listeners `9091/9092/9093`, bootstrap `my-cluster-kafka-external-bootstrap` `9094:30961`, entity-operator + Schema Registry (NodePort `9090:31591`)
+- CSA / Flink: `flink-kubernetes-operator`, `ssb-mve`, `ssb-postgresql`, `ssb-session-admin` (+ taskmanagers 5-3/5-4), `ssb-sse`; live `FlinkSessionJob`s `ssb-5196` and `ssb-5209` RUNNING/STABLE, `ssb-session-admin` FlinkDeployment FINISHED/STABLE
+- Monitoring: `prometheus-kube-prometheus-prometheus-0`, `prometheus-grafana` (LoadBalancer `3000:32641`, port-forward on `0.0.0.0:3000`), alertmanager, kube-state-metrics, node-exporter — `metrics-server` runs in `kube-system`
+
+**`cfm-streaming` — NiFi:**
+- `cfm-operator`, `Nifi/mynifi` CR desired=current=1, `mynifi-0` StatefulSet pod, `nar-loader` pod, services `mynifi` (headless, `6007/5000`) + `mynifi-web` ClusterIP `8443`
+
+**`mqtt`** — `mosquitto` NodePort `1883:32478`
+**`ingress-nginx`, `cert-manager`, `monitoring` (empty)** — support namespaces
+
+Active `kubectl port-forward` panes (all `--address 0.0.0.0` so LAN peers can reach them):
+- `service/cso-operator-app 8090:8090`
+- `service/my-cluster-kafka-bootstrap 9092:9092 -n cld-streaming`
+- `deployment/prometheus-grafana 3000:3000 -n cld-streaming`
+- `service/efm 10090:10090 -n cld-streaming` — **NOTE**: pane is up but `svc/efm` does not currently exist in the cluster (EFM/MiNiFi are the intentionally-disabled bits); forward is failing quietly, remove or restore EFM when the flow is next needed
+
+Not on the tailnet, but reachable from other array machines over LAN `192.168.1.124` for the four forwarded ports above.
