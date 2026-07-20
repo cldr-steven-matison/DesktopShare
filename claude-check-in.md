@@ -114,3 +114,33 @@ Everything below runs in the `cld-streaming` minikube cluster, exposed via `kube
 - NiFi UI: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/` — needs `/etc/hosts` → `127.0.0.1` + `minikube tunnel` (self-signed TLS)
 
 If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address 100.68.113.126 ...` pane.
+
+---
+
+## FTF3XR2065 (MacBook Pro, work laptop)
+
+- **Role**: Steven's Cloudera-issued daily driver — docs/plans authoring, DesktopShare golden source, Claude Code sessions on `~/Documents/GitHub/` repos (`cso-operator-app`, `ClouderaStreamingOperators`, etc.); not part of the serving array — no minikube cluster runs here, and no MiNiFi/EFM agents live on this host. Consumes services on the array via LAN when on-site.
+- **Checked in**: 2026-07-20
+- **Claude Code version**: 2.1.169
+
+### Hardware
+- CPU: Apple M4 Pro (14 cores: 10 Performance + 4 Efficiency)
+- GPU: Apple M4 Pro integrated GPU (Metal)
+- RAM: 48GB unified memory
+- Storage: 460GB APFS, 320GB free at time of check-in
+
+### OS
+- macOS 26.5.2 (Tahoe), build 25F84
+- Kernel: Darwin 25.5.0 (xnu-12377.121.10, arm64)
+
+### Key tool versions
+- Git: 2.53.0
+- Python: 3.14.3
+- kubectl: v1.35.0 (client only — no local cluster on this host)
+- minikube: v1.37.0 (installed, unused on this host — the array's minikube runs on MINI-Gaming-G1)
+- Tailscale: not installed on this host (corp laptop; joins the array over LAN only when on-site)
+
+### Network
+- Connection: LAN, `192.168.1.124` (same subnet as MINI-Gaming-G1 at `192.168.1.121` — reaches EFM/Kafka/vLLM/etc. directly on the LAN IP without needing the tailnet)
+- Cloudera VPN: `10.19.12.160` (utun, up when on the corp VPN)
+- Tailscale IP: n/a — not joined to `tail1f447b.ts.net`
