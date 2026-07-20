@@ -12,7 +12,6 @@
 | hello_kiko        | @hello_kiko         |
 | TheBurntPeanut    | @theburntpeanut     |
 | jasontheween      | @jasontheween       |
-| zackrawrr         | @zackrawrr          |
 | Lacy              | @LacyHimself        |
 | Kai Cenat         | @KaiCenat           |
 | 2xrakai           | @2xrakai            |
@@ -22,8 +21,6 @@
 
 | Streamer       | X Username              |
 |----------------|-------------------------|
-| chickenandy    | @ChickenAndy_           |
-| Asmongold      | @asmongold              |
 | MrBeast        | @mrbeast                |
 | Clavicular     | @Clavicular0            |
 | Roshtein       | @roshtein               |
@@ -33,6 +30,6 @@
 | Ice Poseidon   | @REALIcePoseidon        |
 | AdinRoss       | @adinross               |
 | N3on           | @N3on                   |
-| adrienbroner   | @AdrienBroner           |
 | bbjess         | @bbjess                 |
 | whiz           | @crashoverride          |
+| trainwreckstv  | @trainwreckstv          |
