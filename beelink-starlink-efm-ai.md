@@ -164,6 +164,24 @@ Also check the EFM UI's per-processor In/Out counters directly (`ListenHTTP` →
 - [ ] EFM C2 heartbeat timeouts (~18:34 onward, `100.68.113.126:10090`) — seen once, not investigated further, may have been related to the zellij/port-forward outage above.
 - [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — still shows up intermittently in logs, but stopped being a practical blocker once the rest of the chain was fixed. Worth a closer look eventually, not urgent.
 
+## Real-workload test — streamers caption generation (2026-07-21)
+
+Prompted by the same-day caption-tone rewrite in `cso-operator-app` (see `cso-operator-app-streamers.md` Session 19): tested whether this box's Qwen3-4B could stand in for the in-cluster vLLM Qwen2.5-3B on the streamers caption-generation path. Sent the exact live system/user prompt from `process_clip()` through the deployed flow (`curl.exe` from the gaming PC → `http://100.110.253.66:8080/contentListener`, since WSL2 can't route through Windows' Tailscale TUN interface directly — `curl.exe` via WSL interop works fine, uses the Windows network stack) and read the real completion back off `StarlinkAI-response` via `kubectl exec ... kafka-console-consumer.sh --from-beginning`.
+
+**Direct port 13305 (Lemonade itself) is not reachable over Tailscale** — only port 8080 (the EFM `ListenHTTP` intake) is open on the Windows Firewall for the Tailscale profile. The `curl http://localhost:13305/...` verification in this doc's Setup section only ever confirmed *local* reachability, never cross-network; a synchronous direct-call integration would need a new firewall rule for 13305.
+
+**Critical gotcha found: Qwen3-4B is a reasoning model, and the existing prompt config doesn't budget for it.** First test at `max_tokens: 120` (copied straight from the vLLM 3B config) came back with `finish_reason: "length"` and an **empty `content` field** — all 120 tokens went into the hidden `reasoning_content` chain-of-thought, none into the actual answer. This would silently disqualify every clip (`_clean_caption()` → empty → `"disqualified: empty caption after cleaning"`) if swapped in as-is. Retested at `max_tokens: 500`: succeeded, but spent 466 completion tokens (reasoning + answer) to produce an 80-character caption, taking **~17.6s** decode time (26.5 tok/s, consistent with the 26.6 tok/s figure already in Status above). Compare: the in-cluster vLLM 3B call this pipeline uses today has no reasoning overhead and no WAN hop.
+
+**Quality of the one sample that came back was genuinely strong** — for a `lacy` clip transcript, required opener style "cocky bragging comparison":
+> `"nobody does a 1v5 like lacy, who just 'I cannot believe that' and still wins 🥇"`
+
+Correct opener (not `"lacy just..."`), quoted the transcript, no gender-pronoun slip, exactly 1 emoji, on-brief for the new trollish tone — better single-sample instruction-following than the ~60% opener-variety / ~80% gender-compliance the 3B was hitting in the same day's testing. Not a statistically meaningful sample size (n=1 with a real completion), but promising enough to be worth a proper follow-up test batch.
+
+**Open questions for a real integration, not yet investigated:**
+- Whether Lemonade/this llama.cpp build exposes a way to disable Qwen3's thinking mode (`/no_think` suffix or an `enable_thinking: false`-style request field is the usual pattern) — would cut both the token spend and the ~17s latency if supported.
+- The current path is async pub/sub (`ListenHTTP` → Kafka topic, no synchronous response) — integrating into `process_clip()` as-is would mean publish-and-poll-with-timeout against `StarlinkAI-response` keyed by `request_id`, a different shape than the single synchronous HTTP call the code makes today. Opening port 13305 over Tailscale for a direct synchronous call would be simpler if the firewall change is acceptable.
+- No fallback path if the Beelink/Starlink link is down — the streamers pipeline already has rotating fallback captions for vLLM failures (Session 2), same mechanism would need to cover this dependency too.
+
 ## Next Steps
 
 1. **Route to Lemonade's other endpoints, not just chat completions.** Two options, both viable, tradeoffs differ:
