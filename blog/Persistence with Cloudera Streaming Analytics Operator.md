@@ -26,7 +26,7 @@ CSA on Kubernetes is easy to install with the Cloudera Helm chart. What's not so
 
 This post walks through fixing all three, in order, using the same `cld-streaming` minikube cluster the rest of my CSA demos run in. Everything here is CSA Operator `1.5.0-b275` on minikube v1.37.0 / k8s v1.34.0.
 
-Companion post covering Schema Registry on the same Postgres pod: [Persisting Schema Registry with PostgreSQL](Persisting%20Schema%20Registry%20with%20PostgreSQL.md). Companion post covering the same thing for NiFi under the CFM Operator: [Add Persistent Volumes for NiFi Flows](../cfm-persisted-volume.md).
+Companion post covering Schema Registry on the same Postgres pod: [Persisting Schema Registry with PostgreSQL](/blog/Persiting-Schema-with-Schema-Registry/). Companion post covering the same thing for NiFi under the CFM Operator: [Persistence with Cloudera Flow Management Operator](/blog/Persistence-with-Cloudera-Flow-Management-Operator/).
 
 ---
 
@@ -473,25 +473,26 @@ Everything in this post was validated against **CSA Operator `1.5.0-b275`** on *
 - [CSA Operator 1.5 install (internet)](https://docs.cloudera.com/csa-operator/1.5/installation/topics/csa-op-installation-process-internet.html) — where the Longhorn `fsGroup: 999` note comes from
 - [CSA Operator 1.5 removing resources](https://docs.cloudera.com/csa-operator/1.5/operator-management/topics/csa-op-removing-resources.html) — the Postgres PVC is intentionally kept on uninstall so your SQL projects survive an operator upgrade
 - Related posts on this blog:
-  - [Announcing Cloudera Streaming Analytics 1.17.0](https://cldr-steven-matison.github.io/release/announcing-cloudera-streaming-analytics-1.17.0/)
-  - [Cloudera Streaming Analytics - Kubernetes Operator 1.3](https://cldr-steven-matison.github.io/release/cloudera-streaming-analytics-kubernetes-operator-1.3/)
-  - [Cloudera Streaming Analytics - Kubernetes Operator 1.2](https://cldr-steven-matison.github.io/release/cloudera-streaming-analytics-kubernetes-operator-1.2/)
+  - [Announcing Cloudera Streaming Analytics 1.17.0](/release/Cloudera-Streaming-Analytics-1.17.0/)
+  - [Cloudera Streaming Analytics - Kubernetes Operator 1.3](/release/Cloudera-Streaming-Analytics-Kubernetes-Operator-1.3/)
+  - [Cloudera Streaming Analytics - Kubernetes Operator 1.2](/release/Cloudera-Streams-Analytics-Kubernetes-Operator-1.2/)
 
 ### Companion persistence posts (same `cld-streaming` cluster)
 
-- [Persisting Schema Registry with PostgreSQL](https://cldr-steven-matison.github.io/blog/persisting-schema-registry-with-postgresql/) — piggyback Schema Registry on the same `ssb-postgresql` pod Phase 1 sets up here.
-- [Cloudera Edge Flow Manager on Kubernetes](https://cldr-steven-matison.github.io/blog/cloudera-edge-flow-manager-on-kubernetes/) — full EFM persistence recipe (metadata → same Postgres, plus PVCs for agent binaries and uploaded resources).
-- [Observability with Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/observability-with-cloudera-streaming-operators/) — Prometheus + Grafana for the same NiFi/Kafka/Flink stack.
+- [Persistence with Cloudera Flow Management Operator](/blog/Persistence-with-Cloudera-Flow-Management-Operator/) — the NiFi companion to this post: five repos, custom NARs, and Python extensions off the minikube mount.
+- [Persisting Schema Registry with PostgreSQL](/blog/Persiting-Schema-with-Schema-Registry/) — piggyback Schema Registry on the same `ssb-postgresql` pod Phase 1 sets up here.
+- [Cloudera Edge Flow Manager on Kubernetes](/blog/Cloudera-Edge-Flow-Manager-on-Kubernetes/) — full EFM persistence recipe (metadata → same Postgres, plus PVCs for agent binaries and uploaded resources).
+- [Observability with Cloudera Streaming Operators](/blog/Observability-with-Cloudera-Streaming-Operators/) — Prometheus + Grafana for the same NiFi/Kafka/Flink stack.
 
 ### The rest of the Cloudera Streaming Operators family (CSO)
 
 - **Cloudera Flow Management (CFM) Operator — NiFi:**
-  - [CFM Operator documentation](https://docs.cloudera.com/cfm-operator/latest/index.html)
-  - [Cloudera Flow Management Operator for Kubernetes 3.1](https://cldr-steven-matison.github.io/release/cloudera-flow-management-operator-for-kubernetes-3.1/)
-  - [Cloudera Apache NiFi Operator](https://cldr-steven-matison.github.io/release/cloudera-apache-nifi-operator/)
+  - [CFM Operator documentation](https://docs.cloudera.com/cfm-operator/3.2.0/index.html)
+  - [Cloudera Flow Management Operator for Kubernetes 3.1](/release/Cloudera-Flow-Management-Operator-for-Kubernetes-3.1/)
+  - [Cloudera Apache NiFi Operator](/blog/Cloudera-Apache-NiFi-Operator/)
 - **Cloudera Streams Messaging (CSM) Operator — Kafka / Schema Registry / Streams Messaging Manager:**
   - [CSM Operator documentation](https://docs.cloudera.com/csm-operator/latest/index.html)
-  - [Cloudera Streams Messaging Kubernetes Operator 1.6](https://cldr-steven-matison.github.io/release/cloudera-streams-messaging-kubernetes-operator-1.6/)
+  - [Cloudera Streams Messaging Kubernetes Operator 1.6](/release/Cloudera-Streams-Messaging-Kubernetes-Operator-1.6/)
 - **Cloudera Edge Flow Manager (EFM) / CEM:**
   - [Cloudera Edge Manager documentation](https://docs.cloudera.com/cem/latest/index.html)
 
