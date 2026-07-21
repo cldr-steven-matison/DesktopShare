@@ -858,6 +858,17 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 
 ## Session History
 
+### Session 19 (2026-07-21)
+
+| Change | Details |
+|---|---|
+| **Caption tone rewrite — "streamer just..." sameness fixed with server-side randomization, not just prompt wording** | Steven noticed the last ~11-16 posted captions almost all opened with `"{Streamer} just <verb>..."` — pulled straight out of the `processed_clips` Kafka topic and cross-referenced against real tweet URLs to confirm it wasn't a perception issue. Root cause: the caption system prompt (`process_clip()`, `backend/services/streamers.py`) had exactly one few-shot example (`"kai just clutched a 1v5..."`), and Qwen2.5-3B-Instruct anchors hard on a single example's sentence shape across independent calls — `frequency_penalty`/`presence_penalty` only smooth variety *within* one completion, not across separate posts. Rewrote the persona/rules for a funnier, more arrogant/trollish voice (cocky hype-man or playful roast, picked per clip) per Steven's direction. First pass (multiple varied few-shot examples + an explicit "don't open with `{name} just`" instruction) was live-tested against vLLM directly (bypassing the posting pipeline, no real posts touched) and only got 1-2/5 varied — instructions alone don't reliably override the model's strongest structural prior at this size. Landed on server-side randomization instead: a new `_CAPTION_OPENER_STYLES` list (mock-shocked aside, direct roast, cocky comparison, quote lead-in, viewer callout), one picked per request and forced into the user prompt as a hard requirement. Retested (10 synthetic clips, 2 random seeds): opener variety went from ~100% "just" pattern to ~60% actually varied, zero added latency/cost since it's still a single vLLM call. Residual ~20% gender-pronoun slip rate observed in the same test batch matches the already-tracked, separately-documented ~20-30% ceiling from Session 18's Lacy fix — not a new regression from this change. Steven chose to ship as-is rather than add a retry-on-pattern-match (which would trade a 2nd vLLM call on ~40% of clips for tighter compliance) — flagged as an option to revisit if 60% isn't enough once seen live. Content-moderation wording (rule 5) and the gender-binding rule (rule 1) were left byte-for-byte untouched by design. Deployed live via `make deploy MODULES=streamers`, not yet committed |
+| **Sexual-content guardrail miss found, explicitly left alone** | While pulling recent captions for the tone review, found one live-posted caption (`lacy`, 2026-07-21 06:18 UTC) containing explicit sexual content despite the "no sexual content" rule already in the prompt. Flagged to Steven; he said content is often adult and to let it ship — no moderation changes made this session. |
+
+**Still open:** ~60% opener variety isn't a hard fix, just a big improvement over the prior ~100% sameness — watch the next batch of live posts before deciding whether the retry-on-pattern-match is worth the extra vLLM call; today's change is deployed but uncommitted.
+
+---
+
 ### Session 18 (2026-07-13 → 2026-07-20)
 
 A string of small, spread-out fixes rather than one sitting — bundled into a single session at Steven's call rather than split per calendar day.
