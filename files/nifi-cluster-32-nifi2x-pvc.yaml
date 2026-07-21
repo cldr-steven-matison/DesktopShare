@@ -1,0 +1,121 @@
+# Nifi CR — CFM Operator 3.2 target, NiFi 2.x
+#
+# Naming convention: 32 = CFM operator 3.2; "pvc" flags that /extensions is now
+# on a PersistentVolumeClaim (custom-python-extensions) instead of the fragile
+# `minikube mount` → hostPath /extensions pattern.
+#
+# Companion resources (must exist before this CR is applied):
+#   - StorageClass "nifi-storage" (see cfm-persisted-volume blog post)
+#   - PVC        "custom-python-extensions" (see files/python-extensions-loader.yaml)
+#
+# This YAML preserves the shape of the currently-running mynifi in cfm-streaming
+# (dumped 2026-07-21) so `kubectl apply -f` against a live cluster patches only
+# what needs to change and does NOT touch persistence PVCs — existing flows and
+# repos survive.
+#
+# NOTES for future re-use in a fresh env:
+#   1. `custom-python-extensions` PVC must be created and seeded (kubectl cp) via
+#      files/python-extensions-loader.yaml BEFORE this CR is applied — otherwise
+#      the mynifi pod comes up with an empty extensions dir.
+#   2. Image tags are pinned to the values currently running on the golden
+#      minikube (Mac FTF3XR2065). Bump `image.tag` / `tiniImage.tag` when moving
+#      to CFM Operator 3.2 images end-to-end:
+#        image.tag:     3.1.0-b129-nifi_2.6.0.4.12.0.1-9   # CFM 3.2 NiFi 2.x
+#        tiniImage.tag: 3.2.0-b39
+#   3. narProvider mounts the shared custom-nars PVC on every NiFi pod so
+#      NiFi auto-discovers Java processor NARs. Contents of that PVC are
+#      seeded the same way as custom-python-extensions (loader pod + kubectl cp).
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: Nifi
+metadata:
+  name: mynifi
+  namespace: cfm-streaming
+spec:
+  replicas: 1
+  nifiVersion: "2.6.0"
+
+  image:
+    repository: container.repository.cloudera.com/cloudera/cfm-nifi-k8s
+    tag: 3.0.0-b126-nifi_2.6.0.4.3.4.0-234
+    pullSecret: cloudera-creds
+  tiniImage:
+    repository: container.repository.cloudera.com/cloudera/cfm-tini
+    tag: 3.0.0-b126
+    pullSecret: cloudera-creds
+
+  # === Persistence — five NiFi repos on nifi-storage ===
+  persistence:
+    size: 10Gi
+    storageClass: nifi-storage
+    data:           { size: 20Gi, storageClass: nifi-storage }
+    state:          { size:  5Gi, storageClass: nifi-storage }
+    flowfileRepo:   { size: 20Gi, storageClass: nifi-storage }
+    contentRepo:    { size: 50Gi, storageClass: nifi-storage }
+    provenanceRepo: { size: 30Gi, storageClass: nifi-storage }
+
+  # === Custom Java NARs — shared PVC picked up by the CFM Operator's nar-provider ===
+  # See blog: "Persistence with Cloudera Flow Management Operator" — Step 5.
+  narProvider:
+    volumes:
+      - volumeClaimName: custom-nars
+
+  # === Python extensions on a PVC (not `minikube mount` → hostPath) ===
+  # See blog: "Persistence with Cloudera Flow Management Operator" — Step 6.
+  statefulset:
+    volumes:
+      - name: python-extensions
+        persistentVolumeClaim:
+          claimName: custom-python-extensions
+    volumeMounts:
+      - name: python-extensions
+        mountPath: /opt/nifi/nifi-current/python/extensions
+    terminationGracePeriodSeconds: 60
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values:
+                      - mynifi
+              topologyKey: kubernetes.io/hostname
+
+  # === Ingress / hostname ===
+  hostName: mynifi-web.mynifi.cfm-streaming.svc.cluster.local
+  uiConnection:
+    type: Ingress
+    ingressConfig:
+      hostname: ""
+    annotations:
+      nginx.ingress.kubernetes.io/affinity: cookie
+      nginx.ingress.kubernetes.io/affinity-mode: persistent
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+  # === Security ===
+  security:
+    initialAdminIdentity: admin
+    nodeCertGen:
+      issuerRef:
+        name: cfm-operator-ca-issuer-signed
+        kind: ClusterIssuer
+    singleUserAuth:
+      enabled: true
+      credentialsSecretName: nifi-admin-creds
+
+  # === Config overrides (Prometheus metrics + K8s leader election) ===
+  configOverride:
+    nifiProperties:
+      upsert:
+        nifi.cluster.leader.election.implementation: KubernetesLeaderElectionManager
+        nifi.web.prometheus.metrics.authenticated: "false"
+
+  # === State management (K8s ConfigMap provider) ===
+  stateManagement:
+    clusterProvider:
+      id: kubernetes-provider
+      class: org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider

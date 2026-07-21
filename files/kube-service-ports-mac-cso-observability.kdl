@@ -18,11 +18,12 @@
 layout {
     split_direction "Horizontal"
 
-    // Mount the custom NiFi processors dir into the minikube VM.
-    pane {
-        command "/opt/homebrew/bin/minikube"
-        args "mount" "/Users/steven.matison/Documents/GitHub/NiFi2 Processor Playground/nifi-custom-processors/:/extensions" "--uid" "10001" "--gid" "10001"
-    }
+    // Mount the custom NiFi processors dir into the minikube VM - moved into PVC
+    // See files/nifi-cluster-32-nifi2x-pvc.yaml + files/python-extensions-loader.yaml
+    //pane {
+    //    command "/opt/homebrew/bin/minikube"
+    //    args "mount" "/Users/steven.matison/Documents/GitHub/NiFi2 Processor Playground/nifi-custom-processors/:/extensions" "--uid" "10001" "--gid" "10001"
+    //}
 
     // EFM UI  → http://127.0.0.1:10090/efm/ui/
     pane {
