@@ -580,3 +580,8 @@ Everything in this post was validated against **CFM Operator `3.2.0-b39`** on **
   - `container.repository.cloudera.com/cloudera/cfm-nifi-k8s:3.1.0-b129-nifi_1.28.1.2.3.17.0-9` (NiFi 1.x)
   - `container.repository.cloudera.com/cloudera/cfm-nifiregistry-k8s:3.1.0-b129-nifi_2.6.0.4.12.0.1-9` (Registry, NiFi 2.x)
 - Sample YAMLs and helm values I use across the CSO stack: [`cldr-steven-matison/ClouderaStreamingOperators`](https://github.com/cldr-steven-matison/ClouderaStreamingOperators)
+
+---
+
+## {{ page.title }}
+If you would like a deeper dive, hands on experience, demos, or are interested in speaking with me further about {{ page.title }} please reach out to schedule a discussion.

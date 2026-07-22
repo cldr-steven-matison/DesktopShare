@@ -15,15 +15,13 @@ tags:
   - security
 ---
 
-# How to Install a Public Certificate for NiFi
-
-Every fresh Apache NiFi install lands you at `https://<host>:8443/nifi/` with a self-signed cert, and the first thing every browser tells you is that the site is unsafe. That's fine for a laptop but not for anything you want to hand a link to. This post walks through swapping that keystore for a real Let's Encrypt cert on a **host-native** NiFi install — no Kubernetes, no reverse proxy, NiFi keeps serving `:8443` and it just presents a browser-trusted cert.
+Every fresh Apache NiFi install lands you at `https://<host>:8443/nifi/` with a self-signed cert, and the first thing every browser tells you is that the site is unsafe. That's fine for a laptop but not for anything you want to hand a link to. This post walks through swapping that keystore for a real Let's Encrypt(LE) cert on a **host-native** NiFi install — no Kubernetes, no reverse proxy, NiFi keeps serving `:8443` and it just presents a browser-trusted cert.
 
 Validated against **Apache NiFi 2.0.0** (open-source, build `2f13b60`, branch `NIFI-13915-RC2`) on Ubuntu 24.04, with certbot 2.9 driving Let's Encrypt.
 
 ---
 
-## What we're actually doing
+## Secure NiFi Optional Paths
 
 There are two ways to get a trusted cert in front of NiFi: put a reverse proxy in front and terminate TLS there, or load the real cert straight into NiFi's own keystore. This post takes the second path — no proxy, no ingress, no extra moving parts. NiFi itself serves the trusted cert.
 
@@ -86,7 +84,7 @@ openssl s_client -connect nifi.sceneserver.net:8443 -servername nifi.sceneserver
 
 ---
 
-## Step 2 — Snapshot before touching anything
+## Step 2 — Take a Snapshot For Backup
 
 The rollback path is a directory copy. Take it before you edit a byte.
 
@@ -101,7 +99,7 @@ If Step 4 or 5 goes sideways, rollback is one line: stop NiFi, `cp -a conf.pre-l
 
 ---
 
-## Step 3 — Issue the Let's Encrypt cert
+## Step 3 — Issue the Let's Encrypt Cert
 
 Two flavors of certbot challenge work here. Pick based on what's easier for you:
 
@@ -123,7 +121,7 @@ certbot certonly \
 
 If NiFi doesn't already own port 80, that's it. If something else is on :80, use `--webroot` and point certbot at that server's docroot.
 
-### DNS-01 alternative (Cloudflare example)
+### DNS-01 Alternative (Cloudflare Example)
 
 ```bash
 apt install -y certbot python3-certbot-dns-cloudflare
@@ -143,7 +141,7 @@ certbot certonly \
 
 Substitute the equivalent plugin for your DNS host (`certbot-dns-route53`, `certbot-dns-digitalocean`, `certbot-dns-rfc2136`, etc.).
 
-### Rate-limit note
+### LE Rate-limit 
 
 Let's Encrypt caps you at **5 duplicate certs per 168h** per exact set of hostnames. If you expect to iterate — trying different keystore configs, restarting NiFi, re-running — do the first issuance against staging to avoid burning your prod quota:
 
@@ -161,7 +159,7 @@ Either way, cert files land at:
 
 ---
 
-## Step 4 — Bundle the cert into a PKCS12 keystore
+## Step 4 — Bundle the Cert into a PKCS12 Keystore
 
 NiFi 2.x prefers PKCS12 over JKS. `openssl pkcs12 -export` bundles the LE cert and key into a `.p12` file NiFi loads natively:
 
@@ -194,7 +192,7 @@ keytool -list -keystore $NIFI_CONF/keystore.p12 -storetype PKCS12 -storepass "$K
 
 ---
 
-## Step 5 — Point `nifi.properties` at the new keystore
+## Step 5 — Point `nifi.properties` at New Keystore
 
 Edit `$NIFI_CONF/nifi.properties`:
 
@@ -241,7 +239,7 @@ NiFi takes 60–120 seconds to come back. First browser hit right after "Started
 
 ---
 
-## Step 8 — Verify the padlock
+## Step 8 — Verify the Padlock
 
 External TLS:
 
@@ -262,7 +260,7 @@ Log in, load a canvas, poke a flow. Auth still works because the DN change only 
 
 ---
 
-## Step 9 — Auto-renewal (this is the whole point)
+## Step 9 — Auto-Renewal
 
 LE certs are valid for 90 days. certbot's `certbot.timer` (systemd) or `/etc/cron.d/certbot` handles the renewal on its own. What's left is a **deploy hook** that rebuilds the p12 and restarts NiFi every time certbot renews.
 
@@ -321,7 +319,7 @@ certbot runs a full dry-run renewal against LE staging. On success it invokes th
 
 ---
 
-## Failure modes I hit or want you to avoid
+## Troubleshooting
 
 - **Keystore load fails at NiFi startup**: password mismatch between `nifi.properties` and the p12. Run the `keytool -list` from Step 4 against the new p12 before restarting — if it can open, NiFi will too.
 - **Cert renews, browser still sees old**: TLS session cache. Fresh incognito window, or restart NiFi a second time to force new sessions.
@@ -331,8 +329,13 @@ certbot runs a full dry-run renewal against LE staging. On success it invokes th
 
 ---
 
-## Where this fits
+## Summary
 
 This is the fastest path I know to a real cert on a host-native NiFi, with automatic renewal, no reverse proxy, no keystore drift, and no manual work between now and the eventual 5-year-out server retirement. The whole thing is ~40 minutes end-to-end on a fresh droplet, and once the deploy hook is in place there's nothing to do at renewal time.
 
 The same shape works for any Java service that reads a PKCS12 keystore — Schema Registry, Kafka broker TLS, SSB, an internal Spring Boot service. The only thing that changes is the properties file the p12 gets wired into.
+
+---
+
+## {{ page.title }}
+If you would like a deeper dive, hands on experience, demos, or are interested in speaking with me further about {{ page.title }} please reach out to schedule a discussion.
