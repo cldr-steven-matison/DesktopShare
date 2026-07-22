@@ -210,6 +210,14 @@ We've validated three; pick by host constraints.
 
 Clone `apache/nifi-python-extensions`, mount its `src/extensions/` at `/opt/nifi/nifi-current/python/extensions` (same shape as §4e). You get `ChunkDocument`, `ParseDocument`, `PromptChatGPT`, `QueryOpenSearchVector`, `QueryQdrant` reliably. The full palette advertised in the repo README does not all load in every version — treat this as "5 processors ship reliably, the rest are gambit."
 
+### 4g. Bridging a GUI-less edge agent to a native host process
+
+Some edge targets have zero path to a real GUI — a `KubernetesPod` agent inside minikube on a Windows/WSL2 host has no `/tmp/.X11-unix`, no `/mnt/wslg`, no `DISPLAY`, and Docker Desktop's docker driver does not expose WSLg's sockets into a pod. Don't fight that by trying to mount one in. Check the *other* direction first: a pod almost always **can** reach outbound to the Windows host (`host.docker.internal`, the host's LAN IP, and the Docker Desktop gateway IP all work) even on a host where the reverse — Windows reaching into WSL2/minikube — is genuinely blocked (mirrored-networking hairpin-NAT/localhost-forwarding gaps, a separate and harder problem). So don't have the pod launch a browser itself — have its `ExecuteScript` POST a small payload (e.g. `{"url": "..."}`) to a tiny native Python `http.server` listener running directly on Windows, and let *that* process own the actual GUI action.
+
+Confirmed pattern (`KubernetesPod` → `browser_launcher.py`, built 2026-07-18 for the Twitch chat-bot screen loader):
+- Verify the native action actually happened, don't trust exit code 0 — a backgrounded launch can hand off to an already-running instance via IPC, and that specific child process exits clean regardless of whether anything visible changed. Poll for the real end state instead (`MainWindowTitle` non-empty, `GetWindowRect` matches the expected coordinates).
+- Make the native listener durable with a Windows **Scheduled Task**, not a bare `python.exe` started by hand: an `AtLogOn` trigger plus a second trigger that re-fires every few minutes as a self-heal (a listener that died silently once and stayed dead for 18 hours is what motivated this). Run it via `pythonw.exe`, not `python.exe` under `cmd.exe` — the console window the latter opens is a real, easy way for someone to kill it by accident. Always stop/start through the task (`Stop-ScheduledTask`/`Start-ScheduledTask`), not a raw `Stop-Process` — killing the process directly can leave Task Scheduler's own state out of sync with reality (`Ready` shown while the process is actually dead).
+
 ---
 
 ## 5. Deploying MiNiFi C++ / EFM (the edge side)
@@ -298,6 +306,37 @@ Full processor catalog for the stock C++ image is in `C++-processors.md`.
 
 Tailscale's virtual adapter is often on Windows' `Public` firewall profile by default. An "existing" firewall rule for MiNiFi ports (8080-8084 in our fleet) may not cover the Tailscale interface. Either widen: `Set-NetFirewallRule -DisplayName '<rule>' -Profile Any`, or add a Tailscale-specific rule. Symptom: `curl http://<tailnet-ip>:8080/contentListener` from another array machine hangs while local curl works. Also: `netstat -ano | findstr :8080` should show `0.0.0.0:8080`, not `127.0.0.1:8080`.
 
+### 5h. EFM's Flow Designer + Resource Manager API (no OpenAPI spec)
+
+EFM 2.3.1.0-2 exposes no OpenAPI/Swagger doc for its flow-editing REST API (`/efm/api-docs`, `/v3/api-docs`, `/efm/swagger-ui` all 404). Guessing at body shapes (`PUT` on a whole-document endpoint, wrapping in `{component: ...}`, bare arrays) produces generic `500`s or, worse, silent no-ops — Jackson deserializes an unrecognized shape into a default/empty DTO without erroring, so a `200 OK` does not mean the call did anything.
+
+**The fix: EFM's own Angular UI ships an OpenAPI-generated TypeScript client, so its compiled JS bundle has the exact operation name/URL/body shape for every call, verbatim, even minified:**
+```bash
+curl -s http://<efm-host>:10090/efm/ui/ | grep -oE 'src="[^"]*main[^"]*\.js"'   # find the hashed bundle
+curl -s http://<efm-host>:10090/efm/ui/main.<hash>.js -o /tmp/efm_main.js
+grep -oE '"[A-Za-z]+Service\.[a-zA-Z]+"' /tmp/efm_main.js | sort -u            # every real operation, unminified
+```
+
+Confirmed working contract (built 2026-07-18/19, structurally re-verified 2026-07-22 against a different flow):
+- `GET /efm/api/designer/client-identifier` → `{"clientId": "<uuid>"}` — required in every write's `revision.clientId`.
+- `GET /efm/api/designer/flows/summaries` → one entry per agent class with `identifier`/`rootProcessGroupIdentifier`; `GET .../flows/{id}` for the full live flow doc. Read this before editing — it's ground truth over any doc or memory.
+- `POST .../process-groups/{pgId}/processors` — create. Body: `{"revision":{"version":0,"clientId":...},"componentConfiguration":{"componentType":"PROCESSOR","type":"<fqcn>","bundle":{...},"name":...,"position":{...},"properties":{...},"autoTerminatedRelationships":[...]},"requestId":"<uuid>"}`. Properties can be set in this one call.
+- `POST .../connections` — same revision/requestId envelope, `componentConfiguration:{componentType:"CONNECTION",source:{id,type:"PROCESSOR",groupId},destination:{...},selectedRelationships:[...],bends:[]}`.
+- `PUT .../processors/{id}` — update, same shape; `revision.version` must match current.
+- `GET .../flows/{id}/validate` → `{"validationErrors":[]}` — confirm empty before publishing.
+- `POST .../flows/{id}/publish` — body `{"comments":"..."}`. **This is the real push-to-agent step** — confirmed it overwrites even a manually hand-edited agent-local `config.yml` on the agent's next heartbeat. A hand-edited local config is never authoritative once you're using the real API.
+- `DELETE /efm/api/agents/{id}` (`AgentsService.deleteAgent`) — removes a stale/`MISSING` agent record EFM never garbage-collects on its own.
+
+Resource Manager (script/asset upload — the correct alternative to `kubectl cp`-ing a script directly onto an agent):
+- `POST /efm/api/resource-manager/resources/file` — multipart, query params `name`/`resourceType`(`ASSET`|`EXTENSION`)/`relativePathOnAgent`/`notes`, field `file`. Returns a SHA-512 `digest` — diff against local `sha512sum` to confirm no drift.
+- `PUT /efm/api/agent-class-resource-manager/{agentClass}/save` — body **must** be exactly `{"resourceIdsToBeAssigned":[...],"resourceIdsToBeUnassigned":[...]}`; a bare array or `{"resourceIds":[...]}` both get silently swallowed (200 OK, nothing assigned).
+- **No in-place asset update exists**, API or UI. Changing an already-assigned script's content is unassign → delete the old resource → upload as new → reassign. A same-named re-upload does not overwrite the old bytes.
+- A running MiNiFi C++ agent's `ExecuteScript` **re-reads its Script File from disk on every trigger**, not just at startup — a raw `kubectl cp` onto the asset path takes effect on the very next HTTP call, no republish needed. Fast for iterating on content, but it bypasses EFM's own asset tracking and won't survive a pod restart unless also pushed through the resource-manager flow above.
+
+**EFM's `agent`/`device` Postgres tables, not its REST heuristics, are the real source of truth for online/offline agent status.** EFM's `operation` table has no automatic retention, and a crash-looping agent can flood it (9,800+ rows in 15 hours, observed once) — this hangs `/efm/api/operations` entirely (60s+, no response) and silently breaks anything reconstructing "which agents are online" from it, including EFM's own UI. If you need reliable programmatic online/offline status, a direct read-only query against `agent`(`agent_class`,`agent_state`,`last_seen`) joined to `device`(`ip_address`,`hostname`) in EFM's Postgres is the durable fix — this is what `cso-operator-app`'s EFM page does today, and it's immune to the `operation` table's size.
+
+**An EFM agent-class name is not guaranteed to map to one physical machine.** `KubernetesPod` alone has (at least) two real, separately-registered deployments in this array — the gaming PC (has a GPU, runs a real `tensorrt` import) and a MacBook (no GPU, runs a CPU-stub script with the same output schema). Don't assume a script/hardware mismatch in an exported flow is a bug without checking which agent identifier — which physical machine — you're actually looking at.
+
 ---
 
 ## 6. Common wire-ups that keep biting us
@@ -367,6 +406,10 @@ Each host's `~/.claude/.../memory/MEMORY.md` is the index of the memories the lo
 ### MINI-Gaming-G1 (Windows gaming PC, WSL2 + minikube)
 - `minikube mount` from WSL2/docker-driver is flaky → prefer path 2 (PVC + loader pod) for custom processors.
 - Hosts the EFM server the array's edge MiNiFi agents heartbeat to. Reachable to Beelink over Tailscale at `100.68.113.126:10090`.
+- **`WindowsDesktop` EFM class exists (class + flow `4615bdc2-...`) but has never had a live agent** — confirmed 2026-07-22: `GET /efm/api/designer/flows?agentClass=WindowsDesktop` returns the class/flow fine, but both known prior agent identifiers 404 and zero events were ever logged for this class. The 06-08 broken-Python install this box is theorized to have (`efm-binaries-claude.md`'s original premise) is fully gone too — no service, no `system32` install dir. Net: this box is a clean slate, not a repair job. When the install actually runs, bake `ADDLOCAL=ALL` into the *first* `msiexec` call (§5e) instead of installing plain and repairing after — there's no prior state to preserve.
+- **`KubernetesPod` here is specifically the GPU (RTX 4060) instance** — see the two-instances gotcha in §5h, don't assume a script referencing `tensorrt` on this host is wrong just because the class's other (MacBook) instance runs a CPU stub.
+- The `KubernetesPod`→native-Windows-listener bridge pattern (§4g) runs from this host: `browser_launcher.py` on `C:\minifi-manual\`, port 5901, kept alive by Scheduled Task `BrowserLauncherListener`.
+- `StarlinkAI`'s designer API write/publish contract (§5h) has still never actually been exercised even from this host, which is where EFM itself runs — a prepared script (`files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py`) was structurally verified byte-for-byte against the live flow on 2026-07-22 (bundle versions, property names, `PublishKafka` presence all match) but the real PUT/publish has not been run. Structurally-safe is not the same as confirmed — treat the first real run as the actual test.
 
 ### TunaStarlink (Beelink SER9, Windows 11, Vulkan iGPU)
 - MiNiFi agent runs Windows-native as `Apache NiFi MiNiFi` service. Class `StarlinkAI`.
