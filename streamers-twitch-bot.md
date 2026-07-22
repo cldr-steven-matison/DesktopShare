@@ -77,6 +77,22 @@ Also worth remembering for next time: **EFM has no in-place asset update.** Chan
 - **If live:** emit the flowfile as today, and also have `TunaStreetTest` reply confirming it's proceeding, e.g. `"<streamer> is live — loading on screen<N>."` — gives chat immediate feedback instead of silence while the kill/relaunch cycle runs.
 - Bump `TwitchChatListenerProcessor` to the next `-SNAPSHOT` version per the existing convention when this lands.
 
+### `!matrix` command + watchlist-on-join — LIVE (2026-07-21)
+
+Two more chat commands added, both confirmed working live end-to-end.
+
+**`!matrix`** turns on the Jetson's existing matrix-rain screensaver (built separately, documented in `claude-screen.md` — a systemd idle-watcher that already knows how to kill/relaunch Chromium in kiosk mode against `~/matrix-screensaver.html` and force real fullscreen with `wmctrl`, driven off `xprintidle`). This just gives that same effect a manual, on-demand trigger from chat, wired the same way as `!load`:
+
+`TwitchChatListenerProcessor` (bumped through `0.0.8` → `0.0.11-SNAPSHOT`) now also matches a `Matrix Command` property (default `!matrix`), acks in chat ("Loading the matrix screensaver..."), and emits a flowfile with `screen=matrix` — reusing the exact same routing attribute `!load` already sets, so `RouteOnAttribute` just got a third branch (`"matrix": "${screen:equals('matrix')}"`) alongside `screen1`/`screen2`, wired to a new `InvokeNvidiaNanoMatrix` → the Jetson's new `ListenHTTP` (`matrixListener`, port 8082) → `ExecuteScript` (`agent-NvidiaNano-launch_matrix.py`) → the existing `PublishKafka` (topic `agent-nvidia-streamChat`, reused rather than standing up a new topic). Deployed to the Nano through EFM's real Flow Designer + Resource Manager API (see `reference-efm-flow-designer-api` memory) — resource uploaded, assigned to the `NvidiaNano` class, flow validated and published (v15/v16).
+
+**Bug hit and fixed:** first version of `agent-NvidiaNano-launch_matrix.py` matched the Chromium window for the `wmctrl` fullscreen-force step by WM_CLASS (`wmctrl -lx`, grepping for `chromium.chromium`) instead of window title, since the matrix HTML's `<title>` wasn't known ahead of time. Confirmed live: the command worked end-to-end (page loaded, killed/relaunched correctly) but the window **stayed windowed** — the real WM_CLASS string (something like `chromium-browser.Chromium-browser`) doesn't contain the literal substring `chromium.chromium`, so the poll loop silently never found a match and timed out after 60s with no fullscreen ever applied. Real fix: match on window *title* instead, same mechanism `agent-NvidiaNano-launch_stream.py` already uses successfully — Chromium always appends `" - Chromium"` to the title bar regardless of what page is loaded, so `wmctrl -l | grep -qi -- ' - Chromium'` finds the window without needing to know the matrix page's own title, then `wmctrl -r 'Chromium' -b add,fullscreen` (substring match) forces it. Redeployed through EFM's unassign → delete → re-upload → reassign asset-update cycle (no in-place update exists), republished as flow v16. Confirmed fullscreen after the fix.
+
+**Watchlist-on-join:** the bot's join announcement now also posts the currently-active streamer watchlist (`GET http://cso-operator-app.default.svc.cluster.local:8090/api/streamers/watchlist`, reachable in-cluster from the `mynifi-0` pod even though it's a different namespace/LoadBalancer service — no new networking needed). Two corrections made live after the first version posted:
+- The roster/watchlist is cross-platform (Twitch + Kick, `kick:`-prefixed logins) but this bot only ever lives in Twitch chat — Kick entries are filtered out before posting.
+- First pass formatted each name as `@login`; dropped that — Twitch chat doesn't turn `@name` into a link to the streamer's page or anything else useful here, so it's just plain names now.
+
+Both features required no changes to `Client Secret`/`Refresh Token` — every processor edit only ever sent the two new/changed properties in the PUT body, never a full round-trip of the existing config, so the parameter-context-backed secrets were never at risk of the `"********"` mask-corruption bug (see `reference-nifi-api-access` memory).
+
 ---
 
 **Full Detailed Implementation Plan (original draft — superseded by the as-built section above for the single-screen MVP)**  
