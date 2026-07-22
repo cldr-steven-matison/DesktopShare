@@ -232,7 +232,7 @@ spec:
       storage: 100Mi
 ```
 
-Drop your `.nar` files into it — the simplest way is a one-shot loader pod, same pattern as Step 6 below. Once they're on the PVC, the operator mounts them into every NiFi pod at the `nar-provider` path and NiFi picks up the components on the next restart.
+Drop your `.nar` files into it — the simplest way is a one-shot loader pod, same pattern as Step 6 below. Once they're on the PVC, the operator mounts them into every NiFi pod under `/opt/nifi/nifi-current/nar-provider/<pvc-name>/` (in this example, `/opt/nifi/nifi-current/nar-provider/custom-nars/`) and NiFi picks up the components on the next restart. The subdirectory is named after the PVC, which matters if you're wiring up multiple NAR sources.
 
 Confirm the PVC has what you expect:
 
@@ -341,6 +341,15 @@ kubectl cp ~/nifi-custom-processors/. \
 kubectl exec -n cfm-streaming python-extensions-loader -- ls -la /home/ubuntu/extensions/
 ```
 
+Then — and this bit isn't optional — **fix ownership** so NiFi's non-root user (uid `10001`) can read and write. `kubectl cp` from macOS drops files owned by the source-machine's UID (typically `501:staff`), which the pod then can't touch:
+
+```bash
+kubectl exec -n cfm-streaming python-extensions-loader -- \
+  chown -R 10001:10001 /home/ubuntu/extensions/
+```
+
+Skip this and NiFi silently fails to load the module — with logs that only tell you "Could not load module" and no `chmod` hint.
+
 The loader stays running so you can `kubectl cp` more files in later without re-applying anything. Delete it when you're done editing extensions:
 
 ```bash
@@ -365,13 +374,15 @@ spec:
         mountPath: /opt/nifi/nifi-current/python/extensions
 ```
 
-Re-apply the CR and roll:
+Re-apply the CR and roll. The full CR YAML that pairs with this walkthrough lives in [`cldr-steven-matison/ClouderaStreamingOperators`](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) as `nifi-cluster-32-nifi2x-pvc.yaml`:
 
 ```bash
-kubectl apply -f nifi-cluster-30-nifi2x-python.yaml -n cfm-streaming
+kubectl apply -f nifi-cluster-32-nifi2x-pvc.yaml -n cfm-streaming
 kubectl rollout restart statefulset mynifi -n cfm-streaming
 kubectl rollout status  statefulset/mynifi -n cfm-streaming --timeout=180s
 ```
+
+**Tip:** run `kubectl diff -f nifi-cluster-32-nifi2x-pvc.yaml` first. If your live NiFi is healthy and only `/extensions` needs to change, the diff should be a single volume replacement — nothing else. If you see repo PVCs, images, or security blocks moving, stop and reconcile the YAML with the live CR before applying.
 
 You can also kill the `minikube mount` process now — nothing needs it anymore.
 
@@ -391,7 +402,7 @@ That's the signal — real disk, not a fragile mount.
 
 ## Full CR — put it all together
 
-For copy-paste, this is a complete `nifi-cluster-30-nifi2x-python.yaml` covering steps 2–6:
+For copy-paste, this is a complete `nifi-cluster-32-nifi2x-pvc.yaml` covering steps 2–6 — the same file lives in [`cldr-steven-matison/ClouderaStreamingOperators`](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) alongside `python-extensions-loader.yaml`:
 
 ```yaml
 apiVersion: cfm.cloudera.com/v1alpha1
