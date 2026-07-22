@@ -41,7 +41,7 @@ The moving parts:
 
 ## Prerequisites
 
-- A **public DNS name** pointed at the host — LE only signs for names it can validate. For this walkthrough that name is `nifi.sceneserver.net`, an A record at DigitalOcean pointed at a droplet. Substitute your own everywhere below.
+- A **public DNS name** pointed at the host — LE only signs for names it can validate. For this walkthrough that name is `www.domain.com`, an A record at DigitalOcean pointed at a droplet. Substitute your own everywhere below.
 - NiFi installed directly on the host (not containerized), with a known `NIFI_HOME`. In my case that's `/root/nifi-2.0.0`, with `NIFI_HOME/conf/nifi.properties` as the source of truth for TLS settings.
 - The user NiFi runs as, and how NiFi is started. On my droplet that's `root` via `bin/nifi.sh start` — no systemd unit. If you're on systemd, substitute `systemctl restart nifi` for the manual restart command later.
 - Port `80` reachable from the internet **or** API access to your DNS provider. HTTP-01 uses port 80 to prove domain control; DNS-01 uses the provider's API. Either works.
@@ -76,7 +76,7 @@ Write down:
 **Confirm from outside the host that today's cert is self-signed**, so we have a clear "before" state:
 
 ```bash
-openssl s_client -connect nifi.sceneserver.net:8443 -servername nifi.sceneserver.net </dev/null 2>&1 \
+openssl s_client -connect www.domain.com:8443 -servername www.domain.com </dev/null 2>&1 \
   | openssl x509 -noout -issuer -subject
 # issuer=CN=nifi-cert  ← self-signed
 # subject=CN=nifi-cert
@@ -115,7 +115,7 @@ apt install -y certbot
 # One-shot standalone issuance — certbot binds :80 briefly, answers the challenge, exits
 certbot certonly \
   --standalone \
-  -d nifi.sceneserver.net \
+  -d www.domain.com \
   --agree-tos -m you@example.com --non-interactive
 ```
 
@@ -135,7 +135,7 @@ chmod 600 /root/.secrets/cloudflare.ini
 certbot certonly \
   --dns-cloudflare \
   --dns-cloudflare-credentials /root/.secrets/cloudflare.ini \
-  -d nifi.sceneserver.net \
+  -d www.domain.com \
   --agree-tos -m you@example.com --non-interactive
 ```
 
@@ -146,7 +146,7 @@ Substitute the equivalent plugin for your DNS host (`certbot-dns-route53`, `cert
 Let's Encrypt caps you at **5 duplicate certs per 168h** per exact set of hostnames. If you expect to iterate — trying different keystore configs, restarting NiFi, re-running — do the first issuance against staging to avoid burning your prod quota:
 
 ```bash
-certbot certonly --standalone --staging -d nifi.sceneserver.net \
+certbot certonly --standalone --staging -d www.domain.com \
   --agree-tos -m you@example.com --non-interactive
 ```
 
@@ -154,8 +154,8 @@ Staging certs are untrusted (the chain says "STAGING Let's Encrypt") but the iss
 
 Either way, cert files land at:
 
-- `/etc/letsencrypt/live/nifi.sceneserver.net/fullchain.pem`
-- `/etc/letsencrypt/live/nifi.sceneserver.net/privkey.pem`
+- `/etc/letsencrypt/live/www.domain.com/fullchain.pem`
+- `/etc/letsencrypt/live/www.domain.com/privkey.pem`
 
 ---
 
@@ -168,8 +168,8 @@ KEYSTORE_PASS='<use the same value from nifi.security.keystorePasswd>'
 NIFI_CONF=/root/nifi-2.0.0/conf
 
 openssl pkcs12 -export \
-  -in  /etc/letsencrypt/live/nifi.sceneserver.net/fullchain.pem \
-  -inkey /etc/letsencrypt/live/nifi.sceneserver.net/privkey.pem \
+  -in  /etc/letsencrypt/live/www.domain.com/fullchain.pem \
+  -inkey /etc/letsencrypt/live/www.domain.com/privkey.pem \
   -name nifi \
   -out $NIFI_CONF/keystore.p12 \
   -password pass:"$KEYSTORE_PASS"
@@ -215,8 +215,8 @@ If the old self-signed DN was serving as the Initial Admin Identity or a Node Id
 
 ```xml
 <!-- authorizers.xml, inside file-user-group-provider / file-access-policy-provider -->
-<property name="Initial User Identity 1">CN=nifi.sceneserver.net</property>
-<property name="Node Identity 1">CN=nifi.sceneserver.net</property>
+<property name="Initial User Identity 1">CN=www.domain.com</property>
+<property name="Node Identity 1">CN=www.domain.com</property>
 ```
 
 Keep any existing user entries in place — you're adding, not replacing. If `users.xml` already has policies attached to the old self-signed DN, either rename that identity to the new DN inside `users.xml` (safer), or add the new DN as a second Initial User and migrate policies through the UI once NiFi is back up.
@@ -244,17 +244,17 @@ NiFi takes 60–120 seconds to come back. First browser hit right after "Started
 External TLS:
 
 ```bash
-openssl s_client -connect nifi.sceneserver.net:8443 -servername nifi.sceneserver.net </dev/null 2>&1 \
+openssl s_client -connect www.domain.com:8443 -servername www.domain.com </dev/null 2>&1 \
   | openssl x509 -noout -issuer -subject -dates
 # issuer=C=US, O=Let's Encrypt, CN=R11    ← real LE intermediate
-# subject=CN=nifi.sceneserver.net
+# subject=CN=www.domain.com
 # notAfter=~90 days from now
 
-curl -v https://nifi.sceneserver.net:8443/nifi-api/access/config 2>&1 | grep -E "HTTP/|subject|issuer"
+curl -v https://www.domain.com:8443/nifi-api/access/config 2>&1 | grep -E "HTTP/|subject|issuer"
 # HTTP/2 200 — no -k needed
 ```
 
-Browser: open a **fresh incognito window** — Chrome and Firefox cache TLS sessions, and the old self-signed cert will linger if you reuse a window that already talked to `:8443`. In incognito the padlock is solid, no "Not secure" chip, and the cert viewer shows `Issued by: Let's Encrypt` / `Subject: nifi.sceneserver.net`.
+Browser: open a **fresh incognito window** — Chrome and Firefox cache TLS sessions, and the old self-signed cert will linger if you reuse a window that already talked to `:8443`. In incognito the padlock is solid, no "Not secure" chip, and the cert viewer shows `Issued by: Let's Encrypt` / `Subject: www.domain.com`.
 
 Log in, load a canvas, poke a flow. Auth still works because the DN change only affects the server cert, not the browser session token.
 
@@ -271,7 +271,7 @@ tee /etc/letsencrypt/renewal-hooks/deploy/nifi-reload.sh >/dev/null <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-DOMAIN="nifi.sceneserver.net"
+DOMAIN="www.domain.com"
 LIVE="/etc/letsencrypt/live/$DOMAIN"
 NIFI_HOME="/root/nifi-2.0.0"
 NIFI_CONF="$NIFI_HOME/conf"
