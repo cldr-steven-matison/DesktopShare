@@ -174,3 +174,36 @@ Active `kubectl port-forward` panes (all `--address 0.0.0.0` so LAN peers can re
 - `service/efm 10090:10090 -n cld-streaming` — **NOTE**: pane is up but `svc/efm` does not currently exist in the cluster (EFM/MiNiFi are the intentionally-disabled bits); forward is failing quietly, remove or restore EFM when the flow is next needed
 
 Not on the tailnet, but reachable from other array machines over LAN `192.168.1.124` for the four forwarded ports above.
+
+---
+
+## nifi.sceneserver.net (DigitalOcean droplet)
+
+- **Role**: Public-facing Apache NiFi 2.0.0 host for SceneServer — the only array machine reachable at a real public domain/IP, not on Tailscale
+- **Checked in**: 2026-07-22
+- **Claude Code version**: 2.1.217
+
+### Hardware
+- CPU: 1 vCPU, DigitalOcean "DO-Regular" droplet (KVM, i440fx), 2.0GHz
+- GPU: none (Virtio 1.0 GPU stub only)
+- RAM: 1.9GB total — undersized for NiFi's `-Xmx1g` heap, see note below
+- Storage: 48GB, 40GB free at time of check-in
+
+### OS
+- OS: Ubuntu 24.04.3 LTS
+- Kernel: 6.8.0-71-generic
+
+### Key tool versions
+- Git: 2.43.0
+- Python: 3.12.3
+- Java: OpenJDK 21.0.11
+- NiFi: 2.0.0, manual install at `/root/nifi-2.0.0` (no systemd unit, `bin/nifi.sh start|stop`), single-user auth
+- certbot: 2.9.0 — `nifi.sceneserver.net` now serves a real Let's Encrypt cert (was self-signed), issued via standalone HTTP-01, auto-renews via `certbot.timer` + a deploy hook (`/etc/letsencrypt/renewal-hooks/deploy/nifi-reload.sh`) that rebuilds the PKCS12 keystore and restarts NiFi
+- gh: 2.45.0, logged in as TunaStreetTest
+
+### Network
+- Connection: DigitalOcean public IP, 104.131.180.192 (internet-facing, no LAN/VPN)
+- Tailscale IP: not joined
+
+### Known issue
+- 1.9GB RAM is tight for NiFi's `-Xmx1g` heap — the OOM-killer took NiFi down on 2026-07-21, and the bootstrap watchdog got stuck retrying against a stale (deleted) `java` binary handle from an earlier JDK reinstall, so it couldn't self-heal. Recovered manually (killed the stuck watchdog, clean restart). Worth lowering `-Xmx` or bumping droplet RAM to prevent recurrence.
