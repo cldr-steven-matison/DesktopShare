@@ -303,7 +303,7 @@ Verify: `Test-Path C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-ext
 | MiNiFi Java `container.repo.cloudera.com/cloudera/minifi-java:latest` | ✅ | Full ExecuteScript / ExecutePythonProcessor / ExecuteProcess. ~300MB image (vs C++'s ~15MB) |
 | Source-built C++ with `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` | ✅ | Multi-stage Dockerfile from Apache source at the matching tag |
 
-Full processor catalog for the stock C++ image is in `C++-processors.md`.
+Full processor catalog for the stock C++ image is in `minifi-playground-cpp-processors.md`; the Java agent's catalog and the C++-vs-Java comparison are in `minifi-playground-java-processors.md`.
 
 ### 5g. Windows firewall + Tailscale
 

@@ -21,7 +21,7 @@ Sat down on MINI-Gaming-G1 itself (the actual WSL2/Windows box, not the Mac) a f
 Companions:
 - `efm-binaries.md` — the ADDLOCAL=ALL recipe (§ Windows Desktop Agent — Full Install with Python Support)
 - `efm-binaries-manual-deliver.md` — offline install pattern (Jetson, useful reference)
-- `C++-processors.md` — the "no ExecuteScript in stock image" lesson + source-build hints
+- `minifi-playground-cpp-processors.md` — the "no ExecuteScript in stock image" lesson + source-build hints
 - `history/windows-powershell-efm-agent.txt` — the 2026-06-08 log evidence this plan is built on
 
 ---
