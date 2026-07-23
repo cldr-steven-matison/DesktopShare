@@ -80,10 +80,10 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 - **Cloudera Streaming**: NiFi (CFM), MiNiFi, EFM, Flink (CSA), SQL Stream Builder, Kafka (CSM), Schema Registry
 - **Kubernetes / Minikube**: Mac and Windows, with NVIDIA + AMD/Vulkan GPU support, persistence (PVCs), and ingress/TLS (Let's Encrypt)
 - **Edge AI**: MiNiFi/EFM agents routing to local LLM inference (Lemonade Server, vLLM) across a Tailscale-connected device array
-- **RAG / Streamers app**: the `cso-operator-app` — audio transcription (Whisper), embeddings + Qdrant, local captioning, and a live social-posting pipeline
+- **CSO Operator App**: the `cso-operator-app` — operator control plane, efm test kit, audio transcription (Whisper), embeddings + Qdrant, local captioning, and a live social-posting pipeline as modules `operator`, `rag`, `streamer`, and `efm`
 - **Custom Processors** (Python, Java)
 - **Observability**: Prometheus, Grafana, Kafka Surveyor, plus SaaS (DataDog, New Relic)
-- **AI tooling**: Claude Code across every device, local models, edge AI, agentic workflows
+- **AI tooling**: Claude, Grok, local models, edge AI, agentic workflows
 - **Cloudera**: Releases, Integrations, How Tos, Tutorials, Documents
 
 ---
