@@ -1,0 +1,13 @@
+
+
+1.  C++-processors.md - lets complete this and make sure we fully expose how to get the most out of and document all the c++ processors. There is some java content in here. Make a whole new doc for java-processors.  rename both docks and append minifi-playground- to the filename.    Be clear about what is open source and what is cloudera.  
+
+2.  agent-commands.md Move the bottom streamers section to streamers-agent-commands.md.  Make sure it includes new commands that were recently commit and missing (to stop/start both PublishClip* processors)
+
+3. clean up and organize all cso-operator-app* MDs.  Understand they are separate before combining (only if appropriate)
+
+4. clean up and organize all efm-binaries MDs. Understand they are separate before combining (only if appropriate)
+
+5. clean up flink-minikube-gpu-* and organize plan and directions for using flink.  It has been kind of last on the list after minifi,nifi,kafka, but now is time to start planning.
+
+6.  check out how-to-ai-with-nifi.md its updated since you worked on it, we added some stuff about flow design shape (minifi flow built was wild processors on top of each other etc)..  The MD here was all over the place please organize and clean this up.  I want to share this with a colleauge.
