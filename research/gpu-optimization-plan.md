@@ -205,4 +205,4 @@ In ProcessClips PG (current or refactored), `InvokeHTTP [GET WAV]` or the backen
 | `k8s/backing/vllm-cpu.yaml` | CPU vLLM fallback (not relevant for this plan) |
 | `gpu-minikube-grok-models.md` | Prior research on GGUF/Ollama/VRAM budgets for RTX 4060 |
 | `nvidia-tensorRT.md` | TensorRT overview — future optimization direction |
-| `flink-minikube-gpu-working.md` | Prior GPU Flink work — CUDA 12.4 pip-inject pattern |
+| `completed/flink-minikube-gpu-working.md` | Prior GPU Flink work — CUDA 12.4 pip-inject pattern |
