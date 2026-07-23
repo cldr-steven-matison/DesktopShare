@@ -164,7 +164,14 @@ Also check the EFM UI's per-processor In/Out counters directly (`ListenHTTP` →
 
 **Not yet root-caused, not currently blocking:**
 - [ ] EFM C2 heartbeat timeouts (~18:34 onward, `efm-host-ip:10090`) — seen once, not investigated further, may have been related to the zellij/port-forward outage above.
-- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — still shows up intermittently in logs, but stopped being a practical blocker once the rest of the chain was fixed. Worth a closer look eventually, not urgent.
+- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — **confirmed, 2026-07-23: this is a real, reproducible blocker for the transcription pair specifically** (100% drop rate over 3 attempts), while the other 3 new pairs run fine at the same `Batch/Buffer Size: 1`. See "Endpoint verification from the Beelink itself" below for the full finding. Fix to be done from the EFM host session.
+
+**New endpoint pairs (embeddings/reranking/speech/transcription, ports 8081-8084) — status as of 2026-07-23:**
+- [x] All 5 `ListenHTTP` ports confirmed bound (`netstat`), agent has picked up the flow
+- [x] Firewall confirmed permissive for the new ports via the existing `Tailscale-In` Any/Any rule — no new rule needed
+- [x] Embeddings, reranking, speech confirmed working end-to-end (real Lemonade responses, correct `request_id` threading)
+- [ ] Transcription confirmed broken (`ListenHTTP` buffer-full drop, 100% reproducible) — fix pending, from the EFM host
+- [ ] Cross-Tailscale test from a second array machine (only local curl tested so far)
 
 ## Real-workload test — streamers caption generation (2026-07-21)
 
@@ -297,9 +304,32 @@ Built incrementally with verification at each step, not one big batch:
 
 **Next real step for whoever picks this up**: verify each pair the same way the chat pair was verified on 2026-07-17 — `netstat` confirms binding on the Beelink, local curl round-trip against Lemonade directly, then cross-Tailscale curl from another array machine, then EFM UI per-processor In/Out counters. Don't trust the publish 200 alone; `ListenHTTP` is fire-and-forget by design (see "Flow design" above), so a working publish doesn't prove a working pipeline.
 
+## Endpoint verification from the Beelink itself (2026-07-23)
+
+Picked this back up from the Beelink's own Claude Code session (this box has no `kubectl` — that's gaming-PC-only — so verification here is local curl + MiNiFi log + EFM UI, not a Kafka consume).
+
+**Flow is at version 13, not 12** — Steven confirmed this is an alignment fix only, no functional change from the 16-processor/19-connection shape published 2026-07-22.
+
+**`netstat` confirms all 5 `ListenHTTP` ports bound**: `0.0.0.0:8080`–`8084`, all under the MiNiFi process (PID 3092). The agent picked up flow v12/13 fine.
+
+**Firewall: no dedicated rule for 8081–8084, and none needed.** `Get-NetFirewallRule` turns up nothing named for EFM/MiNiFi/these ports specifically, but `Tailscale-In` is `Program: Any`, `Port: Any`, `Action: Allow`, `Profile: Domain, Private` — and `Get-NetConnectionProfile` shows the Tailscale interface categorized `Private`. So the new ports ride the same broad allow rule 8080 already used; confirms the doc's earlier suspicion. Not yet tested from a second array machine over the tailnet, only locally.
+
+**Embeddings (8081), reranking (8082), speech (8083) — all confirmed working end-to-end.** Local curl round-trip to each, `request_id` threaded through correctly:
+- Reranking (`request_id: test-rerank-001`): `minifi-app.log`'s `LogAttribute` shows the real Lemonade response (`jina-reranker-v1-tiny-en-GGUF`, real relevance scores) attached to the flowfile with the correct key.
+- Speech (`request_id: test-speech-001`): same, but the payload is a real 53KB MP3 (`ID3` header visible in the log dump) — binary passthrough works, not just JSON.
+- Embeddings (`request_id: test-embed-001`): confirmed by Steven directly via the EFM UI's per-processor In/Out counters.
+
+**Transcription (8084) is broken — every request gets dropped.** Reproduced 3 times in a row (including with `Expect: 100-continue` stripped from the curl call, which made no difference — the server sends its own `100 Continue` regardless):
+```
+[ListenHTTP] [warning] ListenHTTP buffer is NOT full 1/1, 'POST' request for '/transcriptions' uri was dropped
+```
+Same symptom as the original `MINIFICPP-2243` bug from 2026-07-17 (`ListenHTTP`'s buffer-full check has an off-by-one at `Batch Size`/`Buffer Size: 1`), but this time it's consistent, not intermittent — and it only hits the multipart pair. Embeddings/reranking/speech all run fine at the same `Batch/Buffer Size: 1` with plain JSON POSTs. Working theory: multipart's two-phase send (headers, then body after the `100 Continue`) trips the buffer-full check in a way a single-write JSON POST doesn't. Not root-caused further than that — didn't chase it blind, per the doc's own rule about the write contract.
+
+**Decision: flow edits (buffer-size bump, or whatever the real fix turns out to be) happen from the EFM host session, not from here.** This session's job was "test what we can from the Beelink" — confirmed 3 of 4 new pairs solid, isolated the transcription failure to a specific, reproducible log line, and stopped there rather than mutating the live flow from the wrong box.
+
 ## Next Steps
 
-1. ~~Route to Lemonade's other endpoints, not just chat completions.~~ **✓ BUILT AND PUBLISHED LIVE (2026-07-22)** — flow version 12, 16 processors, 19 connections, `validationErrors: []`. See "Real run, 2026-07-22" above for the full story, including that the handoff script's whole-flow `PUT` was actually broken (not just unconfirmed) and had to be rebuilt around the real per-component API. **Not yet done**: port the corrected write logic back into `files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py` itself (fix currently only exists as this session's scratchpad script), and the end-to-end verification pass (firewall, agent pickup, real Lemonade round-trips through the new ports) — see that section for the exact next steps.
+1. ~~Route to Lemonade's other endpoints, not just chat completions.~~ **✓ BUILT AND PUBLISHED LIVE (2026-07-22)** — flow version 12, 16 processors, 19 connections, `validationErrors: []`. See "Real run, 2026-07-22" above for the full story, including that the handoff script's whole-flow `PUT` was actually broken (not just unconfirmed) and had to be rebuilt around the real per-component API. **Verification pass done from the Beelink (2026-07-23)**: firewall confirmed fine, agent pickup confirmed, embeddings/reranking/speech confirmed working end-to-end, transcription confirmed broken (`ListenHTTP` buffer-full drop, 100% reproducible) — see "Endpoint verification from the Beelink itself" above. **Still not done**: fix the transcription drop and port the corrected write logic back into `files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py` — both are flow/EFM-side work, picked up from the EFM host session, not the Beelink.
 2. **Remove debug scaffolding** — `LogAttribute` and the failure/retry/no-retry funnel were added for troubleshooting during setup. Strip them out now that the flow is confirmed stable, to keep the production flow clean. (The 4 new `InvokeHTTP`s added by the handoff script deliberately auto-terminate their failure/retry/no-retry relationships instead of wiring into this funnel, so it doesn't grow right before removal.)
 3. **Confirm `InvokeHTTP` success/failure handling properly** — `Response`/`Success` currently route to `PublishKafka`, but it's not yet confirmed that a non-2xx response from Lemonade (timeout, model not loaded, malformed request) is actually distinguished from a real success rather than silently treated the same way. Need to verify the `Success`/`Failure`/`Retry`/`No Retry` relationship split matches Lemonade's actual HTTP status codes, and decide what should happen on failure (log it, retry, dead-letter to a separate Kafka topic) now that the debug funnel that gave visibility into this is being removed per item 2.
 5. Revisit the two still-open real-workload-test questions from the section above: whether Qwen3's thinking mode can be disabled (now lower priority since the Instruct-2507 swap sidesteps it), and how `process_clip()` would actually consume the async pub/sub response shape.
