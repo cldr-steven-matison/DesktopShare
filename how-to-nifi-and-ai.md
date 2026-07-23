@@ -1,6 +1,6 @@
 # How To NiFi + AI — Bare-Minimum Playbook
 
-This is the definitive across-device Claude skill for building **NiFi 2.x + MiNiFi + EFM** flows agentically and programmatically. It is the distilled, lessons-learned version of every NiFi/MiNiFi/EFM plan and post-mortem in DesktopShare and in each host's `~/.claude/.../memory/`. **Update this file — never fork it — as new devices check in.**
+This is the working playbook for building **NiFi 2.x + MiNiFi + EFM** flows on Kubernetes and the edge — programmatically and agentically. If you're wiring a flow, deploying a MiNiFi agent, or debugging why one silently drops data, the pattern you need is almost certainly below, with the exact commands and the traps that already cost a day each. It's shared across every device in the array; **update this file — never fork it — as new devices check in.**
 
 Contributors:
 - **FTF3XR2065** (Mac, this file's origin, 2026-07-22) — CFM Operator on minikube, cso-operator-app RAG + Streamers stack.
@@ -12,21 +12,21 @@ If your device is not listed above, add a `## <hostname>` block at the bottom wi
 
 ---
 
-## 0. Non-negotiable rules (read every session)
+## 0. Rules — read before touching any live flow
 
 1. **Live UI/flow.json is truth. Docs lag.** Before touching a running PG, dump the live flow: `kubectl exec mynifi-0 -n cfm-streaming -- gunzip -c /opt/nifi/nifi-current/conf/flow.json.gz | jq '<selector>'`. Never edit blind from a memory snapshot.
 2. **Never GET-then-PUT a processor entity that has sensitive properties.** NiFi returns `"********"` on GET; PUT writes that literal string back and destroys real credentials. Instead:
    - Bind sensitive props to a **NiFi Parameter Context** (`#{param-name}`) — write-only via API. This is the *only* safe pattern for X/Twitch/Kafka creds inside a flow.
    - Or use the narrow-scope endpoint that only sends the field(s) you're changing, e.g. `PUT /processors/{id}/run-status` (revision + state only), never the full entity.
 3. **Never `kubectl exec` a manual patch on a live PG in production while it's posting/queueing.** Route the fix through rebuild → redeploy, or through a proper API call from a trusted host (see §4). Same rule for injecting hand-crafted data into a live trigger.
-4. **Do exactly what's asked.** Don't bundle unrequested "obvious improvements" into a flow edit. A processor rename ≠ rewire ≠ retype.
+4. **Keep changes scoped.** Make the change that was asked for, not the adjacent "obvious improvements" you spotted on the way. A processor rename is not a rewire is not a retype — bundling them turns a one-line review into a hunt.
 5. **Every flow change gets exported + committed.** A running canvas that isn't in git is one `minikube stop` from gone. Export the PG JSON after every real change.
 6. **`ListenHTTP` (MiNiFi C++) is fire-and-forget.** MiNiFi C++ has no `HandleHttpRequest`/`HandleHttpResponse` pair — the caller gets an empty 200 ack, the real reply must exit via Kafka/PublishKafka keyed on a caller-supplied `request_id`. Java NiFi (mynifi) is where the request/response pair exists.
 7. **`Retry` is not `Failure`.** Auto-terminating an `InvokeHTTP` processor's `Retry` relationship silently drops every transient 5xx/429. Self-loop `Retry` with a bounded `FlowFile Expiration` (10 min is the working default) and route `Failure`/`No Retry` to a log processor.
 
 ---
 
-## 1. The three deployment shapes we actually run
+## 1. Deployment shapes
 
 | Shape | Where NiFi/MiNiFi lives | Auth | When to use |
 |---|---|---|---|
@@ -38,7 +38,7 @@ The three overlap: **EFM in-cluster + MiNiFi agents on the edge + Kafka in the m
 
 ---
 
-## 2. Deploying a NiFi flow programmatically (Kubernetes / CFM Operator)
+## 2. Deploying a NiFi flow via the API (Kubernetes / CFM Operator)
 
 ### 2a. Get an auth handle
 
@@ -104,14 +104,6 @@ curl -sk --cert client.crt --key client.key -X PUT \
   This endpoint takes revision + state only. It cannot corrupt sensitive props. Use it for the `run-once` pattern (start → sleep 5s → re-fetch revision → stop).
 - **Property edit** — only send the properties you're changing. Never PUT the full entity. If the property is sensitive, use a Parameter Context instead.
 
-### 2e. Rebuild → redeploy discipline (custom Python processors)
-
-A custom Python processor is *not* a hot patch. Every change requires:
-1. `hatch build` in the processor repo → `dist/*.whl` (or a plain `kubectl cp` of the `.py` directly onto the extensions volume for a fast dev-loop skip).
-2. Copy the built artifact onto the mounted extensions volume (see §5).
-3. **Bump `ProcessorDetails.version`** in the source — NiFi tracks bundle versions by this string, and a same-version overwrite may not register as a new bundle at all.
-4. **Explicitly switch every already-running instance to the new bundle version.** Dropping the new `.py`/wheel onto the extensions volume makes NiFi *aware* of the new version (`GET` on the processor shows `multipleVersionsAvailable: true`), but a running instance stays pinned to its old bundle version until you force it: stop the processor → `PUT /processors/{id}` with `component.bundle.version` set to the new version string (properties survive this switch intact — confirmed 2026-07-22) → restart. This is **not** the same behavior as MiNiFi C++'s `ExecuteScript`, which re-reads its script file from disk on every trigger with zero restart needed (§5h) — don't assume the two behave the same way just because both are "a Python script NiFi runs."
-
 ---
 
 ## 3. Deploying a NiFi flow interactively — nipyapi
@@ -134,7 +126,7 @@ nipyapi.security.set_service_auth_token(service='nifi', token=BEARER)
 
 `HandleHttpRequest` (starts an embedded Jetty on your chosen port; regex on `Allowed Paths`) → your logic → `HandleHttpResponse`. Both must share the same `HttpContextMap` controller service. Standard for exposing NiFi flows as REST endpoints (e.g. the `PublishClip` PG's `:9001` listener).
 
-### 4b. MiNiFi C++ router (the Beelink shape)
+### 4b. MiNiFi C++ fire-and-forget router
 
 `ListenHTTP` (port 8080, `/contentListener`) → `EvaluateJsonPath` (`request_id: $.request_id`) → `InvokeHTTP` (POST to local inference server) → `PublishKafka` (Kafka key `${request_id}`). Fire-and-forget: reply comes out on the response Kafka topic, not the HTTP call.
 
@@ -181,7 +173,9 @@ Defensive contract for every processor we ship:
 - Route errors to a `failure` relationship, never crash. Call `getLogger().error(...)` so it surfaces in `app-log`.
 - Sensitive credentials → **Parameter Context**, referenced as `#{param-name}` in the property. Never a literal.
 - A `Dry Run` boolean property (default `true`) that logs instead of doing the destructive action.
-- Version bump on every real change so you can see in the UI palette that the reload actually landed (see §2e for the full switch procedure — a version bump alone doesn't make a running instance pick it up).
+- Version bump on every real change so you can see in the UI palette that the reload actually landed (see **Rebuild → redeploy discipline** at the end of §4e for the full switch procedure — a version bump alone doesn't make a running instance pick it up).
+
+#### Gotcha — mixed-template EL evaluation
 
 **`PropertyValue.evaluateAttributeExpressions(flowfile).getValue()` does not reliably handle a template with literal text plus multiple `${attr}` tokens** — confirmed 2026-07-22: a property value `${streamer} is now showing on ${screen}.` evaluated to just `jynxzi` (the first token's value alone), silently dropping the literal text and the second token. This is a real limitation of this NiFi Python binding, not a config mistake — don't assume Python-processor EL evaluation behaves like Java-side NiFi EL (which handles this fine, e.g. the Java `ReplaceText` processor's multi-token templates work correctly). For any Python processor property that mixes literal text with more than one attribute reference, **evaluate it yourself**: pull the raw property string with `.getValue()` (no `evaluateAttributeExpressions`), and substitute manually — `re.sub(r'\$\{(\w+)\}', lambda m: attributes.get(m.group(1), ''), template)` against `dict(flowfile.getAttributes())` is the confirmed-working pattern. A property that's just a single bare `${attr}` reference with no surrounding text may evaluate fine either way — this bug specifically bites *mixed* templates.
 
@@ -209,11 +203,19 @@ We've validated three; pick by host constraints.
 
 **Version gotcha:** Python processors do not exist in NiFi 1.x. If your CR says `nifiVersion: "2.6.0"` but the palette shows no palette-loaded custom processor, verify the actual pod's image tag with `kubectl describe pod mynifi-0` — the tag can lag the label.
 
+#### Rebuild → redeploy discipline
+
+A custom Python processor is *not* a hot patch. Every change requires:
+1. `hatch build` in the processor repo → `dist/*.whl` (or a plain `kubectl cp` of the `.py` directly onto the extensions volume for a fast dev-loop skip).
+2. Copy the built artifact onto the mounted extensions volume (see the three paths above).
+3. **Bump `ProcessorDetails.version`** in the source — NiFi tracks bundle versions by this string, and a same-version overwrite may not register as a new bundle at all.
+4. **Explicitly switch every already-running instance to the new bundle version.** Dropping the new `.py`/wheel onto the extensions volume makes NiFi *aware* of the new version (`GET` on the processor shows `multipleVersionsAvailable: true`), but a running instance stays pinned to its old bundle version until you force it: stop the processor → `PUT /processors/{id}` with `component.bundle.version` set to the new version string (properties survive this switch intact — confirmed 2026-07-22) → restart. This is **not** the same behavior as MiNiFi C++'s `ExecuteScript`, which re-reads its script file from disk on every trigger with zero restart needed (§5h) — don't assume the two behave the same way just because both are "a Python script NiFi runs."
+
 ### 4f. Apache upstream Python extensions (`nifi-python-extensions`)
 
 Clone `apache/nifi-python-extensions`, mount its `src/extensions/` at `/opt/nifi/nifi-current/python/extensions` (same shape as §4e). You get `ChunkDocument`, `ParseDocument`, `PromptChatGPT`, `QueryOpenSearchVector`, `QueryQdrant` reliably. The full palette advertised in the repo README does not all load in every version — treat this as "5 processors ship reliably, the rest are gambit."
 
-### 4g. Bridging a GUI-less edge agent to a native host process
+### 4g. GUI-less edge agent → native host process bridge
 
 Some edge targets have zero path to a real GUI — a `KubernetesPod` agent inside minikube on a Windows/WSL2 host has no `/tmp/.X11-unix`, no `/mnt/wslg`, no `DISPLAY`, and Docker Desktop's docker driver does not expose WSLg's sockets into a pod. Don't fight that by trying to mount one in. Check the *other* direction first: a pod almost always **can** reach outbound to the Windows host (`host.docker.internal`, the host's LAN IP, and the Docker Desktop gateway IP all work) even on a host where the reverse — Windows reaching into WSL2/minikube — is genuinely blocked (mirrored-networking hairpin-NAT/localhost-forwarding gaps, a separate and harder problem). So don't have the pod launch a browser itself — have its `ExecuteScript` POST a small payload (e.g. `{"url": "..."}`) to a tiny native Python `http.server` listener running directly on Windows, and let *that* process own the actual GUI action.
 
@@ -309,7 +311,7 @@ Full processor catalog for the stock C++ image is in `minifi-playground-cpp-proc
 
 Tailscale's virtual adapter is often on Windows' `Public` firewall profile by default. An "existing" firewall rule for MiNiFi ports (8080-8084 in our fleet) may not cover the Tailscale interface. Either widen: `Set-NetFirewallRule -DisplayName '<rule>' -Profile Any`, or add a Tailscale-specific rule. Symptom: `curl http://<tailnet-ip>:8080/contentListener` from another array machine hangs while local curl works. Also: `netstat -ano | findstr :8080` should show `0.0.0.0:8080`, not `127.0.0.1:8080`.
 
-### 5h. EFM's Flow Designer + Resource Manager API (no OpenAPI spec)
+### 5h. EFM Flow Designer API (no OpenAPI spec)
 
 EFM 2.3.1.0-2 exposes no OpenAPI/Swagger doc for its flow-editing REST API (`/efm/api-docs`, `/v3/api-docs`, `/efm/swagger-ui` all 404). Guessing at body shapes (`PUT` on a whole-document endpoint, wrapping in `{component: ...}`, bare arrays) produces generic `500`s or, worse, silent no-ops — Jackson deserializes an unrecognized shape into a default/empty DTO without erroring, so a `200 OK` does not mean the call did anything.
 
@@ -332,7 +334,17 @@ Confirmed working contract (built 2026-07-18/19, structurally re-verified 2026-0
 
 **There is no whole-flow-document `PUT` endpoint. Don't guess one.** A first attempt at bulk-adding several processors at once tried `PUT /efm/api/designer/flows/{flowId}` with the full modified `flowContent` — confirmed 2026-07-22 via EFM's own pod log that this fails at the routing layer (`HttpRequestMethodNotSupportedException: Request method 'PUT' is not supported`, a `500` before any business logic runs — nothing gets written, but it's an easy trap to think "PUT the whole doc back" is the pattern here the way it is for a single NiFi processor). The bullets above are the only real write path: one `POST` per new processor, one `POST` per new connection, each returning the server-assigned `identifier` you then use to wire the next connection — there is no batch/bulk create.
 
+**EFM's `agent`/`device` Postgres tables, not its REST heuristics, are the real source of truth for online/offline agent status.** EFM's `operation` table has no automatic retention, and a crash-looping agent can flood it (9,800+ rows in 15 hours, observed once) — this hangs `/efm/api/operations` entirely (60s+, no response) and silently breaks anything reconstructing "which agents are online" from it, including EFM's own UI. If you need reliable programmatic online/offline status, a direct read-only query against `agent`(`agent_class`,`agent_state`,`last_seen`) joined to `device`(`ip_address`,`hostname`) in EFM's Postgres is the durable fix — this is what `cso-operator-app`'s EFM page does today, and it's immune to the `operation` table's size.
+
+**An EFM agent-class name is not guaranteed to map to one physical machine.** `KubernetesPod` alone has (at least) two real, separately-registered deployments in this array — the gaming PC (has a GPU, runs a real `tensorrt` import) and a MacBook (no GPU, runs a CPU-stub script with the same output schema). Don't assume a script/hardware mismatch in an exported flow is a bug without checking which agent identifier — which physical machine — you're actually looking at.
+
+### 5i. Canvas layout — column alignment
+
+When you build flows programmatically through the EFM API, canvas position matters — a flow whose processors stack on top of each other is unreadable in the Designer UI.
+
 **Match new processors' x-coordinates to the existing column for that processor role, don't pick arbitrary offsets.** Programmatically adding a `ListenHTTP → EvaluateJsonPath → InvokeHTTP` pattern next to an existing one of the same shape: read the existing processors' `position.x` for each role and reuse those x-values for the new ones (only `y` should vary, one row per new pattern) — the existing flow already has a de facto column layout (all `ListenHTTP`s at one x, all `InvokeHTTP`s at another, etc.), and matching it means the result is readable immediately instead of needing a manual re-align pass afterward in the Designer UI to make it presentable.
+
+### 5j. EFM Resource Manager API
 
 Resource Manager (script/asset upload — the correct alternative to `kubectl cp`-ing a script directly onto an agent):
 - `POST /efm/api/resource-manager/resources/file` — multipart, query params `name`/`resourceType`(`ASSET`|`EXTENSION`)/`relativePathOnAgent`/`notes`, field `file`. Returns a SHA-512 `digest` — diff against local `sha512sum` to confirm no drift.
@@ -340,13 +352,9 @@ Resource Manager (script/asset upload — the correct alternative to `kubectl cp
 - **No in-place asset update exists**, API or UI. Changing an already-assigned script's content is unassign → delete the old resource → upload as new → reassign. A same-named re-upload does not overwrite the old bytes.
 - A running MiNiFi C++ agent's `ExecuteScript` **re-reads its Script File from disk on every trigger**, not just at startup — a raw `kubectl cp` onto the asset path takes effect on the very next HTTP call, no republish needed. Fast for iterating on content, but it bypasses EFM's own asset tracking and won't survive a pod restart unless also pushed through the resource-manager flow above.
 
-**EFM's `agent`/`device` Postgres tables, not its REST heuristics, are the real source of truth for online/offline agent status.** EFM's `operation` table has no automatic retention, and a crash-looping agent can flood it (9,800+ rows in 15 hours, observed once) — this hangs `/efm/api/operations` entirely (60s+, no response) and silently breaks anything reconstructing "which agents are online" from it, including EFM's own UI. If you need reliable programmatic online/offline status, a direct read-only query against `agent`(`agent_class`,`agent_state`,`last_seen`) joined to `device`(`ip_address`,`hostname`) in EFM's Postgres is the durable fix — this is what `cso-operator-app`'s EFM page does today, and it's immune to the `operation` table's size.
-
-**An EFM agent-class name is not guaranteed to map to one physical machine.** `KubernetesPod` alone has (at least) two real, separately-registered deployments in this array — the gaming PC (has a GPU, runs a real `tensorrt` import) and a MacBook (no GPU, runs a CPU-stub script with the same output schema). Don't assume a script/hardware mismatch in an exported flow is a bug without checking which agent identifier — which physical machine — you're actually looking at.
-
 ---
 
-## 6. Common wire-ups that keep biting us
+## 6. Cross-cutting wire-up gotchas
 
 - **Kafka external NodePort vs. internal port.** `PublishKafka`/`ConsumeKafka` bootstrap must be the NodePort (e.g. `31623`) if the flow runs outside the cluster (edge MiNiFi). It's `9092`/`9093` from *inside* the cluster.
 - **Strimzi `advertisedHost`.** For cross-network access (Tailscale, LAN), each Strimzi broker's `advertisedHost` must be the DNS name your consumers can resolve, not the raw pod IP. Patch: `kubectl patch kafka my-cluster -n cld-streaming --type=json -p '[{"op":"replace","path":"/spec/kafka/listeners/…/configuration/brokers/N/advertisedHost","value":"my-cluster-combined-N.my-cluster-kafka-brokers.cld-streaming.svc"}]'`. Rolling restart follows automatically.
@@ -366,7 +374,7 @@ Never replace the operator's `security.nodeCertGen` chain with an LE cert — th
 
 ---
 
-## 8. Debugging checklist when a flow "just isn't working"
+## 8. Debugging checklist
 
 1. **Is the pod actually the version you think it is?** `kubectl describe pod mynifi-0 | grep Image:` — CR `nifiVersion` label ≠ actual image tag.
 2. **Is the extension loaded?** `kubectl exec mynifi-0 -- ls /opt/nifi/nifi-current/python/extensions/` — is your `.py` / built wheel present?
@@ -391,20 +399,20 @@ Never replace the operator's `security.nodeCertGen` chain with an LE cert — th
 | cso-operator-app | (per-host clone) | Backend + frontend + `nifi-processors/` for the RAG/Streamers PGs |
 | nifi-custom-processors | `~/nifi-custom-processors` (Mac/gaming PC, not git-tracked in some hosts) | Local `.py` processors; `XLivePostProcessor.py` is the canonical `FlowFileTransform` example |
 
-Each host's `~/.claude/.../memory/MEMORY.md` is the index of the memories the local Claude has captured — read it at session start.
-
 ---
 
-## 10. What to add here (and how)
+## 10. Contributing to this doc
 
 - **Add** device-specific deltas as `## <hostname>` blocks at the bottom, not by editing the sections above.
 - **Fix** wrong claims in place with a one-line dated note (`- Confirmed 2026-MM-DD on <host>: …`) — do not delete history, we've had claims that turned out to be true on one host and wrong on another.
 - **Never** paste secrets or full-flow JSON here. Reference `files/<name>.json` in DesktopShare instead.
-- **When a memory** in a host's `~/.claude/.../memory/` becomes generally applicable, promote it here. When something here turns out to only apply to one host, demote it back down.
+- **When a memory** in a host's `~/.claude/.../memory/` becomes generally applicable, promote it here. When something here turns out to only apply to one host, demote it back down. Each host's `~/.claude/.../memory/MEMORY.md` is the index of what the local Claude has captured — read it at session start.
 
 ---
 
 ## Device deltas
+
+Each block below lists only where that host diverges from the shared playbook above.
 
 ### FTF3XR2065 (Mac, M4 Pro, macOS 26.5.2)
 - `minikube mount` works reliably — path 1 in §4e is the default. Docker driver, k8s v1.34.0.
