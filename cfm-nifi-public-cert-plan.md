@@ -1,6 +1,6 @@
 # Public Cert for CFM-Operator NiFi on Kubernetes — Test Plan
 
-Handoff plan for wiring a real Let's Encrypt cert in front of the `Nifi/mynifi` CR the CFM Operator deploys, without breaking the operator's node-identity chain. Written in the "run this later on a real cluster" shape — same style as `efm-binaries-claude.md`. Blog post lives on ice at `blog/How to Install a Public Certificate for NiFi on Kubernetes.md` and only ships once this proves out live.
+Handoff plan for wiring a real Let's Encrypt cert in front of the `Nifi/mynifi` CR the CFM Operator deploys, without breaking the operator's node-identity chain. Written in the "run this later on a real cluster" shape — same style as `efm-binaries-windows-python.md`. Blog post lives on ice at `blog/How to Install a Public Certificate for NiFi on Kubernetes.md` and only ships once this proves out live.
 
 Sibling for host-native (non-K8s) NiFi: [How to Install a Public Certificate for NiFi](blog/How%20to%20Install%20a%20Public%20Certificate%20for%20NiFi.md) — read that instead if you're not on Kubernetes.
 

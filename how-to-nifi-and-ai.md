@@ -292,7 +292,7 @@ Start-Process msiexec.exe -ArgumentList `
 Start-Service "Apache NiFi MiNiFi"
 ```
 
-Verify: `Test-Path C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll` and `.\minifi_native.pyd` both `True`. Full 9-step recovery plan (including clean-slate uninstall when the box has a prior install) is in `efm-binaries-claude.md`.
+Verify: `Test-Path C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll` and `.\minifi_native.pyd` both `True`. Full 9-step recovery plan (including clean-slate uninstall when the box has a prior install) is in `efm-binaries-windows-python.md`.
 
 ### 5f. `ExecuteScript` availability across MiNiFi builds
 
@@ -413,7 +413,7 @@ Each host's `~/.claude/.../memory/MEMORY.md` is the index of the memories the lo
 ### MINI-Gaming-G1 (Windows gaming PC, WSL2 + minikube)
 - `minikube mount` from WSL2/docker-driver is flaky → prefer path 2 (PVC + loader pod) for custom processors.
 - Hosts the EFM server the array's edge MiNiFi agents heartbeat to. Reachable to Beelink over Tailscale at `100.68.113.126:10090`.
-- **`WindowsDesktop` EFM class exists (class + flow `4615bdc2-...`) but has never had a live agent** — confirmed 2026-07-22: `GET /efm/api/designer/flows?agentClass=WindowsDesktop` returns the class/flow fine, but both known prior agent identifiers 404 and zero events were ever logged for this class. The 06-08 broken-Python install this box is theorized to have (`efm-binaries-claude.md`'s original premise) is fully gone too — no service, no `system32` install dir. Net: this box is a clean slate, not a repair job. When the install actually runs, bake `ADDLOCAL=ALL` into the *first* `msiexec` call (§5e) instead of installing plain and repairing after — there's no prior state to preserve.
+- **`WindowsDesktop` EFM class exists (class + flow `4615bdc2-...`) but has never had a live agent** — confirmed 2026-07-22: `GET /efm/api/designer/flows?agentClass=WindowsDesktop` returns the class/flow fine, but both known prior agent identifiers 404 and zero events were ever logged for this class. The 06-08 broken-Python install this box is theorized to have (`efm-binaries-windows-python.md`'s original premise) is fully gone too — no service, no `system32` install dir. Net: this box is a clean slate, not a repair job. When the install actually runs, bake `ADDLOCAL=ALL` into the *first* `msiexec` call (§5e) instead of installing plain and repairing after — there's no prior state to preserve.
 - **`KubernetesPod` here is specifically the GPU (RTX 4060) instance** — see the two-instances gotcha in §5h, don't assume a script referencing `tensorrt` on this host is wrong just because the class's other (MacBook) instance runs a CPU stub.
 - The `KubernetesPod`→native-Windows-listener bridge pattern (§4g) runs from this host: `browser_launcher.py` on `C:\minifi-manual\`, port 5901, kept alive by Scheduled Task `BrowserLauncherListener`.
 - `StarlinkAI`'s designer API write/publish contract (§5h) has still never actually been exercised even from this host, which is where EFM itself runs — a prepared script (`files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py`) was structurally verified byte-for-byte against the live flow on 2026-07-22 (bundle versions, property names, `PublishKafka` presence all match) but the real PUT/publish has not been run. Structurally-safe is not the same as confirmed — treat the first real run as the actual test.
