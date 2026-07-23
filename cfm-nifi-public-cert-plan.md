@@ -345,7 +345,7 @@ Symptom-first. Every one of these bit someone at least once when setting up an i
 - `minikube tunnel` fronts ingress-nginx at `127.0.0.1:80/443`
 - LE DNS-01 doesn't care about your ingress IP — the cert **will** issue correctly, because DNS-01 challenges only care that you control the domain
 - BUT the URL `k8s.stevenmatison.com` needs a DNS record pointing at *something*. Two viable subpaths:
-  - **LAN demo**: point `k8s.stevenmatison.com` A record at the laptop's LAN IP (e.g. `192.168.1.124`). Real LE cert. Anyone on the LAN can browse without `/etc/hosts`. Doesn't work from outside the LAN.
+  - **LAN demo**: point `k8s.stevenmatison.com` A record at the laptop's LAN IP (e.g. `mac-lan-ip`). Real LE cert. Anyone on the LAN can browse without `/etc/hosts`. Doesn't work from outside the LAN.
   - **Public reachability**: front the ingress with **Cloudflare Tunnel** or **Tailscale Funnel** and point DNS at the tunnel. Real LE cert. Works from anywhere. **Out of scope** for this plan — it's a separate topic worth its own writeup.
 - Do NOT try `/etc/hosts` → `127.0.0.1` + real LE cert. LE will issue (DNS-01), but `/etc/hosts` defeats the purpose ("real cert, no unsafe warning, no /etc/hosts on every client machine").
 

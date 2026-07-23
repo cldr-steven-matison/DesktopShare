@@ -84,12 +84,12 @@ Now create a class and you can get to the Deploy Agent CLI Command Screen to ver
 wsl hostname -I
 ```
 
-- If the first IP matches your Windows LAN IP (e.g. `192.168.1.121`) → you are in **mirrored networking mode**
+- If the first IP matches your Windows LAN IP (e.g. `gaming-pc-lan-ip`) → you are in **mirrored networking mode**
 - If the first IP is a `172.x.x.x` address → you are in **NAT mode**
 
 #### Mirrored Networking Mode (current setup)
 
-WSL2 shares the Windows host IP directly. Any port bound on `0.0.0.0` inside WSL is reachable from the LAN at `192.168.1.121:<port>` — **no portproxy needed**.
+WSL2 shares the Windows host IP directly. Any port bound on `0.0.0.0` inside WSL is reachable from the LAN at `gaming-pc-lan-ip:<port>` — **no portproxy needed**.
 
 **DO NOT add portproxy rules in mirrored mode.** Stale portproxy rules pointing to old `172.x` WSL IPs will intercept traffic and cause silent connection failures even when the TCP test succeeds. Always check for and remove stale rules:
 
@@ -120,7 +120,7 @@ The WSL2 IP changes on every reboot in NAT mode — update portproxy entries any
 
 ### Kafka External Access for NVIDIA / Jetson Agents
 
-`kafka-eval.yaml` only has `internal` listeners. External agents (Jetson, NVIDIA desktop) cannot reach Kafka brokers using internal cluster DNS. Use `kafka-nodeport.yaml` which adds an external NodePort listener with `advertisedHost` overrides so agents get `192.168.1.121` addresses back from Kafka metadata.
+`kafka-eval.yaml` only has `internal` listeners. External agents (Jetson, NVIDIA desktop) cannot reach Kafka brokers using internal cluster DNS. Use `kafka-nodeport.yaml` which adds an external NodePort listener with `advertisedHost` overrides so agents get `gaming-pc-lan-ip` addresses back from Kafka metadata.
 
 **Apply the external listener config:**
 
@@ -147,12 +147,12 @@ my-cluster-kafka-external-bootstrap   NodePort  ...  9094:31623/TCP
 
 ```bash
 kubectl get kafka my-cluster -n cld-streaming -o jsonpath='{.status.listeners[?(@.name=="external")].bootstrapServers}{"\n"}'
-# Should return: 192.168.1.121:31623
+# Should return: gaming-pc-lan-ip:31623
 ```
 
 **Start port-forwards (required after every WSL/Windows restart):**
 
-The NodePorts live on the Minikube node (`192.168.49.2`), not directly on `192.168.1.121`. These port-forwards bridge them:
+The NodePorts live on the Minikube node (`192.168.49.2`), not directly on `gaming-pc-lan-ip`. These port-forwards bridge them:
 
 ```bash
 kubectl port-forward --address 0.0.0.0 svc/my-cluster-kafka-external-bootstrap 31623:9094 -n cld-streaming > /tmp/pf-kafka-bootstrap.log 2>&1 &
@@ -170,7 +170,7 @@ ss -tlnp | grep -E "31623|31850|31935|30336"
 **Set MiNiFi `bootstrap.servers` on the Jetson/NVIDIA machine to:**
 
 ```
-192.168.1.121:31623
+gaming-pc-lan-ip:31623
 ```
 
 No `/etc/hosts` entries or portproxy rules needed.
@@ -212,7 +212,7 @@ curl -L \
  -d serviceName=minifi \
  -d serviceUser=minifi \
  -d trustSelfSignedCertificates=false \
- http://192.168.1.121:10090/efm/api/agent-deployer/script | bash -
+ http://gaming-pc-lan-ip:10090/efm/api/agent-deployer/script | bash -
 ```
 
 Now that we have an agent curl code, we will wrap that up into a docker deployed kubernetes pod and test it on minikube.  

@@ -56,9 +56,9 @@ If you would like to modify this configuration, you need to perform these steps:
 3) Start MiNiFi with "C:\WINDOWS\system32\nifi-minifi-cpp\bin\minifi.exe start"
 
 
-PS C:\WINDOWS\system32> curl.exe -X POST "http://192.168.1.100:8080/your-endpoint" -H "Content-Type: application/json" -d '{"id":"test-1","message":"hello from curl","timestamp":"2026-06-08T20:00:00Z"}' -v
+PS C:\WINDOWS\system32> curl.exe -X POST "http://lan-ip:8080/your-endpoint" -H "Content-Type: application/json" -d '{"id":"test-1","message":"hello from curl","timestamp":"2026-06-08T20:00:00Z"}' -v
 Note: Unnecessary use of -X or --request, POST is already inferred.
-*   Trying 192.168.1.100:8080...
+*   Trying lan-ip:8080...
 PS C:\WINDOWS\system32> ipconfig
 
 Windows IP Configuration
@@ -88,7 +88,7 @@ Wireless LAN adapter Wi-Fi:
    Temporary IPv6 Address. . . . . . : 2600:1702:510:82f0:9180:8671:b5a6:e042
    Temporary IPv6 Address. . . . . . : 2600:1702:510:82f0:c9c5:8dd2:d304:4a7c
    Link-local IPv6 Address . . . . . : fe80::47dc:3ff4:29f2:4bc2%7
-   IPv4 Address. . . . . . . . . . . : 192.168.1.121
+   IPv4 Address. . . . . . . . . . . : gaming-pc-lan-ip
    Subnet Mask . . . . . . . . . . . : 255.255.255.0
    Default Gateway . . . . . . . . . : fe80::b663:6fff:fe10:6c52%7
                                        192.168.1.254
@@ -105,13 +105,13 @@ Ethernet adapter vEthernet (WSL (Hyper-V firewall)):
    IPv4 Address. . . . . . . . . . . : 172.26.192.1
    Subnet Mask . . . . . . . . . . . : 255.255.240.0
    Default Gateway . . . . . . . . . :
-PS C:\WINDOWS\system32> curl.exe -X POST "http://192.168.1.121:8080/your-endpoint" -H "Content-Type: application/json" -d '{"id":"test-1","message":"hello from curl","timestamp":"2026-06-08T20:00:00Z"}' -v
+PS C:\WINDOWS\system32> curl.exe -X POST "http://gaming-pc-lan-ip:8080/your-endpoint" -H "Content-Type: application/json" -d '{"id":"test-1","message":"hello from curl","timestamp":"2026-06-08T20:00:00Z"}' -v
 Note: Unnecessary use of -X or --request, POST is already inferred.
-*   Trying 192.168.1.121:8080...
-* Established connection to 192.168.1.121 (192.168.1.121 port 8080) from 192.168.1.121 port 61105
+*   Trying gaming-pc-lan-ip:8080...
+* Established connection to gaming-pc-lan-ip (gaming-pc-lan-ip port 8080) from gaming-pc-lan-ip port 61105
 * using HTTP/1.x
 > POST /your-endpoint HTTP/1.1
-> Host: 192.168.1.121:8080
+> Host: gaming-pc-lan-ip:8080
 > User-Agent: curl/8.19.0
 > Accept: */*
 > Content-Type: application/json
@@ -128,12 +128,12 @@ Note: Unnecessary use of -X or --request, POST is already inferred.
 <
 Error 404: Not Found
 Not Found* shutting down connection #0
-PS C:\WINDOWS\system32> curl.exe -v "http://192.168.1.121:8080/"
-*   Trying 192.168.1.121:8080...
-* Established connection to 192.168.1.121 (192.168.1.121 port 8080) from 192.168.1.121 port 60620
+PS C:\WINDOWS\system32> curl.exe -v "http://gaming-pc-lan-ip:8080/"
+*   Trying gaming-pc-lan-ip:8080...
+* Established connection to gaming-pc-lan-ip (gaming-pc-lan-ip port 8080) from gaming-pc-lan-ip port 60620
 * using HTTP/1.x
 > GET / HTTP/1.1
-> Host: 192.168.1.121:8080
+> Host: gaming-pc-lan-ip:8080
 > User-Agent: curl/8.19.0
 > Accept: */*
 >

@@ -290,7 +290,7 @@ Items in priority order. "Live" means deployed and running. "Aspirational" means
 
 **[ ] NiFi → Kafka → Flink → Qdrant/vLLM** — aspirational. The full AI pipeline. NiFi and Kafka are live; the gap is a Flink job reading `new_documents` or `new_audio` from Kafka and calling the embedding server or vLLM. SSB Python UDFs or a PyFlink job are the path. The GPU experiment proved PyFlink works in this CSA image — the CPU path for embedding calls (no CUDA needed) is the same approach without the NVIDIA runtime.
 
-**[ ] Expose SSB UI on array tailnet** — not started. Currently loopback-only on the Mac. Same treatment as EFM and Kafka: add `--address 0.0.0.0` to the port-forward pane so the gaming PC (100.68.113.126) and Beelink (100.110.253.66) can reach it over the tailnet.
+**[ ] Expose SSB UI on array tailnet** — not started. Currently loopback-only on the Mac. Same treatment as EFM and Kafka: add `--address 0.0.0.0` to the port-forward pane so the gaming PC (efm-host-ip) and Beelink (beelink-ip) can reach it over the tailnet.
 
 **[ ] CSO Operator App — Flink tab** — aspirational. The app (`cso-operator-app`) has Operator / EFM / RAG / Streamers tabs. A Flink tab showing live `FlinkSessionJob` status, SSB job list, and basic metrics (records/sec, uptime) would round out the dashboard. The SSB REST API is the data source; the Streamers tab pattern in `backend/services/streamers.py` is the right reference for how to build a new tab.
 

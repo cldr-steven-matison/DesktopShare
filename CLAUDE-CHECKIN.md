@@ -55,11 +55,11 @@ Every Claude Code instance in the array checks in here with its host's spec data
 - Python: 3.14.4
 - Tailscale: 1.98.9, installed and logged in
 - Lemonade Server: 11.0.0, installed (Windows host, via winget) — Qwen3-4B-GGUF (LLM), jina-reranker-v1-tiny (reranking), Whisper-Large-v3-Turbo (transcription), kokoro-v1 (TTS) loaded and ready; Vulkan GPU offload confirmed active. Embedding slot still empty — Qwen3-Embedding-0.6B is downloaded but not loaded, pending a decision on nomic-embed-text-v1-GGUF instead (would keep the existing Qdrant vector space compatible vs. re-indexing)
-- EFM/MiNiFi agent: installed on Windows (`StarlinkAI` class), confirmed Online in EFM UI, heartbeating to 100.68.113.126:10090 — flow (ListenHTTP → InvokeHTTP → Lemonade) not yet built
+- EFM/MiNiFi agent: installed on Windows (`StarlinkAI` class), confirmed Online in EFM UI, heartbeating to efm-host-ip:10090 — flow (ListenHTTP → InvokeHTTP → Lemonade) not yet built
 
 ### Network
 - Connection: Starlink
-- Tailscale IP: 100.110.253.66 (rejoined 2026-07-17 under tailnet `steven.matison@gmail.com`, was previously `100.91.44.109` on a different account before both machines were aligned onto the same tailnet — confirmed reachable from the gaming PC via `tailscale ping`)
+- Tailscale IP: beelink-ip (rejoined 2026-07-17 under tailnet `steven.matison@gmail.com`, was previously `old-beelink-ip` on a different account before both machines were aligned onto the same tailnet — confirmed reachable from the gaming PC via `tailscale ping`)
 
 ---
 
@@ -87,33 +87,33 @@ Every Claude Code instance in the array checks in here with its host's spec data
 - Tailscale: 1.98.9, installed and joined to array tailnet (`steven.matison@gmail.com`) via reusable auth key
 
 ### Network
-- Connection: LAN, 192.168.1.121 (WSL2 mirrored networking, shares host's LAN interface)
-- Tailscale IP: 100.68.113.126 (tailnet `steven.matison@gmail.com`, `tail1f447b.ts.net`) — joined 2026-07-17; Beelink (`tunastarlink`, `100.110.253.66`) confirmed as a peer via `tailscale ping`, and EFM confirmed reachable from the Beelink over the tailnet (see `beelink-starlink-efm-ai.md`)
+- Connection: LAN, gaming-pc-lan-ip (WSL2 mirrored networking, shares host's LAN interface)
+- Tailscale IP: efm-host-ip (tailnet `steven.matison@gmail.com`, `tailnet.ts.net`) — joined 2026-07-17; Beelink (`tunastarlink`, `beelink-ip`) confirmed as a peer via `tailscale ping`, and EFM confirmed reachable from the Beelink over the tailnet (see `beelink-starlink-efm-ai.md`)
 
 ### Services (for other array machines, e.g. StarlinkAI)
 
 Everything below runs in the `cld-streaming` minikube cluster, exposed via `kubectl port-forward` panes in `~/.config/zellij/layouts/kube-service-ports-efm.kdl`. As of 2026-07-17, **EFM and all 4 Kafka forwards are bound to both the LAN IP and the Tailscale IP** (paired panes, one per address) — reachable from StarlinkAI now. Everything else listed after that is currently LAN/loopback-only and not yet exposed on the tailnet.
 
-**Reachable now from StarlinkAI (100.68.113.126):**
-- **EFM UI/API**: `http://100.68.113.126:10090` (also `http://192.168.1.121:10090` on LAN)
-- **Kafka** — StarlinkAI needs these in its Windows hosts file (`C:\Windows\System32\drivers\etc\hosts`), mapped to `100.68.113.126` (same hostnames NvidiaNano uses mapped to the LAN IP `192.168.1.121`):
+**Reachable now from StarlinkAI (efm-host-ip):**
+- **EFM UI/API**: `http://efm-host-ip:10090` (also `http://gaming-pc-lan-ip:10090` on LAN)
+- **Kafka** — StarlinkAI needs these in its Windows hosts file (`C:\Windows\System32\drivers\etc\hosts`), mapped to `efm-host-ip` (same hostnames NvidiaNano uses mapped to the LAN IP `gaming-pc-lan-ip`):
   ```
-  100.68.113.126  my-cluster-kafka-bootstrap.cld-streaming.svc
-  100.68.113.126  my-cluster-combined-0.my-cluster-kafka-brokers.cld-streaming.svc
-  100.68.113.126  my-cluster-combined-1.my-cluster-kafka-brokers.cld-streaming.svc
-  100.68.113.126  my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc
+  efm-host-ip  my-cluster-kafka-bootstrap.cld-streaming.svc
+  efm-host-ip  my-cluster-combined-0.my-cluster-kafka-brokers.cld-streaming.svc
+  efm-host-ip  my-cluster-combined-1.my-cluster-kafka-brokers.cld-streaming.svc
+  efm-host-ip  my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc
   ```
   Ports: bootstrap `31623`, broker-0 `31850`, broker-1 `31935`, broker-2 `30336` (external NodePort listener, port 9094 in-cluster).
 
 **Not yet Tailscale-exposed (LAN/loopback-only today):**
-- vLLM: `http://192.168.1.121:8000` — Qwen/Qwen2.5-3B-Instruct (loopback-only port-forward, no `--address` set)
+- vLLM: `http://gaming-pc-lan-ip:8000` — Qwen/Qwen2.5-3B-Instruct (loopback-only port-forward, no `--address` set)
 - Whisper: port `8001` (loopback-only port-forward)
 - MiNiFi agent (K8s pod): port `8888` (loopback-only port-forward)
 - cso-operator-app UI: `http://127.0.0.1:8090` via `minikube service --url` (see `reference_app_url.md`)
 - Cloudera Surveyor UI: via `minikube service cloudera-surveyor-service --namespace cld-streaming`
 - NiFi UI: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/` — needs `/etc/hosts` → `127.0.0.1` + `minikube tunnel` (self-signed TLS)
 
-If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address 100.68.113.126 ...` pane.
+If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address efm-host-ip ...` pane.
 
 ---
 
@@ -142,9 +142,9 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 - Tailscale: not installed on this host (corp laptop; joins the array over LAN only when on-site)
 
 ### Network
-- Connection: LAN, `192.168.1.124` (same subnet as MINI-Gaming-G1 at `192.168.1.121`)
-- Cloudera VPN: `10.19.12.160` (utun, up when on the corp VPN)
-- Tailscale IP: n/a — not joined to `tail1f447b.ts.net`
+- Connection: LAN, `mac-lan-ip` (same subnet as MINI-Gaming-G1 at `gaming-pc-lan-ip`)
+- Cloudera VPN: `corp-vpn-ip` (utun, up when on the corp VPN)
+- Tailscale IP: n/a — not joined to `tailnet.ts.net`
 
 ### Minikube cluster on this host
 
@@ -173,7 +173,7 @@ Active `kubectl port-forward` panes (all `--address 0.0.0.0` so LAN peers can re
 - `deployment/prometheus-grafana 3000:3000 -n cld-streaming`
 - `service/efm 10090:10090 -n cld-streaming` — **NOTE**: pane is up but `svc/efm` does not currently exist in the cluster (EFM/MiNiFi are the intentionally-disabled bits); forward is failing quietly, remove or restore EFM when the flow is next needed
 
-Not on the tailnet, but reachable from other array machines over LAN `192.168.1.124` for the four forwarded ports above.
+Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip` for the four forwarded ports above.
 
 ---
 
@@ -202,7 +202,7 @@ Not on the tailnet, but reachable from other array machines over LAN `192.168.1.
 - gh: 2.45.0, logged in as TunaStreetTest
 
 ### Network
-- Connection: DigitalOcean public IP, 104.131.180.192 (internet-facing, no LAN/VPN)
+- Connection: DigitalOcean public IP, droplet-public-ip (internet-facing, no LAN/VPN)
 - Tailscale IP: not joined
 
 ### Known issue

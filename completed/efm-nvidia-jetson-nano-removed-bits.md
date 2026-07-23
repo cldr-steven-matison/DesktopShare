@@ -165,5 +165,5 @@ kubectl patch svc efm -n cld-streaming -p '{"spec":{"type":"NodePort"}}'
 minikube service efm -n cld-streaming   # note the URL / port it shows
 ```
 
-Use your lab host’s **LAN IP** (e.g. `192.168.1.100`) and the port EFM listens on (usually 10090).  
-Example reachable URL: `http://192.168.1.100:10090`
+Use your lab host’s **LAN IP** (e.g. `lan-ip`) and the port EFM listens on (usually 10090).  
+Example reachable URL: `http://lan-ip:10090`

@@ -226,31 +226,31 @@ Create a central mapping (stored as JSON in NiFi or a file):
     "device": "windows-main",
     "os": "windows",
     "monitor_index": 1,
-    "agent_url": "http://192.168.1.50:8080/streamChatListener"
+    "agent_url": "http://lan-ip:8080/streamChatListener"
   },
   "screen2": {
     "device": "windows-main",
     "os": "windows",
     "monitor_index": 2,
-    "agent_url": "http://192.168.1.50:8080/streamChatListener"
+    "agent_url": "http://lan-ip:8080/streamChatListener"
   },
   "screen3": {
     "device": "jetson-nano-01",
     "os": "linux",
     "monitor_index": 1,
-    "agent_url": "http://192.168.1.101:8080/streamChatListener"
+    "agent_url": "http://lan-ip:8080/streamChatListener"
   },
   "screen4": {
     "device": "linux-box-02",
     "os": "linux",
     "monitor_index": 2,
-    "agent_url": "http://192.168.1.102:8080/streamChatListener"
+    "agent_url": "http://lan-ip:8080/streamChatListener"
   },
   "screen5": {
     "device": "windows-laptop",
     "os": "windows",
     "monitor_index": 3,
-    "agent_url": "http://192.168.1.60:8080/streamChatListener"
+    "agent_url": "http://lan-ip:8080/streamChatListener"
   }
 }
 ```

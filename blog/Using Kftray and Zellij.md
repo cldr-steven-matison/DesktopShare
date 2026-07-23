@@ -141,12 +141,12 @@ layout {
 
         pane {
             command "/usr/local/bin/kubectl"
-            args "port-forward" "--address" "192.168.1.121" "svc/efm" "10090:10090" "-n" "cld-streaming"
+            args "port-forward" "--address" "gaming-pc-lan-ip" "svc/efm" "10090:10090" "-n" "cld-streaming"
         }
 
         pane {
             command "/usr/local/bin/kubectl"
-            args "port-forward" "--address" "100.68.113.126" "svc/efm" "10090:10090" "-n" "cld-streaming"
+            args "port-forward" "--address" "efm-host-ip" "svc/efm" "10090:10090" "-n" "cld-streaming"
         }
         # ... Surveyor, vLLM, cso-operator-app, MiNiFi agent panes follow the same pattern
     }
@@ -154,16 +154,16 @@ layout {
     pane split_direction="Horizontal" size="50%" {
         pane {
             command "/usr/local/bin/kubectl"
-            args "port-forward" "--address" "192.168.1.121" "svc/my-cluster-kafka-external-bootstrap" "31623:9094" "-n" "cld-streaming"
+            args "port-forward" "--address" "gaming-pc-lan-ip" "svc/my-cluster-kafka-external-bootstrap" "31623:9094" "-n" "cld-streaming"
         }
 
         pane {
             command "/usr/local/bin/kubectl"
-            args "port-forward" "--address" "100.68.113.126" "svc/my-cluster-kafka-external-bootstrap" "31623:9094" "-n" "cld-streaming"
+            args "port-forward" "--address" "efm-host-ip" "svc/my-cluster-kafka-external-bootstrap" "31623:9094" "-n" "cld-streaming"
         }
         # ... same LAN + Tailscale pair repeated for my-cluster-combined-0/1/2
     }
 }
 ```
 
-Each Kafka/EFM service gets one pane bound to the LAN IP (`192.168.1.121`, for NvidiaNano and anything else on the local network) and a second pane bound to the Tailscale IP (`100.68.113.126`, for array machines outside the LAN — like the Beelink on Starlink). Same `svc` and port, different `--address`.
+Each Kafka/EFM service gets one pane bound to the LAN IP (`gaming-pc-lan-ip`, for NvidiaNano and anything else on the local network) and a second pane bound to the Tailscale IP (`efm-host-ip`, for array machines outside the LAN — like the Beelink on Starlink). Same `svc` and port, different `--address`.
