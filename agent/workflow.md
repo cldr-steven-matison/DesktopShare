@@ -27,7 +27,7 @@ Every plan that touches infra or code closes with a "when this ships, update `<t
 
 We already solved most of the hard problems once. Before writing a new fix from scratch, walk this ladder:
 
-1. **`how-to-nifi-and-ai.md`** — top-level technical playbook. If the task touches NiFi/MiNiFi/EFM, the pattern is probably in one of the numbered sections.
+1. **The `nifi-and-ai` skill** — top-level technical playbook. If the task touches NiFi/MiNiFi/EFM, the pattern is probably in its `SKILL.md` or a `references/` file.
 2. **This session's memory index** — `MEMORY.md` in the local Claude project memory dir. One-line pointers to what past sessions learned on *this* device.
 3. **DesktopShare root MDs** — grep the `.md` library. There are enough post-mortems and plans in the root that a five-second grep beats a 15-minute re-derivation.
 4. **Sub-repo grep** — if the pattern belongs to app code, grep the app repo. `backend/services/streamers.py` in particular has a lot of hard-won convention already baked in.

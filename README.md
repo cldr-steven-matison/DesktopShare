@@ -30,6 +30,7 @@ I use this repo to:
 
 Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) running on Kubernetes/Minikube.
 Function concepts for NiFi, Kafka, Flink found here will work in other Cloudera form factors of the same.
+
 ---
 
 ## 🤝 How the array works
@@ -41,7 +42,7 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 | **`CLAUDE.md`** | Session-start instructions every device reads first — what to check, the universal rules, and where things live. |
 | **`CLAUDE-CHECKIN.md`** | The device roster. Each machine checks in with its specs, OS, running services, and per-device paths and port-forwards. |
 | **`agent/`** | Device-agnostic working rules shared by all sessions: `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. |
-| **`how-to-nifi-and-ai.md`** | The cross-device technical playbook for building NiFi / MiNiFi / EFM flows — most hard problems are already solved once in here. |
+| **`skills/nifi-and-ai/`** | A shareable Claude skill — the playbook for building NiFi / MiNiFi / EFM flows. Drop it into `.claude/skills/` and Claude loads it automatically on those tasks (see `skills/README.md`). |
 
 ---
 
@@ -51,6 +52,7 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 |--------------|-------------|
 | **`/` (root)** | In-progress MD files, plans, and test assets, plus the array files above. These are the "living" documents being actively developed with AI. |
 | **`agent/`**   | The working rules every Claude Code session follows (see above). |
+| **`skills/`**  | Shareable Claude skills distilled from these docs (e.g. `nifi-and-ai`). Copy one into `.claude/skills/` to use it. |
 | **`blog/`**    | Markdown written specifically as blog output (ready for https://cldr-steven-matison.github.io/). |
 | **`completed/`** | Fully tested, operationally validated documents moved out of root. |
 | **`files/`**   | Supporting files (JSON, `.py`, YAML, Dockerfiles, agent shell scripts, etc.). These are also synced to the appropriate dedicated repos. |

@@ -10,7 +10,7 @@ Steven Matison — Senior SE at Cloudera, builds CSO/CFM/CSA/CSM demos on Kubern
 
 - **`CLAUDE-CHECKIN.md`** — the device roster. Confirms what host you're on, what services are running there, and what per-device paths and port-forwards apply. If you're about to name a specific host or port, check this first.
 - **`agent/`** — the working rules every session follows. Short files: `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. Read `workflow.md` and `incident-rules.md` at least once per session; the other two only when the task calls for them.
-- **`how-to-nifi-and-ai.md`** — the technical playbook for building NiFi / MiNiFi / EFM flows. If your task touches any of those, the pattern is almost certainly in one of the numbered sections there.
+- **`nifi-and-ai` skill** — the playbook for building NiFi / MiNiFi / EFM flows (source in `skills/nifi-and-ai/`, installed under this device's `.claude/skills/`). If your task touches any of those, invoke the skill — its `SKILL.md` plus `references/` files cover the patterns and traps. The older device-specific `how-to-nifi-and-ai.md` is kept on disk as an archived fallback, but reach for the skill first.
 - **This session's memory index** — the local Claude project memory dir on this device. `MEMORY.md` there is one-line pointers, not content — open the linked file when the pointer looks relevant. (The dir path varies per device: on Mac it's under `~/.claude/`, on Linux hosts under `~/.claude/` with a different project-name suffix. The auto-loader finds it.)
 
 ## The universal rules
@@ -27,7 +27,7 @@ Full list with the incident background is in `agent/incident-rules.md`. The shor
 
 We've already solved most of the hard problems once. Before writing something from scratch, walk this ladder:
 
-1. `how-to-nifi-and-ai.md` for NiFi/MiNiFi/EFM patterns.
+1. The `nifi-and-ai` skill for NiFi/MiNiFi/EFM patterns.
 2. This session's `MEMORY.md` — pointers to what past sessions on this device learned.
 3. Grep the DesktopShare root `.md` library — most post-mortems live there.
 4. Grep the relevant sub-repo. `backend/services/streamers.py` in `cso-operator-app` in particular has hard-won convention already baked in — don't re-derive it.

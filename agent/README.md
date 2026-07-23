@@ -13,7 +13,7 @@ DesktopShare is worked on from several devices (see `../CLAUDE-CHECKIN.md`). Thi
 
 ## What is not in here
 
-- **Technical playbook** for building NiFi / MiNiFi / EFM flows — that's `../how-to-nifi-and-ai.md`.
+- **Technical playbook** for building NiFi / MiNiFi / EFM flows — that's the `nifi-and-ai` skill (`../skills/nifi-and-ai/`).
 - **Device specs and per-device port-forwards / service maps** — that's `../CLAUDE-CHECKIN.md`.
 - **App-specific rules** — those live alongside each app's code. e.g. `cso-operator-app/CLAUDE.md`.
 
