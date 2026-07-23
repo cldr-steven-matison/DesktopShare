@@ -1,4 +1,4 @@
-
+```bash
 ▗ ▗   ▖ ▖  Claude Code v2.1.169
            Opus 4.8 · API Usage Billing
   ▘▘ ▝▝    ~/Documents/GitHub/DesktopShare
@@ -256,3 +256,5 @@ The only open follow-ups are the [Not yet field-verified] items baked into the n
 ✻ Brewed for 16s
 
 ※ recap: Goal was resuming the prior session's 6 doc-cleanup tasks. All six are done, committed, and pushed to origin/main. Next action: field-verify the items still labeled "not yet field-verified" when you're on the live clusters. (disable recaps in /config)
+
+```
