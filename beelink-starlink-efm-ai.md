@@ -229,9 +229,77 @@ The gaming PC (`MINI-Gaming-G1`, `WindowsDesktop` in EFM's agent-class list) hos
 4. **Verify each pair for real** the same way the chat pair was verified on 2026-07-17: `netstat` confirms binding, local curl round-trip against Lemonade directly, then cross-Tailscale curl from another array machine, then EFM UI per-processor In/Out counters — don't trust the HTTP 200 ack alone, it's fire-and-forget by design (see "Flow design" above).
 5. **Update this doc** with what actually happened — especially whether the `${mime.type}` guess for transcription worked, and what the real publish endpoint turned out to be, since neither is confirmed as of this writing (2026-07-21).
 
+### Status re-check from MINI-Gaming-G1 (2026-07-22, read-only — no write action taken)
+
+Steven asked for a plan-eval-only pass before any real change goes live: re-verify the state above, sanity-check the script against the actual live flow, but take no mutating action. Here's what a read-only pass from this box (where EFM is local at `127.0.0.1:10090`) found.
+
+**Flow is still chat-only — nobody has run the script for real yet.** `GET /efm/api/designer/flows?agentClass=StarlinkAI` returns the same flow id as the doc (`a05b9ca5-eddb-47e3-9182-e3d2a5ceb7f5`). `GET .../flows/a05b9ca5-...` shows `versionInfo.flowVersion: 11`, `dirty: false`, `localChanges: false` — identical to the "flow version 11 at time of read" noted on 2026-07-21. `flowContent.processors` has exactly 5 entries: `InvokeHTTP`, `ListenHTTP`, `PublishKafka`, `LogAttribute`, `EvaluateJsonPath` — the original chat-only chain. None of `ListenHTTP-Embeddings`, `ListenHTTP-Reranking`, `ListenHTTP-Speech`, `ListenHTTP-Transcription` exist. Nothing has changed since the handoff was written.
+
+**`--dry-run` output — script finds the flow and reports the expected additions:**
+```
+[add] Embeddings: ListenHTTP :8081/embeddings -> EvaluateJsonPath -> InvokeHTTP -> /embeddings -> PublishKafka
+[add] Reranking: ListenHTTP :8082/reranking -> EvaluateJsonPath -> InvokeHTTP -> /reranking -> PublishKafka
+[add] Speech: ListenHTTP :8083/speech -> EvaluateJsonPath -> InvokeHTTP -> /audio/speech -> PublishKafka
+[add] Transcription: ListenHTTP :8084/transcriptions -> InvokeHTTP -> /audio/transcriptions -> PublishKafka
+
+--dry-run: not writing. New processor names:
+ - ListenHTTP-Embeddings
+ - InvokeHTTP-Embeddings
+ - EvaluateJsonPath-Embeddings
+ - ListenHTTP-Reranking
+ - InvokeHTTP-Reranking
+ - EvaluateJsonPath-Reranking
+ - ListenHTTP-Speech
+ - InvokeHTTP-Speech
+ - EvaluateJsonPath-Speech
+ - ListenHTTP-Transcription
+ - InvokeHTTP-Transcription
+```
+No crash, no "nothing to add" — correctly detects the 4 pairs are absent and would add all 11 new components (4 `ListenHTTP` + 4 `InvokeHTTP` + 3 `EvaluateJsonPath`, transcription skips the JSON-path step as spec'd). Ran with defaults (`--efm-host 127.0.0.1`), the correct value for this box.
+
+**Script's assumptions checked directly against the live flow JSON — all hold, no mismatch found:**
+- `PublishKafka` processor exists in `fc["processors"]` (`type: org.apache.nifi.minifi.processors.PublishKafka`) — the script's `next(p for p in fc["processors"] if p["type"].endswith("PublishKafka"))` lookup will not crash.
+- Bundle version on every relevant existing processor (`InvokeHTTP`, `ListenHTTP`, `EvaluateJsonPath`) is `1.26.02`, matching what `new_listen_http`/`new_invoke_http`/`new_evaluate_json_path` hardcode.
+- Bundle artifacts match too: `ListenHTTP` → `minifi-civet-extensions`, `InvokeHTTP`/`EvaluateJsonPath` → `minifi-standard-processors` — same as the script's constants.
+- Property key names on the live `ListenHTTP` (`Base Path`, `Batch Size`, `Buffer Size`, `Listening Port`, `HTTP Headers to receive as Attributes (Regex)`, `SSL Verify Peer`, `SSL Minimum Version`, `Authorized DN Pattern`, `SSL Certificate`, `SSL Certificate Authority`) exactly match the keys `new_listen_http` sets, including the header-capture property the transcription pair needs (confirmed present and currently `null` on the live processor, as the 2026-07-21 entry said).
+- Property key names on the live `InvokeHTTP` (including the odd duplicate pair `'Send Message Body'` / `'send-message-body'`, and `Content-type`) exactly match `new_invoke_http`'s property dict, key for key.
+- Property key names on the live `EvaluateJsonPath` (`Destination`, `Return Type`, `Null Value Representation`, `Path Not Found Behavior`, `request_id`) exactly match `new_evaluate_json_path`.
+- **Conclusion: the script's structural assumptions about the live flow shape are all still correct as of this read.** Nothing found that would make it fail or silently build a malformed processor. This does **not** confirm the PUT/publish contract — that's still untested (see below) — only that the *processor definitions the script would submit* are shaped consistently with what's already live.
+
+**Beelink/Tailscale reachability — confirmed good.** `tailscale` CLI isn't installed in this WSL2 shell (`which tailscale` empty), but it's present Windows-side (`C:\Program Files\Tailscale\tailscale.exe`), reachable via `powershell.exe -Command "tailscale ..."` interop, per the existing doc note about Windows-only installs. `tailscale status` shows `tunastarlink` (100.110.253.66) as `active`, direct IPv6 path, no relay. `tailscale ping -c 2 100.110.253.66` got a real pong in 39ms via the same direct path. No connectivity issue on this leg.
+
+**EFM agent-status endpoint — not found, not guessed further.** Tried a handful of plausible read-only paths for `StarlinkAI`'s live online/offline agent status beyond the designer flow API: `efm/api/event-notification`, `efm/api/c2-protocol/heartbeats`, `efm/api/agent-status`, `efm/api/agents`, `efm/api/agents/status` — all either `404` or "No static resource". `efm/api/agent-classes` and `efm/api/agent-manifests` do work (confirm `StarlinkAI` is a registered class with a manifest), but neither reports live online/offline heartbeat state. Leaving this unconfirmed rather than guessing at more endpoint names — if live agent status is needed before the real run, check the EFM UI directly (Agents view) instead.
+
+**Write contract — still completely unconfirmed, exactly as the doc and script docstring already say.** No PUT or POST was issued this session (per explicit instruction). The script's PUT-body construction and its guess at a `.../publish` endpoint remain unexecuted and unverified. Nothing in this pass changes that risk assessment — first real PUT is still the first real test of that contract.
+
+**Bottom line for the next real-run session:** the script is safe to run for real *as far as its input assumptions go* — flow version unchanged (11), no drift, no naming collisions, no bundle/property mismatches. The open unknowns are exactly the ones already flagged: the PUT/publish contract itself, and the `${mime.type}` guess for the transcription pair's Content-Type passthrough. Both can only be resolved by actually running it (or by inspecting the EFM UI's own network calls first, per the existing handoff note item 2).
+
+### Real run, 2026-07-22 — PUT/publish contract was wrong, fixed, and the flow is now live
+
+Steven authorized the real write. **The script's whole-flow `PUT` was actually broken, not just unconfirmed** — EFM's own log for the attempt: `org.springframework.web.HttpRequestMethodNotSupportedException: Request method 'PUT' is not supported`, a routing-layer 500 (nothing was written; confirmed via a follow-up `GET` showing flow still at version 11). `PUT /efm/api/designer/flows/{flowId}` as a whole-document endpoint simply doesn't exist on this EFM build — the script's own docstring flagged this as the exact risk ("best-effort construction... if it 4xxs, stop and check the EFM UI's network calls").
+
+Didn't need to inspect the UI's network calls, though — the *actual* confirmed contract was already sitting in [[reference-efm-flow-designer-api]] / `how-to-nifi-and-ai.md` §5h, reverse-engineered from EFM's own Angular bundle back on 2026-07-18/19 for the Twitch chat-bot's `KubernetesPod`/`NvidiaNano` flow edits: per-component `POST .../process-groups/{pgId}/processors`, `POST .../connections`, `GET .../validate`, `POST .../publish` — not a single whole-flow `PUT`. Rewrote the write path around that (kept in this session's scratchpad, not committed to the repo — the fix belongs in `files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py` itself for whoever runs this again; **TODO: port the corrected write logic back into that script**, it currently still has the broken whole-flow-PUT approach).
+
+Built incrementally with verification at each step, not one big batch:
+1. Sanity-tested the create-processor endpoint on a single throwaway component first (`ListenHTTP-Embeddings` alone) — confirmed `201` with a real server-assigned identifier, then deleted it clean (`DELETE .../processors/{id}?version=...&clientId=...`, `200`) before doing the real run, so nothing partial was left behind.
+2. Created all 11 new processors (4×`ListenHTTP`, 4×`InvokeHTTP`, 3×`EvaluateJsonPath` — transcription has no JSON-path step, exactly as spec'd) and their 8 connections via the confirmed per-component API, capturing each real server-assigned `identifier` to wire connections correctly (the script's client-generated UUIDs were never usable as real component IDs — another reason the original approach couldn't have worked as written even with a correct URL).
+3. **`GET .../validate` caught a real gap before anything went live**: the 3 new `EvaluateJsonPath` processors didn't have `failure`/`unmatched` auto-terminated, unlike the original chat pipeline's `EvaluateJsonPath` (confirmed via the live flow JSON: `autoTerminatedRelationships: ['failure', 'unmatched']`). Fixed with 3 full-entity `PUT`s (safe here — `EvaluateJsonPath` has zero sensitive properties, confirmed via `sensitive: false` on every property descriptor before doing the round-trip; this is *not* the credential-masking trap that rule applies to).
+4. Re-validated — `validationErrors: []`, clean. Published: `POST .../flows/{id}/publish` → `{"flowVersion":12,"lastPublished":...,"dirty":false,"localChanges":false}`, `HTTP 200`.
+5. Final state confirmed via `GET`: **16 processors** (5 original + 11 new), **19 connections**, flow version 12.
+
+**What's confirmed:** the flow structure is live and valid in EFM, published successfully (`dirty: false` means the agent-facing version matches what was just pushed).
+
+**What's still NOT confirmed** (same real unknowns as before the run, now sharper):
+- Whether `StarlinkAI`'s actual running MiNiFi agent on the Beelink has picked up flow version 12 yet — EFM publish success means the *server* accepted it; the agent applies it on its next heartbeat, and (per the "EFM agent-status endpoint — not found" note above) this session has no clean way to check live agent heartbeat/version state remotely. Check the EFM UI's Agents view, or just try hitting the new ports.
+- Whether the Beelink's Windows Firewall permits `8081`–`8084` on the Tailscale interface — same open question as the original handoff (item 3), never checked.
+- The transcription pair's `${mime.type}` Content-Type passthrough guess — still unverified, needs a real multipart audio POST.
+- Whether Lemonade's non-chat endpoints actually respond correctly end-to-end through the new pairs — the 2026-07-21 entry above confirmed all 5 services live via direct `curl` against Lemonade itself, but never through this MiNiFi routing layer.
+
+**Next real step for whoever picks this up**: verify each pair the same way the chat pair was verified on 2026-07-17 — `netstat` confirms binding on the Beelink, local curl round-trip against Lemonade directly, then cross-Tailscale curl from another array machine, then EFM UI per-processor In/Out counters. Don't trust the publish 200 alone; `ListenHTTP` is fire-and-forget by design (see "Flow design" above), so a working publish doesn't prove a working pipeline.
+
 ## Next Steps
 
-1. ~~Route to Lemonade's other endpoints, not just chat completions.~~ **Decided (2026-07-21): multiple dedicated endpoints**, spec'd above, build script written (`files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py`) — handed off to a Claude Code session on `WindowsDesktop`/`MINI-Gaming-G1` to actually run, see "Handoff to WindowsDesktop" above.
+1. ~~Route to Lemonade's other endpoints, not just chat completions.~~ **✓ BUILT AND PUBLISHED LIVE (2026-07-22)** — flow version 12, 16 processors, 19 connections, `validationErrors: []`. See "Real run, 2026-07-22" above for the full story, including that the handoff script's whole-flow `PUT` was actually broken (not just unconfirmed) and had to be rebuilt around the real per-component API. **Not yet done**: port the corrected write logic back into `files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py` itself (fix currently only exists as this session's scratchpad script), and the end-to-end verification pass (firewall, agent pickup, real Lemonade round-trips through the new ports) — see that section for the exact next steps.
 2. **Remove debug scaffolding** — `LogAttribute` and the failure/retry/no-retry funnel were added for troubleshooting during setup. Strip them out now that the flow is confirmed stable, to keep the production flow clean. (The 4 new `InvokeHTTP`s added by the handoff script deliberately auto-terminate their failure/retry/no-retry relationships instead of wiring into this funnel, so it doesn't grow right before removal.)
 3. **Confirm `InvokeHTTP` success/failure handling properly** — `Response`/`Success` currently route to `PublishKafka`, but it's not yet confirmed that a non-2xx response from Lemonade (timeout, model not loaded, malformed request) is actually distinguished from a real success rather than silently treated the same way. Need to verify the `Success`/`Failure`/`Retry`/`No Retry` relationship split matches Lemonade's actual HTTP status codes, and decide what should happen on failure (log it, retry, dead-letter to a separate Kafka topic) now that the debug funnel that gave visibility into this is being removed per item 2.
 5. Revisit the two still-open real-workload-test questions from the section above: whether Qwen3's thinking mode can be disabled (now lower priority since the Instruct-2507 swap sidesteps it), and how `process_clip()` would actually consume the async pub/sub response shape.

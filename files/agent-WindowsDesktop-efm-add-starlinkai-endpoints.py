@@ -4,32 +4,39 @@ Adds 4 new ListenHTTP -> [EvaluateJsonPath ->] InvokeHTTP pairs to the live
 StarlinkAI EFM flow, exposing Lemonade's embeddings/reranking/TTS/transcription
 endpoints the same way chat/completions is already exposed. Run this FROM
 MINI-Gaming-G1 (WindowsDesktop), where the EFM server is local -- see
-beelink-starlink-efm-ai.md "Handoff to WindowsDesktop" section for the full
-story and why this wasn't done from the Beelink itself.
+beelink-starlink-efm-ai.md "Handoff to WindowsDesktop" / "Real run, 2026-07-22"
+sections for the full story.
 
 Usage:
     python3 agent-WindowsDesktop-efm-add-starlinkai-endpoints.py [--dry-run] [--efm-host HOST]
 
-Defaults to --efm-host 127.0.0.1 (EFM is local on this box, per the
-2026-07-21 check-in doc). Pass --efm-host 100.68.113.126 if running this
-from elsewhere.
+Defaults to --efm-host 127.0.0.1 (EFM is local on this box).
 
-WHAT THIS DOES NOT KNOW FOR CERTAIN (verify before trusting the result):
-- The exact PUT/publish contract of the EFM designer API. GET was confirmed
-  working from the Beelink on 2026-07-21; PUT was never actually executed
-  (an unmodified round-trip PUT was attempted and blocked by an unrelated
-  Claude Code permission gate before getting a response). This script's PUT
-  step is my best-effort construction from NiFi/EFM's usual versioned-flow
-  shape (echo back flowMetadata/parameterContexts/versionInfo/
-  localFlowRevision as received). If it 4xxs, that's real information --
-  stop and check the EFM UI's own network calls (browser devtools, Publish
-  button) for the actual contract rather than guessing further.
-- Whether a POST .../publish (or similar) step is required after the PUT
-  to push the change to the running StarlinkAI agent, or whether saving the
-  flow content alone is enough. The script attempts a publish call and
-  prints clearly whether it succeeded, failed, or wasn't found (404) --
-  in the 404 case, use the EFM UI's Publish button manually, don't guess
-  at alternate endpoint names.
+HISTORY -- v1 of this script guessed a whole-flow-document PUT
+(PUT /efm/api/designer/flows/{flowId}) for the write step. That endpoint
+does not exist on this EFM build at all -- confirmed via EFM's own pod log
+on the first real run (2026-07-22): `HttpRequestMethodNotSupportedException:
+Request method 'PUT' is not supported`, a routing-layer 500 before any
+business logic even runs. Nothing was written by that failed attempt.
+
+v2 (this version) uses the ACTUAL confirmed EFM Flow Designer API contract,
+reverse-engineered from EFM's own Angular bundle back on 2026-07-18/19 for
+the Twitch chat-bot's KubernetesPod/NvidiaNano flow edits (see the
+`reference-efm-flow-designer-api` memory / `how-to-nifi-and-ai.md` sec5h):
+per-component POST create (processors, then connections), GET validate,
+POST publish. Confirmed working end-to-end against this exact flow on
+2026-07-22 -- flow published to version 12, 16 processors, 19 connections,
+zero validation errors.
+
+WHAT THIS STILL DOES NOT KNOW FOR CERTAIN (verify before trusting the result):
+- Whether StarlinkAI's actual running MiNiFi agent on the Beelink has picked
+  up the published flow yet. A successful publish means the *server* has the
+  new version; the agent applies it on its next heartbeat. This script does
+  not check live agent heartbeat/version state (EFM 2.3.1 has no clean REST
+  endpoint for that -- checked and confirmed absent on 2026-07-22, see the
+  doc). Check the EFM UI's Agents view, or just try hitting the new ports.
+- Whether the Beelink's Windows Firewall permits 8081-8084 on the Tailscale
+  interface -- never checked as of 2026-07-22.
 - Whether InvokeHTTP's "Content-type" property forwards correctly for the
   transcription pair. That processor's incoming request is multipart/
   form-data with a boundary in the Content-Type header; hardcoding
@@ -38,6 +45,9 @@ WHAT THIS DOES NOT KNOW FOR CERTAIN (verify before trusting the result):
   ListenHTTP sets that attribute from the incoming Content-Type header the
   same way NiFi's does -- UNCONFIRMED. Test with a real audio file POST
   before trusting this pair; if it's wrong, the fix is that one property.
+- Whether Lemonade's non-chat endpoints respond correctly THROUGH this
+  MiNiFi routing layer -- confirmed reachable directly (curl straight to
+  Lemonade on 2026-07-21) but never yet through these new processor pairs.
 
 Safe to re-run: checks for existing processor names before adding, so a
 partial or repeat run won't duplicate processors.
@@ -89,110 +99,90 @@ def find_flow_id(base):
     raise SystemExit(f"No flow found for agent class {AGENT_CLASS}")
 
 
-def new_listen_http(group_id, name, port, base_path, header_capture, pos):
-    return {
-        "identifier": str(uuid.uuid4()),
-        "instanceIdentifier": str(uuid.uuid4()),
-        "name": f"ListenHTTP-{name}",
-        "comments": "",
-        "position": pos,
-        "type": "org.apache.nifi.minifi.processors.ListenHTTP",
-        "bundle": {"group": "org.apache.nifi.minifi", "artifact": "minifi-civet-extensions", "version": "1.26.02"},
-        "properties": {
+def client_id(base):
+    status, body = http_json("GET", f"{base}/efm/api/designer/client-identifier")
+    if status != 200:
+        raise SystemExit(f"Could not get client identifier: HTTP {status} {body}")
+    return body["clientId"]
+
+
+def create_processor(base, flow_id, group_id, cid, name, ptype, bundle, properties, position, auto_term=None):
+    body = {
+        "revision": {"version": 0, "clientId": cid},
+        "componentConfiguration": {
+            "componentType": "PROCESSOR",
+            "type": ptype,
+            "bundle": bundle,
+            "name": name,
+            "position": position,
+            "properties": properties,
+            "autoTerminatedRelationships": auto_term or [],
+        },
+        "requestId": str(uuid.uuid4()),
+    }
+    status, resp = http_json(
+        "POST", f"{base}/efm/api/designer/flows/{flow_id}/process-groups/{group_id}/processors", body
+    )
+    if status != 201:
+        raise SystemExit(f"Create processor {name} failed: HTTP {status} {resp}")
+    real_id = resp["componentConfiguration"]["identifier"]
+    print(f"[ok] created {name} -> {real_id}")
+    return real_id
+
+
+def create_connection(base, flow_id, group_id, cid, source_id, dest_id, relationships):
+    body = {
+        "revision": {"version": 0, "clientId": cid},
+        "componentConfiguration": {
+            "componentType": "CONNECTION",
+            "name": "",
+            "source": {"id": source_id, "type": "PROCESSOR", "groupId": group_id},
+            "destination": {"id": dest_id, "type": "PROCESSOR", "groupId": group_id},
+            "selectedRelationships": relationships,
+            "bends": [],
+        },
+        "requestId": str(uuid.uuid4()),
+    }
+    status, resp = http_json(
+        "POST", f"{base}/efm/api/designer/flows/{flow_id}/process-groups/{group_id}/connections", body
+    )
+    if status != 201:
+        raise SystemExit(f"Create connection {source_id}->{dest_id} failed: HTTP {status} {resp}")
+    return resp["componentConfiguration"]["identifier"]
+
+
+def listen_http_spec(name, port, base_path, header_capture):
+    return (
+        f"ListenHTTP-{name}",
+        "org.apache.nifi.minifi.processors.ListenHTTP",
+        {"group": "org.apache.nifi.minifi", "artifact": "minifi-civet-extensions", "version": "1.26.02"},
+        {
             "Base Path": base_path,
             "SSL Verify Peer": "no",
             "Batch Size": "1",
             "SSL Minimum Version": "TLS1.2",
             "Buffer Size": "1",
             "Listening Port": str(port),
-            "SSL Certificate": None,
             "HTTP Headers to receive as Attributes (Regex)": header_capture,
             "Authorized DN Pattern": ".*",
-            "SSL Certificate Authority": None,
         },
-        "style": {},
-        "annotationData": None,
-        "schedulingPeriod": "1000 ms",
-        "schedulingStrategy": "TIMER_DRIVEN",
-        "executionNode": "ALL",
-        "penaltyDuration": "30000 ms",
-        "yieldDuration": "1000 ms",
-        "bulletinLevel": "WARN",
-        "runDurationMillis": 0,
-        "concurrentlySchedulableTaskCount": 1,
-        "autoTerminatedRelationships": [],
-        "scheduledState": None,
-        "retryCount": None,
-        "retriedRelationships": None,
-        "backoffMechanism": None,
-        "maxBackoffPeriod": None,
-        "componentType": "PROCESSOR",
-        "groupIdentifier": group_id,
-    }
+        None,  # ListenHTTP's only relationship (success) is always wired, never auto-terminated
+    )
 
 
-def new_evaluate_json_path(group_id, name, pos):
-    return {
-        "identifier": str(uuid.uuid4()),
-        "instanceIdentifier": str(uuid.uuid4()),
-        "name": f"EvaluateJsonPath-{name}",
-        "comments": "",
-        "position": pos,
-        "type": "org.apache.nifi.minifi.processors.EvaluateJsonPath",
-        "bundle": {"group": "org.apache.nifi.minifi", "artifact": "minifi-standard-processors", "version": "1.26.02"},
-        "properties": {
-            "Destination": "flowfile-attribute",
-            "Return Type": "auto-detect",
-            "Null Value Representation": "empty string",
-            "Path Not Found Behavior": "ignore",
-            "request_id": "$.request_id",
-        },
-        "style": {},
-        "annotationData": None,
-        "schedulingPeriod": "0 sec",
-        "schedulingStrategy": "TIMER_DRIVEN",
-        "executionNode": "ALL",
-        "penaltyDuration": "30000 ms",
-        "yieldDuration": "1000 ms",
-        "bulletinLevel": "WARN",
-        "runDurationMillis": 0,
-        "concurrentlySchedulableTaskCount": 1,
-        "autoTerminatedRelationships": [],
-        "scheduledState": None,
-        "retryCount": None,
-        "retriedRelationships": None,
-        "backoffMechanism": None,
-        "maxBackoffPeriod": None,
-        "componentType": "PROCESSOR",
-        "groupIdentifier": group_id,
-    }
-
-
-def new_invoke_http(group_id, name, remote_url, content_type, pos):
-    return {
-        "identifier": str(uuid.uuid4()),
-        "instanceIdentifier": str(uuid.uuid4()),
-        "name": f"InvokeHTTP-{name}",
-        "comments": "",
-        "position": pos,
-        "type": "org.apache.nifi.minifi.processors.InvokeHTTP",
-        "bundle": {"group": "org.apache.nifi.minifi", "artifact": "minifi-standard-processors", "version": "1.26.02"},
-        "properties": {
-            "Proxy Host": None,
-            "Upload Speed Limit": None,
+def invoke_http_spec(name, remote_url, content_type):
+    return (
+        f"InvokeHTTP-{name}",
+        "org.apache.nifi.minifi.processors.InvokeHTTP",
+        {"group": "org.apache.nifi.minifi", "artifact": "minifi-standard-processors", "version": "1.26.02"},
+        {
             "Attributes to Send": "request_id",
             "Invalid HTTP Header Field Handling Strategy": "transform",
-            "Download Speed Limit": None,
             "Read Timeout": "10 min",
-            "invokehttp-proxy-password": None,
             "Send Message Body": "true",
-            "Proxy Port": None,
-            "invokehttp-proxy-username": None,
-            "Put Response Body in Attribute": None,
             "Connection Timeout": "5 min",
             "send-message-body": "true",
             "Content-type": content_type,
-            "SSL Context Service": None,
             "Always Output Response": "false",
             "HTTP Method": "POST",
             "Include Date Header": "true",
@@ -202,49 +192,31 @@ def new_invoke_http(group_id, name, remote_url, content_type, pos):
             "Follow Redirects": "true",
             "Remote URL": remote_url,
         },
-        "style": {},
-        "annotationData": None,
-        "schedulingPeriod": "0 sec",
-        "schedulingStrategy": "TIMER_DRIVEN",
-        "executionNode": "ALL",
-        "penaltyDuration": "30000 ms",
-        "yieldDuration": "1000 ms",
-        "bulletinLevel": "WARN",
-        "runDurationMillis": 0,
-        "concurrentlySchedulableTaskCount": 1,
         # Deliberately auto-terminate failure/retry/no-retry here rather than
         # wiring into the existing debug funnel -- that funnel is already
         # flagged for removal (see Next Steps item 3 in the doc), no sense
         # growing it by 4x right before it's torn out.
-        "autoTerminatedRelationships": ["failure", "retry", "no retry"],
-        "scheduledState": None,
-        "retryCount": None,
-        "retriedRelationships": None,
-        "backoffMechanism": None,
-        "maxBackoffPeriod": None,
-        "componentType": "PROCESSOR",
-        "groupIdentifier": group_id,
-    }
+        ["failure", "retry", "no retry"],
+    )
 
 
-def connection(group_id, source, dest, relationships, pos_bend=None):
-    return {
-        "identifier": str(uuid.uuid4()),
-        "instanceIdentifier": str(uuid.uuid4()),
-        "name": "",
-        "source": {"id": source["identifier"], "type": "PROCESSOR", "groupId": group_id},
-        "destination": {"id": dest["identifier"], "type": "PROCESSOR", "groupId": group_id},
-        "selectedRelationships": relationships,
-        "bendPoints": pos_bend or [],
-        "labelIndex": 1,
-        "zIndex": 0,
-        "flowFileExpiration": "0 sec",
-        "backPressureObjectThreshold": 10000,
-        "backPressureDataSizeThreshold": "1 GB",
-        "prioritizers": [],
-        "componentType": "CONNECTION",
-        "groupIdentifier": group_id,
-    }
+def evaluate_json_path_spec(name):
+    return (
+        f"EvaluateJsonPath-{name}",
+        "org.apache.nifi.minifi.processors.EvaluateJsonPath",
+        {"group": "org.apache.nifi.minifi", "artifact": "minifi-standard-processors", "version": "1.26.02"},
+        {
+            "Destination": "flowfile-attribute",
+            "Return Type": "auto-detect",
+            "Null Value Representation": "empty string",
+            "Path Not Found Behavior": "ignore",
+            "request_id": "$.request_id",
+        },
+        # Must match the original chat pipeline's EvaluateJsonPath
+        # (confirmed live 2026-07-22) or EFM's validate step rejects the
+        # flow before publish: unhandled failure/unmatched relationships.
+        ["failure", "unmatched"],
+    )
 
 
 def main():
@@ -268,74 +240,71 @@ def main():
     # PublishKafka is the shared sink every new InvokeHTTP's success/response
     # routes into, same as the existing chat pair -- request_id already
     # disambiguates responses on the consumer side, no need for new topics.
-    publish_kafka = next(p for p in fc["processors"] if p["type"].endswith("PublishKafka"))
+    publish_kafka_id = next(p["identifier"] for p in fc["processors"] if p["type"].endswith("PublishKafka"))
 
-    added_processors = []
-    added_connections = []
-    y_offset = -700  # existing processors cluster around y ~ -466 to -200; stack new ones below
+    to_add = [e for e in NEW_ENDPOINTS if f"ListenHTTP-{e[0]}" not in existing_names]
+    for name, *_ in [e for e in NEW_ENDPOINTS if e not in to_add]:
+        print(f"[skip] ListenHTTP-{name} already present, not re-adding")
 
-    for idx, (name, port, base_path, remote_path, needs_json_path, header_capture) in enumerate(NEW_ENDPOINTS):
-        if f"ListenHTTP-{name}" in existing_names:
-            print(f"[skip] ListenHTTP-{name} already present, not re-adding")
-            continue
-
-        y = y_offset + idx * 250
-        listen = new_listen_http(group_id, name, port, base_path, header_capture, {"x": -600, "y": y})
-        invoke = new_invoke_http(
-            group_id, name, f"{LEMONADE_BASE}{remote_path}",
-            "${mime.type}" if name == "Transcription" else "application/json",
-            {"x": 0, "y": y},
-        )
-        added_processors += [listen, invoke]
-
-        if needs_json_path:
-            eval_json = new_evaluate_json_path(group_id, name, {"x": -300, "y": y})
-            added_processors.append(eval_json)
-            added_connections.append(connection(group_id, listen, eval_json, ["success"]))
-            added_connections.append(connection(group_id, eval_json, invoke, ["matched"]))
-        else:
-            added_connections.append(connection(group_id, listen, invoke, ["success"]))
-
-        added_connections.append(connection(group_id, invoke, publish_kafka, ["success", "response"]))
-
-        print(f"[add] {name}: ListenHTTP :{port}/{base_path} -> "
-              f"{'EvaluateJsonPath -> ' if needs_json_path else ''}InvokeHTTP -> {remote_path} -> PublishKafka")
-
-    if not added_processors:
+    if not to_add:
         print("Nothing to add -- all 4 pairs already present.")
         return
 
-    fc["processors"] += added_processors
-    fc["connections"] += added_connections
-
     if args.dry_run:
-        print("\n--dry-run: not writing. New processor names:")
-        for p in added_processors:
-            print(" -", p["name"])
+        print("\n--dry-run: not writing. Would add:")
+        for name, port, base_path, remote_path, needs_json_path, _ in to_add:
+            print(f" - {name}: ListenHTTP :{port}/{base_path} -> "
+                  f"{'EvaluateJsonPath -> ' if needs_json_path else ''}InvokeHTTP -> {remote_path} -> PublishKafka")
         return
 
-    put_status, put_result = http_json("PUT", f"{base}/efm/api/designer/flows/{flow_id}", flow)
-    print(f"\nPUT flow: HTTP {put_status}")
-    if put_status not in (200, 201, 204):
-        print("PUT failed -- flow NOT modified on the server side (or modification unconfirmed).")
-        print("Response:", put_result)
-        print("Stop here. Check the EFM UI directly before retrying; do not guess at a different endpoint shape.")
+    cid = client_id(base)
+    y_offset = -700  # existing processors cluster around y ~ -466 to -200; stack new ones below
+
+    for idx, (name, port, base_path, remote_path, needs_json_path, header_capture) in enumerate(to_add):
+        y = y_offset + idx * 250
+
+        lh_name, lh_type, lh_bundle, lh_props, lh_auto = listen_http_spec(name, port, base_path, header_capture)
+        listen_id = create_processor(base, flow_id, group_id, cid, lh_name, lh_type, lh_bundle, lh_props,
+                                      {"x": -600, "y": y}, lh_auto)
+
+        ih_name, ih_type, ih_bundle, ih_props, ih_auto = invoke_http_spec(
+            name, f"{LEMONADE_BASE}{remote_path}", "${mime.type}" if name == "Transcription" else "application/json"
+        )
+        invoke_id = create_processor(base, flow_id, group_id, cid, ih_name, ih_type, ih_bundle, ih_props,
+                                      {"x": 0, "y": y}, ih_auto)
+
+        if needs_json_path:
+            ej_name, ej_type, ej_bundle, ej_props, ej_auto = evaluate_json_path_spec(name)
+            eval_id = create_processor(base, flow_id, group_id, cid, ej_name, ej_type, ej_bundle, ej_props,
+                                        {"x": -300, "y": y}, ej_auto)
+            create_connection(base, flow_id, group_id, cid, listen_id, eval_id, ["success"])
+            create_connection(base, flow_id, group_id, cid, eval_id, invoke_id, ["matched"])
+        else:
+            create_connection(base, flow_id, group_id, cid, listen_id, invoke_id, ["success"])
+
+        create_connection(base, flow_id, group_id, cid, invoke_id, publish_kafka_id, ["success", "response"])
+
+        print(f"[done] {name} pair wired")
+
+    status, val = http_json("GET", f"{base}/efm/api/designer/flows/{flow_id}/validate")
+    errs = (val or {}).get("validationErrors", [])
+    print(f"\nvalidate: HTTP {status}, {len(errs)} error(s)")
+    if errs:
+        for e in errs:
+            print(" -", e.get("versionedComponent", {}).get("name"), ":", e.get("validationErrors"))
+        print("Validation errors present -- NOT publishing. Fix the flow (EFM UI or a follow-up API call) "
+              "before trying to publish; do not force a publish over unresolved validation errors.")
         return
 
-    # Publish step is a guess -- confirm this is the right path via the EFM
-    # UI's own network calls if it 404s.
     pub_status, pub_result = http_json("POST", f"{base}/efm/api/designer/flows/{flow_id}/publish",
                                         {"comments": "Add embeddings/reranking/speech/transcription endpoints"})
-    print(f"POST publish: HTTP {pub_status}")
-    if pub_status == 404:
-        print("No /publish endpoint at that path -- flow content was saved (if the PUT above succeeded) "
-              "but likely NOT yet pushed live to the StarlinkAI agent. Open the EFM UI and click Publish "
-              "manually to complete this.")
-    elif pub_status not in (200, 201, 204):
-        print("Publish call failed:", pub_result)
+    print(f"POST publish: HTTP {pub_status} {pub_result}")
+    if pub_status not in (200, 201, 204):
+        print("Publish call failed -- flow content was created but not pushed live. Check the EFM UI.")
     else:
-        print("Published. Verify in the EFM UI that StarlinkAI shows the new processors and is not in a "
-              "'stale'/pending-publish state, then run the curl verification steps in the doc.")
+        print("Published. Server has the new version; the StarlinkAI agent applies it on its next heartbeat "
+              "-- verify via the EFM UI's Agents view or by testing the new ports directly, don't assume "
+              "the agent has it yet just because publish returned 200.")
 
 
 if __name__ == "__main__":

@@ -107,9 +107,10 @@ curl -sk --cert client.crt --key client.key -X PUT \
 ### 2e. Rebuild → redeploy discipline (custom Python processors)
 
 A custom Python processor is *not* a hot patch. Every change requires:
-1. `hatch build` in the processor repo → `dist/*.whl`.
+1. `hatch build` in the processor repo → `dist/*.whl` (or a plain `kubectl cp` of the `.py` directly onto the extensions volume for a fast dev-loop skip).
 2. Copy the built artifact onto the mounted extensions volume (see §5).
-3. Kick NiFi's Python subprocess. NiFi ships a `NIFI_PYTHON_LISTENER_STARTUP_TIMEOUT` — budget up to 600s for a full reload.
+3. **Bump `ProcessorDetails.version`** in the source — NiFi tracks bundle versions by this string, and a same-version overwrite may not register as a new bundle at all.
+4. **Explicitly switch every already-running instance to the new bundle version.** Dropping the new `.py`/wheel onto the extensions volume makes NiFi *aware* of the new version (`GET` on the processor shows `multipleVersionsAvailable: true`), but a running instance stays pinned to its old bundle version until you force it: stop the processor → `PUT /processors/{id}` with `component.bundle.version` set to the new version string (properties survive this switch intact — confirmed 2026-07-22) → restart. This is **not** the same behavior as MiNiFi C++'s `ExecuteScript`, which re-reads its script file from disk on every trigger with zero restart needed (§5h) — don't assume the two behave the same way just because both are "a Python script NiFi runs."
 
 ---
 
@@ -180,7 +181,9 @@ Defensive contract for every processor we ship:
 - Route errors to a `failure` relationship, never crash. Call `getLogger().error(...)` so it surfaces in `app-log`.
 - Sensitive credentials → **Parameter Context**, referenced as `#{param-name}` in the property. Never a literal.
 - A `Dry Run` boolean property (default `true`) that logs instead of doing the destructive action.
-- Version bump on every real change so you can see in the UI palette that the reload actually landed.
+- Version bump on every real change so you can see in the UI palette that the reload actually landed (see §2e for the full switch procedure — a version bump alone doesn't make a running instance pick it up).
+
+**`PropertyValue.evaluateAttributeExpressions(flowfile).getValue()` does not reliably handle a template with literal text plus multiple `${attr}` tokens** — confirmed 2026-07-22: a property value `${streamer} is now showing on ${screen}.` evaluated to just `jynxzi` (the first token's value alone), silently dropping the literal text and the second token. This is a real limitation of this NiFi Python binding, not a config mistake — don't assume Python-processor EL evaluation behaves like Java-side NiFi EL (which handles this fine, e.g. the Java `ReplaceText` processor's multi-token templates work correctly). For any Python processor property that mixes literal text with more than one attribute reference, **evaluate it yourself**: pull the raw property string with `.getValue()` (no `evaluateAttributeExpressions`), and substitute manually — `re.sub(r'\$\{(\w+)\}', lambda m: attributes.get(m.group(1), ''), template)` against `dict(flowfile.getAttributes())` is the confirmed-working pattern. A property that's just a single bare `${attr}` reference with no surrounding text may evaluate fine either way — this bug specifically bites *mixed* templates.
 
 ### 4e. Deploying custom Python processors — three real paths
 
@@ -326,6 +329,10 @@ Confirmed working contract (built 2026-07-18/19, structurally re-verified 2026-0
 - `GET .../flows/{id}/validate` → `{"validationErrors":[]}` — confirm empty before publishing.
 - `POST .../flows/{id}/publish` — body `{"comments":"..."}`. **This is the real push-to-agent step** — confirmed it overwrites even a manually hand-edited agent-local `config.yml` on the agent's next heartbeat. A hand-edited local config is never authoritative once you're using the real API.
 - `DELETE /efm/api/agents/{id}` (`AgentsService.deleteAgent`) — removes a stale/`MISSING` agent record EFM never garbage-collects on its own.
+
+**There is no whole-flow-document `PUT` endpoint. Don't guess one.** A first attempt at bulk-adding several processors at once tried `PUT /efm/api/designer/flows/{flowId}` with the full modified `flowContent` — confirmed 2026-07-22 via EFM's own pod log that this fails at the routing layer (`HttpRequestMethodNotSupportedException: Request method 'PUT' is not supported`, a `500` before any business logic runs — nothing gets written, but it's an easy trap to think "PUT the whole doc back" is the pattern here the way it is for a single NiFi processor). The bullets above are the only real write path: one `POST` per new processor, one `POST` per new connection, each returning the server-assigned `identifier` you then use to wire the next connection — there is no batch/bulk create.
+
+**Match new processors' x-coordinates to the existing column for that processor role, don't pick arbitrary offsets.** Programmatically adding a `ListenHTTP → EvaluateJsonPath → InvokeHTTP` pattern next to an existing one of the same shape: read the existing processors' `position.x` for each role and reuse those x-values for the new ones (only `y` should vary, one row per new pattern) — the existing flow already has a de facto column layout (all `ListenHTTP`s at one x, all `InvokeHTTP`s at another, etc.), and matching it means the result is readable immediately instead of needing a manual re-align pass afterward in the Designer UI to make it presentable.
 
 Resource Manager (script/asset upload — the correct alternative to `kubectl cp`-ing a script directly onto an agent):
 - `POST /efm/api/resource-manager/resources/file` — multipart, query params `name`/`resourceType`(`ASSET`|`EXTENSION`)/`relativePathOnAgent`/`notes`, field `file`. Returns a SHA-512 `digest` — diff against local `sha512sum` to confirm no drift.

@@ -236,6 +236,16 @@ Both processors are `ENABLED`. The original `PublishClip` PG's `Publish On Deman
 
 Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folded into the committed `streamers/StreamersApp.json` snapshot.
 
+**Verified live state — 2026-07-22.** The doc above was stale, and the real cause of "cron isn't running during the peak window" is simpler than a wrong schedule: **both processors in this PG are `STOPPED`.** The flow isn't misconfigured, it's just off. Live cron on `Peak Time` is `0 0/13 16-23 * * ?` (every 13 min, not the documented 33 min — hand-tuned since the session-14 update, doc never caught up).
+
+**Resolved by Steven, applied live (2026-07-22).** Context: he'd been working around the cron's unreliability by manually running `PublishClip` at a shortened interval instead — that's how `PublishClip` ended up at 18 min/24-7 in the first place, not an accident. Root cause of the cron's unreliability turned out to be simple (both processors were `STOPPED`, not misconfigured — see above), so the plan reverted to the originally-intended shape:
+- **`PublishClip`** (`Publish On Demand`, `cd5fa97d-...`) — schedule set back to `TIMER_DRIVEN`/`1 day`, stays `RUNNING` (matches its documented manual/backup role — dormant at that cadence, still available for `agent-PostNow.sh`/UI Post Now to trigger directly regardless of its own timer).
+- **`PublishClipPeakTimeCron`** (`Peak Time`, `0dde1b4f-...`) — cron changed to `0 0/18 16-23 * * ?` (every 18 min, 16-23 UTC — not the 33 min the doc had claimed, not the 30 min this session initially proposed either; Steven's explicit call). Both processors (`Peak Time` + downstream `InvokeHTTP`) started, `RUNNING`. **This PG is now the live active publisher during peak hours.**
+
+Both changes made via the safe property-only-PUT + run-status pattern (stop → property PUT → start where a running processor needed a schedule change; direct property PUT + start where already stopped) — no full-entity round trips, no sensitive properties touched (neither processor has any). Confirmed final state live via the NiFi API post-change.
+
+**Built the same session:** `files/agent-publishFlow.sh` — a generalized Telegram start/stop script covering both Publish flavors (`agent-publishFlow.sh <PublishClip|PublishClipPeakTimeCron> start|stop`), per Steven's direction ("make the process group be command arg"). Required a one-line backend fix first — `PublishClipPeakTimeCron` wasn't in `STREAMER_PG_NAMES` (`backend/services/streamers.py`), so `/api/streamers/flows/{name}/start|stop` 404'd on it; added it, deployed (`make deploy MODULES=rag,streamers,efm`, credentials re-injected, confirmed via `GET /api/streamers/flows` showing both PGs). Script exists and the backend supports it, but hasn't been run for real yet/isn't in `agent-commands.md` — next real use of it will be the first live test.
+
 ---
 
 ## Key Technical Gotchas
@@ -270,7 +280,7 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **Video title/description/CTA/category** — PUNTED (session 12): needs an X Ads account for @TunaStreetTest before it's buildable. See "Untitled Videos" section above for what's confirmed.
 - **Subtitles from transcript** — unblocked, deprioritized (session 12): `POST /2/media/subtitles` + existing Whisper segment timestamps could give real closed captions with no new credentials. See "Untitled Videos" section above.
 - **Reply Guy** — FUTURE IDEA (added session 14): auto-reply bot behavior, threaded onto every posted clip's tweet. Reply 1 — link to the streamer's own stream/channel page (their Twitch/Kick profile URL; already have this value on every clip record as `clip.streamer` + `clip.source`). Reply 2 — the clip's transcript, likely a quotable excerpt rather than the full wall of text (not finalized; would need vLLM if excerpting rather than dumping raw text). Not scoped or built yet.
-- **More Telegram scripts** — FUTURE IDEA: `Fetch Clips` and `Publish Clips` on-demand triggers, same reply-to-chat pattern as `agent-PostNow.sh`. Post Now is the first one built.
+- **More Telegram scripts** — FUTURE IDEA: `Fetch Clips` and `Publish Clips` on-demand triggers, same reply-to-chat pattern as `agent-PostNow.sh`. Post Now is the first one built. **Queued 2026-07-22** (Steven's Telegram note, 5:25 PM): "a telegram script to turn on publish clip" — genuinely ambiguous, not resolved here. Could mean (a) a new script that starts/stops `PublishClipPeakTimeCron` via the existing `POST /api/streamers/flows/{name}/start|stop` endpoint, same pattern `agent-fetchClips.sh` already uses for `FetchClips`; (b) something closer to the "Publish Clips" on-demand trigger idea above (fire a one-shot publish, not toggle a flow's running state); or (c) a Telegram-side on/off switch for whether the pipeline is *allowed* to auto-publish at all — a new concept, no backend equivalent exists today. Confirm which with Steven before building.
 - **LiveStreamerAlert silent-drop fixes** — ✓ FIXED and confirmed working live (session 16, 2026-07-12): real HTTP retry on all 5 `InvokeHTTP` calls + failure/unmatched logging across the whole PG. Confirmed against a real 11-streamer-live event with successful posts. See "LiveStreamerAlert — Known Issues" section below.
 - **LiveStreamerAlert tweet format (🟢 + "link in first comment")** — ✓ APPLIED and confirmed live (session 16, 2026-07-12) — see section below.
 - **Clear the LiveStreamerAlert dedup cache** — technique confirmed working in practice (used twice this session) — still only do it when nothing burned represents a real un-posted duplicate risk.
@@ -280,6 +290,11 @@ Flow exported to `StreamersApp_PeakTime_Cron.json` (Downloads) — not yet folde
 - **Pending Publish panel view counts** — ✓ SHIPPED (session 16, 2026-07-12) — `view_count` now carried from fetch through to the Pending Publish panel, matching the Review queue. See "Pending Publish Panel" section below.
 - **Clip quality/scale gating** — OPEN DESIGN QUESTION (session 16, 2026-07-12): watching 11+ streamers surfaced a scale problem (same watch list drives clip-fetching volume). Discussed gating on Twitch `viewer_count`/clip view thresholds before fetch/auto-post; not designed or built. See "Clip Selection..." section below.
 - **Clip glitch effect rework + Talking Tuna Fish ("Charlie") overlay** — BACKLOG (session 16, moved from `streamers.md`) — see "Feature Backlog — Clip Overlay & Glitch Effect" section below.
+- **Telegram script to toggle publish on** — ✓ BUILT (2026-07-22) — `files/agent-publishFlow.sh`, generalized to both Publish flavors per Steven's direction (PG name as command arg). Required adding `PublishClipPeakTimeCron` to backend `STREAMER_PG_NAMES`, deployed. Not yet run for real / not yet in `agent-commands.md` (only logs bot-confirmed commands) — blocked on the double-publish question below.
+- **`PublishClipPeakTimeCron` — verify live state** — ✓ VERIFIED (2026-07-22): PG is fully `STOPPED`, that's the whole bug. But found something bigger — see "PublishClipPeakTimeCron" section above for the live `PublishClip`-running-24/7 conflict that needs resolving before this PG can safely start.
+- **LiveStreamerAlert false positives — streamers shown live who aren't** — ✓ ROOT-CAUSED AND FIXED LIVE (2026-07-22) — dedup cache `Age Off Duration` widened 24h → 72h (`DedupLiveSession`), confirmed via a real jynxzi double-post 24h18m apart. See "False positives" subsection under "LiveStreamerAlert — Known Issues" below.
+- **Lacy caption she/her post-generation guard** — ✓ IMPLEMENTED & DEPLOYED (2026-07-22) — see "Feature Backlog — Lacy Gender Guard" section below. Not yet observed against a real Lacy clip.
+- **LiveStreamerAlert always-on during peak range, slower cadence** — ✓ SHIPPED AND LIVE (2026-07-22) — `PollTimer` now `CRON_DRIVEN`, `0 0/30 16-23 * * ?`, `RUNNING` (matches `PublishClipPeakTimeCron`'s window). See "Re-occurrence / scheduling" section below.
 
 ---
 
@@ -296,6 +311,33 @@ Moved here from `streamers.md` (was sitting under the streamer roster, undocumen
 - **Trigger timing — open question**: overlay for the whole clip, or pop in at a specific beat (e.g. right after the glitch snap-back above)?
 - **Visual fidelity — open question, cheapest-to-priciest**: static clip-art with a looping talking-mouth animation → a few discrete mouth-shape frames swapped on audio amplitude (still cheap, more alive) → full animation (likely overkill for v1).
 - **Pipeline dependency**: both land in the same ffmpeg/overlay processing stage — batch this with the `ClipOverlayProcessor` work already flagged as the highest-risk remaining piece of the ProcessClips native refactor, rather than building throwaway logic in the current Python path first.
+
+---
+
+## Feature Backlog — Lacy Gender Guard (queued 2026-07-22) — ✓ IMPLEMENTED & DEPLOYED (2026-07-22)
+
+Steven's Telegram note, 11:37 AM: "Make clip ingest reject vLLM response for lacy if it has gender she/her - all others ok."
+
+Context already in this doc (Session 18/19 tables above): Lacy (`lacyhimself`) is a man; the prompt-only fix landed 2026-07-16 and was tightened 2026-07-20 (binding the no-pronoun rule directly to the name "lacy" instead of a generic "the streamer" phrasing). Even with that tightened prompt, the measured residual is ~20-30% violation rate on ambiguous/thin-transcript clips — a real ceiling on prompt engineering alone at this model size, not a bug. This new ask is the code-level safety net implied by that ceiling: don't just tell the model not to do it, actively reject the response when it does it anyway.
+
+**Built as a parallel disqualification check, exact same pattern as the existing empty/repetition guards — not a replacement, not a new pathway.**
+
+`backend/services/streamers.py`:
+- `_SHE_HER_RE` (module-level, next to `_has_degenerate_repetition`) — `re.compile(r'\b(?:she|her|hers|herself)\b', flags=re.IGNORECASE)`, word-boundary so it doesn't false-positive on substrings like "hershey" or "there".
+- `_has_she_her_pronoun(text)` — thin wrapper, `bool(_SHE_HER_RE.search(text))`.
+- `process_clip()` — one new `elif` branch right after the existing `_has_degenerate_repetition(cleaned)` check, before the caption is built:
+  ```python
+  elif clip.get("streamer", "").strip().lower() == "lacyhimself" and _has_she_her_pronoun(cleaned):
+      error = "disqualified: she/her pronoun used for lacyhimself"
+  ```
+  `clip["streamer"]` is the same login field every other per-streamer lookup in this file uses (`get_x_handle`, title generation, tweet building) — confirmed by grep, not guessed. Gated on `== "lacyhimself"` only, so a she/her caption for any other streamer is untouched, per Steven's explicit "all others ok" scope.
+- Retry-on-reject question from the original backlog note was **not** resolved or built — out of scope for this pass, same as before. A disqualified Lacy caption just falls into the existing `error`-set/no-caption path (skipped, not posted), same as an empty or repetition-flagged caption today.
+
+**Verified before deploy** — synthetic-only, no live vLLM calls, no real degenerate captions re-triggered: she/her/hers/herself (upper/lower case) correctly flagged; he/him text correctly passed; the substring traps "hershey"/"there"/"gathered" correctly did NOT false-positive; a non-Lacy streamer's she/her caption correctly passed untouched (login gate confirmed working, not just the regex in isolation).
+
+**Deploy**: `make deploy MODULES=rag,streamers,efm` (matched live configmap value, not guessed) — `configmap/cso-operator-app-config unchanged`, `deployment.apps/cso-operator-app unchanged`, rollout succeeded. Re-injected all 10 credential env vars via `kubectl set env` per the standard convention; confirmed all 10 keys present post-redeploy, pod `Running`, `/api/streamers/watchlist` returning real data, root `200`.
+
+**Not yet observed against a real live clip.** This hasn't fired on an actual Lacy clip with a bad caption yet — that requires Lacy going live and vLLM actually producing a she/her caption for him, which hasn't happened since deploy. Logic is verified synthetically only; real-world confirmation is still open.
 
 ---
 
@@ -362,6 +404,9 @@ Backing service is `LiveAlert MapCacheServer` (`org.apache.nifi.distributed.cach
 - **TIMER_DRIVEN, longer period** (e.g. 30-60 min) — lighter touch, still gives visible failures if something goes wrong.
 - **Stay manual** (current) — safest, no urgency to change now that failures are logged instead of silent.
 
+**Resolved by Steven, queued for next session (2026-07-22, Telegram note, 1:40 PM):** "Slow down the live alert processing.. set it always on during a long peak range" — a real direction between the options above: always-on (not manual), but at a slower cadence than the tightest `CRON_DRIVEN` option discussed, scoped to "a long peak range" rather than 24/7. Not fully specified yet — flagging rather than guessing:
+**Confirmed and applied live (2026-07-22):** Steven picked the `PublishClipPeakTimeCron`-matching option — 16-23 UTC window, every 30 min, `CRON_DRIVEN` (not `TIMER_DRIVEN`-with-gate). `PollTimer`'s schedule changed via a narrow property-only PUT (`schedulingStrategy`/`schedulingPeriod` only, no properties touched — this processor has none sensitive) from `TIMER_DRIVEN`/`1 day`/`STOPPED` to `CRON_DRIVEN`/`0 0/30 16-23 * * ?`/`RUNNING`. Confirmed live via the NiFi API post-change. This is the first time `LiveStreamerAlert` has run unattended/continuously rather than manual-trigger-only — worth watching the next few peak windows for real alert volume and any rate-limit friction, since that was the round-1 concern that kept it manual up to now.
+
 ### Tweet format — 🟢 instead of 🔴, add "(link in first comment)" — ✓ APPLIED (2026-07-12)
 
 Target (Steven's sample): `🟢 {login} is LIVE now! Follow on X @{x_handle} — join me on @{platform_tag} (link in first comment)`
@@ -414,6 +459,32 @@ Real run 1: zero results past dedupe — expected, the earlier dry-run test stil
 **Confirmed fixed:** cleared dedup again (safe — nothing had actually posted yet) and reran live. 11 streamers were live, posts went out, e.g. `🟢 stableronaldo is LIVE now!...` → `https://x.com/i/status/2076375747443257672`.
 
 **Hard rule now in memory:** never GET-then-PUT a full processor entity with sensitive properties unless supplying real values for all of them — see `reference-nifi-api-access`.
+
+### False positives — streamers shown live who aren't — reported 2026-07-22, partially investigated
+
+New symptom, distinct from everything above. All the "Known Issues" work in this section (round 1/round 2 silent-drop fixes, dedup burn, HTTP retry logging) was about real-live streamers failing to post — false *negatives*. Steven's Telegram note, 2026-07-22 6:44 PM, is the opposite: the alert shows someone as live who isn't actually live — a false *positive*.
+
+**Read-only pass done 2026-07-22 against the live flow config** (not against real logs/a real occurrence — no false positive happened during this pass to trace directly). `RouteIsLive`'s actual live expression: `is_live = ${live_id:isEmpty():not()}` — routes `is_live` when the `live_id` attribute is non-empty. `EvalTwitchLive`/`EvalKickLive` (both `EvaluateJsonPath`) extract `live_id = $.data[0].id` with **`Path Not Found Behavior = ignore`** — meaning if the API's `data` array is empty (genuinely not live), the path doesn't resolve and the processor does not set `live_id` at all, rather than explicitly setting it to empty. This is the top suspect, not a confirmed root cause: `ignore` behavior is a well-known NiFi footgun when a flowfile can carry a *stale* attribute value into the check from an earlier hop — if `live_id` was ever set on a given flowfile before reaching `EvalTwitchLive`/`EvalKickLive` (e.g., a merge, a retry loop, or attribute carry-over across the Twitch/Kick branch split), the "ignore" behavior would leave that old value in place instead of clearing it, and `RouteIsLive` would see a stale non-empty `live_id` and route `is_live` incorrectly. **Not confirmed** — this flow's actual per-streamer flowfile lifecycle (whether each streamer's check genuinely starts from a clean flowfile every poll) wasn't traced far enough to prove or rule this out, and no live fix was applied against unconfirmed live-posting logic.
+
+Other open questions, still unconfirmed:
+- Staleness angle — a stream that *was* live when checked but ended before the tweet posted, with no re-check between detection and posting?
+- Does this correlate with the dedup cache (`LiveAlert MapCacheServer`) at all, or is it purely an API-parsing issue?
+
+**Next time this happens**, pull `app-log` for the exact timestamp and cross-reference the real Twitch/Kick API response for that login at that time — that's the fastest way to confirm or rule out the `live_id` staleness theory above rather than guessing further. Don't conflate this with the false-negative "silent-drop" issues fixed in rounds 1/2 above — different symptom, likely a different root cause.
+
+**Follow-up pass, 2026-07-22 — stale-attribute theory ruled out, real root cause found and confirmed with hard evidence, fix identified but NOT applied.**
+
+Traced the full live `flow.json` for this PG (27 processors, 50 connections) end to end. Per-streamer flowfile lifecycle: `PollTimer` → `GetRoster` (one `InvokeHTTP` call, one Response flowfile) → `SplitLogins` (`SplitJson`, `$.logins[*]`) fans that single roster response out into one fresh child flowfile per streamer, every poll. Every one of those children is brand new — no `Merge`/`Join` processor exists anywhere in this PG, and nothing loops a flowfile back through `Eval*Live` a second time (the self-looping `Retry` connections on the 5 `InvokeHTTP`s only retry *before* the flowfile has ever reached an `Eval*Live` step). `RouteKickVsTwitch` (`RouteOnContent`, `kick = ^"?kick:`) has zero auto-terminated relationships and its two relationships (`kick`, `unmatched`) are mutually exclusive and each feeds exactly one of `ExtractKickLogin`/`ExtractTwitchLogin` → exactly one of `GetKickChannelId`+`GetKickLiveStatus`/`GetTwitchLiveStatus` → exactly one of `EvalKickLive`/`EvalTwitchLive` — no crossover, no unaccounted relationship. **Conclusion: with the flow wired the way it is today, there is no path for a `live_id` (or any attribute) to leak from one streamer's or one platform's branch into another's, and no path for a flowfile to carry a stale `live_id` in from an earlier hop.** The original theory is structurally ruled out, not just unconfirmed.
+
+Confirmed the real mechanism instead, by pulling 7 days of `app-log` and matching every `LogAlertResult` event that carried a `tweet_url` (i.e., a real, confirmed post) against `login`+`live_id`+`started_at`:
+
+- `DedupLiveSession` (`DetectDuplicate`) has **`Age Off Duration = 24 hours`**, cache key `${login}-${started_at}`. No sensitive properties on this processor at all (unlike `XLivePostProcessor`), confirmed via a live `GET`.
+- `jynxzi`'s stream (`live_id=318541725271`, `started_at=2026-07-20T14:55:35Z`) posted for real at **2026-07-20 20:20:21** → `https://x.com/i/status/2079300396917330265`. The **exact same session** (same `live_id`, same `started_at` — never restarted) posted again for real at **2026-07-21 20:38:16** → `https://x.com/i/status/2079667295643636115`. Gap: **24h17m55s** — just past the 24h cache TTL.
+- This is the mechanism: a marathon/long-running stream that never actually goes offline outlives the dedup cache entry, the entry ages off mid-session, and the next poll sees the (still real, still the same) `live_id`/`started_at` as "new" and re-announces "🟢 X is LIVE now!" for a stream that was already announced a day earlier and never stopped. From the outside this reads exactly like Steven's report — a duplicate "just went live" claim that doesn't match reality (the streamer didn't just go live, they've been live the whole time).
+- Contrast/control cases from the same log pull: `deenthegreat`'s and `hstikkytokky`'s sessions each ended (genuinely new `live_id` appeared) well inside the 24h window, and each got exactly one correct post with no duplicate — confirms the dedup mechanism itself works correctly for normal-length streams; the bug is specifically the 24h ceiling being shorter than some real streamers' actual session lengths.
+- Also checked and ruled out: none of the 4 `InvokeHTTP` calls (`GetTwitchLiveStatus`, `GetKickChannelId`, `GetKickLiveStatus`, `GetXHandle`) have `Response Cache Enabled` — confirmed `false` on all 4 live. Not an HTTP-caching bug.
+
+**Fixed live (2026-07-22).** `DedupLiveSession`'s `Age Off Duration` raised `24 hours` → `72 hours`, comfortably past realistic marathon-stream length — a single non-sensitive property-only `PUT` on `DetectDuplicate` (stop → property PUT → restart, same safe pattern as the peak-cron work above), doesn't touch `XLivePostProcessor`/`XReplyWithPlatformUrl` at all. Confirmed live via the NiFi API: `RUNNING`, `Age Off Duration: 72 hours`. Not yet observed against a real marathon-stream repeat (would need another `jynxzi`-shaped session running past 24h to confirm empirically), but the mechanism directly addresses the confirmed cause.
 
 ---
 
