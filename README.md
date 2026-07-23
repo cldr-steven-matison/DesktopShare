@@ -4,14 +4,15 @@
 **Share spot for MacBook & Windows Markdown (MD) & test files**  
 Used with [Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/).
 
-This repository serves as my **cross-platform workspace** for developing, testing, and sharing assets while working across macOS and Windows environments. It’s tightly integrated with my Cloudera Streaming Operators (CSO) projects — NiFi, Flink, Kafka, Minikube/Kubernetes, custom processors, and more.
+This repository serves as my **cross-device workspace** for developing, testing, and sharing assets. What started as a MacBook + Windows share is now worked on from a small **array of machines** — a MacBook Pro, a Windows gaming PC, a Beelink mini-PC on Starlink, and a DigitalOcean droplet — all driven by **Claude Code**, with each session picking up from the shared history rather than re-learning context. It’s tightly integrated with my Cloudera Streaming Operators (CSO) projects — NiFi (CFM), Flink (CSA), Kafka (CSM), MiNiFi/EFM edge AI, Minikube/Kubernetes, custom processors, and a local RAG app.
 
-Root-level Markdown files are **built with AI** (Grok,Gemini,Claude). I iterate on them until they’re tested, then move them into the appropriate folders to keep the root focused on **new ideas and in-progress plans**.
+Root-level Markdown files are **built with AI** (primarily Claude Code, with Grok and Gemini). I iterate on them until they’re tested, then move them into the appropriate folders to keep the root focused on **new ideas and in-progress plans**.
 
 ---
 
 ## 📋 Table of Contents
 - [Purpose](#purpose)
+- [How the array works](#how-the-array-works)
 - [Repository Structure](#repository-structure)
 - [Supporting Repos & Blog](#supporting-repos--blog)
 - [Technologies & Topics](#technologies--topics)
@@ -30,15 +31,30 @@ Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) ru
 
 ---
 
+## 🤝 How the array works
+
+Every device runs Claude Code against this same repo, so a few files exist to keep those sessions consistent instead of re-teaching context each time:
+
+| File / folder | What it does |
+|---|---|
+| **`CLAUDE.md`** | Session-start instructions every device reads first — what to check, the universal rules, and where things live. |
+| **`CLAUDE-CHECKIN.md`** | The device roster. Each machine checks in with its specs, OS, running services, and per-device paths and port-forwards. |
+| **`agent/`** | Device-agnostic working rules shared by all sessions: `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. |
+| **`how-to-nifi-and-ai.md`** | The cross-device technical playbook for building NiFi / MiNiFi / EFM flows — most hard problems are already solved once in here. |
+
+---
+
 ## 📁 Repository Structure
 
 | Folder       | Description |
 |--------------|-------------|
-| **`/` (root)** | In-progress MD files, plans, and test assets. These are the "living" documents being actively developed with AI. |
+| **`/` (root)** | In-progress MD files, plans, and test assets, plus the array files above. These are the "living" documents being actively developed with AI. |
+| **`agent/`**   | The working rules every Claude Code session follows (see above). |
 | **`blog/`**    | Markdown written specifically as blog output (ready for https://cldr-steven-matison.github.io/). |
 | **`completed/`** | Fully tested, operationally validated documents moved out of root. |
-| **`files/`**   | Supporting files (JSON, `.py`, YAML, Dockerfiles, etc.). These are also synced to the appropriate dedicated repos. |
-| **`history/`** | Archive of previous history and terminal output (`.txt`). |
+| **`files/`**   | Supporting files (JSON, `.py`, YAML, Dockerfiles, agent shell scripts, etc.). These are also synced to the appropriate dedicated repos. |
+| **`history/`** | Archive of previous history and raw terminal/session output (`.txt`). |
+| **`images/`**  | Screenshots and diagrams referenced by the docs and blog. |
 | **`research/`** | MD files in a research state. |
 
 ---
@@ -58,11 +74,13 @@ Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) ru
 
 ## 🛠️ Technologies & Topics
 
-- **Cloudera Streaming**: NiFi (CFM), MiNiFi, Flink (CSA), Kafka (CSM), Schema Registry, SQL Stream Builder
-- **Kubernetes / Minikube** Mac and Windows with GPU support
+- **Cloudera Streaming**: NiFi (CFM), MiNiFi, EFM, Flink (CSA), SQL Stream Builder, Kafka (CSM), Schema Registry
+- **Kubernetes / Minikube**: Mac and Windows, with NVIDIA + AMD/Vulkan GPU support, persistence (PVCs), and ingress/TLS (Let's Encrypt)
+- **Edge AI**: MiNiFi/EFM agents routing to local LLM inference (Lemonade Server, vLLM) across a Tailscale-connected device array
+- **RAG / Streamers app**: the `cso-operator-app` — audio transcription (Whisper), embeddings + Qdrant, local captioning, and a live social-posting pipeline
 - **Custom Processors** (Python, Java)
-- **Observability**: Prometheus, Grafana, Kafka Surveyor
-- **AI**: Local models, audio transcription, fraud detection, local ai, edge ai, agent ai
+- **Observability**: Prometheus, Grafana, Kafka Surveyor, plus SaaS (DataDog, New Relic)
+- **AI tooling**: Claude Code across every device, local models, edge AI, agentic workflows
 - **Cloudera**: Releases, Integrations, How Tos, Tutorials, Documents
 
 ---
