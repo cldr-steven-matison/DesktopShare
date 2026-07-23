@@ -1,10 +1,10 @@
 
 # 🖥️ DesktopShare
 
-**Share spot for MacBook & Windows Markdown (MD) & test files**  
+**Share spot for Markdown (MD) & Cross Device Workflows**  
 Used with [Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Cloudera-Streaming-Operators/).
 
-This repository serves as my **cross-device workspace** for developing, testing, and sharing assets. What started as a MacBook + Windows share is now worked on from a small **array of machines** — a MacBook Pro, a Windows gaming PC, a Beelink mini-PC on Starlink, and a DigitalOcean droplet — all driven by **Claude Code**, with each session picking up from the shared history rather than re-learning context. It’s tightly integrated with my Cloudera Streaming Operators (CSO) projects — NiFi (CFM), Flink (CSA), Kafka (CSM), MiNiFi/EFM edge AI, Minikube/Kubernetes, custom processors, and a local RAG app.
+This repository serves as my **cross-device workspace** for developing, testing, and sharing assets. What started as a Windows `Desktop` share is now worked on from a growing **array of machines** — a MacBook Pro, a Windows gaming PC, a Beelink mini-PC on Starlink, Nvidia Jetson, and a DigitalOcean droplet — all driven by **Claude Code**, with each session picking up from the shared history rather than re-learning context. It’s tightly integrated with my Cloudera Streaming Operators (CSO) projects — NiFi (CFM), Flink (CSA), Kafka (CSM), MiNiFi/EFM edge AI, Minikube/Kubernetes, custom processors, and a local RAG app.
 
 Root-level Markdown files are **built with AI** (primarily Claude Code, with Grok and Gemini). I iterate on them until they’re tested, then move them into the appropriate folders to keep the root focused on **new ideas and in-progress plans**.
 
