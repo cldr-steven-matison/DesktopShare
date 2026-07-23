@@ -23,12 +23,13 @@ Root-level Markdown files are **built with AI** (primarily Claude Code, with Gro
 
 I use this repo to:
 - Rapidly prototype integration plans and test configurations.
-- Share content across macOS (paid gemini/grok + claude) and Windows & Nvidia (gpu testing).
+- Share content across mac, windows, linux, and modern edge devices with GPUs.
 - Store supporting assets (YAML, Python, JSON, etc.) before they’re promoted to dedicated repos or the blog.
 - Keep a clean history of how these plans have evolved from initial plan → completed.
+- Optimize agentic work with Claude, Gemini, Grok, etc
 
 Everything here ties back to **Cloudera Streaming Operators** (CFM, CSA, CSM) running on Kubernetes/Minikube.
-
+Function concepts for NiFi, Kafka, Flink found here will work in other Cloudera form factors of the same.
 ---
 
 ## 🤝 How the array works
