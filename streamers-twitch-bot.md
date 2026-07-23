@@ -153,6 +153,20 @@ Per Steven's own framing ("can be a plan not action") — this is design only. N
 
 **Not scoped for implementation.** No architecture, no code, no NiFi flow changes proposed here beyond the existing capabilities already listed above — this section exists so a future session has the requirements and open questions written down, not a build plan.
 
+### MVP scoped down — 2026-07-23, still plan-only, still not built
+
+Steven cut this to a single first slice, still just talking through ideas (explicitly: "we won't do anything live yet"). Twitch-only now (watchlist no longer carries Kick entries), and the watchlist is kept deliberately small — both close two of the open questions above (channel count, and half of "what triggers a join").
+
+**Hard constraint for whenever this gets built: any net-new NiFi flow work for this lives in its own new process group(s), isolated from every existing PG** (`StreamersApp`, `LiveStreamerAlert`, the existing `TwitchChatBot`) — same discipline already used when `TwitchChatBot` was first built alongside those. Nothing existing gets touched.
+
+**Resolved:**
+- **Join trigger is watchlist membership itself, not a separate live-check.** Steven's framing: "If a streamer is in the watch list, we know they were live" — i.e. by the time someone's on the watchlist, `LiveStreamerAlert`'s existing detection already proved it. This new flow doesn't need to re-verify live status before joining; it can join as soon as an entry lands on the watchlist.
+- **Message, exact text, one-time only:** `"🐟 I am Tuna 👋 You are on my WatchList 🎬"` — posted once per streamer, right after joining their channel.
+- **Bot stays joined** to that streamer's channel after the one-time message — not a fire-and-forget join/part.
+- **Offline → remove from watchlist.** When this new flow notices the streamer has gone offline, it calls the now-live `POST /api/streamers/watchlist/remove` (confirmed present in `services/streamers.py`/`routers/streamers.py` as of 2026-07-23) and presumably parts the channel at that point (implied by "stay in there until we notice they are offline," not yet stated explicitly).
+
+**Still genuinely open, not decided:** how this new, isolated flow actually *detects* "gone offline" for each joined streamer. `LiveStreamerAlert` already has this logic (`RouteIsLive`/`GetTwitchLiveStatus`), but the new-PG-isolation rule means this flow likely needs its own polling (a new Helix live-status check per currently-joined streamer) rather than tapping into `LiveStreamerAlert`'s internals — needs Steven's call before this is buildable. Everything else in this MVP slice is otherwise resolved.
+
 ---
 
 **Full Detailed Implementation Plan (original draft — superseded by the as-built section above for the single-screen MVP)**  

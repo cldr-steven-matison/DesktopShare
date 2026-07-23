@@ -14,7 +14,7 @@ A working playbook for building **NiFi 2.x + MiNiFi + EFM** flows programmatical
 - `<external-nodeport>` — Kafka's external NodePort (only relevant when a flow runs *outside* the cluster).
 - Self-signed TLS is assumed by default, hence `-k` / `verify_ssl=False`. Drop it once you've wired a real cert.
 
-## The 7 rules — read before touching any live flow
+## The 8 rules — read before touching any live flow
 
 1. **Live UI / `flow.json` is truth. Docs and memory lag.** Before touching a running Process Group, dump the live flow and read what's actually there:
    ```bash
@@ -29,6 +29,7 @@ A working playbook for building **NiFi 2.x + MiNiFi + EFM** flows programmatical
 5. **Every flow change gets exported + committed.** A running canvas that isn't in version control is one restart from gone. Export the Process Group JSON after every real change.
 6. **`ListenHTTP` on MiNiFi C++ is fire-and-forget.** MiNiFi C++ has no `HandleHttpRequest`/`HandleHttpResponse` pair — the caller gets an empty 200 ack, and the real reply must exit via Kafka keyed on a caller-supplied `request_id`. The request/response pair only exists in full Java NiFi.
 7. **`Retry` is not `Failure`.** Auto-terminating `InvokeHTTP`'s `Retry` relationship silently drops every transient 5xx/429. Self-loop `Retry` with a bounded `FlowFile Expiration` (10 min is a good default) and route `Failure`/`No Retry` to a log processor.
+8. **New logic gets a new, finite Process Group — never build it inline inside an existing one.** Adding processors/connections into a PG that's already live and doing something else is how a connection ends up wired to the wrong relationship, or a rewire meant for the new feature quietly reroutes existing traffic — the canvas gets confusing fast, and it's hard to review "what changed" when new and old logic share the same PG. Build the new capability in its own PG with no shared connections to existing PGs (same pattern already used for `TwitchChatBot` alongside `StreamersApp`/`LiveStreamerAlert`). If the new PG genuinely needs to connect to or sit inside an existing flow, treat that connectivity/placement decision as a separate, deliberate step — don't let it fall out as a side effect of building the new logic.
 
 ## Deployment shapes
 
