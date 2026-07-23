@@ -28,6 +28,11 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
 - **Never hand-inject data into a live-posting trigger to shortcut a test.** Even if the payload is real and verified. Let the real pipeline fire the trigger, or scope the test off the live flow entirely.
 - **Never cancel or mutate items already in a live posting queue without an explicit per-instance ask.** Not even ones that are obviously bad. See `live-queues.md`.
 
+## Live service restarts
+
+- **Confirm before restarting any live service — NiFi pod, MiNiFi service, `cso-operator-app` pod — regardless of device.** "This is the correct/sanctioned way to ship the fix" is not the same question as "do I have permission to do it right now." Announcing the action and then doing it is not confirmation. (2026-07-23: redeployed `cso-operator-app` twice without asking; the second restart hit `FetchClips` mid-call and dropped it. Rebuild+redeploy is genuinely the right mechanism for `cso-operator-app` — see `feedback_prod_no_manual_patches.md` — but that only establishes *how*, not *whether to ask first*.)
+- **A single-replica pod restart is not a "sequential build step."** It's the "truly destructive/irreversible" category — an in-flight request gets dropped, not queued or retried. Treat it that way even under general low-friction guidance about not pausing for routine build steps.
+
 ## Commits and workflow
 
 - **Commit and push only when explicitly asked.** Working-tree changes stay uncommitted by default. See `workflow.md`.
