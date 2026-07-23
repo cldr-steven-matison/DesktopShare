@@ -13,8 +13,8 @@ Root-level Markdown files are **built with AI** (primarily Claude Code, with Gro
 ## 📋 Table of Contents
 - [Purpose](#purpose)
 - [How the array works](#how-the-array-works)
-- [Repository Structure](#repository-structure)
-- [Supporting Repos](#supporting-repos)
+- [Repository Structure](#-repository-structure)
+- [Supporting Repos](#-supporting-repos)
 - [Technologies & Topics](#%EF%B8%8F-technologies--topics)
 
 ---
