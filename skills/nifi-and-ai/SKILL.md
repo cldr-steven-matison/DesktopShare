@@ -51,7 +51,7 @@ The canonical AI array is all three at once: **EFM + MiNiFi agents on the edge +
 | `references/custom-processors.md` | Writing custom Python/Java processors, the mixed-template EL trap, and rebuild→redeploy discipline. |
 | `references/minifi-efm.md` | The edge side: staging agent binaries, EFM persistence, the deployer curl, Windows+Python, and the (undocumented) EFM Flow Designer API. |
 | `references/debugging.md` | Cross-cutting wire-up gotchas and a 10-step debugging checklist. |
-| `references/human-touch-followups.md` | Running list of things a Claude-built flow still needs a human pass on (canvas layout, and whatever's added next). |
+| `references/layout.md` | Canvas layout & arrangement: the coordinate model, grounded spacing constants, per-shape placement rules, and a worked example — plus the running list of other things a Claude-built flow still needs a human pass on. |
 
 ## The most common ways a NiFi flow silently fails
 

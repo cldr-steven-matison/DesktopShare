@@ -42,6 +42,24 @@ Embed + store: ConsumeKafka new_documents  → embed → <vector-store> upsert
 - Set `concurrentlySchedulableTaskCount=3` on `InvokeHTTP` / `PublishKafka` only when the downstream can genuinely take N in parallel.
 - Leave `ConsumeKafka` at 1 concurrent task if the topic is single-partition — more won't help and complicates ordering.
 
+## Native FlowFile chain for a poll → check → act loop (rule 9 made concrete)
+
+When the task is "poll something, check a condition per item, then act," the shape is a chain of stock processors — **not** one custom Python processor running its own timer/state/decision loop internally (rule 9 in `SKILL.md` explains why: a monolith gives up per-stage queues, provenance, mid-flow inspection, and can leak a background thread that outlives NiFi's lifecycle).
+
+The shipped shape (from `StreamersApp`'s live-streamer poll):
+
+```
+GenerateFlowFile (timer)  → InvokeHTTP (fetch the roster/list)
+  → SplitJson (one FlowFile per item)
+  → RouteOnContent / RouteOnAttribute (branch per type)
+  → ExtractText / EvaluateJsonPath (pull fields) → InvokeHTTP (per-item status check)
+  → RouteOnAttribute (is_live?) → act (post / add to watchlist / …)
+```
+
+- **NiFi's own scheduler drives cadence** via the `GenerateFlowFile`'s `Run Schedule` — never an internal `while`/`sleep`.
+- Each `InvokeHTTP` self-loops its `Retry` relationship (rule 7) and routes terminal `No Retry`/`Failure` to a log processor.
+- Reach for custom Python only for the one thing NiFi genuinely can't do natively (e.g. holding a persistent external socket) — see `custom-processors.md`.
+
 ## GUI-less edge agent → native host process bridge
 
 Some edge targets have no path to a real GUI — a pod inside a Kubernetes cluster on a Windows/WSL2 host has no `DISPLAY`, no X socket, and the container runtime won't expose one. Don't fight that by trying to mount a display in.

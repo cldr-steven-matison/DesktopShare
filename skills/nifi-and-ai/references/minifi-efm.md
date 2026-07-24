@@ -109,7 +109,7 @@ Confirmed working contract:
 
 ## 8. Canvas layout when building flows programmatically
 
-Position matters — a flow whose processors stack on top of each other is unreadable in the Designer. **Match new processors' x-coordinates to the existing column for that processor role**, don't pick arbitrary offsets; vary only `y` (one row per new pattern). This makes the result readable immediately, but it does **not** eliminate the need for a manual align/tidy pass — see `human-touch-followups.md` for the general version of this and other build-vs-cleanup gaps, updated as new ones turn up.
+Canvas layout is not an EFM-specific concern — it's the same discipline for every programmatic build, whether through the EFM Designer API or the NiFi REST API, because both use the same `position:{x,y}` model. The full technique (coordinate model, grounded constants, per-shape placement rules, worked example) and the honest caveat that it still needs a manual tidy pass live in **`layout.md`**.
 
 ## 9. EFM Resource Manager API
 

@@ -60,6 +60,8 @@ curl -sk --cert client.crt --key client.key -X PUT \
   -d '{"id":"'$NEW_PG_ID'","state":"RUNNING"}'
 ```
 
+**Positioning:** the `positionX`/`positionY` above place the PG; the `position` on each processor inside the uploaded JSON places the components. Pick these deliberately — a build with careless positions is functionally correct but unreadable on the canvas. The layout technique (coordinate model, spacing constants, per-shape rules) is in `layout.md`.
+
 ## 4. Editing a live processor safely
 
 **State change only** (start/stop/enable — e.g. to pulse a processor once):

@@ -1,5 +1,7 @@
 # Custom processors (Java NiFi 2.x)
 
+**Before writing one, check that you need it.** Rule 9 in `SKILL.md`: decompose "poll → check → act" logic into a chain of stock processors (see the native-chain pattern in `patterns.md`), and reach for custom Python only for the one thing NiFi genuinely can't do natively — e.g. holding a persistent external socket, or a transform no stock processor covers. A custom processor that re-implements timers/branching/state internally is the wrong shape.
+
 Python processors do **not** exist in NiFi 1.x. If your palette shows no custom processor even though the CR claims a 2.x version, verify the pod's actual image tag (`kubectl describe pod <nifi-pod> | grep Image:`) — the tag can lag the label.
 
 ## Two base classes cover 99% of cases
