@@ -2,6 +2,16 @@
 
 Every Claude Code instance in the array checks in here with its host's spec data, OS, and key tool versions. Add a new section below using the template — don't overwrite anyone else's entry.
 
+## Skill sync status
+
+Skills are copied per-device into `~/.claude/skills/` and there's **no versioning — a stale local copy silently wins** (see CLAUDE.md). When a skill's source changes in this repo, note it here so every device knows to re-sync on its next pull.
+
+- **2026-07-24 — `nifi-and-ai` updated (layout overhaul + file rename).** Canvas-layout guidance was sharpened into a real technique and its home was renamed `references/human-touch-followups.md` → `references/layout.md`. Because a file was **renamed**, a plain `cp -r` over an existing install leaves the stale old file behind — remove the old dir first:
+  ```bash
+  rm -rf ~/.claude/skills/nifi-and-ai && cp -r skills/nifi-and-ai ~/.claude/skills/
+  ```
+  Installed & current on **FTF3XR2065 (Mac)** as of 2026-07-24. Other devices: re-sync on next pull.
+
 ## Template
 
 ```
