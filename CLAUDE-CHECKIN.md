@@ -12,6 +12,7 @@ Skills are copied per-device into `~/.claude/skills/` and there's **no versionin
   ```
   Installed & current on **FTF3XR2065 (Mac)** as of 2026-07-24.
 - **2026-07-24 (same day, later) — `layout.md` gained a new "Inserting a new node into an existing connection" section.** Real incident: building `WatchlistChatJoiner`'s `BuildJoinedEvent`, Claude placed it at the midpoint between two existing processors' y-values instead of preserving the column's established row pitch — compressed one hop, desynced it from a parallel column that shared rows with it. Fixed live on canvas + added the rule so it doesn't repeat. Re-synced on **MINI-Gaming-G1** as of 2026-07-24 — this device had never picked up the earlier rename either (still had the old `human-touch-followups.md`), both caught up in the same pass. Other devices: still re-sync on next pull.
+- **2026-07-24 (same day, later still) — `flow-api.md` gained a new §4 "Downloading a flow definition."** Documents the re-export-to-keep-current workflow (`GET /process-groups/{id}/download`, pretty-print before committing, confirmed no credential leakage) after `cso-operator-app`'s checked-in flow exports had gone weeks stale. Sections 4-6 renumbered to 5-7 — check any external notes citing the old `§5`/`§6` by number. `SKILL.md`'s reference table and the top-level `skills/README.md` summary both updated to mention it. Re-synced on **MINI-Gaming-G1**. **Standing rule going forward: any `nifi-and-ai` skill change gets its own separate commit**, never bundled with unrelated work in the same commit.
 
 ## Template
 

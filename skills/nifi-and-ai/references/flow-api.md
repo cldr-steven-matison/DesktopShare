@@ -62,7 +62,32 @@ curl -sk --cert client.crt --key client.key -X PUT \
 
 **Positioning:** the `positionX`/`positionY` above place the PG; the `position` on each processor inside the uploaded JSON places the components. Pick these deliberately — a build with careless positions is functionally correct but unreadable on the canvas. The layout technique (coordinate model, spacing constants, per-shape rules) is in `layout.md`.
 
-## 4. Editing a live processor safely
+## 4. Downloading a flow definition (the reverse direction — keeping exports current)
+
+Checked-in flow-definition JSON (`flows/*.json`, `streamers/*.json` in `cso-operator-app`, or wherever a repo snapshots its NiFi flows) goes stale the moment someone hand-edits the live PG via the UI or the API — which is the normal way these flows evolve. Treat re-exporting as a habitual close-out step after any live-build session that touches a flow with a checked-in export, not something you only do when asked.
+
+```bash
+# Find the PG's real runtime ID first (its instanceIdentifier, not the version-control
+# identifier — see the two-IDs gotcha elsewhere in this skill)
+curl -sk --cert client.crt --key client.key \
+  "$NIFI/nifi-api/flow/process-groups/root" | jq -r '.processGroupFlow.id'
+
+# Same VersionedFlowSnapshot JSON the UI's "Download flow definition" produces
+curl -sk --cert client.crt --key client.key \
+  "$NIFI/nifi-api/process-groups/$PG_ID/download" -o MyFlow.json
+```
+
+**Pretty-print before committing.** The raw response is minified (single line) — committing it that way turns every future diff into a full-file rewrite instead of the real, reviewable additive change:
+
+```python
+import json
+d = json.load(open("MyFlow.json"))
+json.dump(d, open("MyFlow.json", "w"), indent=2)
+```
+
+**Confirmed safe to commit, checked empirically (2026-07-24), not assumed:** Parameter Context sensitive-property values export as `null`, never the real value or even the `"********"` GET-mask — and processor-level sensitive properties aren't embedded either, since the correct pattern (rule 2 above) keeps them out of literal processor properties entirely. No credential-leak risk in a flow-definition download, unlike a raw processor-entity `GET`.
+
+## 5. Editing a live processor safely
 
 **State change only** (start/stop/enable — e.g. to pulse a processor once):
 
@@ -75,10 +100,10 @@ This endpoint takes revision + state only. It cannot corrupt sensitive propertie
 
 **Property edit** — send only the properties you're changing; never PUT the full entity. If the property is sensitive, don't send it here at all — bind it to a Parameter Context and manage the value there (see rule 2 in `SKILL.md`).
 
-## 5. Client libraries (nipyapi)
+## 6. Client libraries (nipyapi)
 
 `nipyapi` is fine for Registry-backed flow versioning, Parameter Context CRUD, and flat CRUD on components — reach for it when the alternative is scripting five separate `curl` calls. It is **not** the tool for flow-definition uploads that carry sensitive properties; use the raw multipart `curl` in §3 for those.
 
-## 6. A note on public TLS certs
+## 7. A note on public TLS certs
 
 If you terminate a real (e.g. Let's Encrypt) cert in front of NiFi, do it at an ingress/proxy layer and re-encrypt to NiFi's backend cert — **don't replace an operator's node-identity cert chain with the public cert.** With Single-User Auth the node's server-identity DN is often also the `Initial Admin Identity`, so swapping it means editing `authorizers.xml` and restarting on every renewal. For host-native NiFi, a `certbot` deploy hook that rebuilds the keystore and restarts NiFi is the clean path.

@@ -4,7 +4,7 @@ Shareable [Claude skills](https://docs.claude.com/en/docs/claude-code/skills) di
 
 ## `nifi-and-ai`
 
-A bare-minimum playbook for building **Apache NiFi 2.x + MiNiFi + EFM** flows programmatically and at the edge — deploying flows via the REST API, writing custom Python/Java processors, standing up MiNiFi agents through EFM, and debugging the silent-drop failures that cost a day each. Includes the LLM/RAG inference patterns (Kafka fan-out, Whisper, embeddings, vector stores).
+A bare-minimum playbook for building **Apache NiFi 2.x + MiNiFi + EFM** flows programmatically and at the edge — deploying flows via the REST API (including re-exporting a live flow's definition to keep a checked-in copy current), writing custom Python/Java processors, standing up MiNiFi agents through EFM, laying out a build so it doesn't look like an API dumped it on the canvas, and debugging the silent-drop failures that cost a day each. Includes the LLM/RAG inference patterns (Kafka fan-out, Whisper, embeddings, vector stores).
 
 It's the sanitized, external-friendly counterpart to this repo's internal `how-to-nifi-and-ai.md` — same hard-won lessons, with the device names, network topology, and internal file references stripped out.
 
