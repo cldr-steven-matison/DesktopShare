@@ -7,7 +7,7 @@ tricks. Read the section for the device you're touching — don't assume a fix
 on one side applies to the other without checking.
 
 - **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21.
-- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation" below. Built and verified 2026-07-23. **Not yet wired to Twitch chat** — see "Next steps" at the bottom.
+- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). **Not yet wired to Twitch chat** — see "Next steps" at the bottom, including the decided local-to-array screen-number mapping.
 - **MINI-Gaming-G1 (Windows gaming PC)** — not built yet. Steven's ask (2026-07-23): "we need to do this on the WindowsDesktop Device too." Follow the Windows implementation below as the template — it should port over close to verbatim, see "Next steps."
 
 ## Jetson implementation
@@ -211,23 +211,39 @@ without touching native MiNiFi C++'s broken Python `ExecuteScript` support
 - `C:\minifi-manual\windows_matrix_launcher.py` — HTTP listener, port 5901,
   `0.0.0.0` bound (matches `browser_launcher.py`'s existing bind — loopback-
   only by convention today, not by firewall; see "Next steps" on wiring this
-  up before it becomes reachable from a pod). `POST /matrix` launches;
-  `POST /kill` tears down. Registered as Scheduled Task `MatrixLauncherListener`.
+  up before it becomes reachable from a pod). Per-screen model as of
+  2026-07-24: a `SCREENS` dict keyed by logical name (`screen2`, `screen3` —
+  see below for why there's no `screen1` entry), each with its own
+  `position`/`size`/profile-dir prefix. `POST /matrix/<screen>` launches that
+  screen only; `POST /kill/<screen>` tears down that screen only. Each
+  screen's Edge process is tracked by its own PID (`_running[name]`), and
+  kill/relaunch acts on that PID specifically (`taskkill /PID ... /F /T`) —
+  **not** `taskkill /IM msedge.exe`, which would kill every Edge process on
+  the box (the user's own regular browsing included) and, with multiple
+  independent kiosk targets, would also kill the other screen's window.
+  `POST /matrix` and `POST /kill` (no screen name) remain as aliases for
+  `screen2`, kept only so the existing `idle_watcher.py` calls (see below)
+  and any already-wired external caller keep working unchanged. Registered
+  as Scheduled Task `MatrixLauncherListener`.
 - `C:\minifi-manual\idle_watcher.py` — polls `GetLastInputInfo`/`GetTickCount`
   every 2s, 2-minute threshold (`IDLE_THRESHOLD_MS`, same default as the
-  Jetson). Self-POSTs to the listener's own `/matrix` and `/kill` — the exact
-  same HTTP path a future NiFi trigger will use, not a separate code path.
-  Registered as Scheduled Task `MatrixIdleWatcher`.
+  Jetson). Idle detection is desktop-wide (`GetLastInputInfo` has no
+  per-monitor concept), so on crossing the threshold it self-POSTs to launch
+  **both** `screen2` and `screen3` from the one idle signal, and kills both
+  on real activity resuming. Registered as Scheduled Task `MatrixIdleWatcher`.
 - Both Scheduled Tasks: `AtLogOn` trigger for `TunaStarlink\tunas`,
   `RestartCount=3`/`RestartInterval=1min`, unlimited execution time — same
   shape as the GamingPC's `BrowserLauncherListener` task.
 
-Target monitor is hardcoded: `MATRIX_POSITION = "1920,0"`,
-`MATRIX_SIZE = "1920,1080"` in `windows_matrix_launcher.py` — the new second
-monitor (`DISPLAY2`, non-primary), confirmed via
-`[System.Windows.Forms.Screen]::AllScreens`. `DISPLAY1` (primary, `0,0`,
-`1536x864`, scaled) is Steven's active work screen and is deliberately never
-touched.
+Screens, confirmed via `[System.Windows.Forms.Screen]::AllScreens`:
+
+| Logical name | Monitor | Position/size | Idle-watcher driven? |
+|---|---|---|---|
+| (none — excluded) | DISPLAY1, primary, `0,0` `1536x864` | n/a | No — Steven's active work screen, never touched |
+| `screen2` | DISPLAY2 | `1920,0` `1920x1080` | Yes |
+| `screen3` | DISPLAY3 (added 2026-07-24, USB-C→HDMI on the rear port) | `3840,0` `1920x1080` | Yes |
+
+`screen1` was added briefly on 2026-07-24 to cover DISPLAY1 too, tested once, and removed after it caused the crash documented in "Known failure mode" #2 below. It is not in `windows_matrix_launcher.py`'s `SCREENS` dict at all (not just excluded from the idle watcher) — `POST /matrix/screen1` now 404s.
 
 ### Why this diverged from the Jetson's approach
 
@@ -250,7 +266,7 @@ touched.
   screensaver process fighting for window stacking the way xscreensaver did
   on the Jetson — there was simply nothing to disable.
 
-### Known failure mode (found and fixed, verified 2026-07-23)
+### Known failure mode #1: InPrivate/windowed fallback (found and fixed, verified 2026-07-23)
 
 **Symptom:** an unattended, idle-watcher-triggered launch came up as a
 normal windowed Edge window (visible tabs/address bar, title bar showing
@@ -296,6 +312,50 @@ retested through those). Confirmed via `GetWindowRect` that the kiosk window
 lands exactly at `1920,0 → 3840,1080` (DISPLAY2) and Steven's primary
 monitor/work session is never touched.
 
+### Known failure mode #2: 3-screen simultaneous trigger crashes the box (found 2026-07-24, not a software bug — a hardware/driver ceiling)
+
+**Symptom:** after adding a 3rd monitor (DISPLAY3) and refactoring the
+launcher to support independent per-screen targeting (see Components above),
+`screen1`/`screen2`/`screen3` were triggered simultaneously as a one-off test
+("turn matrix on all 3 of this device's screens"). All three came up
+correctly (confirmed via `Get-Process msedge` showing 3 independent kiosk
+windows at the right rects, plus Steven's own regular Edge window untouched)
+— but within roughly two minutes the whole box hard-crashed and rebooted.
+
+**Root cause:** confirmed via `Get-WinEvent` — Kernel-Power ID 41 (unexpected
+shutdown) and a WER bugcheck event: **`0x00000133`
+(`DPC_WATCHDOG_VIOLATION`)**, dump saved to
+`C:\WINDOWS\Minidump\072426-15234-01.dmp`. This means a driver — near-
+certainly the AMD Radeon 780M's display/compositor path — held a deferred
+procedure call too long while compositing three simultaneous full-HD, 24fps,
+GPU-accelerated kiosk surfaces, and Windows' watchdog forced a full reboot
+rather than let the system hang. This is a real OS-level crash, not a
+performance hiccup or a bug in the launcher/HTML — the per-screen process
+isolation worked exactly as designed (all 3 windows launched cleanly, no
+profile-dir collisions, no Python exceptions in the crash log), the
+underlying integrated GPU simply couldn't sustain the composited load.
+
+One caveat worth flagging: the **exact same bugcheck (`0x133`) also occurred
+once before, on 2026-07-23 at 9:29 AM**, unrelated to any of this Matrix
+work — so this box's AMD driver has some baseline DPC watchdog fragility.
+3-simultaneous-screen Matrix load is a strong, reproducible trigger for it
+here, but may not be the *only* thing that can trigger it.
+
+**Decision (not a fix — a scope limit):** this device runs **at most 2**
+Matrix screens simultaneously: `screen2` + `screen3`. `screen1` (DISPLAY1,
+the primary/work monitor) was removed from `windows_matrix_launcher.py`'s
+`SCREENS` dict entirely — see Components above — rather than merely left out
+of the idle watcher, specifically so an accidental/future `/matrix/screen1`
+call can't recreate the 3-screen combination that caused this. If a real
+need for `screen1` support ever comes up, re-add it deliberately, and do not
+trigger it alongside both `screen2` and `screen3` at once.
+
+**Verified 2026-07-24 post-recovery:** confirmed clean state after reboot —
+no leftover Edge/kiosk processes, `MatrixLauncherListener`/`MatrixIdleWatcher`
+scheduled tasks manually restarted and responsive (`Start-ScheduledTask` +
+port-5901 reachability check), `screen1` removed from the running listener's
+code and confirmed `/matrix/screen1` now returns `404`.
+
 ### Adjusting
 
 Edit `C:\minifi-manual\matrix-screensaver.html` or the `MATRIX_POSITION`/
@@ -310,11 +370,18 @@ Start-ScheduledTask -TaskName MatrixLauncherListener
 Start-ScheduledTask -TaskName MatrixIdleWatcher
 ```
 
-To trigger manually without waiting for idle:
+To trigger manually without waiting for idle (per-screen — `screen2` and/or
+`screen3`, never both plus a hypothetical `screen1` at once, see "Known
+failure mode" #2):
 
 ```powershell
-Invoke-WebRequest -Uri http://127.0.0.1:5901/matrix -Method POST -Body '{}' -ContentType 'application/json' -UseBasicParsing
+Invoke-WebRequest -Uri http://127.0.0.1:5901/matrix/screen2 -Method POST -Body '{}' -ContentType 'application/json' -UseBasicParsing
+Invoke-WebRequest -Uri http://127.0.0.1:5901/matrix/screen3 -Method POST -Body '{}' -ContentType 'application/json' -UseBasicParsing
 ```
+
+(`/matrix` with no screen name is still accepted as an alias for `screen2`,
+kept only for `idle_watcher.py`'s existing calls — prefer the explicit
+`/matrix/screen2` form for anything new.)
 
 (`-UseBasicParsing` matters here — without it, `Invoke-WebRequest` on this
 box throws a `NullReferenceException` from its HTML-parsing path, unrelated
@@ -347,13 +414,30 @@ order:
 2. **Wire TunaStarlink into the Twitch bot's `!matrix` command.** Right now
    `!matrix` only routes to the Jetson (`InvokeNvidiaNanoMatrix`, see
    `streamers-twitch-bot.md`). The screen-mapping table
-   (`streamers-twitch-bot.md`, "Mapping Layer") doesn't have an entry for
-   TunaStarlink yet. Steven's stated direction: "we will be adding screen1,
-   screen2, etc to !matrix with some of those screenX being on Beelink" —
-   so this isn't just a new hardcoded `InvokeTunaStarlinkMatrix` branch, it's
-   part of a real screen-name-to-device lookup that also needs to cover the
-   Jetson and GamingPC. Worth deciding the lookup table shape *before*
-   wiring TunaStarlink in, so it isn't rebuilt twice.
+   (`streamers-twitch-bot.md`, "Mapping Layer"/section 4) doesn't have an
+   entry for TunaStarlink yet, but the **array-wide numbering is now decided**
+   (2026-07-24) so this doesn't need to be re-derived when built:
+
+   | Array-wide `!matrix` screen | Device | Local screen name on that device |
+   |---|---|---|
+   | (existing, unrelated to this) `screen1`/`screen2` | Jetson / GamingPC | see `streamers-twitch-bot.md` section 4 for the existing `!load` mapping — `!matrix` itself currently only targets the Jetson |
+   | `screen3` | TunaStarlink | `screen2` (DISPLAY2, `windows_matrix_launcher.py`'s `/matrix/screen2`) |
+   | `screen4` | TunaStarlink | `screen3` (DISPLAY3, `windows_matrix_launcher.py`'s `/matrix/screen3`) |
+
+   Note the deliberate naming mismatch: **locally** on TunaStarlink the two
+   safe screens are called `screen2`/`screen3` (matching this device's own
+   `SCREENS` dict — see Components above); in the **array-wide** bot mapping
+   they become `screen3`/`screen4` since global `screen1`/`screen2` are
+   already spoken for by the Jetson/GamingPC. Don't let this collide — the
+   NiFi-side routing needs to translate array `screen3`→local `screen2` and
+   array `screen4`→local `screen3` (e.g. in whatever `InvokeHTTP` hits
+   TunaStarlink's `:5901` listener, the *path* it calls should be
+   `/matrix/screen2` or `/matrix/screen3`, not `/matrix/screen3` or
+   `/matrix/screen4` — those would 404 or hit the wrong monitor). TunaStarlink
+   never gets an array-wide `screen1`-equivalent — its own `screen1`
+   (DISPLAY1, primary) was removed from the launcher entirely after the
+   3-screen crash documented in "Known failure mode" #2, so it's not
+   available to wire in at all right now.
 
 3. **How to actually reach the :5901 listener from NiFi.** TunaStarlink's
    MiNiFi agent (`StarlinkAI` class, per `CLAUDE-CHECKIN.md`) is a **native
