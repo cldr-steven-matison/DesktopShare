@@ -65,11 +65,11 @@ stop PublishClipPeakTimeCron
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-publishFlow.sh PublishClipPeakTimeCron stop"
 ```
 
-`agent-fetchClips.sh`/`agent-publishFlow.sh` start/stop toggle a process group's continuous/cron operation on or off — that's their one job now. They used to also double as the manual "get me one run right now" mechanism (start, let it tick, stop again) — that's what `Trigger` below replaces. `PublishClip` (the old GenerateFlowFile-timer flavor) is retired — both its processors are `DISABLED` live (2026-07-24, Steven: "publish clip is gone, we only use PublishClipPeakTime w/ Trigger") — `agent-publishFlow.sh` no longer accepts it as an arg; use `Trigger PublishClip` instead.
+`agent-fetchClips.sh`/`agent-publishFlow.sh` start/stop toggle a process group's continuous/cron operation on or off — that's their one job now. They used to also double as the manual "get me one run right now" mechanism (start, let it tick, stop again) — that's what `Trigger` below replaces.
 
 ## Trigger — one-shot on-demand run, any flow
 
-**Not yet bot-confirmed — `POST /api/streamers/flows/trigger/{name}` exists in code but isn't deployed to the live pod yet (2026-07-24).** Needs a deploy before any of these will actually work; test for real once that's done, then this note comes out.
+**Deployed and real-world confirmed 2026-07-24, not yet tested through the actual Telegram bot.** `POST /api/streamers/flows/trigger/{name}` is live — `PublishClip` posted a real tweet when called directly (Steven's explicit ask, see Session 21), confirming the mechanism genuinely works end to end. `LiveStreamerAlert` hasn't been fired for real yet. What's still missing is a real round-trip through `agent-trigger.sh` via the bot itself, not just a direct call to the endpoint — that's the last box to check before this note comes out.
 
 `agent-trigger.sh` replaces three separate old mechanisms with one script: `agent-liveStreamerAlert.sh`'s PollTimer pulse (removed), and the start-then-stop-immediately hack that used to be how you'd force a single `FetchClips`/`PublishClip` run. Fires one flowfile through `StreamersApp`'s shared `Trigger` (`ListenHTTP`) → `RouteOnAttribute` entry point, straight into the target flow's `TriggerInput` port — bypasses that flow's own top-level scheduler entirely, so it never touches `PollTimer`'s cron or any PG's running state. The flow name **isn't validated client-side** — the backend's `TRIGGER_REQUESTS` allow-list is the single source of truth, so a new flow wired onto `RouteOnAttribute` + added to that allow-list is triggerable from here immediately, no script edit needed.
 
