@@ -1,12 +1,24 @@
-# Jetson screensaver: Matrix digital rain
+# Matrix digital rain screensaver
 
-## What it is
+Two independent implementations of the same idea, one per platform. Both
+drive the same self-contained HTML canvas scene; the launch/idle mechanics
+are platform-specific because Linux/X11 and Windows need genuinely different
+tricks. Read the section for the device you're touching — don't assume a fix
+on one side applies to the other without checking.
+
+- **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21.
+- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation" below. Built and verified 2026-07-23. **Not yet wired to Twitch chat** — see "Next steps" at the bottom.
+- **MINI-Gaming-G1 (Windows gaming PC)** — not built yet. Steven's ask (2026-07-23): "we need to do this on the WindowsDesktop Device too." Follow the Windows implementation below as the template — it should port over close to verbatim, see "Next steps."
+
+## Jetson implementation
+
+### What it is
 
 A Chromium-kiosk "screensaver" driven by a standalone idle-watcher instead of
 xscreensaver. The active scene is a classic Matrix-style falling-code effect
 (binary `0`/`1`, canvas-based) with a small glowing clock in the corner.
 
-## Why not xscreensaver
+### Why not xscreensaver
 
 The original setup used xscreensaver's `programs:` hack mechanism to launch
 Chromium in kiosk mode. This was janky: xscreensaver hacks are expected to
@@ -30,7 +42,7 @@ exactly, the screen (e.g. 1854x1048 at an offset instead of 1920x1080 at
 0,0). Fix: after launching, force `_NET_WM_STATE_FULLSCREEN` explicitly with
 `wmctrl`.
 
-## Components
+### Components
 
 - `~/matrix-screensaver.html` — the scene itself (self-contained, no network
   calls, works as a `file://` URL).
@@ -50,7 +62,7 @@ exactly, the screen (e.g. 1854x1048 at an offset instead of 1920x1080 at
 
 Current idle threshold: 2 minutes (`IDLE_THRESHOLD_MS` in the watcher script).
 
-## Matrix rain implementation notes
+### Matrix rain implementation notes
 
 - Canvas 2D, not DOM elements — one draw call per column per frame, not a
   per-frame redraw of the whole trail. An early version explicitly redrew a
@@ -72,9 +84,9 @@ Current idle threshold: 2 minutes (`IDLE_THRESHOLD_MS` in the watcher script).
 - Runs at 24 FPS via `setInterval`, not `requestAnimationFrame`, to keep a
   fixed cheap draw rate independent of monitor refresh.
 
-## Known failure modes (both fixed, both verified)
+### Known failure modes (both fixed, both verified)
 
-### 1. Silent failure to launch ("dies" with no window, no error)
+#### 1. Silent failure to launch ("dies" with no window, no error)
 
 Chromium originally used its default shared snap profile
 (`~/snap/chromium/common/chromium`) — the same one the user's *real*
@@ -98,7 +110,7 @@ does *not* (chromium shows a "Failed To Create Data Directory" / "Profile
 error occurred" dialog storm and silently falls back to the default shared
 profile, reintroducing the exact problem this was meant to fix).
 
-### 2. Stacked/duplicate windows ("file not found" on top of the rain)
+#### 2. Stacked/duplicate windows ("file not found" on top of the rain)
 
 `stop_saver()` killed chromium by matching the target URL
 (`pkill -f matrix-screensaver.html`). That string only appears in the
@@ -132,7 +144,7 @@ gpu-process) in one shot, then confirmed a fully hands-off run at the real
 2-minute `IDLE_THRESHOLD_MS` — self-launched with no manual trigger, exactly
 one process/window, real fullscreen geometry, valid non-stale lock.
 
-### 3. Window comes up sized/positioned wrong (not full 1920x1080 @ 0,0)
+#### 3. Window comes up sized/positioned wrong (not full 1920x1080 @ 0,0)
 
 `force_fullscreen()`'s retry loop only polled for the window for 5 seconds
 (20 × 0.25s) before giving up. That's fine when the system is idle, but
@@ -154,7 +166,7 @@ fully hands-off run at the real 2-minute threshold under the same load —
 window came up at the correct `1920x1080` @ `0,0` with no manual
 intervention.
 
-## Adjusting
+### Adjusting
 
 Edit `~/matrix-screensaver.html` (glyph size/speed/color/trail fade) or
 `~/.local/bin/lofi-idle-watcher.sh` (idle threshold), then:
@@ -168,3 +180,208 @@ To watch it fire without waiting: temporarily set `IDLE_THRESHOLD_MS` low
 (e.g. `8000`), restart, then stop touching the mouse/keyboard entirely for a
 few seconds — any input, including interacting with a terminal, resets the
 idle clock.
+
+## Windows implementation (TunaStarlink)
+
+### What it is
+
+Same HTML scene, ported to Windows 11 (native Win32, not WSL2/WSLg — WSLg's
+virtualized X11 socket produces app windows *inside* Windows, it doesn't
+control real monitor output the way a screensaver needs to). Edge kiosk mode
+stands in for Chromium; a small Python HTTP listener stands in for the
+xscreensaver-hack-avoidance problem (which doesn't exist on Windows — no
+xscreensaver-equivalent conflict to route around); a Python idle-watcher
+polling `GetLastInputInfo` stands in for `xprintidle`. Both run as persistent
+Scheduled Tasks instead of systemd user services.
+
+Built to match the GamingPC's existing `browser_launcher.py` /
+`gaming-pc-launch_stream.py` pattern (see `streamers-twitch-bot.md` and
+`files/browser_launcher.py`) as closely as possible, since that pattern is
+the one already proven to work for triggering Windows GUI actions from NiFi
+without touching native MiNiFi C++'s broken Python `ExecuteScript` support
+(see `efm-binaries-windows-python.md`).
+
+### Components
+
+- `C:\minifi-manual\matrix-screensaver.html` — the scene, unchanged from the
+  Jetson version except it's a fresh reconstruction from this doc's spec
+  (the Jetson's actual file lives only on that device, not in git — if the
+  two ever need to be byte-identical, diff them directly rather than trusting
+  this doc word-for-word).
+- `C:\minifi-manual\windows_matrix_launcher.py` — HTTP listener, port 5901,
+  `0.0.0.0` bound (matches `browser_launcher.py`'s existing bind — loopback-
+  only by convention today, not by firewall; see "Next steps" on wiring this
+  up before it becomes reachable from a pod). `POST /matrix` launches;
+  `POST /kill` tears down. Registered as Scheduled Task `MatrixLauncherListener`.
+- `C:\minifi-manual\idle_watcher.py` — polls `GetLastInputInfo`/`GetTickCount`
+  every 2s, 2-minute threshold (`IDLE_THRESHOLD_MS`, same default as the
+  Jetson). Self-POSTs to the listener's own `/matrix` and `/kill` — the exact
+  same HTTP path a future NiFi trigger will use, not a separate code path.
+  Registered as Scheduled Task `MatrixIdleWatcher`.
+- Both Scheduled Tasks: `AtLogOn` trigger for `TunaStarlink\tunas`,
+  `RestartCount=3`/`RestartInterval=1min`, unlimited execution time — same
+  shape as the GamingPC's `BrowserLauncherListener` task.
+
+Target monitor is hardcoded: `MATRIX_POSITION = "1920,0"`,
+`MATRIX_SIZE = "1920,1080"` in `windows_matrix_launcher.py` — the new second
+monitor (`DISPLAY2`, non-primary), confirmed via
+`[System.Windows.Forms.Screen]::AllScreens`. `DISPLAY1` (primary, `0,0`,
+`1536x864`, scaled) is Steven's active work screen and is deliberately never
+touched.
+
+### Why this diverged from the Jetson's approach
+
+- **No wmctrl/F11 fullscreen-force needed.** Confirmed live: unlike Linux
+  Chromium (which locks `--kiosk`'s rendered output to whichever monitor the
+  *cursor* is on at launch, ignoring `--window-position` entirely — this is
+  why the GamingPC's `reposition_chrome.ps1` exists, launching windowed then
+  forcing position+fullscreen after the fact), Edge on Windows honors
+  `--window-position`/`--window-size` together with `--kiosk` directly. A
+  first attempt at porting the GamingPC's MoveWindow+simulated-F11 approach
+  actually shipped and was tested first — it worked for *positioning* but the
+  simulated F11 keypress (`keybd_event`) never actually triggered fullscreen,
+  most likely because a background/non-interactive process can't reliably
+  win `SetForegroundWindow` (Windows' foreground-lock protection), so the
+  synthetic keypress had nowhere reliable to land. Rather than fight that,
+  switched to passing kiosk + position flags in one launch — simpler and it
+  just works. `--edge-kiosk-type=fullscreen` is used alongside plain
+  `--kiosk` for reliability (Edge's own explicit kiosk-variant flag).
+- **No xscreensaver-equivalent problem.** Windows has no competing
+  screensaver process fighting for window stacking the way xscreensaver did
+  on the Jetson — there was simply nothing to disable.
+
+### Known failure mode (found and fixed, verified 2026-07-23)
+
+**Symptom:** an unattended, idle-watcher-triggered launch came up as a
+normal windowed Edge window (visible tabs/address bar, title bar showing
+`Matrix - [InPrivate] - Microsoft​ Edge`) instead of a clean fullscreen
+kiosk — on the correct monitor, just not fullscreen.
+
+**Root cause:** the first version of the launcher reused a single profile
+dir path (`edge-matrix-profile`), deleting and recreating it
+(`shutil.rmtree` then relaunch) on every trigger to avoid session-restore
+duplicate-tab issues (which did happen once, live — reusing without deleting
+first restored a stale tab, producing two "Matrix" tabs in one window).
+Deleting and immediately reusing the *same* path raced a not-quite-dead
+previous Edge process still holding a handle on it — `taskkill /F /T`
+returning doesn't guarantee every file handle in the process tree is
+released yet. Edge then silently fell back to a windowed/ephemeral profile
+instead of failing loudly.
+
+**Fix:** every launch now gets a fresh, uniquely-named profile dir
+(`edge-matrix-profile-<epoch-ms>`) instead of delete-then-reuse. Old ones are
+best-effort cleaned up at the start of the next launch
+(`shutil.rmtree(..., ignore_errors=True)` on any stale ones except the one
+about to be used) — a directory still locked by a slow-dying previous
+process just gets skipped and retried next time, never blocks the current
+launch.
+
+**Note, not a bug:** the `[InPrivate]` label in the window title is cosmetic
+and harmless — Edge defaults a brand-new `--user-data-dir` (no prior `Local
+State` file) into an ephemeral/InPrivate-flavored profile, and it's
+invisible in real kiosk mode anyway (no title bar rendered). It was only
+ever visible in the *broken* windowed-fallback case above, which is what
+made it look alarming — the actual bug was the missing fullscreen, not the
+InPrivate labeling. Confirmed via screenshot: a normal successful kiosk
+launch carries the same internal title string and looks completely clean.
+
+**Verified 2026-07-23:** manual `/matrix` trigger (repeated, clean kiosk
+every time after the fix), `/kill` trigger (confirmed `msedge.exe` count
+drops to 0), full idle cycle with a temporarily-lowered threshold (auto-
+launch after crossing idle, auto-kill after simulated real input via
+`mouse_event` — `SetCursorPos` alone does *not* reset Windows' idle clock,
+unlike a real hardware move), and the real registered Scheduled Tasks
+(stopped ad-hoc manual processes, started via `Start-ScheduledTask`,
+retested through those). Confirmed via `GetWindowRect` that the kiosk window
+lands exactly at `1920,0 → 3840,1080` (DISPLAY2) and Steven's primary
+monitor/work session is never touched.
+
+### Adjusting
+
+Edit `C:\minifi-manual\matrix-screensaver.html` or the `MATRIX_POSITION`/
+`MATRIX_SIZE`/`IDLE_THRESHOLD_MS` constants, then from an elevated or normal
+PowerShell prompt:
+
+```powershell
+Stop-ScheduledTask -TaskName MatrixLauncherListener
+Stop-ScheduledTask -TaskName MatrixIdleWatcher
+Get-Process python | Stop-Process -Force
+Start-ScheduledTask -TaskName MatrixLauncherListener
+Start-ScheduledTask -TaskName MatrixIdleWatcher
+```
+
+To trigger manually without waiting for idle:
+
+```powershell
+Invoke-WebRequest -Uri http://127.0.0.1:5901/matrix -Method POST -Body '{}' -ContentType 'application/json' -UseBasicParsing
+```
+
+(`-UseBasicParsing` matters here — without it, `Invoke-WebRequest` on this
+box throws a `NullReferenceException` from its HTML-parsing path, unrelated
+to the actual HTTP response. Basic parsing skips that entirely.)
+
+## Next steps / advice for next agent
+
+This is where Steven picked the scope for the night — "first things first
+just getting it working" on TunaStarlink. Not done yet, roughly in priority
+order:
+
+1. **Port to MINI-Gaming-G1.** Steven explicitly asked for this too
+   ("we need to do this on the WindowsDesktop Device too, but it also has
+   wsl2"). The Windows implementation above should transfer close to
+   verbatim — same Edge-kiosk-honors-position-flags behavior is likely
+   (Edge, not device-specific), but **don't assume it without checking**:
+   confirm Edge/Chrome is actually installed there, re-run
+   `[System.Windows.Forms.Screen]::AllScreens` for that box's real monitor
+   layout (GamingPC's is already documented in `streamers-twitch-bot.md` —
+   `screen1`=left non-primary, `screen2`=right primary — different shape
+   than TunaStarlink's setup), and re-verify the kiosk+position-flag
+   behavior live rather than trusting this doc. GamingPC already has
+   `C:\minifi-manual\` and a listener on port 5901 (`browser_launcher.py`,
+   handling `/load` for Twitch streams) — decide whether the matrix
+   trigger becomes a new `/matrix` route on that *same* listener/port, or a
+   separate script on a different port. Same-listener is probably cleaner
+   (one process to manage) but means editing code that's currently live and
+   working for `!load` — be careful not to regress it.
+
+2. **Wire TunaStarlink into the Twitch bot's `!matrix` command.** Right now
+   `!matrix` only routes to the Jetson (`InvokeNvidiaNanoMatrix`, see
+   `streamers-twitch-bot.md`). The screen-mapping table
+   (`streamers-twitch-bot.md`, "Mapping Layer") doesn't have an entry for
+   TunaStarlink yet. Steven's stated direction: "we will be adding screen1,
+   screen2, etc to !matrix with some of those screenX being on Beelink" —
+   so this isn't just a new hardcoded `InvokeTunaStarlinkMatrix` branch, it's
+   part of a real screen-name-to-device lookup that also needs to cover the
+   Jetson and GamingPC. Worth deciding the lookup table shape *before*
+   wiring TunaStarlink in, so it isn't rebuilt twice.
+
+3. **How to actually reach the :5901 listener from NiFi.** TunaStarlink's
+   MiNiFi agent (`StarlinkAI` class, per `CLAUDE-CHECKIN.md`) is a **native
+   Windows install**, not a K8s pod like the GamingPC's
+   `minifi-agent-k8s-gaming`. That matters: `efm-binaries-windows-python.md`
+   documents that Python `ExecuteScript` on native Windows `minifi-cpp` is
+   broken (`LoadLibrary`/ABI mismatch failures, unresolved as of that doc).
+   Two ways around it, worth deciding rather than defaulting:
+   - Skip `ExecuteScript` entirely — a flow of just
+     `ListenHTTP → InvokeHTTP` (InvokeHTTP hitting
+     `http://127.0.0.1:5901/matrix` directly) needs no Python at all, and
+     that's a stock MiNiFi C++ processor, not custom code.
+     Simplest option, and doesn't depend on ever fixing the ExecuteScript
+     issue.
+   - Actually fix native Windows `ExecuteScript` per
+     `efm-binaries-windows-python.md`'s repair plan, if some other flow
+     ends up needing real Python logic on this agent anyway.
+   The `InvokeHTTP`-only path is very likely the right call for this
+   specific case — there's no scripting logic needed, just a POST — but
+   confirm `StarlinkAI`'s agent is actually online and can build/publish a
+   flow before assuming either path is unblocked.
+
+4. **Housekeeping.** `C:\minifi-manual\edge-matrix-profile-<timestamp>`
+   directories accumulate one per launch; best-effort cleanup runs on every
+   new launch but only opportunistically. Not a problem yet (each is small,
+   `--no-first-run` with no real browsing), but worth a periodic sweep if
+   this box gets a lot of `!matrix` traffic. Also: the listener binds
+   `0.0.0.0:5901`, same as the GamingPC's — fine while it's loopback-only in
+   practice, but once step 3 wires a real network caller to it, revisit
+   whether it should stay open on all interfaces or move to a narrower
+   bind/firewall rule.
