@@ -1,8 +1,11 @@
 #!/bin/bash
-# Usage: agent-publishFlow.sh <PublishClip|PublishClipPeakTimeCron> start|stop
-# Starts or stops one of the two Publish-flavored NiFi process groups.
-# Process group name is a command arg (unlike agent-fetchClips.sh, which is
-# hardcoded to FetchClips) so this one script covers both Publish flavors.
+# Usage: agent-publishFlow.sh PublishClipPeakTimeCron start|stop
+# Starts or stops the PublishClipPeakTimeCron NiFi process group -- the sole
+# live publisher. PublishClip (the old GenerateFlowFile-timer flavor) is
+# retired (DISABLED live, 2026-07-24) and no longer a valid arg here -- use
+# agent-trigger.sh PublishClip for one-shot publishes instead.
+# Process group name is still a command arg, not hardcoded, in case a third
+# Publish flavor ever shows up.
 
 # Exit immediately if any command fails
 set -e
@@ -19,8 +22,8 @@ APP_URL="${APP_URL:-http://127.0.0.1:8090}"
 PG_NAME="$1"
 ACTION="$2"
 
-if [ "$PG_NAME" != "PublishClip" ] && [ "$PG_NAME" != "PublishClipPeakTimeCron" ]; then
-    FINAL_MSG="❌ Publish Flow: expects PG 'PublishClip' or 'PublishClipPeakTimeCron' as first arg, got '${PG_NAME:-<none>}'."
+if [ "$PG_NAME" != "PublishClipPeakTimeCron" ]; then
+    FINAL_MSG="❌ Publish Flow: expects PG 'PublishClipPeakTimeCron' as first arg, got '${PG_NAME:-<none>}'. (PublishClip is retired -- use agent-trigger.sh PublishClip instead.)"
     echo "$FINAL_MSG"
     curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
          -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
