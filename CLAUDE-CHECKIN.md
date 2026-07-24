@@ -10,7 +10,8 @@ Skills are copied per-device into `~/.claude/skills/` and there's **no versionin
   ```bash
   rm -rf ~/.claude/skills/nifi-and-ai && cp -r skills/nifi-and-ai ~/.claude/skills/
   ```
-  Installed & current on **FTF3XR2065 (Mac)** as of 2026-07-24. Other devices: re-sync on next pull.
+  Installed & current on **FTF3XR2065 (Mac)** as of 2026-07-24.
+- **2026-07-24 (same day, later) — `layout.md` gained a new "Inserting a new node into an existing connection" section.** Real incident: building `WatchlistChatJoiner`'s `BuildJoinedEvent`, Claude placed it at the midpoint between two existing processors' y-values instead of preserving the column's established row pitch — compressed one hop, desynced it from a parallel column that shared rows with it. Fixed live on canvas + added the rule so it doesn't repeat. Re-synced on **MINI-Gaming-G1** as of 2026-07-24 — this device had never picked up the earlier rename either (still had the old `human-touch-followups.md`), both caught up in the same pass. Other devices: still re-sync on next pull.
 
 ## Template
 

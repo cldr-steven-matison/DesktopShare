@@ -26,6 +26,17 @@ These are read off real hand-tidied flows in `DesktopShare/files/`, not invented
 - **Self-loop** (e.g. `Retry` self-loop on `InvokeHTTP`, rule 7) — leave the processor where it is; the loop renders as a small bend, no new column needed. Route the terminal `Failure`/`No Retry` to a log processor one row down — exactly what `TwitchChatBot` does with `LogInvokeFailure` at (0, 600).
 - **Pre-source timers** (a `GenerateFlowFile` timer or roster fetch ahead of the real source) — negative y, above the source (`StreamersApp`: `PollTimer` at y = −264, `GetRoster` at −120).
 
+### Inserting a new node into an existing connection
+
+Splitting an existing `A → B` connection to add a new hop (`A → C → B` — e.g. adding a formatting step ahead of a processor that already existed) is a different problem from placing a fresh node, and the rules above don't cover it on their own. **Don't put `C` at the midpoint of `A` and `B`'s existing y-values.** That compresses the row pitch for exactly one hop and desyncs it from every parallel column that still uses the original pitch.
+
+Instead:
+1. Give `C` a full row pitch below `A` (`C.y = A.y + row_pitch`, same `row_pitch` already established in this column/flow — see "Deriving from a live flow" below).
+2. Push `B` (and everything already below it in the same column) down by one more `row_pitch` to make room, rather than shrinking the gap.
+3. If parallel columns share rows (a common pattern — a "success" and "cleanup" branch sitting side by side), keep them aligned: `C` and `B` should land on the same rows as whatever already occupies those rows in the neighboring column, not just "however far apart is convenient" for this one column in isolation.
+
+Real example, 2026-07-24: adding `BuildJoinedEvent` between `JoinAndGreet` (y=824) and `PublishKafka_2_6` (y=1016, pre-existing) in `WatchlistChatJoiner`. First pass placed it at y=920 — the literal midpoint — compressing that one hop to less than half the column's own established ~192px pitch (824 → 1016 → 1208 on the parallel `PrepRemoveBody`/`BuildRemoveBody`/`RemoveFromWatchlist` branch). Correct fix: `BuildJoinedEvent` → 1016 (taking over `PublishKafka_2_6`'s old row, aligned with `BuildRemoveBody` next door), `PublishKafka_2_6` pushed down to 1208 (aligned with `RemoveFromWatchlist`).
+
 ### Deriving from a live flow (the precise "match the existing column")
 
 When you're adding to a flow that already exists, don't pick fresh numbers — inherit them. This is rule 1 (live state is truth) applied to layout:
