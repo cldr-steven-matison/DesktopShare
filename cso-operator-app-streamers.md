@@ -52,15 +52,16 @@ Streamers Page — Review UI
   Watch clip · Edit caption · Add commentary · Approve → queues in .pending_publish.json
       │
       ▼
-PublishClip NiFi flow (manual/backup — GenerateFlowFile now 1/day)
-PublishClipPeakTimeCron NiFi flow (primary — cron 3pm-9pm)
+PublishClipPeakTimeCron NiFi flow (sole live publisher — see its own section below for
+  exact cron history; both processors DISABLED on the old PublishClip PG as of 2026-07-24,
+  Steven: "publish clip is gone, we only use PublishClipPeakTime w/ Trigger")
   → InvokeHTTP POST /api/streamers/publish-next → pops one pending clip
       │
       ▼
 X API: tweepy v1 media_upload (chunked) + v2 create_tweet
 ```
 
-All NiFi flows live under a `StreamersApp` parent PG — separate from `CSOOperatorApp`. Four process groups: `FetchClips`, `ProcessClips`, `PublishClip`, `PublishClipPeakTimeCron`.
+All NiFi flows live under a `StreamersApp` parent PG — separate from `CSOOperatorApp`. **Six process groups** as of session 21 (2026-07-24), confirmed against the live flow: `FetchClips`, `ProcessClips`, `PublishClip` (retired, `DISABLED`), `PublishClipPeakTimeCron`, `LiveStreamerAlert` (own section below — live since session 15, just never made it into this list), `TunaStarLinkFlows` (session 20, Steven's own build-in-progress). The diagram above only shows the clip fetch→review→publish leg; `LiveStreamerAlert`/`TunaStarLinkFlows` are a separate "streamer went live" posting path, not part of this pipeline. See also session 21's new shared `Trigger`(`ListenHTTP`)+`RouteOnAttribute` on-demand entry point, not yet reflected in this diagram pending live confirmation.
 
 ---
 
@@ -249,6 +250,8 @@ Both changes made via the safe property-only-PUT + run-status pattern (stop → 
 **Built the same session:** `files/agent-publishFlow.sh` — a generalized Telegram start/stop script covering both Publish flavors (`agent-publishFlow.sh <PublishClip|PublishClipPeakTimeCron> start|stop`), per Steven's direction ("make the process group be command arg"). Required a one-line backend fix first — `PublishClipPeakTimeCron` wasn't in `STREAMER_PG_NAMES` (`backend/services/streamers.py`), so `/api/streamers/flows/{name}/start|stop` 404'd on it; added it, deployed (`make deploy MODULES=rag,streamers,efm`, credentials re-injected, confirmed via `GET /api/streamers/flows` showing both PGs). Script exists and the backend supports it, but hasn't been run for real yet — next real use of it will be the first live test. Commands now added to `streamers-agent-commands.md`.
 
 **Updated live 2026-07-23.** `Peak Time`'s hours changed to the `20-23,0-3` UTC wraparound (real 4pm-11:59pm EDT — see the `LiveStreamerAlert`/`PollTimer` note above for the full DST-tradeoff context; Steven's deliberate choice to keep it this time, contrary to session 14's move away from the same shape). Interval widened `0/18` → `0/33` (Steven's own live edit, same session). Current live value: `0 0/33 20-23,0-3 * * ?`, `RUNNING`.
+
+**`PublishClip` retired (confirmed 2026-07-24).** Both its processors (`Publish On Demand`, `InvokeHTTP`) are `DISABLED` live — not the `RUNNING`/`1 day` manual-backup role described above and in the Pipeline section. Steven: "publish clip is gone, we only use PublishClipPeakTime w/ Trigger." `PublishClipPeakTimeCron` is now the sole live publisher. `streamers-agent-commands.md`'s `PublishClip` start/stop entries were removed as no longer functional (starting a `DISABLED` processor via run-status fails/no-ops).
 
 ---
 
@@ -930,12 +933,33 @@ New process group under `StreamersApp`, built entirely in NiFi (no backend busin
 | `agent-approvePosts.sh` (added session 14) | Approves **every** clip currently in the review queue, if any — `GET /api/streamers/queue`, loops the whole array, `POST /api/streamers/approve` per clip with full metadata. Moves clips from Review into Pending; doesn't post them. Renamed from the singular `agent-approvePost.sh` after it was changed to hit the full queue instead of just the top clip |
 | `agent-watchList.sh` (added session 14; `show`/`rotate`/`add` confirmed working session 16) | 1-4 args like `t:username` (Twitch) or `k:username` (Kick): translates to the `login`/`kick:login` format the backend expects and **replaces the whole watch list** with exactly those entries — `POST /api/streamers/watchlist`. Rejects bad prefixes or >4 args before touching the live list. `show`: prints the current list, no changes — `GET /api/streamers/watchlist`. `rotate`: swaps in 4 fresh streamers not already on the list — `POST /api/streamers/watchlist/rotate`. `add t:username` / `add k:username`: appends one streamer without replacing the rest — `POST /api/streamers/watchlist/add`, same endpoint `LiveStreamerAlert`'s `AddToWatchlist` uses |
 | `agent-fetchClips.sh` (added session 14) | Takes one arg, `start` or `stop` — starts/stops the `FetchClips` NiFi process group via `POST /api/streamers/flows/FetchClips/{start\|stop}`, same endpoint the Pipeline Status panel's Start/Stop buttons call. Replies with the resulting state (`RUNNING`/`STOPPED`) or a usage error if the arg is missing/wrong |
+| `agent-liveStreamerAlert.sh` (added session 17) | No args — pulses `LiveStreamerAlert`'s `PollTimer` for one poll cycle via `POST /api/streamers/flows/LiveStreamerAlert/run-once`, restoring whatever RUNNING/STOPPED state it was already in afterward (see session 20 fix — does not unconditionally stop it) |
+| `agent-publishFlow.sh <PublishClip\|PublishClipPeakTimeCron> start\|stop` (added 2026-07-22) | Generalized start/stop across both Publish flavors via `POST /api/streamers/flows/{name}/{start\|stop}` — PG name is a command arg. **`PublishClip` is retired (`DISABLED` live, 2026-07-24) — only the `PublishClipPeakTimeCron` arg is functional now**, see its own section above |
 
 All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` env vars, do the HTTP work against `APP_URL` (default `http://127.0.0.1:8090`), then `curl` a plain-text result back to the Telegram chat. All were live-tested this session against the running app (`agent-watchList.sh` tested as a round-trip against the real 4-streamer watch list — same streamers in, same streamers out, so no net change to live fetch behavior; `agent-fetchClips.sh` tested stop → start round-trip against the live `FetchClips` PG, confirmed restored to `RUNNING`).
 
 ---
 
 ## Session History
+
+### Session 21 (2026-07-24)
+
+Steven's own live-canvas build: a shared on-demand entry point for `StreamersApp`, replacing per-flow PollTimer-pulse/start-stop toggling with a single HTTP trigger that fans out by request type. Claude configured the two processors he'd already wired and built the matching backend; not yet deployed or live-tested end to end.
+
+| Change | Details |
+|---|---|
+| **`PollTimer` cron read correctly, evaluated for 2pm-10pm EDT** | Steven asked why nothing was posting at 3pm despite a `0 0/30 20-23,0-3 * * ?` cron — confirmed the NiFi pod clock is UTC (matches the standing gotcha), so that cron is actually 4pm-11:59pm EDT, not the ~3hr window it looks like at a glance. Proposed `0 0/30 18-23,0-2 * * ?` (2pm-10:30pm EDT) with a DST caveat (this offset is EDT-specific, needs revisiting in November). Steven applied the change himself. |
+| **New shared `Trigger` (`ListenHTTP`) + `RouteOnAttribute` pattern in `StreamersApp`** | Steven built this live on canvas: a single `ListenHTTP` processor named `Trigger` feeds `RouteOnAttribute`, which branches to three `TriggerInput` input ports (one each inside `LiveStreamerAlert`, `FetchClips`, and `PublishClipPeakTimeCron` — **`PublishClip`'s own PG has no `TriggerInput` and is effectively retired**, confirmed with Steven). One flowfile in, routed straight to whichever flow's mid-flow entry point, bypassing that flow's own top-level scheduler entirely (no more sharing `PollTimer` between its cron and a manual pulse). Claude's first design guess (`GenerateFlowFile` + dynamic properties becoming attributes) was **verified wrong against NiFi's live `/nifi-api/flow/processor-types`** before building anything — `GenerateFlowFile` doesn't support dynamic properties in this NiFi build (`supportsDynamicProperties` absent). Steven had already switched `Trigger`'s type to `ListenHTTP` mid-session, which sidesteps the problem entirely. |
+| **`ListenHTTP` config** | `Base Path: contentListener`, `Listening Port: 9080` (free port, confirmed via `ss -tlnp` inside the pod before picking it — 8443/6007/4557 already in use), `HTTP Headers to receive as Attributes (Regex): X-Trigger-Request`. No SSL Context Service configured — plain HTTP, internal-cluster-only, matching the existing `IngestDataToStream`/port-9000 `ListenHTTP` precedent already in the codebase. Reachable at `http://mynifi.cfm-streaming.svc.cluster.local:9080/contentListener` — no k8s Service change needed, `mynifi` is a headless service (`ClusterIP: None`) so DNS resolves straight to the pod IP and any port on it is reachable, same as how port 8443 already works via that same hostname despite not being in the Service's declared port list. |
+| **Attribute name confirmed empirically, not assumed** | Ran one safe probe (`X-Trigger-Request: TestProbe`, a value matching none of the three real routes) through a temporarily-started `Trigger` while `RouteOnAttribute` stayed stopped, then read the queued flowfile's attributes directly via the NiFi API. Confirmed the header lands as the **literal attribute name `X-Trigger-Request`** (not lowercased, no `http.headers.` prefix — an assumption Claude would have gotten wrong too if it hadn't checked). `RouteOnAttribute` EL written accordingly: `${'X-Trigger-Request':equals('LiveStreamerAlert')}` (needs the quoted-attribute-name EL syntax because of the hyphens) for each of the three routes; `unmatched` was already auto-terminated by Steven. |
+| **Did not fire a real matching request** | Per the standing live-trigger rule, Claude only tested with `unmatched`-bound values (`TestProbe`) — never `LiveStreamerAlert`/`FetchClips`/`PublishClip` for real, since that would actually fire the downstream flow, not just test plumbing. **End-to-end real-route verification is still outstanding** — first real call through this path should be treated as the actual test. |
+| **Backend: `NIFI_TRIGGER_URL`, `streamers.trigger_flow()`, `POST /api/streamers/flows/trigger/{name}`** | New config setting (mirrors the existing `NIFI_INGEST_URL` pattern), a service function that POSTs `X-Trigger-Request: <name>` to it (validated against `TRIGGER_REQUESTS = ("LiveStreamerAlert", "FetchClips", "PublishClip")` before sending — anything else would silently land in NiFi's auto-terminated `unmatched` with no error surfaced), and a router endpoint. **Code written and syntax-checked, not yet deployed** to the live `cso-operator-app` pod — deploy needs separate confirmation per the standing live-service-restart rule. The old `run_live_streamer_alert_once()` / `POST /flows/LiveStreamerAlert/run-once` (PollTimer-pulse) path was left in place, not removed — Steven's plan is to retire it (and the equivalent for `FetchClips`/`PublishClip`) once the new path is confirmed working live. |
+| **Scope for next session: `FetchClips` agent command, `agent-commands.md` simplification** | Steven: once this works, replace the backend for `PublishClip` with a `Trigger PublishClip` call, same for `LiveStreamerAlert` and `FetchClips`, then simplify `streamer-agent-commands`. `FetchClips` currently has no run-once equivalent at all (`agent-fetchClips.sh` only does start/stop toggle on the whole PG) — that's net-new, not a swap, once built. Per the standing agent-commands scope rule, `streamers-agent-commands.md` wasn't touched this session — it only gets new entries once a command is actually confirmed working via the Telegram bot. |
+| **Broader pattern, noted for later** | Steven wants this same "wire process groups together like a circuit board via input/output ports" approach applied to other flows in the Twitch bot too, not just `StreamersApp`. No specific flow scoped yet. |
+
+**Still open:** real end-to-end test of all three routes (currently only plumbing-tested via `unmatched`); backend code not yet deployed; `FetchClips` trigger-based run-once doesn't exist as a concept yet, needs designing when Steven's ready; `agent-commands.md`/`.sh` script updates deferred until bot-confirmed; DST caveat on both crons still pending for November.
+
+---
 
 ### Session 20 (2026-07-23)
 

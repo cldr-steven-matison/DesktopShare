@@ -55,20 +55,12 @@ add to watch list without replacing it
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add k:n3on"
 ```
 
-run LiveStreamerAlert once (manual PollTimer pulse, one poll cycle then stops itself)
+run LiveStreamerAlert once (manual PollTimer pulse, one poll cycle — restores whatever RUNNING/STOPPED state PollTimer was already in afterward, does not unconditionally stop it; see session 20)
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-liveStreamerAlert.sh"
 ```
 
-start PublishClip
-```bash
-/bash bash -c "source .env && bash ./DesktopShare/files/agent-publishFlow.sh PublishClip start"
-```
-
-stop PublishClip
-```bash
-/bash bash -c "source .env && bash ./DesktopShare/files/agent-publishFlow.sh PublishClip stop"
-```
+**`PublishClip` start/stop — retired, do not use.** Both of its processors are `DISABLED` live (2026-07-24, Steven: "publish clip is gone, we only use PublishClipPeakTime w/ Trigger") — a start/stop call against a disabled processor will fail or no-op. Left here as a record of what used to exist, not a working command.
 
 start PublishClipPeakTimeCron
 ```bash

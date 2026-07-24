@@ -1,5 +1,7 @@
 **Plan: Local Cartoon Tuna Mascot — Clips First, Live Co-Host Second**
 
+**⚠ Unresolved contradiction, found in a 2026-07-24 doc audit, not yet settled with Steven:** everything below this point commits to a fully local pipeline (Wav2Lip/SadTalker, no cloud calls). But the "Session Log — 2026-07-17" section at the bottom of this doc — the most recent entry — concludes the opposite: local Wav2Lip was tried and called "absolutely horrible," and **"HeyGen — this is the one that works"** is the actual stated conclusion, with cost-gating (irrelevant to a local pipeline) back in play as a result. Don't treat either direction as settled until this is explicitly resolved — read the 2026-07-17 session log before assuming the top-level "local and free" framing is still the live plan.
+
 **Project Goal**
 An original cartoon tuna mascot (name/look TBD — not modeled on any existing commercial character) that reacts in character to what's happening on stream: short, punchy, voiced commentary, synced to a simple animated visual. Two rollout phases, deliberately in this order:
 

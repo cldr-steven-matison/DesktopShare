@@ -1,6 +1,6 @@
 # Twitch Chat Bot — Multi-Screen Stream Loader + Chat Automation
 
-**Status (2026-07-24):** Live and confirmed working end-to-end: screen1 (NvidiaNano/Jetson), screen2 (gaming PC via `KubernetesPod`), `!matrix` screensaver trigger, `!commands`/`!help`, join announcement with live watchlist, dispatch-success chat confirmation, and — new this session — the watchlist channel-join bot (section 13). All built entirely inside existing infra — no standalone bot process, everything runs as NiFi/MiNiFi processors managed through the normal deployment paths (API, EFM Flow Designer/Resource Manager). See the `TODO / To Review` section at the bottom for what's still open.
+**Status (2026-07-24):** Live and confirmed working end-to-end: screen1 (NvidiaNano/Jetson), screen2 (gaming PC via `KubernetesPod`), `!matrix` screensaver trigger, `!commands`/`!help`, on-demand `!watchlist`, join announcement (no longer auto-posts the watchlist — see section 3), dispatch-success chat confirmation, and — new this session — the watchlist channel-join bot (section 13). All built entirely inside existing infra — no standalone bot process, everything runs as NiFi/MiNiFi processors managed through the normal deployment paths (API, EFM Flow Designer/Resource Manager). See the `TODO / To Review` section at the bottom for what's still open.
 
 ---
 
@@ -35,7 +35,8 @@ See the mermaid diagram at the bottom for the full real topology (Kafka, EFM, op
 
 - `!load <streamer> [screen1|screen2]` — defaults to `screen1`.
 - `!matrix` — triggers the Jetson's matrix-rain screensaver on demand.
-- `!commands` / `!help` — bot replies in chat with the available command list.
+- `!watchlist` — posts the active streamer watchlist on demand (Twitch-only entries, `kick:`-prefixed filtered out). Added in `TwitchChatListenerProcessor` `0.0.13-SNAPSHOT`, replacing the old auto-post-on-join behavior — reconnects happen often enough that repeating the full list every time read as spam, so join now just mentions `!watchlist` is available instead of dumping the list itself. Same message either way (`_format_watchlist_message()`), just on-demand instead of automatic.
+- `!commands` / `!help` — bot replies in chat with the available command list (now includes `!watchlist`).
 
 ## 4. Screen-to-Device Mapping (as built)
 
@@ -51,7 +52,7 @@ Routing is `RouteOnAttribute` inside `TwitchChatBot`, branching on `${screen}` (
 
 ## 5. Component Specifications (as built)
 
-**5.1 Twitch chat listener** — `TwitchChatListenerProcessor`. Auth is a user OAuth token (scopes `chat:read chat:edit user:write:chat user:bot`) via Twitch's device-code grant; Client Secret + refresh-token seed live in the `twitch-chat-bot-creds` Parameter Context, never a literal property. Mints a fresh access token before every (re)connect since Twitch rotates the refresh token on every use — the rotated value only lives in the running processor's memory (Parameter Context seed goes stale after first use; a restart needs a fresh device-code re-auth). Also posts to chat (`PRIVMSG`): command replies, a one-time join announcement plus the live watchlist (Twitch-only entries, `kick:`-prefixed filtered out), and `!load`/`!matrix` acks.
+**5.1 Twitch chat listener** — `TwitchChatListenerProcessor` (`0.0.13-SNAPSHOT`). Auth is a user OAuth token (scopes `chat:read chat:edit user:write:chat user:bot`) via Twitch's device-code grant; Client Secret + refresh-token seed live in the `twitch-chat-bot-creds` Parameter Context, never a literal property. Mints a fresh access token before every (re)connect since Twitch rotates the refresh token on every use — the rotated value only lives in the running processor's memory (Parameter Context seed goes stale after first use; a restart needs a fresh device-code re-auth). Also posts to chat (`PRIVMSG`): command replies, a one-time join announcement (mentions `!load`/`!matrix`/`!watchlist`/`!commands` as available — does **not** auto-post the watchlist itself anymore, see `!watchlist` in section 3), and `!load`/`!matrix` acks.
 
 **5.2 Central NiFi** — `TwitchChatBot` process group: `TwitchChatListenerProcessor` → `RouteOnAttribute` → 3× `InvokeHTTP` → `TwitchChatReplyProcessor` (dispatch-success chat confirmation, wired off each `InvokeHTTP`'s `Original` relationship). `TwitchChatReplyProcessor` deliberately does *not* reuse the listener's rotating user token — it mints a stateless App Access Token via Client Credentials grant (Client ID + Secret only), avoiding any collision with the listener's refresh cycle. Posts via Twitch Helix `POST /helix/chat/messages`, not IRC.
 
@@ -97,7 +98,7 @@ The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedi
 | Listener token reseed gap on restart | Open — Parameter Context seed goes stale after first refresh; restart needs manual device-code re-auth |
 | `!load`/`!matrix` fire regardless of whether the target streamer is actually live | Open — planned Helix live-check not yet built |
 | Windows listener (`browser_launcher.py`) silent death | Mitigated — Scheduled Task with 5-min health-check trigger, crash logging to file; true root cause of two earlier silent deaths still unproven |
-| Bot gets rate-limited in a channel it doesn't moderate | Relevant once the watchlist-join feature (TODO) is built — non-mod Twitch chat rate limits are meaningfully tighter |
+| Bot gets rate-limited in a channel it doesn't moderate | Relevant now that the watchlist-join feature is live (section 13, 2026-07-24) — non-mod Twitch chat rate limits are meaningfully tighter. Not yet hit in practice across the 5 real channels joined so far, but worth watching as the watchlist grows |
 
 ## 12. Next Actions
 

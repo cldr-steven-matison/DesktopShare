@@ -27,7 +27,7 @@ The trim step in `_publish_sync` (added session 17, commit `ae2c8cd`, before I e
 
 **What I did today, and why it's not fully right:** I capped the trim step to `-threads 2 -x264-params threads=2` instead of matching the established `-threads 1 -x264opts threads=1:sliced-threads=0` convention. It worked — 44/44 clips processed clean, 0 failures — but it's inconsistent with the rest of the file and uses a different (less proven, less conservative) flag syntax than the pattern already sitting 1,100 lines above it that I should have grepped for before writing anything. `-threads 2` on a `cpu: "1"` limit also isn't obviously safe long-term the way `-threads 1` demonstrably is (two other functions have run it in production for weeks).
 
-**Proposed fix (not applied):** change `_trim_if_oversized`'s ffmpeg args from `-threads 2 -x264-params threads=2` to `-threads 1 -x264opts threads=1:sliced-threads=0`, matching `_burn_platform_overlay`/`encode_still` exactly.
+**Proposed fix — applied 2026-07-18, commit `f2734b4`.** `_trim_if_oversized`'s ffmpeg args now read `-threads 1 -x264opts threads=1:sliced-threads=0` (confirmed live in `streamers.py`), matching `_burn_platform_overlay`/`encode_still` exactly as proposed.
 
 ## Other findings
 
