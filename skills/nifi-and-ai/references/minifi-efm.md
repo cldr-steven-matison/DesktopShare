@@ -109,7 +109,7 @@ Confirmed working contract:
 
 ## 8. Canvas layout when building flows programmatically
 
-Position matters — a flow whose processors stack on top of each other is unreadable in the Designer. **Match new processors' x-coordinates to the existing column for that processor role**, don't pick arbitrary offsets. Read the existing processors' `position.x` per role and reuse those x-values for the new ones; vary only `y` (one row per new pattern). The result is readable immediately, with no manual re-align pass.
+Position matters — a flow whose processors stack on top of each other is unreadable in the Designer. **Match new processors' x-coordinates to the existing column for that processor role**, don't pick arbitrary offsets; vary only `y` (one row per new pattern). This makes the result readable immediately, but it does **not** eliminate the need for a manual align/tidy pass — see `human-touch-followups.md` for the general version of this and other build-vs-cleanup gaps, updated as new ones turn up.
 
 ## 9. EFM Resource Manager API
 

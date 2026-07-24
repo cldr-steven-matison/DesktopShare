@@ -14,7 +14,7 @@ A working playbook for building **NiFi 2.x + MiNiFi + EFM** flows programmatical
 - `<external-nodeport>` — Kafka's external NodePort (only relevant when a flow runs *outside* the cluster).
 - Self-signed TLS is assumed by default, hence `-k` / `verify_ssl=False`. Drop it once you've wired a real cert.
 
-## The 8 rules — read before touching any live flow
+## The 9 rules — read before touching any live flow
 
 1. **Live UI / `flow.json` is truth. Docs and memory lag.** Before touching a running Process Group, dump the live flow and read what's actually there:
    ```bash
@@ -30,6 +30,7 @@ A working playbook for building **NiFi 2.x + MiNiFi + EFM** flows programmatical
 6. **`ListenHTTP` on MiNiFi C++ is fire-and-forget.** MiNiFi C++ has no `HandleHttpRequest`/`HandleHttpResponse` pair — the caller gets an empty 200 ack, and the real reply must exit via Kafka keyed on a caller-supplied `request_id`. The request/response pair only exists in full Java NiFi.
 7. **`Retry` is not `Failure`.** Auto-terminating `InvokeHTTP`'s `Retry` relationship silently drops every transient 5xx/429. Self-loop `Retry` with a bounded `FlowFile Expiration` (10 min is a good default) and route `Failure`/`No Retry` to a log processor.
 8. **New logic gets a new, finite Process Group — never build it inline inside an existing one.** Adding processors/connections into a PG that's already live and doing something else is how a connection ends up wired to the wrong relationship, or a rewire meant for the new feature quietly reroutes existing traffic — the canvas gets confusing fast, and it's hard to review "what changed" when new and old logic share the same PG. Build the new capability in its own PG with no shared connections to existing PGs (same pattern already used for `TwitchChatBot` alongside `StreamersApp`/`LiveStreamerAlert`). If the new PG genuinely needs to connect to or sit inside an existing flow, treat that connectivity/placement decision as a separate, deliberate step — don't let it fall out as a side effect of building the new logic.
+9. **Decompose into a FlowFile chain of small, native processors — don't write one custom Python processor that does everything internally.** The tempting shortcut for "poll X, check Y, then act" is a single `FlowFileSource` with a background thread running its own timers/state/decision logic, emitting a FlowFile only occasionally for visibility. It looks simpler to write, but it's the wrong shape for NiFi: no per-stage queue counts or provenance, no way to inspect data mid-flow, no way to re-test one step by re-queuing a single FlowFile, and a background thread can outlive/duplicate itself independently of NiFi's own start/stop lifecycle (a real, hard-to-diagnose bug hit building this: a leaked background thread from an internal-timer design kept running and re-logging stale state after the "real" instance had already restarted — impossible with a stock-processor chain, since NiFi owns all the scheduling). Prefer: `GenerateFlowFile`(timer) → `InvokeHTTP`/`SplitJson`/`EvaluateJsonPath`/`RouteOnAttribute` for the fetch/fan-out/branch logic — all native, all inspectable — and reach for custom Python only for the one thing NiFi genuinely can't do natively (e.g. holding one persistent external socket). Let NiFi's own scheduler drive cadence via each processor's `Run Schedule`, never an internal `while`/`sleep` loop.
 
 ## Deployment shapes
 
@@ -50,6 +51,7 @@ The canonical AI array is all three at once: **EFM + MiNiFi agents on the edge +
 | `references/custom-processors.md` | Writing custom Python/Java processors, the mixed-template EL trap, and rebuild→redeploy discipline. |
 | `references/minifi-efm.md` | The edge side: staging agent binaries, EFM persistence, the deployer curl, Windows+Python, and the (undocumented) EFM Flow Designer API. |
 | `references/debugging.md` | Cross-cutting wire-up gotchas and a 10-step debugging checklist. |
+| `references/human-touch-followups.md` | Running list of things a Claude-built flow still needs a human pass on (canvas layout, and whatever's added next). |
 
 ## The most common ways a NiFi flow silently fails
 
