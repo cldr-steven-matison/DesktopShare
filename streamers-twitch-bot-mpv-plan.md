@@ -1,6 +1,36 @@
 # Twitch chat stream loader — mpv/yt-dlp migration plan
 
-**Status: planning only, nothing built yet.** This replaces the current kill-Chrome/relaunch-Chrome cycle used by both screens with a persistent `mpv` player controlled over its IPC socket. Written up before starting so I have a clear reference when I do pick it up.
+This replaces the current kill-Chrome/relaunch-Chrome cycle used by both screens with a persistent `mpv` player controlled over its IPC socket. Written up before starting so there's a clear reference when it gets picked up.
+
+## Status as of 2026-07-25: live-cluster side built and published; Beelink-side pending
+
+Real scope decision (2026-07-24/25): build `screen3`/`screen4` (array-facing) stream loading on TunaStarlink/Beelink directly via `mpv`+IPC now — **not** the Jetson-first rollout order this doc originally proposed below. Went straight to the Beelink because StarlinkAI/EFM was already confirmed ready and Steven asked for `screen2`/`screen3` (Beelink's local names) in chat now. The "prototype on the Jetson first" section further down is superseded for this build; kept for reference only.
+
+**Decisions locked in (confirmed with Steven):**
+- Separate sibling script (`mpv_stream_launcher.py`, port 5902), not folded into `windows_matrix_launcher.py` — different process-lifecycle models (persistent-IPC vs. kill-relaunch).
+- Rollout pace: move fast, no long soak requirement — but still bring each screen up and test it **one at a time**, not both simultaneously, until each is independently confirmed working. (The known `DPC_WATCHDOG_VIOLATION` crash was from 3 *matrix* screens at once, a different load profile than mpv's decode path — Steven's call was not to over-apply that caution here, just to keep proving screens independently before combining.)
+- **Kick is in scope now**, not deferred. `!load kick:<slug> [screen]` reaches the launcher with the whole `kick:<slug>` token as one string (regex already generic, no `TwitchChatListenerProcessor` change needed beyond the screen-count text update below) — `mpv_stream_launcher.py`'s `build_url()` strips the `kick:` prefix and builds `kick.com/<slug>`, matching the same prefix convention already used for the watchlist/roster (`services/streamers.py`). Kick's `yt-dlp` extractor reliability is **unverified** — check this for real as part of first testing, don't assume parity with Twitch.
+
+**Already built and live (2026-07-25, this session, from the gaming-PC-side Claude session — not the Beelink):**
+- `StarlinkAI` EFM flow: `ListenHTTP-StreamScreen3` (port `8085`) → `InvokeHTTP-StreamScreen3` (`POST 127.0.0.1:5902/load/screen2`), and the `screen4`/`8086`/`screen3` pair. Built via the EFM Designer API (`minifi-efm.md` §7), published — flow version 13 → 14, confirmed cross-Tailscale reachable (`curl` from the gaming PC to `100.110.253.66:8085` and `:8086` both returned `200`).
+- Central NiFi `TwitchChatBot` PG: `RouteOnAttribute` gained `screen3`/`screen4` dynamic properties; new `InvokeStarlinkScreen3`/`InvokeStarlinkScreen4` `InvokeHTTP` processors point at `http://100.110.253.66:8085` / `:8086` (TunaStarlink's real Tailscale IP — pulled live via `powershell.exe -Command "tailscale status"` interop from WSL2, since the checked-in docs deliberately store this as redacted placeholder text). Both new processors auto-terminate `Response`/`No Retry`/`Retry`/`Failure` and route `Original` → `TwitchChatReplyProcessor`, matching the existing `InvokeNvidiaNano`/`InvokeGamingPC` pattern exactly (confirmed against live flow state, not the stale checked-in export — `LogInvokeFailure` is wired from `TwitchChatReplyProcessor`'s `failure` only, not per-`InvokeHTTP`, contrary to an earlier draft of this plan). All processors `RUNNING`/`VALID`.
+- `TwitchChatListenerProcessor.py`: chat-text updated to advertise `[screen1|screen2|screen3|screen4]` in both the join announcement and `!commands`/`!help`. Version bumped `0.0.13-SNAPSHOT` → `0.0.14-SNAPSHOT`, `kubectl cp`'d onto `mynifi-0`, running instance switched to the new bundle version and restarted. Live.
+- `files/mpv_stream_launcher.py` (this repo) — the actual script to drop onto the Beelink, written but **not yet deployed there**. Port 5902, endpoints `POST /load/<screen>`, `POST /stop/<screen>`, `POST /kill/<screen>` (screen = `screen2`/`screen3`, Beelink-local names). Lazy-starts `mpv --idle --input-ipc-server=... --fullscreen --screen=<N> --ytdl-format=best` on first `/load` for that screen, then only sends IPC `loadfile`/`stop` commands after. Calls `windows_matrix_launcher.py`'s `:5901/kill/<screen>` best-effort before loading a stream.
+- Flow definitions re-exported and pretty-printed (not yet committed): `cso-operator-app/flows/TwitchChatBot.json`, `DesktopShare/files/StarlinkAI.json`.
+
+**Still needed — Beelink-side, hands-on (a separate Claude session running on TunaStarlink, per Steven's call on 2026-07-25):**
+1. Install `mpv` (`winget install mpv` or the mpv.io Windows build — must land at one of `mpv_stream_launcher.py`'s `MPV_PATHS`, or add the real path there) and `yt-dlp` (on `PATH`, or point `--script-opts=ytdl_hook-ytdl_path=<path>` — not currently set in the script).
+2. **Step 0 before anything else**: confirm `yt-dlp` can actually pull Twitch *and* Kick streams from this box — hand-test both, don't assume.
+3. Confirm `mpv`'s `--screen=0`/`--screen=1` indices actually land on DISPLAY2/DISPLAY3 (`screen2`/`screen3` in `mpv_stream_launcher.py`'s `SCREENS` dict) — **unverified**, flagged in the script's own comment. Swap the `screen_index` values if wrong.
+4. Copy `mpv_stream_launcher.py` to `C:\minifi-manual\mpv_stream_launcher.py`, register it as Scheduled Task `MpvStreamLauncherListener` (`AtLogOn`, `TunaStarlink\tunas`, `RestartCount=3`/`RestartInterval=1min`, unlimited execution time — same shape as `MatrixLauncherListener`/`MatrixIdleWatcher`).
+5. One additive edit to the live `windows_matrix_launcher.py`: at the top of its `/matrix/<screen>` handler (and the `/matrix` alias), add a best-effort `POST http://127.0.0.1:5902/stop/<screen>` before the existing Edge-launch logic — mirrors `mpv_stream_launcher.py`'s own best-effort call into `:5901/kill/<screen>`. Don't touch anything else in that file (it's live and working).
+6. Test one screen at a time first (`screen2` alone, then `screen3` alone) via direct `Invoke-WebRequest`/`curl` against `:5902/load/<screen>`, both Twitch and `kick:`-prefixed streamers, before testing both together. Then test the matrix↔stream handoff both directions on one screen (does killing Edge naturally re-expose a fullscreen mpv window underneath, or does something else grab focus — genuinely unverified, a `SetForegroundWindow`/topmost fallback may be needed if not).
+7. Once both screens are individually solid: real `!load <streamer> screen3` / `!load <streamer> screen4` and `!load kick:<slug> screen3` from actual Twitch chat.
+8. Commit the re-exported `TwitchChatBot.json`/`StarlinkAI.json` (already refreshed, sitting uncommitted) once the Beelink side is confirmed working, so the checked-in exports don't go stale before anyone notices.
+
+---
+
+**Original planning note (superseded rollout order above, kept for the mpv/IPC mechanics reference):**
 
 ## Why
 
