@@ -99,7 +99,6 @@ The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedi
 | `!load`/`!matrix` fire regardless of whether the target streamer is actually live | Open — planned Helix live-check not yet built |
 | Windows listener (`browser_launcher.py`) silent death | Mitigated — Scheduled Task with 5-min health-check trigger, crash logging to file; true root cause of two earlier silent deaths still unproven |
 | Bot gets rate-limited in a channel it doesn't moderate | Relevant now that the watchlist-join feature is live (section 13, 2026-07-24) — non-mod Twitch chat rate limits are meaningfully tighter. Not yet hit in practice across the 5 real channels joined so far, but worth watching as the watchlist grows |
-| Any edit to `TwitchChatListener` (or any processor with sensitive properties) risks a GET-then-PUT credential wipe | Recurring — hit 2026-07-25, see section 14. Only safe edit path going forward: Parameter Context re-supply or a narrow-scope endpoint, never a full-entity round trip |
 
 ## 12. Next Actions
 
@@ -142,22 +141,6 @@ All in one isolated PG, `WatchlistChatJoiner` (id `918d7b51-...`). Custom code: 
 - `TriggerCycle`'s schedule was reduced from 60s (used during testing) to **15 min** in production, to cut Twitch/Helix and internal API call volume.
 - `JoinAndGreet`'s `success` relationship is deliberately routed to the same `LogAttribute` (`LogJoinFailure`) as `failure`, not auto-terminated — left as a standing log for visibility, not just a debug leftover.
 - Real-world test discipline that mattered: proved the whole chain first against a single hardcoded `tunastarlink` FlowFile (via a temporary `UpdateAttribute` override) before ever wiring in the real multi-streamer watchlist — caught the `SplitJson`/`ExtractText` bug and confirmed Dry Run behavior without risking a bad post into a real, high-traffic channel like `xqc`'s.
-
-## 14. Incident: TwitchChatListener credential destruction (2026-07-25)
-
-**Symptom:** whole bot dead — no chat commands worked, `@tunastreettest` wasn't in `#tunastarlink`'s chat at all. `TwitchChatBot`'s PG was found fully `STOPPED`.
-
-**Root cause:** a prior session GET-then-PUT `TwitchChatListener` (the processor holding the bot's IRC session) — root cause of *that specific edit* wasn't identifiable after the fact, only its effect. NiFi's masked `"********"` GET-placeholder got written back over the processor's real `Client Secret` and `Refresh Token` as **literal property values**, not parameter references. `validationStatus` stayed `VALID` throughout, since NiFi can't distinguish the mask string from a genuine secret — this is why the break went unnoticed until someone actually tried to use the bot. Confirmed via the `twitch-chat-bot-creds` Parameter Context: `twitch-bot-refresh-token` and (for this processor) `twitch-chat-client-secret` showed zero/wrong `referencingComponents` — proof the processor had drifted off the parameter-bound pattern the rest of this flow uses (`TwitchChatReplyProcessor` and `WatchlistChatJoiner`'s `JoinAndGreet` were unaffected, still properly bound).
-
-This is the same failure mode that destroyed `XLivePostProcessor`'s X API creds on 2026-07-12 — a second, independent occurrence on a completely different processor. See the strengthened rule 2 in `nifi-and-ai/SKILL.md` and `agent/incident-rules.md`.
-
-**Fix (2026-07-25):**
-1. Re-hydrated `twitch-chat-client-secret`, `twitch-bot-refresh-token`, and `twitch-bot-oauth-token` in the `twitch-chat-bot-creds` Parameter Context from the real source-of-truth values in `/home/tunas/.env` (`TWITCH_CHAT_CLIENT_SECRET`, `TWITCH_BOT_REFRESH_TOKEN`, `TWITCH_BOT_OAUTH_TOKEN`) via the parameter context's write-only `update-requests` endpoint — no GET-then-PUT on the secrets themselves.
-2. Rebound `TwitchChatListener`'s `Client Secret` → `#{twitch-chat-client-secret}` and `Refresh Token` → `#{twitch-bot-refresh-token}` (both had been literal values, not references).
-3. Started the `TwitchChatBot` PG. All 12 processors came up `RUNNING`/`VALID`.
-4. Verified functionally, not just via validation state: zero bulletins, zero stuck queues, and `TwitchChatListener` had already emitted FlowFiles (its join/presence-announcement) within seconds of starting — only possible with a live, authenticated IRC connection.
-
-**Known gap carried forward, not new:** Twitch rotates the refresh token on every use, so a `.env` seed is only as fresh as the last time someone captured it — if it had already rotated past that seed, this fix would have needed a fresh device-code re-auth instead. It didn't this time (confirmed by the listener actually connecting), but this remains the same open reseed-gap risk noted in section 10 and the risks table.
 
 ## TODO / To Review
 
