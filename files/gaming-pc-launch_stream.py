@@ -10,10 +10,13 @@ class ReadContentCallback:
         return len(self.content)
 
 
-# Native Windows listener (browser_launcher.py) that owns the actual Chrome launch —
-# this pod has no GUI/display access of its own (no X11/Wayland socket, confirmed),
-# so the browser has to be launched by a real process on the Windows host instead.
-LISTENER_URL = "http://host.docker.internal:5901/load"
+# Native Windows listener that owns the actual playback — this pod has no
+# GUI/display access of its own (no X11/Wayland socket, confirmed), so
+# playback has to be launched by a real process on the Windows host instead.
+# As of 2026-07-25: mpv_stream_launcher.py (persistent mpv + IPC), not
+# browser_launcher.py's Chrome kill-relaunch — same fix already proven on
+# TunaStarlink for the flashing/instability the kill-relaunch cycle caused.
+LISTENER_URL = "http://host.docker.internal:5902/load/screen2"
 
 
 # This is the exact entrypoint MiNiFi C++ calls on every loop execution
@@ -32,19 +35,11 @@ def onTrigger(context, session):
             if not streamer:
                 raise ValueError("payload missing 'streamer' field")
 
-            # player.twitch.tv (the bare embed player) rejected this as an
-            # offline/embed-not-allowed fallback regardless of `parent` value —
-            # its embed-parent check doesn't play nice with direct top-level
-            # navigation. Back to the real page, which reliably shows the
-            # actual live stream; hiding the sidebar/chat is handled by
-            # triggering Twitch's own player fullscreen (its 'f' hotkey) after
-            # launch, in reposition_chrome.ps1, instead of an embed URL.
-            url = f"https://www.twitch.tv/{streamer}"
-
-            # 2. Hand off to the native Windows listener — it does the actual
-            # kill-existing/relaunch/verify-window-appeared work and reports
-            # real success/failure back, not just "the POST went out".
-            body = json.dumps({"url": url}).encode('utf-8')
+            # 2. Hand off to the native Windows listener — mpv_stream_launcher.py
+            # builds the actual Twitch/Kick URL itself from the raw streamer
+            # value now (gains kick:<slug> support for free, matching
+            # TunaStarlink), so this script no longer constructs a URL at all.
+            body = json.dumps({"streamer": streamer}).encode('utf-8')
             req = urllib.request.Request(LISTENER_URL, data=body, method="POST",
                                           headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=15) as resp:

@@ -7,8 +7,8 @@ tricks. Read the section for the device you're touching — don't assume a fix
 on one side applies to the other without checking.
 
 - **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21.
-- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Not yet wired to Twitch chat** — see "Next steps" at the bottom, including the decided local-to-array screen-number mapping.
-- **MINI-Gaming-G1 (Windows gaming PC)** — not built yet. Steven's ask (2026-07-23): "we need to do this on the WindowsDesktop Device too." Follow the Windows implementation below as the template — it should port over close to verbatim, see "Next steps."
+- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation (TunaStarlink)" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Wired to Twitch chat since 2026-07-25** — `!matrix screen3`/`!matrix screen4` (array-wide numbering, same mismatch-with-local-names as `!load` — see `streamers-twitch-bot-mpv-plan.md`).
+- **MINI-Gaming-G1 (Windows gaming PC)** — see "Windows implementation (MINI-Gaming-G1)" below. Built, verified, and wired to Twitch chat 2026-07-25 (`!matrix screen2`) — ported from the TunaStarlink implementation, ported over close to verbatim as expected. Same session also replaced this device's `!load` (Chrome/`browser_launcher.py`) with the mpv-based approach — see `streamers-twitch-bot-mpv-plan.md`.
 
 ## Jetson implementation
 
@@ -421,85 +421,107 @@ kept only for `idle_watcher.py`'s existing calls — prefer the explicit
 box throws a `NullReferenceException` from its HTML-parsing path, unrelated
 to the actual HTTP response. Basic parsing skips that entirely.)
 
+## Windows implementation (MINI-Gaming-G1)
+
+### What it is
+
+Ported from TunaStarlink's implementation above, close to verbatim as
+expected (`claude-screen.md`'s own earlier "Next steps" note predicted this).
+Built 2026-07-25 from a Claude Code session running directly on this box
+(WSL2), which meant direct filesystem access to `C:\minifi-manual\` via
+`/mnt/c/minifi-manual/` and `powershell.exe` interop for testing — unlike
+TunaStarlink, no separate device session was needed.
+
+Single target screen in scope: the right/primary monitor (`0,0` `1920x1080`),
+the same monitor `!load` already used before this work — see
+`streamers-twitch-bot.md` for the original `screen1`=left-non-primary /
+`screen2`=right-primary layout. `screen1` (left monitor) was never in scope
+here, matching TunaStarlink's own primary-monitor exclusion for a different
+reason (there it's Steven's own work screen; here it's simply not the
+`!load`-targeted screen).
+
+### Components
+
+- `C:\minifi-manual\matrix-screensaver.html` — reconstructed from this doc's
+  own "Matrix rain implementation notes" section (canvas technique, fontSize,
+  fade rate, spark-glyph chance, 24fps `setInterval`), not copied from either
+  existing device (neither's actual file is in git).
+- `C:\minifi-manual\windows_matrix_launcher.py` — port `5903` (not `5901`:
+  that port is `browser_launcher.py`'s, now retired — see below). `SCREENS`
+  dict has one entry, `screen2`. Same unique-profile-dir-per-launch and
+  PID-tracked kill discipline as TunaStarlink's version. One additive
+  coexistence call: `POST 127.0.0.1:5902/stop/screen2` (the mpv listener)
+  before showing matrix. Registered as Scheduled Task
+  `MatrixLauncherListener`, `pythonw.exe`.
+- `C:\minifi-manual\mpv_stream_launcher.py` — port `5902`, single `screen2`
+  entry, same `SetWindowPos`/`--force-window=immediate` approach already
+  proven on TunaStarlink (ported directly, not re-derived — see
+  `streamers-twitch-bot-mpv-plan.md` for why `--screen=N`/`--geometry` don't
+  work). Replaces `browser_launcher.py`'s role for `!load` entirely: calls
+  `:5903/kill/screen2` best-effort before playing, same as TunaStarlink's
+  coexistence pattern in the other direction. Registered as Scheduled Task
+  `MpvStreamLauncherListener`, `pythonw.exe`.
+- `browser_launcher.py`'s `BrowserLauncherListener` Scheduled Task —
+  **stopped**, not deleted, once `mpv_stream_launcher.py`'s `/load/screen2`
+  was confirmed working. Files left on disk.
+- Pod-side (`minifi-agent-k8s-gaming`, `KubernetesPod` class): existing
+  `ListenHTTP-StreamLoad`(8082)→`LaunchGamingPCStream` had its resource
+  script updated (`gaming-pc-launch_stream.py` — `LISTENER_URL` now points at
+  `:5902/load/screen2`, and it stopped constructing the Twitch URL itself,
+  since `mpv_stream_launcher.py` does that now — Kick support for free). New
+  pair added: `ListenHTTP-MatrixLoad`(8081)→`LaunchGamingPCMatrix` (runs new
+  resource `gaming-pc-launch_matrix.py`, fixed single action mirroring
+  `agent-NvidiaNano-launch_matrix.py`'s shape → `POST :5903/matrix/screen2`).
+- Central NiFi `TwitchChatBot`: `RouteOnAttribute` gained `matrix-screen2`;
+  `InvokeGamingPCMatrixScreen2` → the pod's `:8081`. `InvokeGamingPCScreen2`
+  (existing, `!load`) unchanged in shape, only its URL's IP (see gotcha
+  below).
+
+### A real gotcha hit doing this work: this pod's EFM heartbeat had been dead for 6 days, and its IP changes on every restart
+
+Two separate problems, found and fixed in the same session:
+
+1. **`minifi-agent-k8s-gaming`'s EFM heartbeat had silently stopped 6 days
+   before this session** (confirmed via `agent.last_seen` in EFM's Postgres —
+   stale, matching the pod's own uptime with 0 restarts). The pod was still
+   running fine on its last-deployed config the whole time — MiNiFi C++
+   doesn't need EFM once a flow is deployed — but any *new* EFM-side push
+   (new processors, resource re-uploads) had nowhere live to land. Fixed by
+   restarting the pod: this is a **bare pod, no Deployment/StatefulSet owner**
+   (`kubectl get pod ... -o jsonpath='{.metadata.ownerReferences}'` empty) —
+   `kubectl delete` does **not** get it rescheduled automatically. Recovery
+   path: save the exact manifest from the
+   `kubectl.kubernetes.io/last-applied-configuration` annotation before
+   deleting, `kubectl apply` it back after. Confirmed the deployer curl args
+   (including `agentIdentifier`) are baked into that annotation, so the
+   restarted pod re-registers as the *same* EFM agent record, not a new one.
+2. **A fresh pod boot doesn't guarantee the EFM-assigned resource *files*
+   land on disk in time for the flow's first start attempt.** Even though
+   the freshly-pulled `config.yml` had the right processor definitions
+   immediately, `/nifi-minifi-cpp-1.26.02/asset/` stayed empty (`{"digest":
+   "", "assets": {}}` in `.state`) well past the point where all three
+   `ExecuteScript` processors (including one pre-existing, unrelated to this
+   work) had already failed to start and given up retrying after 3 attempts
+   (30s apart, then stopped — no infinite retry). Fixed with a direct
+   `kubectl cp` of all three script assets onto the pod, then killing and
+   restarting just the `minifi` background process inside the container
+   (`kill <pid>`, `./bin/minifi &` from `/nifi-minifi-cpp-1.26.02`) — cheaper
+   and lower-risk than another full pod delete/reapply, and it picked up the
+   already-correct `config.yml` cleanly with the assets now actually present.
+3. **This pod's IP changes on every restart** (it's bare, no stable
+   `Service`) — `10.244.2.115` → `10.244.2.127` across this one restart.
+   Both `InvokeGamingPCScreen2` and the new `InvokeGamingPCMatrixScreen2` in
+   central NiFi have this IP hardcoded in their `HTTP URL` property. Caught
+   and fixed same-session (both updated to the new IP), but this will recur
+   on any *future* restart of this specific pod — worth remembering, and
+   worth considering a real `Service` for this pod if it keeps needing
+   manual restarts.
+
 ## Next steps / advice for next agent
 
-This is where Steven picked the scope for the night — "first things first
-just getting it working" on TunaStarlink. Not done yet, roughly in priority
-order:
+All three devices are now built and wired to chat (`!matrix [screen2|screen3|screen4]`, bare `!matrix` = Jetson) as of 2026-07-25. What's left:
 
-1. **Port to MINI-Gaming-G1.** Steven explicitly asked for this too
-   ("we need to do this on the WindowsDesktop Device too, but it also has
-   wsl2"). The Windows implementation above should transfer close to
-   verbatim — same Edge-kiosk-honors-position-flags behavior is likely
-   (Edge, not device-specific), but **don't assume it without checking**:
-   confirm Edge/Chrome is actually installed there, re-run
-   `[System.Windows.Forms.Screen]::AllScreens` for that box's real monitor
-   layout (GamingPC's is already documented in `streamers-twitch-bot.md` —
-   `screen1`=left non-primary, `screen2`=right primary — different shape
-   than TunaStarlink's setup), and re-verify the kiosk+position-flag
-   behavior live rather than trusting this doc. GamingPC already has
-   `C:\minifi-manual\` and a listener on port 5901 (`browser_launcher.py`,
-   handling `/load` for Twitch streams) — decide whether the matrix
-   trigger becomes a new `/matrix` route on that *same* listener/port, or a
-   separate script on a different port. Same-listener is probably cleaner
-   (one process to manage) but means editing code that's currently live and
-   working for `!load` — be careful not to regress it.
-
-2. **Wire TunaStarlink into the Twitch bot's `!matrix` command.** Right now
-   `!matrix` only routes to the Jetson (`InvokeNvidiaNanoMatrix`, see
-   `streamers-twitch-bot.md`). The screen-mapping table
-   (`streamers-twitch-bot.md`, "Mapping Layer"/section 4) doesn't have an
-   entry for TunaStarlink yet, but the **array-wide numbering is now decided**
-   (2026-07-24) so this doesn't need to be re-derived when built:
-
-   | Array-wide `!matrix` screen | Device | Local screen name on that device |
-   |---|---|---|
-   | (existing, unrelated to this) `screen1`/`screen2` | Jetson / GamingPC | see `streamers-twitch-bot.md` section 4 for the existing `!load` mapping — `!matrix` itself currently only targets the Jetson |
-   | `screen3` | TunaStarlink | `screen2` (DISPLAY2, `windows_matrix_launcher.py`'s `/matrix/screen2`) |
-   | `screen4` | TunaStarlink | `screen3` (DISPLAY3, `windows_matrix_launcher.py`'s `/matrix/screen3`) |
-
-   Note the deliberate naming mismatch: **locally** on TunaStarlink the two
-   safe screens are called `screen2`/`screen3` (matching this device's own
-   `SCREENS` dict — see Components above); in the **array-wide** bot mapping
-   they become `screen3`/`screen4` since global `screen1`/`screen2` are
-   already spoken for by the Jetson/GamingPC. Don't let this collide — the
-   NiFi-side routing needs to translate array `screen3`→local `screen2` and
-   array `screen4`→local `screen3` (e.g. in whatever `InvokeHTTP` hits
-   TunaStarlink's `:5901` listener, the *path* it calls should be
-   `/matrix/screen2` or `/matrix/screen3`, not `/matrix/screen3` or
-   `/matrix/screen4` — those would 404 or hit the wrong monitor). TunaStarlink
-   never gets an array-wide `screen1`-equivalent — its own `screen1`
-   (DISPLAY1, primary) was removed from the launcher entirely after the
-   3-screen crash documented in "Known failure mode" #2, so it's not
-   available to wire in at all right now.
-
-3. **How to actually reach the :5901 listener from NiFi.** TunaStarlink's
-   MiNiFi agent (`StarlinkAI` class, per `CLAUDE-CHECKIN.md`) is a **native
-   Windows install**, not a K8s pod like the GamingPC's
-   `minifi-agent-k8s-gaming`. That matters: `efm-binaries-windows-python.md`
-   documents that Python `ExecuteScript` on native Windows `minifi-cpp` is
-   broken (`LoadLibrary`/ABI mismatch failures, unresolved as of that doc).
-   Two ways around it, worth deciding rather than defaulting:
-   - Skip `ExecuteScript` entirely — a flow of just
-     `ListenHTTP → InvokeHTTP` (InvokeHTTP hitting
-     `http://127.0.0.1:5901/matrix` directly) needs no Python at all, and
-     that's a stock MiNiFi C++ processor, not custom code.
-     Simplest option, and doesn't depend on ever fixing the ExecuteScript
-     issue.
-   - Actually fix native Windows `ExecuteScript` per
-     `efm-binaries-windows-python.md`'s repair plan, if some other flow
-     ends up needing real Python logic on this agent anyway.
-   The `InvokeHTTP`-only path is very likely the right call for this
-   specific case — there's no scripting logic needed, just a POST — but
-   confirm `StarlinkAI`'s agent is actually online and can build/publish a
-   flow before assuming either path is unblocked.
-
-4. **Housekeeping.** `C:\minifi-manual\edge-matrix-profile-<timestamp>`
-   directories accumulate one per launch; best-effort cleanup runs on every
-   new launch but only opportunistically. Not a problem yet (each is small,
-   `--no-first-run` with no real browsing), but worth a periodic sweep if
-   this box gets a lot of `!matrix` traffic. Also: the listener binds
-   `0.0.0.0:5901`, same as the GamingPC's — fine while it's loopback-only in
-   practice, but once step 3 wires a real network caller to it, revisit
-   whether it should stay open on all interfaces or move to a narrower
-   bind/firewall rule.
+1. **Real chat-triggered end-to-end test for GamingPC.** Everything was verified directly (pod-internal `curl` calls, Windows-side window rect/title checks — see the gotcha section above), but not yet through an actual `!matrix screen2` typed in real Twitch chat. Same caveat applies to `!load screen2` now that it's mpv-based instead of Chrome-based.
+2. **Housekeeping.** `C:\minifi-manual\edge-matrix-profile-<timestamp>` directories accumulate one per launch on both Windows devices; best-effort cleanup runs on every new launch but only opportunistically. Not a problem yet, worth a periodic sweep if `!matrix` traffic grows. Listener ports (`5901`/`5903` for matrix, `5902` for mpv, device-dependent) bind `0.0.0.0` — fine while effectively loopback/pod-bridge-only in practice, revisit if a real external network caller ever needs one directly.
+3. **`minifi-agent-k8s-gaming`'s IP instability** (see the gotcha section above) — worth a real `Service` in front of this pod if it needs restarting again, so central NiFi's `InvokeGamingPCScreen2`/`InvokeGamingPCMatrixScreen2` don't need a manual IP fix every time.
+4. **The InvokeHTTP-per-screen fan-out in `TwitchChatBot`** (7 `InvokeHTTP`s off one `RouteOnAttribute` as of this session) — Steven flagged wanting a less repetitive shape for this, explicitly deferred to a separate dedicated review, not done here.

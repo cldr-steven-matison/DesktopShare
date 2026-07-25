@@ -2,6 +2,12 @@
 
 This replaces the current kill-Chrome/relaunch-Chrome cycle used by both screens with a persistent `mpv` player controlled over its IPC socket. Written up before starting so there's a clear reference when it gets picked up.
 
+## Status as of 2026-07-25: MINI-Gaming-G1 (`screen2`) done too — both mpv screens now built, real chat test still the one open item on both
+
+Session on MINI-Gaming-G1 itself (not TunaStarlink) replaced `!load screen2`'s Chrome/`browser_launcher.py` path with the same mpv approach below — `mpv_stream_launcher.py` ported directly (`SetWindowPos` positioning, `--force-window=immediate`, single `screen2` entry, port `5902`), verified end-to-end via direct pod-internal `curl` calls (WSL2 can't route to raw pod IPs, so central-NiFi-path testing from a dev shell isn't possible — same limitation hit on both devices' work). `browser_launcher.py`'s `BrowserLauncherListener` task stopped (not deleted). Same session also built `!matrix screen2` (Windows implementation ported from TunaStarlink, port `5903`) — see `claude-screen.md`'s "Windows implementation (MINI-Gaming-G1)" section for the full writeup, including a real gotcha: `minifi-agent-k8s-gaming`'s EFM heartbeat had been dead 6 days, needed a pod restart to fix, which also changed the pod's IP (bare pod, no stable Service) and broke both `InvokeGamingPCScreen2` and the new `InvokeGamingPCMatrixScreen2` in central NiFi until caught and fixed same-session.
+
+Also fixed this session: the double chat-message bug (`!matrix` was posting both an immediate "loading" ack and `TwitchChatReplyProcessor`'s own "now active" confirmation — now just the one, screen-number-aware reply), and added a global cooldown shared by `!load`/`!matrix` (`Cooldown Seconds` property, default 10s) to protect the edge hardware from chat spam.
+
 ## Status as of 2026-07-24 (night session): Beelink-side built, deployed, and manually verified end-to-end; real Twitch-chat test still pending
 
 **This session's work (2026-07-24, TunaStarlink-side Claude session):** installed
