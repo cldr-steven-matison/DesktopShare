@@ -20,6 +20,7 @@ We need **MiNiFi Java** binaries, **MiNiFi C++ Windows** binaries (`.msi`), **Mi
 | `nifi-minifi-cpp-...-extra-python-components.zip` | `cpp` | `linux` | `extensions` | `1.26.02` | `extra-python-components.zip` |
 | `nifi-minifi-cpp-...-x64.msi` | `cpp` | `windows` | `binaries` | `1.26.02` | `minifi.msi` |
 | `minifi-2.24.08.0-19-bin.tar.gz` | `java` | `linux` | `binaries` | `2.24.08.0-19` | `minifi.tar.gz` |
+| `minifi-2.24.08.0-19-bin.tar.gz` (same file) | `java` | `windows` | `binaries` | `2.24.08.0-19` | `minifi.tar.gz` |
 
 ---
 
@@ -34,6 +35,7 @@ mkdir -p ~/efm-binaries/staging/binaries/cpp/linux/1.26.02
 mkdir -p ~/efm-binaries/staging/binaries/cpp/linuxaarch64/1.26.02
 mkdir -p ~/efm-binaries/staging/binaries/cpp/windows/1.26.02
 mkdir -p ~/efm-binaries/staging/binaries/java/linux/2.24.08.0-19
+mkdir -p ~/efm-binaries/staging/binaries/java/windows/2.24.08.0-19
 
 # ==========================================
 # 1. C++ LINUX (x86_64) - Unpack, Inject, Repack
@@ -82,6 +84,12 @@ cp ~/efm-binaries/nifi-minifi-cpp-1.26.02-b30-x64.msi ~/efm-binaries/staging/bin
 # 4. JAVA LINUX - Direct Copy
 # ==========================================
 cp ~/efm-binaries/minifi-2.24.08.0-19-bin.tar.gz ~/efm-binaries/staging/binaries/java/linux/2.24.08.0-19/minifi.tar.gz
+
+# ==========================================
+# 5. JAVA WINDOWS - Same platform-agnostic tarball
+# ==========================================
+# Field-verified 2026-07-25: without this leaf, osArch=windows deployer returns 400.
+cp ~/efm-binaries/minifi-2.24.08.0-19-bin.tar.gz ~/efm-binaries/staging/binaries/java/windows/2.24.08.0-19/minifi.tar.gz
 ```
 
 ---
@@ -132,7 +140,10 @@ kubectl exec -it $EFM_POD -n cld-streaming -- find /opt/efm/efm-2.3.1.0-2/agent-
 /opt/efm/efm-2.3.1.0-2/agent-deployer/binaries/cpp/linuxaarch64/1.26.02/minifi.tar.gz
 /opt/efm/efm-2.3.1.0-2/agent-deployer/binaries/cpp/windows/1.26.02/minifi.msi
 /opt/efm/efm-2.3.1.0-2/agent-deployer/binaries/java/linux/2.24.08.0-19/minifi.tar.gz
+/opt/efm/efm-2.3.1.0-2/agent-deployer/binaries/java/windows/2.24.08.0-19/minifi.tar.gz
 ```
+
+> **2026-07-25:** Java on Windows + k8s is field-documented in `efm-windows-java-minifi.md` (processor catalog, C++-vs-Java class-manifest trap, k8s `sudo` deployer trap).
 
 ---
 

@@ -17,9 +17,9 @@ For the C++ stock image processor catalog and per-processor gotchas, see `minifi
 
 `container.repo.cloudera.com/cloudera/minifi-java:latest` is Cloudera's build of Apache NiFi MiNiFi Java. The version staged in EFM is `2.24.08.0-19`. The EFM binary path is `binaries/java/linux/2.24.08.0-19/minifi.tar.gz`.
 
-The processor set is the Apache NiFi 2.x processor catalog. Any NiFi 2.x processor documentation applies directly — Java MiNiFi uses the same processor architecture as full NiFi. The distinction is that some NiFi components are UI-only or cluster-coordination features that don't apply in a MiNiFi single-agent context (NiFi Registry integration, cluster-coordination processors, site-to-site as a primary protocol). The runnable processor count is commonly described as "200+" — **[Not yet field-verified: exact processor count from a running Java MiNiFi 2.24.08.0-19 instance has not been captured; "200+" comes from the earlier C++-vs-Java comparison work and Cloudera's own comparison language. Treat as approximate until extracted from a live manifest.]**
+The processor set is a **subset** of the Apache NiFi 2.x catalog shipped as CEM agent NARs. Field-verified 2026-07-25 from a live `minifi-java` agent manifest (`2.24.08.0-19` on MINI-Gaming-G1): **114 processors**, **45 controller services**. Full list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`. Notable **absences** in this CEM tarball: `ExecuteScript`, `ExecutePythonProcessor`, `PublishKafka` / `ConsumeKafka`. The older "200+" language and "ExecuteScript out of the box" claims do **not** match this binary — use the live manifest, not marketing comparison tables. Full session write-up: `efm-windows-java-minifi.md`.
 
-The `agentType` in the EFM deployer is `java`. The `osArch` is `linux`. In the current lab setup, no Windows Java agent binary and no `linuxaarch64` Java agent binary are staged in EFM — the Java agent is Linux x86_64 only.
+The `agentType` in the EFM deployer is `java`. The `osArch` is `linux` or `windows` (same tarball — Java is platform-agnostic). As of 2026-07-25 both `java/linux` and `java/windows` are staged in EFM on the gaming PC; no `linuxaarch64` Java binary yet.
 
 ---
 
@@ -27,13 +27,14 @@ The `agentType` in the EFM deployer is `java`. The `osArch` is `linux`. In the c
 
 | Capability | MiNiFi C++ (`apacheminificpp:latest`) | MiNiFi Java (`minifi-java:latest`) |
 |---|---|---|
-| **ExecuteScript** | Not in stock image; requires extra-extensions or source build | **[Cloudera stock]** — Groovy, Jython, JavaScript, Ruby, Lua |
-| **ExecutePythonProcessor** | Not in stock image | **[Cloudera stock]** — native Python processor framework |
+| **ExecuteScript** | Not in stock image; requires extra-extensions or source build | **MISSING** in CEM `2.24.08.0-19` agent tarball (field-verified 2026-07-25) |
+| **ExecutePythonProcessor** | Not in stock image | **MISSING** in CEM `2.24.08.0-19` agent tarball |
 | **ExecuteProcess** | Not in stock image; only via extra-extensions | **[Cloudera stock]** — shell command execution |
 | **HandleHttpRequest / HandleHttpResponse** | Not available at all — no pair exists in C++ | **[Cloudera stock]** — request-reply HTTP (Jetty-backed); both share an `HttpContextMap` controller service |
-| **Record Reader/Writer framework** | `ConvertRecord` and `SplitRecord` are present but require controller services | **[Cloudera stock]** — full RecordReader/RecordWriter controller service ecosystem |
-| **Scripting flexibility** | Limited without extra-extensions | Groovy, Jython, JavaScript on every `ExecuteScript`; Python on `ExecutePythonProcessor` |
-| **Total processors** | 55 (stock), more via extra-extensions | 200+ (stock) — **[Not yet field-verified: exact count]** |
+| **PublishKafka / ConsumeKafka** | Present (C++ extensions) | **MISSING** in CEM `2.24.08.0-19` agent tarball |
+| **Record Reader/Writer framework** | `ConvertRecord` and `SplitRecord` are present but require controller services | **[Cloudera stock]** — RecordReader/RecordWriter controller services present |
+| **Scripting flexibility** | Limited without extra-extensions | Shell via `ExecuteProcess` / `ExecuteStreamCommand` only in this binary |
+| **Total processors** | 55 (stock), more via extra-extensions | **114** (field-verified from live agent manifest 2026-07-25) |
 | **Image size** | ~15 MB | ~300–400 MB |
 | **Memory minimum** | ~128Mi | ~512Mi |
 | **JVM startup** | None | ~30–60s cold start in the playground |
