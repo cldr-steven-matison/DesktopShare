@@ -10,6 +10,7 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
   - Bind the sensitive property to a **Parameter Context** (`#{param-name}`) and manage the value there — write-only via API, immune to the mask.
   - Or use the narrow-scope endpoint that only sends the field you're changing (e.g. `PUT /processors/{id}/run-status` — revision + state only, no property payload).
   - Or PUT the full entity with the real sensitive values re-supplied inline in the same call.
+  - **This is not a lesson tied to any one processor.** It has now destroyed real credentials twice, on two unrelated custom processors: `XLivePostProcessor` (2026-07-12, a relationship rewire) and `TwitchChatListenerProcessor` (2026-07-25, some other edit — root cause of *that* edit unknown, only its effect). Both times `validationStatus` stayed `VALID` afterward, because NiFi can't tell a genuine secret from the literal string `"********"`. Before any PUT to any processor, check its property descriptors for `sensitive: true` — if any exist, this rule is live for that PUT regardless of what the edit is actually trying to change.
 - **Live flow.json is truth. Docs lag.** Before editing a running PG, dump the live flow and read what's actually there. Don't rely on a memory or doc that says "the processor is configured X" — read the flow.
 
 ## Fixes and claims
