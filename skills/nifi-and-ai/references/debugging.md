@@ -26,4 +26,4 @@ Silent data loss in NiFi is almost always one of these. Work top to bottom:
 7. **Is `InvokeHTTP`'s method really `POST`?** Check the persisted value, not what you intended.
 8. **Do the bootstrap ports match the actual Kafka listener?** External NodePort ≠ in-cluster `9092`.
 9. **Is the pod's clock UTC or your local TZ?** For any cron-scheduled processor.
-10. **Did credentials suddenly stop working after a UI edit?** You probably GET-then-PUT a sensitive property and wrote `********` back over it. Re-hydrate from the source-of-truth values via a Parameter Context (rule 2 in `SKILL.md`).
+10. **Did credentials suddenly stop working after a UI edit?** You probably GET-then-PUT a sensitive property and wrote `********` back over it. Re-hydrate from the source-of-truth values via a Parameter Context (rule 2 in `SKILL.md`). Confirmed on two unrelated processors so far (`XLivePostProcessor`, `TwitchChatListenerProcessor`) — don't assume it only bites the one it happened to before; check any processor with sensitive properties after any edit to it.
