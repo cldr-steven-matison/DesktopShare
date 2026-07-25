@@ -34,7 +34,7 @@ See the mermaid diagram at the bottom for the full real topology (Kafka, EFM, op
 ## 3. Command Format (as built)
 
 - `!load <streamer> [screen1|screen2]` — defaults to `screen1`.
-- `!matrix` — triggers the Jetson's matrix-rain screensaver on demand.
+- `!matrix <screen1|screen2|screen3|screen4>` — triggers the matrix-rain screensaver on the named screen (`screen1` = Jetson). **Updated 2026-07-25: screen argument is now required, no bare `!matrix` default** — see `claude-screen.md`'s "Chat command syntax" note for the current, authoritative behavior and the full 4-screen mapping (this doc predates screens 3/4 and the mpv-based rebuild — treat `claude-screen.md`/`streamers-twitch-bot-mpv-plan.md` as current, this section as historical).
 - `!watchlist` — posts the active streamer watchlist on demand (Twitch-only entries, `kick:`-prefixed filtered out). Added in `TwitchChatListenerProcessor` `0.0.13-SNAPSHOT`, replacing the old auto-post-on-join behavior — reconnects happen often enough that repeating the full list every time read as spam, so join now just mentions `!watchlist` is available instead of dumping the list itself. Same message either way (`_format_watchlist_message()`), just on-demand instead of automatic.
 - `!commands` / `!help` — bot replies in chat with the available command list (now includes `!watchlist`).
 
@@ -44,9 +44,9 @@ See the mermaid diagram at the bottom for the full real topology (Kafka, EFM, op
 |---|---|---|
 | `screen1` | `NvidiaNano` (Jetson Orin Nano) | `ListenHTTP` (`streamChatListener`, :8081) → `ExecuteScript` (`agent-NvidiaNano-launch_stream.py`) |
 | `screen2` | `KubernetesPod` (gaming PC, pod has no GUI socket access) | `ListenHTTP` (:8082 on the pod) → `ExecuteScript` POSTs to `browser_launcher.py`, a native Windows listener (`host.docker.internal:5901`) that owns the real Chrome launch |
-| `matrix` | `NvidiaNano` | second `ListenHTTP` (`matrixListener`, :8082) → `ExecuteScript` (`agent-NvidiaNano-launch_matrix.py`) |
+| `matrix-screen1` | `NvidiaNano` | second `ListenHTTP` (`matrixListener`, :8082) → `ExecuteScript` (`agent-NvidiaNano-launch_matrix.py`) |
 
-Routing is `RouteOnAttribute` inside `TwitchChatBot`, branching on `${screen}` (`screen1`/`screen2`/`matrix`) — `InvokeNvidiaNano`, `InvokeGamingPC`, `InvokeNvidiaNanoMatrix`.
+Routing is `RouteOnAttribute` inside `TwitchChatBot`, branching on `${screen}` (`screen1`/`screen2`/`matrix-screen1`, plus `matrix-screen2`/`3`/`4` added later — see `claude-screen.md`) — `InvokeNvidiaNano`, `InvokeGamingPC`, `InvokeNvidiaNanoMatrix`. (Renamed from bare `matrix` to `matrix-screen1` on 2026-07-25 to unify with the other screens' explicit numbering — same endpoint, only the internal routing name changed.)
 
 **Known fragility:** `InvokeGamingPC`'s URL is hardcoded to the pod's current IP — breaks on pod reschedule.
 

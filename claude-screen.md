@@ -6,9 +6,11 @@ are platform-specific because Linux/X11 and Windows need genuinely different
 tricks. Read the section for the device you're touching — don't assume a fix
 on one side applies to the other without checking.
 
-- **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21.
+- **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21; command syntax unified to `!matrix screen1` (explicit, no bare `!matrix`) on 2026-07-25 — see "Chat command syntax" note below.
 - **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation (TunaStarlink)" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Wired to Twitch chat since 2026-07-25** — `!matrix screen3`/`!matrix screen4` (array-wide numbering, same mismatch-with-local-names as `!load` — see `streamers-twitch-bot-mpv-plan.md`).
 - **MINI-Gaming-G1 (Windows gaming PC)** — see "Windows implementation (MINI-Gaming-G1)" below. Built, verified, and wired to Twitch chat 2026-07-25 (`!matrix screen2`) — ported from the TunaStarlink implementation, ported over close to verbatim as expected. Same session also replaced this device's `!load` (Chrome/`browser_launcher.py`) with the mpv-based approach — see `streamers-twitch-bot-mpv-plan.md`.
+
+**Chat command syntax (updated 2026-07-25):** `!matrix` now always requires an explicit screen argument — `!matrix screen1|screen2|screen3|screen4` — matching `!load`'s own explicit numbering. There is no more bare `!matrix` defaulting to the Jetson; a bare `!matrix` (or any unrecognized screen token) is simply not a recognized command and gets no reply, same as an unrecognized `!load` screen. Changed in `TwitchChatListenerProcessor` (`0.0.18-SNAPSHOT`) and in central NiFi's `TwitchChatBot` `RouteOnAttribute`, which had its `matrix` dynamic property/relationship renamed to `matrix-screen1` (still targets the same Jetson `matrixListener` endpoint — only the internal routing name changed, not the wiring). Nothing on the edge/device side needed to change for this — `windows_matrix_launcher.py` never had a `screen1` entry (see "Known failure mode" #2 below), and the Jetson's own launcher script only ever served one screen.
 
 ## Jetson implementation
 
@@ -519,7 +521,7 @@ Two separate problems, found and fixed in the same session:
 
 ## Next steps / advice for next agent
 
-All three devices are now built and wired to chat (`!matrix [screen2|screen3|screen4]`, bare `!matrix` = Jetson) as of 2026-07-25. What's left:
+All three devices are now built and wired to chat (`!matrix screen1|screen2|screen3|screen4`, screen argument required — see "Chat command syntax" note above) as of 2026-07-25. What's left:
 
 1. **Real chat-triggered end-to-end test for GamingPC.** Everything was verified directly (pod-internal `curl` calls, Windows-side window rect/title checks — see the gotcha section above), but not yet through an actual `!matrix screen2` typed in real Twitch chat. Same caveat applies to `!load screen2` now that it's mpv-based instead of Chrome-based.
 2. **Housekeeping.** `C:\minifi-manual\edge-matrix-profile-<timestamp>` directories accumulate one per launch on both Windows devices; best-effort cleanup runs on every new launch but only opportunistically. Not a problem yet, worth a periodic sweep if `!matrix` traffic grows. Listener ports (`5901`/`5903` for matrix, `5902` for mpv, device-dependent) bind `0.0.0.0` — fine while effectively loopback/pod-bridge-only in practice, revisit if a real external network caller ever needs one directly.
