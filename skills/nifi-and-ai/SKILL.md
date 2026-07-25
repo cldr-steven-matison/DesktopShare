@@ -49,7 +49,7 @@ The canonical AI array is all three at once: **EFM + MiNiFi agents on the edge +
 | `references/flow-api.md` | Deploying and editing flows via the NiFi REST API — auth handles, uploading a Process Group JSON, downloading/re-exporting one to keep a checked-in copy current, safe live edits. |
 | `references/patterns.md` | Flow patterns that ship: NiFi-as-HTTP-API, MiNiFi fire-and-forget router, the ingest→Kafka→transform→sink (RAG) shape, and the GUI-less edge→host bridge. |
 | `references/custom-processors.md` | Writing custom Python/Java processors, the mixed-template EL trap, and rebuild→redeploy discipline. |
-| `references/minifi-efm.md` | The edge side: staging agent binaries, EFM persistence, the deployer curl, Windows+Python, and the (undocumented) EFM Flow Designer API. |
+| `references/minifi-efm.md` | The edge side: staging agent binaries, EFM persistence, the deployer curl, Windows+Python, the (undocumented) EFM Flow Designer API, and recovering a `KubernetesPod`-class agent whose heartbeat has gone silently dark (bare-pod restart, asset-sync race, IP instability). |
 | `references/debugging.md` | Cross-cutting wire-up gotchas and a 10-step debugging checklist. |
 | `references/layout.md` | Canvas layout & arrangement: the coordinate model, grounded spacing constants, per-shape placement rules, and a worked example — plus the running list of other things a Claude-built flow still needs a human pass on. |
 
