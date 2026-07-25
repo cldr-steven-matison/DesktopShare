@@ -7,7 +7,7 @@ tricks. Read the section for the device you're touching — don't assume a fix
 on one side applies to the other without checking.
 
 - **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21.
-- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). **Not yet wired to Twitch chat** — see "Next steps" at the bottom, including the decided local-to-array screen-number mapping.
+- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Not yet wired to Twitch chat** — see "Next steps" at the bottom, including the decided local-to-array screen-number mapping.
 - **MINI-Gaming-G1 (Windows gaming PC)** — not built yet. Steven's ask (2026-07-23): "we need to do this on the WindowsDesktop Device too." Follow the Windows implementation below as the template — it should port over close to verbatim, see "Next steps."
 
 ## Jetson implementation
@@ -233,7 +233,9 @@ without touching native MiNiFi C++'s broken Python `ExecuteScript` support
   on real activity resuming. Registered as Scheduled Task `MatrixIdleWatcher`.
 - Both Scheduled Tasks: `AtLogOn` trigger for `TunaStarlink\tunas`,
   `RestartCount=3`/`RestartInterval=1min`, unlimited execution time — same
-  shape as the GamingPC's `BrowserLauncherListener` task.
+  shape as the GamingPC's `BrowserLauncherListener` task. Action is
+  `pythonw.exe` (not `python.exe`) as of 2026-07-24 — see "Known failure
+  mode" #3.
 
 Screens, confirmed via `[System.Windows.Forms.Screen]::AllScreens`:
 
@@ -356,6 +358,38 @@ scheduled tasks manually restarted and responsive (`Start-ScheduledTask` +
 port-5901 reachability check), `screen1` removed from the running listener's
 code and confirmed `/matrix/screen1` now returns `404`.
 
+### Known failure mode #3: scheduled task opens a visible Windows Terminal window, and closing it kills the listener (found and fixed 2026-07-24)
+
+**Symptom:** every time `MatrixLauncherListener`/`MatrixIdleWatcher` was
+(re)started via `Start-ScheduledTask`, a new Windows Terminal window popped up
+on screen, titled with the raw `python.exe` path. Separately, the launcher
+listener was found dead (`LastTaskResult` = `3221225786` / `0xC000013A`,
+`STATUS_CONTROL_C_EXIT`) shortly after being restarted, with no exception in
+its own crash log — implying something external killed it.
+
+**Root cause:** this Windows 11 build has Windows Terminal set as the default
+host application for console apps. Any scheduled task whose action is
+`python.exe` (a console app) with no console already attached gets a brand
+new, visible Windows Terminal window created to host it. Closing that window
+(or anything that tears it down) sends a close signal to the process it's
+hosting — killing the listener with exactly the `STATUS_CONTROL_C_EXIT` code
+observed. This was happening silently on every restart, not something either
+script did wrong.
+
+**Fix:** both tasks' action was switched from
+`...\Python312\python.exe "<script>"` to `...\Python312\pythonw.exe "<script>"`
+— `pythonw.exe` is the windowless variant that ships with every CPython
+install, so no console is ever created and no terminal window ever opens.
+Confirmed via a full `EnumWindows` scan after restart: no extra window
+appears, listener stays up.
+
+**Applies beyond Matrix:** this is a property of the box, not this script —
+`MpvStreamLauncherListener` (see the mpv/stream-loader work,
+`streamers-twitch-bot-mpv-plan.md`) was registered with `pythonw.exe` from the
+start for the same reason. Any *future* scheduled task on this device running
+a plain Python console script should default to `pythonw.exe` too, not
+`python.exe`.
+
 ### Adjusting
 
 Edit `C:\minifi-manual\matrix-screensaver.html` or the `MATRIX_POSITION`/
@@ -365,7 +399,7 @@ PowerShell prompt:
 ```powershell
 Stop-ScheduledTask -TaskName MatrixLauncherListener
 Stop-ScheduledTask -TaskName MatrixIdleWatcher
-Get-Process python | Stop-Process -Force
+Get-Process pythonw | Stop-Process -Force
 Start-ScheduledTask -TaskName MatrixLauncherListener
 Start-ScheduledTask -TaskName MatrixIdleWatcher
 ```
