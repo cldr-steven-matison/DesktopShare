@@ -168,6 +168,32 @@ fully hands-off run at the real 2-minute threshold under the same load —
 window came up at the correct `1920x1080` @ `0,0` with no manual
 intervention.
 
+#### 4. Device went fully unresponsive to `!load`/`!matrix` — inbound dead, outbound fine (found and fixed 2026-07-26)
+
+`!load screen1`/`!matrix screen1` stopped doing anything. Diagnosed before
+Steven had hands on the device: EFM showed the `NvidiaNano` agent `ONLINE`
+with a heartbeat only seconds old, but the device (`192.168.1.195`) was
+100% unreachable for everything inbound — `ping` and direct `curl` to all
+three relevant listener ports (8080/8081/8082) all timed out. Confirmed
+both from the gaming-PC host and from *inside* the `mynifi-0` pod (the
+actual source of the real `InvokeNvidiaNano`/`InvokeNvidiaNanoMatrix`
+trigger calls), ruling out a routing fluke specific to one machine.
+
+That split — outbound heartbeat to EFM still succeeding, everything
+inbound (including ICMP) completely dead — means the device's own network
+stack/listeners were wedged, not a NiFi/EFM/flow-config problem on the
+central-NiFi side. Nothing to fix there; central NiFi's wiring was already
+correct.
+
+**Fix:** Steven restarted the Jetson directly. Confirmed back up and
+responding to `!load`/`!matrix` afterward.
+
+Worth remembering as a diagnostic signature for next time this class of
+device (or any EFM-heartbeating edge box) looks unresponsive: check
+whether the EFM heartbeat is still fresh *before* assuming the flow or the
+trigger wiring is broken — a live heartbeat with dead inbound reachability
+points straight at the device itself, not the flow.
+
 ### Adjusting
 
 Edit `~/matrix-screensaver.html` (glyph size/speed/color/trail fade) or

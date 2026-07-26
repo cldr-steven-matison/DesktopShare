@@ -87,3 +87,8 @@ trigger PublishClip (one publish — despite the name, routes to PublishClipPeak
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh PublishClip"
 ```
+
+trigger PostWatchList (posts the current watch list to X, tagging every streamer with a known X handle — bot-confirmed working 2026-07-26, see cso-operator-app-streamers.md Session 22)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh PostWatchList"
+```
