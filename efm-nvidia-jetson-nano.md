@@ -409,7 +409,7 @@ Most important: TensorRT flow which is the one we want, but I also include the f
 #### EFM Agent Flow Files - TensorRT - ListenHttp -> ExecuteScript -> PublishKafka
 
 - [NvidiaNano](files/efm/NvidiaNano-TensorRT.json) - Operational
-- [WindowsDesktop](files/efm/WindowsDesktop-TensorRT.json) - WIP
+- [WindowsDesktop](files/efm/WindowsDesktop-TensorRT.json) - Operational
 - [KubernetesPod](files/efm/KubernetesPod-TensorRT.json) - Operational
 
 #### EFM Agent Flow Files - `minifi-app.log` - TailLog -> PublishKafka

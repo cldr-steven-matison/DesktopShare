@@ -26,7 +26,7 @@ its IP. This guide is the map I wish I'd had.
 | 1 | EFM on Kubernetes | `blog/efm-persistance.md` | `_posts/2026-07-15-Cloudera Edge Flow Manager on Kubernetes.md` | ✅📝 | Yes (EFM 2.3.1.0-2, minikube `cld-streaming`) | Cross-link into guide  - dont cross link, just get the basics of efm on kubereste into this chapter, like how to deploy, what it is, etc. |
 | 2 | EFM persistence (Postgres + 2 PVCs) | `blog/efm-persistance.md` | — | ✅ ✍️ | Yes | Publish as post |
 | 3 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | Distill into `efm-binaries-blog.md` - do not distill keep this section to expand deep into  all the binary needs |
-| 4 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64; aarch64 `.so` listing open) | Field-verify aarch64 |
+| 4 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64 confirmed; 81 Windows MSI field-verified 2026-07-27, was 76; aarch64 `.so` listing open) | Field-verify aarch64 (needs an aarch64-capable device — not MINI-Gaming-G1) |
 | 5 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114, no ExecuteScript/Kafka) | Verify Docker `minifi-java:latest` |
 | 6 | ExecuteScript availability (4 paths) | `efm-executescript.md` | — | 🟡 | Yes (C++/Java/MSI/source mapped) | Fold into Part II narrative |
 | 7 | MiNiFi Python processors | `minifi-python-processors.md` (stub) | — | 🔲 ✍️ | No | Build C++ ExecutePython section with howtos and examples |
@@ -42,7 +42,7 @@ its IP. This guide is the map I wish I'd had.
 | 17 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | Fix transcription drop, then draft |
 | 18 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | Resolve transcription |
 | 19 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | Accumulate flows as built |
-| 20 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | Fill `[insert]`/`[screenshot]`, make `WindowsDesktop-TensorRT.json` |
+| 20 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed |
 | 21 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | Assess existing depth |
 
 ## The 7 parts
