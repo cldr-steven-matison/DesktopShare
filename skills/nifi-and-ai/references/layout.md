@@ -2,9 +2,7 @@
 
 The canonical home for the layout technique — the NiFi REST API build path (`flow-api.md`) and the EFM Designer API build path (`minifi-efm.md`) both point here, because both produce the same problem: a functionally-correct flow that's visually rough. Processors land wherever the call's `position` said, connections cross, and it reads nothing like a hand-laid flow.
 
-**Read this first, because it sets the honesty bar:** the technique below gets a build *close* to hand-laid, but it does **not** eliminate the manual align/tidy pass in the Designer or NiFi UI. Even with role-matched columns and consistent rows, connections still cross and it won't look finished. Don't claim a build is visually done — say what it functionally does, and expect (or explicitly ask about) a cleanup pass.
-
-Real example, 2026-07-23/24: the `WatchlistChatJoiner` PG was built with role-matched columns and consistent row spacing, and Steven *still* did a "processor sliding and human cleanup" pass afterward — good coordinates alone are not enough.
+**Read this first, because it sets the honesty bar:** the technique below gets a build *close* to hand-laid, but it does **not** eliminate the manual align/tidy pass in the Designer or NiFi UI. Even with role-matched columns and consistent rows, connections still cross and it won't look finished. Don't claim a build is visually done — say what it functionally does, and expect (or explicitly ask about) a cleanup pass. Good coordinates alone are not enough; a role-matched, consistently-spaced build still gets a human processor-sliding pass afterward.
 
 ### Coordinate model (same for both build paths)
 
@@ -35,7 +33,7 @@ Instead:
 2. Push `B` (and everything already below it in the same column) down by one more `row_pitch` to make room, rather than shrinking the gap.
 3. If parallel columns share rows (a common pattern — a "success" and "cleanup" branch sitting side by side), keep them aligned: `C` and `B` should land on the same rows as whatever already occupies those rows in the neighboring column, not just "however far apart is convenient" for this one column in isolation.
 
-Real example, 2026-07-24: adding `BuildJoinedEvent` between `JoinAndGreet` (y=824) and `PublishKafka_2_6` (y=1016, pre-existing) in `WatchlistChatJoiner`. First pass placed it at y=920 — the literal midpoint — compressing that one hop to less than half the column's own established ~192px pitch (824 → 1016 → 1208 on the parallel `PrepRemoveBody`/`BuildRemoveBody`/`RemoveFromWatchlist` branch). Correct fix: `BuildJoinedEvent` → 1016 (taking over `PublishKafka_2_6`'s old row, aligned with `BuildRemoveBody` next door), `PublishKafka_2_6` pushed down to 1208 (aligned with `RemoveFromWatchlist`).
+Example — inserting `BuildJoinedEvent` between `JoinAndGreet` (y=824) and a pre-existing `PublishKafka_2_6` (y=1016), in a column whose parallel branch steps 824 → 1016 → 1208 (~192px pitch). **Wrong:** the midpoint y=920 — it compresses that one hop to under half the column's own pitch and desyncs it from the parallel branch. **Right:** `BuildJoinedEvent` → 1016 (takes `PublishKafka_2_6`'s old row, aligned with the neighbor's `BuildRemoveBody`), and `PublishKafka_2_6` pushed down to 1208 (aligned with `RemoveFromWatchlist`).
 
 ### Deriving from a live flow (the precise "match the existing column")
 
@@ -59,6 +57,6 @@ LogFailure         (0,   800)                     ← merge, back on center
 
 ## Other human-pass gaps
 
-Layout is the biggest thing a programmatic build gets functionally-right-but-not-done, but it isn't the only one. This is the running list of everything else Steven has had to clean up by hand after an API build — read it before claiming a build is "finished," and add to it the next time something new turns up.
+Layout is the biggest thing a programmatic build gets functionally-right-but-not-done, but it isn't the only one. This is the running list of everything else a human has had to clean up by hand after an API build — read it before claiming a build is "finished," and add to it the next time something new turns up.
 
 - _(nothing else logged yet — add the next one here)_

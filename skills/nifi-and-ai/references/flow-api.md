@@ -85,7 +85,7 @@ d = json.load(open("MyFlow.json"))
 json.dump(d, open("MyFlow.json", "w"), indent=2)
 ```
 
-**Confirmed safe to commit, checked empirically (2026-07-24), not assumed:** Parameter Context sensitive-property values export as `null`, never the real value or even the `"********"` GET-mask — and processor-level sensitive properties aren't embedded either, since the correct pattern (rule 2 above) keeps them out of literal processor properties entirely. No credential-leak risk in a flow-definition download, unlike a raw processor-entity `GET`.
+**Confirmed safe to commit (checked empirically, not assumed):** Parameter Context sensitive-property values export as `null`, never the real value or even the `"********"` GET-mask — and processor-level sensitive properties aren't embedded either, since the correct pattern (rule 2 above) keeps them out of literal processor properties entirely. No credential-leak risk in a flow-definition download, unlike a raw processor-entity `GET`.
 
 ## 5. Editing a live processor safely
 
