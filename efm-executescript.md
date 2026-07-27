@@ -46,6 +46,8 @@ because the agent-class manifest genuinely doesn't contain it.
 
 The Cloudera docs list `ExecuteScript` for Linux **and Windows** because it *can be built*, not because it ships — the CEM 2.4.0 C++ *Supported processors* page tallies ~90 and names `ExecuteScript` with no note that scripting is an optional/build-time extension. The stock image field-verifies at 74 and has no scripting `.so`. Trust the running manifest, not the doc table — that distinction cost real time before I pinned it down. (`docs.cloudera.com/cem/2.4.0/release-notes-minifi-cpp/topics/cem-cpp-processors.html`)
 
+> **Source-doc trap:** that same Cloudera C++ *Supported processors* page also lists a **phantom `ExecutePythonProcessor`** — a processor that exists in neither the Apache `nifi-minifi-cpp` source nor any live agent manifest we've captured (74 stock / 76 Windows / 114 Java). It is a Cloudera-doc error, not a usable processor; the only scripting processor is `ExecuteScript` (Script Engine: python). Recorded here at the source level so a future session doesn't re-import it from that page — do not propagate the name into our own catalogs or summaries.
+
 ## The FQCN and engines (for EFM Designer POSTs)
 
 C++ EFM flows use MiNiFi FQCNs, not the Java NiFi ones:
