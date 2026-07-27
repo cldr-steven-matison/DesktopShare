@@ -3,9 +3,14 @@
 **Audience:** session on **TunaStarlink** (Beelink SER9 Pro / SER9 MAX H260)  
 **Author host:** MINI-Gaming-G1 (2026-07-27)  
 **Goal:** Get **working `ExecuteScript` (Python)** on the Beelink’s Windows MiNiFi C++ agent, using the Path D recipe field-verified on the gaming PC.  
-**Status of Path D:** **proven** on MINI-Gaming-G1 (process-mode + Python smoke). Service install with `ADDLOCAL=ALL` is the preferred production shape — run elevated on the Beelink.
+**Status of Path D (MINI-Gaming-G1, 2026-07-27):** **fully proven** — process-mode **and** Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke (`python.smoke=windows-cpp-executescript-ok` on `:18080`). Canonical how-to: **`efm-executescript.md` § Path D**. This file is the Beelink checklist to re-confirm the same path on `StarlinkAI`.
 
-**MINI-Gaming-G1 service attempt (same day):** non-elevated `msiexec /i … ADDLOCAL=ALL` failed with **exit 1625** (*This installation is forbidden by system policy* / product admin-assigned to LocalSystem). `Start-Process -Verb RunAs` returned exit 1 without creating the service (UAC / no interactive approve from the agent session). Process-mode agent left running. **On the Beelink you must use a real elevated Admin PowerShell window** (click UAC) — do not expect an unattended WSL agent to finish the service install.
+**G1 service path notes (so Beelink doesn’t repeat traps):**
+
+- Needs a **real elevated Admin PowerShell** (UAC). Unattended/non-elevated `msiexec /i` → exit **1625**. Agent-launched RunAs from WSL is unreliable.
+- Always `cd C:\minifi` **before** msiexec — Admin shells start in `C:\WINDOWS\system32`; G1’s service landed under `C:\WINDOWS\system32\nifi-minifi-cpp` despite `INSTALL_ROOT=C:\minifi`.
+- After install: confirm DLL + `minifi_native.pyd`; **uncomment/set `nifi.c2.*`** (stock is commented); restart service; then smoke.
+- G1 helpers: `C:\minifi\install-service-addlocal.ps1`, `C:\minifi\fix-service-c2.ps1` (ASCII-only scripts).
 
 Companion deep dives (already on `main`):
 
@@ -24,8 +29,9 @@ Companion deep dives (already on `main`):
 |---|---|
 | EFM | `http://127.0.0.1:10090` on gaming PC (also Tailscale `efm-host-ip:10090`) |
 | Working C++ agent | class **`WindowsDesktopCpp`**, id `40eb2f92-94c5-4478-beed-7060e41c9d7f` |
-| Install | `C:\minifi\nifi-minifi-cpp`, process-mode `minifi.exe` (no elevation available that day) |
-| Proof | `ListenHTTP:18080` → `ExecuteScript` python → `LogAttribute` logged `python.smoke=windows-cpp-executescript-ok` |
+| Install (final) | Windows service **`Apache NiFi MiNiFi`** Running/Automatic; tree on G1: `C:\WINDOWS\system32\nifi-minifi-cpp` (prefer `C:\minifi` next time) |
+| Earlier same day | process-mode under `C:\minifi\nifi-minifi-cpp` also smoked successfully |
+| Proof | `ListenHTTP:18080` → `ExecuteScript` python → `LogAttribute` → `python.smoke=windows-cpp-executescript-ok` (process **and** service) |
 | Java agent | left running on class `WindowsDesktop` at `C:\Users\tunas\minifi-java\...` |
 
 ### Agent classes are device-type holders, not runtime silos

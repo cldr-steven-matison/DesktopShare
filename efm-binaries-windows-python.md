@@ -58,14 +58,17 @@ Optional note: `Batch Size=1` on ListenHTTP can drop concurrent POSTs (`buffer i
 
 Helpers left on box: `C:\minifi\setup-cpp-agent.ps1`, `C:\minifi\smoke-post.ps1`, `C:\minifi\deploy-windowsdesktopcpp.ps1`, `C:\minifi\install-service-addlocal.ps1` (elevated service installer — **run as Admin**).
 
-### Service install with ADDLOCAL=ALL (attempted same day, needs interactive elevation)
+### Service install with ADDLOCAL=ALL — **verified same day (elevated)**
 
 ```powershell
-# From elevated Admin PowerShell only:
+# From elevated Admin PowerShell only — cd out of system32 first:
+cd C:\minifi
 C:\minifi\install-service-addlocal.ps1
+# If C2 still commented / pyd missing / tree under system32:
+C:\minifi\fix-service-c2.ps1
 ```
 
-Unattended/non-elevated result on G1: **msiexec exit 1625** (system policy / admin-assigned product). Beelink runbook: `efm-beelink-cpp-python-action.md`.
+**Result on G1:** service `Apache NiFi MiNiFi` Running/Automatic; Python ExecuteScript smoke passed again (`python.smoke=windows-cpp-executescript-ok`). Tree landed under `C:\WINDOWS\system32\nifi-minifi-cpp` (Admin `$PWD` trap). Unattended/non-elevated msiexec still **exit 1625**. Full how-to: `efm-executescript.md` § Path D. Beelink: `efm-beelink-cpp-python-action.md`.
 
 ---
 
