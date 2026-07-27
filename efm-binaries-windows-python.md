@@ -6,7 +6,7 @@
 
 | Item | Value |
 |---|---|
-| Agent class | `WindowsDesktopCpp` (new — do **not** reuse Java's `WindowsDesktop`) |
+| Agent class | `WindowsDesktopCpp` (**eval-only** parallel class — EFM classes can host mixed C++/Java agents; split avoided breaking the live Java `WindowsDesktop` canvas) |
 | Agent id | `40eb2f92-94c5-4478-beed-7060e41c9d7f` |
 | Manifest id | `ad8fb2bf-a4de-49e6-92ec-4d70fcbe5519` |
 | Install root | `C:\minifi\nifi-minifi-cpp` |
@@ -56,7 +56,16 @@ def onTrigger(context, session):
 
 Optional note: `Batch Size=1` on ListenHTTP can drop concurrent POSTs (`buffer is NOT full`) — increase batch size if hammering; single POSTs still process.
 
-Helpers left on box: `C:\minifi\setup-cpp-agent.ps1`, `C:\minifi\smoke-post.ps1`, `C:\minifi\deploy-windowsdesktopcpp.ps1`.
+Helpers left on box: `C:\minifi\setup-cpp-agent.ps1`, `C:\minifi\smoke-post.ps1`, `C:\minifi\deploy-windowsdesktopcpp.ps1`, `C:\minifi\install-service-addlocal.ps1` (elevated service installer — **run as Admin**).
+
+### Service install with ADDLOCAL=ALL (attempted same day, needs interactive elevation)
+
+```powershell
+# From elevated Admin PowerShell only:
+C:\minifi\install-service-addlocal.ps1
+```
+
+Unattended/non-elevated result on G1: **msiexec exit 1625** (system policy / admin-assigned product). Beelink runbook: `efm-beelink-cpp-python-action.md`.
 
 ---
 
