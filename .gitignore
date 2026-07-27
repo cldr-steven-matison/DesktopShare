@@ -1,4 +1,8 @@
-/.claude
+# .claude/ is tracked (shared hooks + settings across devices). Two exceptions stay
+# local: settings.local.json (per-machine permission paths) and skills/ (a local
+# install copy — the canonical skill source is the top-level skills/ dir).
+/.claude/settings.local.json
+/.claude/skills/
 /files/tuna-test/input/
 /files/tuna-test/output/
 /files/tuna-test/.env.local
