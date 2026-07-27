@@ -23,22 +23,22 @@ its IP. This guide is the map I wish I'd had.
 
 | Ch | Title | Source doc(s) | Blog | Status | Field-validated | Next action |
 |----|-------|---------------|------|--------|-----------------|-------------|
-| 1 | EFM on Kubernetes | `blog/efm-persistance.md` | `_posts/2026-07-15-Cloudera Edge Flow Manager on Kubernetes.md` | ✅📝 | Yes (EFM 2.3.1.0-2, minikube `cld-streaming`) | Cross-link into guide |
+| 1 | EFM on Kubernetes | `blog/efm-persistance.md` | `_posts/2026-07-15-Cloudera Edge Flow Manager on Kubernetes.md` | ✅📝 | Yes (EFM 2.3.1.0-2, minikube `cld-streaming`) | Cross-link into guide  - dont cross link, just get the basics of efm on kubereste into this chapter, like how to deploy, what it is, etc. |
 | 2 | EFM persistence (Postgres + 2 PVCs) | `blog/efm-persistance.md` | — | ✅ ✍️ | Yes | Publish as post |
-| 3 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | Distill into `efm-binaries-blog.md` |
+| 3 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | Distill into `efm-binaries-blog.md` - do not distill keep this section to expand deep into  all the binary needs |
 | 4 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64; aarch64 `.so` listing open) | Field-verify aarch64 |
 | 5 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114, no ExecuteScript/Kafka) | Verify Docker `minifi-java:latest` |
 | 6 | ExecuteScript availability (4 paths) | `efm-executescript.md` | — | 🟡 | Yes (C++/Java/MSI/source mapped) | Fold into Part II narrative |
-| 7 | MiNiFi Python processors | `minifi-python-processors.md` (stub) | — | 🔲 ✍️ | No | Build C++ ExecutePythonProcessor scenario |
-| 8 | Standalone MiNiFi C++ on K8s (no EFM) | MiNiFi Playground root scenario | — | ✅ | Yes (v1.26.02) | Cross-link into guide |
-| 9 | MiNiFi Java setup | — (absent) | — | 🔲 | No | Add `java/` to Playground |
-| 10 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | Add `efm/` section to Playground |
+| 7 | MiNiFi Python processors | `minifi-python-processors.md` (stub) | — | 🔲 ✍️ | No | Build C++ ExecutePython section with howtos and examples |
+| 8 | Standalone MiNiFi C++ on K8s (no EFM) | MiNiFi Playground root scenario | — | ✅ | Yes (v1.26.02) | Cross-link into guide - do not cross link the content should be included and its source updated as well coming out of this plan |
+| 9 | MiNiFi Java setup | — (absent) | — | 🔲 | No | Document examples for  `java` flavor to root Playground |
+| 10 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | Add `efm` section to root Playground |
 | 11 | S2S: MiNiFi Java → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | Local build |
 | 12 | S2S: MiNiFi C++ → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | Local build |
 | 13 | S2S: NiFi K8s → Cloudera DataFlow | `minifi-site-to-site.md` (stub) | — | 🔲 | No | CDP DataFlow (access confirmed) |
 | 14 | S2S: NiFi K8s → Cloudera Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | CDP Data Hub |
 | 15 | S2S: Cloudera DataFlow → Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | CDP-to-CDP |
-| 16 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | Cross-link into guide |
+| 16 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | Cross-link into guide - do not cross link resummarize contewnt as needed and link out to the other document for entire content |
 | 17 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | Fix transcription drop, then draft |
 | 18 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | Resolve transcription |
 | 19 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | Accumulate flows as built |
@@ -116,7 +116,3 @@ Promotion flow for each piece of content:
 - Blog drafts follow `agent/writing-style.md`: first-person present, real numbers and paths, Symptom → Diagnosis → Fix, no padding.
 - Commit only when explicitly asked.
 
-## What NOT to do
-
-- Don't propagate the phantom `ExecutePythonProcessor` from Cloudera's C++ docs — it is not in any live manifest (see `efm-executescript.md`). Ch7 uses the real C++ `ExecuteScript` with a Python engine.
-- Don't attempt a whole-flow PUT against the EFM Flow Designer — that endpoint does not exist on this build (`HttpRequestMethodNotSupportedException`). Use the per-component API documented in `beelink-starlink-efm-ai.md`.
