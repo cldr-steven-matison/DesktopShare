@@ -19,4 +19,4 @@ DesktopShare is worked on from several devices (see `../CLAUDE-CHECKIN.md`). Thi
 
 ## Contributing
 
-Same rule as `how-to-nifi-and-ai.md`: fix in place with a one-line dated note, don't fork. If something here turns out to only apply to one device, demote it to that device's block in `CLAUDE-CHECKIN.md`.
+Fix in place with a one-line dated note, don't fork. If something here turns out to only apply to one device, demote it to that device's block in `CLAUDE-CHECKIN.md`.

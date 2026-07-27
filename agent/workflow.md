@@ -3,7 +3,7 @@
 ## Commit and push
 
 - **Commit and push only when Steven explicitly asks.** No "I'll commit that for you" — the default across every repo is uncommitted, working-tree changes stay uncommitted until asked.
-- When you do commit, one focused commit message per change. Follow the existing `<area>: <what changed>` style visible in `git log` — `streamers/EFM/NiFi: ...`, `blog: ...`, `how-to-nifi-and-ai: ...`.
+- When you do commit, one focused commit message per change. Follow the existing `<area>: <what changed>` style visible in `git log` — `streamers/EFM/NiFi: ...`, `blog: ...`, `nifi-and-ai skill: ...`.
 
 ## Branches
 
