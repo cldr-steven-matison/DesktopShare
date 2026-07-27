@@ -300,9 +300,9 @@ Verify: `Test-Path C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-ext
 
 | Build | ExecuteScript | Notes |
 |---|---|---|
-| Cloudera stock `apacheminificpp:latest` (Linux) | ❌ | Ships the production-hardened minimal set (55 processors). No scripting. |
+| Cloudera stock `apacheminificpp:latest` (Linux) | ❌ | Ships the production-hardened minimal set (74 processors). No scripting. |
 | Cloudera MSI + `ADDLOCAL=ALL` | ✅ | Only after §5e |
-| MiNiFi Java `container.repo.cloudera.com/cloudera/minifi-java:latest` | ✅ | Full ExecuteScript / ExecutePythonProcessor / ExecuteProcess. ~300MB image (vs C++'s ~15MB) |
+| MiNiFi Java `container.repo.cloudera.com/cloudera/minifi-java:latest` | ✅ | Full ExecuteScript / ExecuteProcess. ~300MB image (vs C++'s ~15MB) |
 | Source-built C++ with `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` | ✅ | Multi-stage Dockerfile from Apache source at the matching tag |
 
 Full processor catalog for the stock C++ image is in `minifi-playground-cpp-processors.md`; the Java agent's catalog and the C++-vs-Java comparison are in `minifi-playground-java-processors.md`.

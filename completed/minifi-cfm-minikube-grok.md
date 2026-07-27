@@ -11,13 +11,13 @@ This is **pure integration smoke-testing** — lightweight, reversible, and EFM-
 
 ### Phase 1: Create Minimal Test Flow config.yml (Standalone, No EFM)
 1. Create a file named `config.yml` using the official MiNiFi C++ YAML format (see Apache MiNiFi C++ examples repo for full structure: https://github.com/apache/nifi-minifi-cpp/tree/main/examples — start from `publishkafka_config.yml` + `process_data_with_scripts.yml` and adapt).
-2. Define the exact processors in this order (use supported C++ processors only — ListenHTTP, ExecuteScript/ExecutePythonProcessor, PublishKafka, PutFile, etc. are all confirmed supported):
+2. Define the exact processors in this order (use supported C++ processors only — ListenHTTP, ExecuteScript, PublishKafka, PutFile, etc. are all confirmed supported):
    - **ListenHTTP**  
      Port: `8080`  
      Path: `/test` (POST only)  
      Output relationship: `success` (or equivalent)
    - **RouteOnAttribute** (or simple attribute-based routing)
-   - **ExecuteScript** (or **ExecutePythonProcessor** — Python 3) with this exact script for Kubernetes API test:
+   - **ExecuteScript** (Script Engine: python — Python 3) with this exact script for Kubernetes API test:
      ```python
      import json, os
      from kubernetes import client, config

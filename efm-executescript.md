@@ -44,7 +44,7 @@ because the agent-class manifest genuinely doesn't contain it.
 - **CEM Java:** the scripting NAR (and the Kafka NAR) are not packaged in the `2.24.08.0-19` tarball. 114 processors, 45 controller services, none of them a script engine.
 - **Windows MSI:** the DLLs *are* in the MSI, but as optional features the installer skips unless you pass `ADDLOCAL=ALL`. The EFM deployer never passes it.
 
-The Cloudera docs list `ExecuteScript` for Linux because it *can be built*, not because it ships. That distinction cost real time before I pinned it down.
+The Cloudera docs list `ExecuteScript` for Linux **and Windows** because it *can be built*, not because it ships — the CEM 2.4.0 C++ *Supported processors* page tallies ~90 and names `ExecuteScript` with no note that scripting is an optional/build-time extension. The stock image field-verifies at 74 and has no scripting `.so`. Trust the running manifest, not the doc table — that distinction cost real time before I pinned it down. (`docs.cloudera.com/cem/2.4.0/release-notes-minifi-cpp/topics/cem-cpp-processors.html`)
 
 ## The FQCN and engines (for EFM Designer POSTs)
 
@@ -117,7 +117,7 @@ Reach for this only if the extra-extensions tarball is unavailable or a version 
 
 ## Path C — Java (debunked for the CEM tarball, open for Docker)
 
-The EFM-staged CEM Java binary `2.24.08.0-19` does **not** have `ExecuteScript`, `ExecutePythonProcessor`, or Kafka. Confirmed against the live agent manifest 2026-07-25 (`files/efm/java-minifi-2.24.08.0-19-processors.txt`). What Java *does* give you is `ExecuteProcess` / `ExecuteStreamCommand` — shell command execution, not a script engine. So the answer to "does Java have ExecuteScript" is a flat no in this lab; you get ExecuteProcess and that's it. "Just use Java" is not a shortcut here.
+The EFM-staged CEM Java binary `2.24.08.0-19` does **not** have `ExecuteScript` or Kafka. Confirmed against the live agent manifest 2026-07-25 (`files/efm/java-minifi-2.24.08.0-19-processors.txt`). What Java *does* give you is `ExecuteProcess` / `ExecuteStreamCommand` — shell command execution, not a script engine. So the answer to "does Java have ExecuteScript" is a flat no in this lab; you get ExecuteProcess and that's it. "Just use Java" is not a shortcut here.
 
 Two live options remain, both unfinished:
 1. Stage a scripting NAR into the Java tarball's NAR dir (drop-in path not yet worked out — this is an open follow-up in `efm-windows-java-minifi.md`).
@@ -301,7 +301,7 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 **Actually open**, ordered by how close each is to done:
 
 1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D verified on MINI-Gaming-G1 (`WindowsDesktopCpp`): process-mode **and** Windows service + `ADDLOCAL=ALL`; Python 3.14.4; smoke `python.smoke=windows-cpp-executescript-ok`. **Open:** re-confirm on Beelink `StarlinkAI` via `efm-beelink-cpp-python-action.md`; optional clean reinstall off `system32` onto `C:\minifi`.
-2. **[Java] Decide the Java scripting story.** The CEM `2.24.08.0-19` tarball has `ExecuteProcess` but no `ExecuteScript` / `ExecutePythonProcessor` / Kafka. Either work out the scripting-NAR drop-in for that tarball, or pull `minifi-java:latest` and extract its manifest to see if it differs. Until one is done, Java is shell-only (`ExecuteProcess`) in this lab.
+2. **[Java] Decide the Java scripting story.** The CEM `2.24.08.0-19` tarball has `ExecuteProcess` but no `ExecuteScript` / Kafka. Either work out the scripting-NAR drop-in for that tarball, or pull `minifi-java:latest` and extract its manifest to see if it differs. Until one is done, Java is shell-only (`ExecuteProcess`) in this lab.
 3. **[Persistence] Persist the injected tarballs + `java/windows` leaf into `~/efm-binaries/staging/`** so the next EFM PVC rebuild doesn't silently drop scripting (open follow-up already noted in `efm-windows-java-minifi.md`).
 
 ## What NOT to do

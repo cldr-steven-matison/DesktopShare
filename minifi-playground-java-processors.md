@@ -17,7 +17,7 @@ For the C++ stock image processor catalog and per-processor gotchas, see `minifi
 
 `container.repo.cloudera.com/cloudera/minifi-java:latest` is Cloudera's build of Apache NiFi MiNiFi Java. The version staged in EFM is `2.24.08.0-19`. The EFM binary path is `binaries/java/linux/2.24.08.0-19/minifi.tar.gz`.
 
-The processor set is a **subset** of the Apache NiFi 2.x catalog shipped as CEM agent NARs. Field-verified 2026-07-25 from a live `minifi-java` agent manifest (`2.24.08.0-19` on MINI-Gaming-G1): **114 processors**, **45 controller services**. Full list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`. Notable **absences** in this CEM tarball: `ExecuteScript`, `ExecutePythonProcessor`, `PublishKafka` / `ConsumeKafka`. The older "200+" language and "ExecuteScript out of the box" claims do **not** match this binary — use the live manifest, not marketing comparison tables. Full session write-up: `efm-windows-java-minifi.md`.
+The processor set is a **subset** of the Apache NiFi 2.x catalog shipped as CEM agent NARs. Field-verified 2026-07-25 from a live `minifi-java` agent manifest (`2.24.08.0-19` on MINI-Gaming-G1): **114 processors**, **45 controller services**. Full list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`. Notable **absences** in this CEM tarball: `ExecuteScript`, `PublishKafka` / `ConsumeKafka`. The older "200+" language and "ExecuteScript out of the box" claims do **not** match this binary — use the live manifest, not marketing comparison tables. Full session write-up: `efm-windows-java-minifi.md`.
 
 The `agentType` in the EFM deployer is `java`. The `osArch` is `linux` or `windows` (same tarball — Java is platform-agnostic). As of 2026-07-25 both `java/linux` and `java/windows` are staged in EFM on the gaming PC; no `linuxaarch64` Java binary yet.
 
@@ -28,13 +28,12 @@ The `agentType` in the EFM deployer is `java`. The `osArch` is `linux` or `windo
 | Capability | MiNiFi C++ (`apacheminificpp:latest`) | MiNiFi Java (`minifi-java:latest`) |
 |---|---|---|
 | **ExecuteScript** | Not in stock image; requires extra-extensions or source build | **MISSING** in CEM `2.24.08.0-19` agent tarball (field-verified 2026-07-25) |
-| **ExecutePythonProcessor** | Not in stock image | **MISSING** in CEM `2.24.08.0-19` agent tarball |
 | **ExecuteProcess** | Not in stock image; only via extra-extensions | **[Cloudera stock]** — shell command execution |
 | **HandleHttpRequest / HandleHttpResponse** | Not available at all — no pair exists in C++ | **[Cloudera stock]** — request-reply HTTP (Jetty-backed); both share an `HttpContextMap` controller service |
 | **PublishKafka / ConsumeKafka** | Present (C++ extensions) | **MISSING** in CEM `2.24.08.0-19` agent tarball |
 | **Record Reader/Writer framework** | `ConvertRecord` and `SplitRecord` are present but require controller services | **[Cloudera stock]** — RecordReader/RecordWriter controller services present |
 | **Scripting flexibility** | Limited without extra-extensions | Shell via `ExecuteProcess` / `ExecuteStreamCommand` only in this binary |
-| **Total processors** | 55 (stock), more via extra-extensions | **114** (field-verified from live agent manifest 2026-07-25) |
+| **Total processors** | 74 (stock), more via extra-extensions | **114** (field-verified from live agent manifest 2026-07-25) |
 | **Image size** | ~15 MB | ~300–400 MB |
 | **Memory minimum** | ~128Mi | ~512Mi |
 | **JVM startup** | None | ~30–60s cold start in the playground |
@@ -220,15 +219,17 @@ SSL Certificate Authority: /etc/ssl/certs/ca.crt
 
 ## Flow patterns
 
+> **Scope caveat — these patterns assume full NiFi or a Java build that includes the scripting + Kafka NARs, NOT the EFM-staged CEM `2.24.08.0-19` tarball.** That CEM binary is field-verified (2026-07-25) to lack `ExecuteScript` and `PublishKafka`/`ConsumeKafka` (see the catalog above and `efm-windows-java-minifi.md`). Any pattern below using those runs only on full NiFi, the Docker `minifi-java:latest` image (unverified — may differ), or after a scripting/Kafka NAR drop-in into the CEM tarball (drop-in path not yet worked out — tracked in `efm-binaries.md`). On the stock CEM agent, route Kafka via full NiFi and do transforms with `ExecuteProcess`/`ExecuteStreamCommand`.
+
 ### ListenHTTP → PublishKafka + ExecuteScript (Java)
 
-The canonical kitchen-sink flow works in Java too, with `ExecuteScript` available out of the box:
+The canonical kitchen-sink flow, on a Java build that includes the scripting + Kafka NARs (see the caveat above):
 
 ```
 ListenHTTP (port 8080) → ExecuteScript (transform/filter logic) → PublishKafka
 ```
 
-In Java, `ExecuteScript` with `Script Engine: groovy` and a Groovy script body works without any extra steps. No extra-extensions injection, no source build. This is the "kitchen sink" flow that requires either extra-extensions or a source build in C++ — see `minifi-playground-cpp-processors.md`.
+Where the scripting NAR is present, `ExecuteScript` with `Script Engine: groovy` and a Groovy script body works without a C++-style extra-extensions injection or source build. But the scripting NAR is **absent** from the EFM-staged CEM `2.24.08.0-19` (field-verified) — this pattern needs full NiFi or a NAR drop-in there. This is the "kitchen sink" flow that requires either extra-extensions or a source build in C++ — see `minifi-playground-cpp-processors.md`.
 
 ### HandleHttpRequest → logic → HandleHttpResponse (Java only)
 
@@ -256,11 +257,10 @@ This is a practical alternative to building a custom Python processor in full Ni
 
 Use Java when:
 
-- You need `ExecuteScript` today without a source build or extra-extensions injection. Groovy and Jython work out of the box in the stock image.
+- You need `ExecuteScript` and your Java build includes the scripting NAR. Full NiFi does; the EFM-staged CEM `2.24.08.0-19` does **not** (field-verified). Groovy and Jython are the engines when present.
 - You need `HandleHttpRequest`/`HandleHttpResponse` for synchronous HTTP request/reply. C++ can't do this at all.
 - You're building complex transform flows that need the Record framework (`ConvertRecord`, `SplitRecord`, `QueryRecord`) with custom reader/writer controller services.
 - You're developing and testing flow logic before committing to a C++ deployment — Java gives you the full toolkit while you figure out what you actually need.
-- You need `ExecutePythonProcessor` for native Python logic without a scripting extension install step.
 
 Don't use Java for:
 - Production Kubernetes sidecar patterns where image size and startup time matter — 300–400 MB and a 60-second JVM cold start disqualify it.

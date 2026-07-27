@@ -67,7 +67,7 @@ Full list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`
 | In stock | **Missing** from CEM `2.24.08.0-19` |
 |---|---|
 | ListenHTTP, HandleHttpRequest/Response, InvokeHTTP | **ExecuteScript** |
-| GenerateFlowFile, LogAttribute, UpdateAttribute | **ExecutePythonProcessor** |
+| GenerateFlowFile, LogAttribute, UpdateAttribute | |
 | ExecuteProcess / ExecuteStreamCommand | **PublishKafka / ConsumeKafka** |
 | Record framework + 45 controller services | |
 

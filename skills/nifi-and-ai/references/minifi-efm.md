@@ -75,7 +75,7 @@ Do **not** install from `C:\WINDOWS\system32`. Full recipe: DesktopShare `efm-bi
 
 | Build | ExecuteScript | Notes |
 |---|---|---|
-| Stock C++ image (`apacheminificpp` / vendor `:latest`) | ❌ | Production-minimal processor set (~55). No scripting. |
+| Stock C++ image (`apacheminificpp` / vendor `:latest`) | ❌ | Production-minimal processor set (74, field-verified). No scripting. |
 | C++ MSI + extract/`ADDLOCAL=ALL` | ✅ | Field-verified Windows 2026-07-27 (`WindowsDesktopCpp`). See §5. |
 | CEM MiNiFi Java tarball (EFM-staged 2.24.08.0-19) | ❌ | No scripting NAR — only `ExecuteProcess`. |
 | Source-built C++ with `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` | ✅ | Multi-stage Dockerfile from Apache source at the matching tag. |

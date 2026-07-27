@@ -313,6 +313,22 @@ Expect LogAttribute lines with your script's attributes and the JSON payload.
 
 ---
 
+## Open work — Kafka + scripting NARs on the CEM Java agent
+
+**The gap:** the EFM-staged CEM Java tarball `minifi-2.24.08.0-19-bin.tar.gz` is field-verified (2026-07-25, `efm-windows-java-minifi.md`) to ship **114 processors with no `ExecuteScript` and no `PublishKafka`/`ConsumeKafka` NAR**. C++ has both (Kafka via `libminifi-rdkafka-extensions.so` in the stock set; scripting via extra-extensions / `ADDLOCAL=ALL`) — so this is a **Java-only** shortfall. It is the counterpart to the C++ extra-extensions injection in Step 2 §1–2 above.
+
+**Cloudera's own docs confirm the gap and the fix — this is not just our field finding.** The CEM 2.4.0 *MiNiFi Java → Processor support* page lists the out-of-the-box processors and includes **no `ExecuteScript` and no Kafka** processors, matching our 114-processor live manifest. Upgrading won't help: `2.24.08` *is* the current CEM 2.4.0 Java agent (only our EFM at `2.3.1.0-2` trails the 2.4.0 umbrella slightly), so there is no newer stock agent to move to — the gap is inherent to the current CEM Java build.
+
+**The documented fix — NAR drop-in.** The same Cloudera page states extra NARs from Cloudera Flow Management can be placed in `<MINIFI_AGENT_HOME>/extensions` ("incorporate NARs from Cloudera Flow Management into CEM-AGENTS-JAVA"). So the mechanism is *supported*, not a hack. The open work is narrow: confirm which `nifi-scripting-nar` / `nifi-kafka-*-nar` versions load against the `2.24.08` agent framework, then bake the drop-in into the staging step here — same shape as the C++ `.so` injection in Step 2 §1–2 (unpack `minifi.tar.gz` → add NARs to `extensions/` → re-tar → tar-pipe into the EFM pod → restart). Certify on a live agent before documenting as settled.
+
+- Cloudera CEM 2.4.0 MiNiFi Java processor support: `docs.cloudera.com/cem/2.4.0/release-notes-minifi-java/topics/cem-java-agent-processors.html`
+
+Until the NAR drop-in is proven, treat Java MiNiFi in this lab as **shell-only** (`ExecuteProcess`/`ExecuteStreamCommand`), route Kafka via full NiFi, and use C++ agents where edge Kafka or scripting is required.
+
+> Field validation of the C++ side (live Windows manifest, live Kafka smoke) is tracked in `efm-validation-agent.md`.
+
+---
+
 ## Appendix
 
 

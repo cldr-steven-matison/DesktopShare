@@ -15,7 +15,7 @@ I was building flows with the [MiNiFi-Kubernetes-Playground](https://github.com/
 
 ## Cloudera vs Apache: what ships vs what's possible
 
-The stock image is Cloudera-curated, Apache-licensed. The source lives in Apache's `nifi-minifi-cpp` repo. The 55 processors in the catalog below are all Apache upstream processors — Cloudera curates which subset gets compiled and shipped in `apacheminificpp:latest`. Every one of those 55 traces back to the Apache upstream `PROCESSORS.md`. Apache upstream has more; getting them requires a source build or the extra-extensions tarball injection. The full Apache upstream ceiling is at `https://github.com/apache/nifi-minifi-cpp/blob/main/PROCESSORS.md`.
+The stock image is Cloudera-curated, Apache-licensed. The source lives in Apache's `nifi-minifi-cpp` repo. The 74 processors in the catalog below are all Apache upstream processors — Cloudera curates which subset gets compiled and shipped in `apacheminificpp:latest`. Every one of those 74 traces back to the Apache upstream `PROCESSORS.md`. Apache upstream has more; getting them requires a source build or the extra-extensions tarball injection. The full Apache upstream ceiling is at `https://github.com/apache/nifi-minifi-cpp/blob/main/PROCESSORS.md`.
 
 The EFM deployer calls these `agentType=cpp`. The Dockerfile's `MINIFI_HOME` path is `/opt/minifi/nifi-minifi-cpp-1.26.02`. The image tag is `v1.26.02`.
 
@@ -173,9 +173,9 @@ There is also an ARM64-specific extra-extensions tarball: `nifi-minifi-cpp-1.26.
 
 | Platform | Agent binary | Stock processor count | Extra-extensions | ExecuteScript | Status |
 |---|---|---|---|---|---|
-| Linux x86_64 | `binaries/cpp/linux/1.26.02/minifi.tar.gz` | 55 (stock image) | Injection recipe in `efm-binaries.md` | Via extra-extensions or source build | **Confirmed — running instance verified** |
+| Linux x86_64 | `binaries/cpp/linux/1.26.02/minifi.tar.gz` | 74 (stock image) | Injection recipe in `efm-binaries.md` | Via extra-extensions or source build | **Confirmed — running instance verified** |
 | Linux aarch64 (ARM64) | `binaries/cpp/linuxaarch64/1.26.02/minifi.tar.gz` | Unknown | ARM64-specific tarball exists | Via extra-extensions | **[Not yet field-verified] Tarball staged in EFM; processor manifest from a running aarch64 instance has not been captured** |
-| Windows x64 (MSI) | `binaries/cpp/windows/1.26.02/minifi.msi` | Unknown — different build from Linux | `ADDLOCAL=ALL` enables Python scripting DLL; no Linux `.so` equivalent | `ADDLOCAL=ALL` required | **[Not yet field-verified] Whether all 55 Linux processors are present in the Windows MSI has not been verified** |
+| Windows x64 (MSI) | `binaries/cpp/windows/1.26.02/minifi.msi` | 76 (committed manifest) | `ADDLOCAL=ALL` enables Python scripting DLL; no Linux `.so` equivalent | `ADDLOCAL=ALL` required | **Captured, live re-validation pending.** `files/efm/WindowsDesktop.json` holds a 76-processor C++ Windows `agentManifest` (incl. `ExecuteScript`). A live re-capture on the current `WindowsDesktopCpp` agent is the open task — see `efm-validation-agent.md`. |
 
 The EFM binary path for each is strict: `${agentType}/${osArch}/${agentVersion}/` with exactly one archive file per leaf directory. `osArch` must be `linux`, `linuxaarch64`, or `windows` — hyphens are rejected by the EFM validator.
 
@@ -247,7 +247,7 @@ This path builds from Apache source at the matching tag. You control exactly whi
 
 ### Fix path C — Switch to MiNiFi Java
 
-If you need `ExecuteScript` today without a build step, switch to `container.repo.cloudera.com/cloudera/minifi-java:latest`. Full walkthrough in `minifi-playground-java-processors.md`. Java gives you `ExecuteScript` (Groovy, Jython, JavaScript), `ExecutePythonProcessor`, `ExecuteProcess`, and 200+ processors — at the cost of a ~300–400 MB image and ~512Mi memory minimum vs C++'s ~15 MB and ~128Mi.
+If you need `ExecuteScript` today without a build step, switch to `container.repo.cloudera.com/cloudera/minifi-java:latest`. Full walkthrough in `minifi-playground-java-processors.md`. Java gives you `ExecuteScript` (Groovy, Jython, JavaScript), `ExecuteProcess`, and 200+ processors — at the cost of a ~300–400 MB image and ~512Mi memory minimum vs C++'s ~15 MB and ~128Mi.
 
 ### Fix path D — Windows MSI with ADDLOCAL=ALL [Cloudera MSI + ADDLOCAL=ALL]
 
@@ -461,6 +461,6 @@ When you need `ExecuteScript` or complex transformation logic that can't be expr
 
 - **Do not skip `ADDLOCAL=ALL` on Windows and then wonder why Python doesn't work.** The EFM-generated deployer command never includes `ADDLOCAL=ALL`. The symptom is `Could not instantiate: PythonScriptExecutor` repeating every 30 seconds. The `msiexec /i ... ADDLOCAL=ALL` repair pass is mandatory.
 
-- **Do not assume the `linuxaarch64` processor manifest matches the Linux x86_64 list.** The aarch64 tarball exists and is staged in EFM, but no session has yet extracted a processor manifest from a running aarch64 instance to confirm the set is identical. Treat the 55-processor list above as verified for Linux x86_64 only until that verification is done.
+- **Do not assume the `linuxaarch64` processor manifest matches the Linux x86_64 list.** The aarch64 tarball exists and is staged in EFM, but no session has yet extracted a processor manifest from a running aarch64 instance to confirm the set is identical. Treat the 74-processor list above as verified for Linux x86_64 only until that verification is done.
 
 - **Do not confuse `ExecuteScript` (C++ post-extra-extensions) with Python custom processors in Java NiFi 2.x.** They have different execution models, different Python environments, and different hot-reload behavior. C++'s `ExecuteScript` re-reads its script file from disk on every trigger with no restart needed. Java NiFi Python custom processors require a version bump + processor switch to register a new bundle version in a running instance.

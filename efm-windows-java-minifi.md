@@ -114,10 +114,11 @@ c2.runtime.type=minifi-java
 | Capability | Status in `2.24.08.0-19` lab binary |
 |---|---|
 | **`ExecuteScript`** (Groovy/Jython/JS) | **MISSING** — no scripting NAR |
-| **`ExecutePythonProcessor`** | **MISSING** |
 | **`PublishKafka` / `ConsumeKafka`** | **MISSING** — no Kafka NAR |
 
 That rewrites the earlier “Java gives you ExecuteScript out of the box” line in `minifi-playground-java-processors.md` for **this** CEM agent tarball. Docker `minifi-java:latest` may still differ; what we field-verified is the EFM-staged `minifi-2.24.08.0-19-bin.tar.gz`.
+
+**Cloudera's own current doc now agrees.** The CEM 2.4.0 *MiNiFi Java → Processor support* page (`docs.cloudera.com/cem/2.4.0/release-notes-minifi-java/topics/cem-java-agent-processors.html`) lists the out-of-the-box set with **no `ExecuteScript` and no Kafka**, and documents adding them via a CFM-NAR drop-in into `<MINIFI_AGENT_HOME>/extensions`. `2.24.08` is the current CEM 2.4.0 Java agent, so this isn't a stale-version artifact — the “implied otherwise” was older comparison material, not the current vendor doc. NAR drop-in work: `efm-binaries.md` → *Open work — Kafka + scripting NARs*.
 
 ## C++ WindowsDesktop black hole vs Java (this session)
 
