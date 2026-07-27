@@ -313,17 +313,60 @@ Expect LogAttribute lines with your script's attributes and the JSON payload.
 
 ---
 
-## Open work — Kafka + scripting NARs on the CEM Java agent
+## Kafka + scripting NARs on the CEM Java agent — SOLVED 2026-07-27 (field-verified, MINI-Gaming-G1)
 
-**The gap:** the EFM-staged CEM Java tarball `minifi-2.24.08.0-19-bin.tar.gz` is field-verified (2026-07-25, `efm-windows-java-minifi.md`) to ship **114 processors with no `ExecuteScript` and no `PublishKafka`/`ConsumeKafka` NAR**. C++ has both (Kafka via `libminifi-rdkafka-extensions.so` in the stock set; scripting via extra-extensions / `ADDLOCAL=ALL`) — so this is a **Java-only** shortfall. It is the counterpart to the C++ extra-extensions injection in Step 2 §1–2 above.
+**The gap (historical):** the EFM-staged CEM Java tarball `minifi-2.24.08.0-19-bin.tar.gz` is field-verified (2026-07-25, `efm-windows-java-minifi.md`) to ship **114 processors with no `ExecuteScript` and no `PublishKafka`/`ConsumeKafka` NAR**. C++ has both (Kafka via `libminifi-rdkafka-extensions.so` in the stock set; scripting via extra-extensions / `ADDLOCAL=ALL`) — so this was a **Java-only** shortfall.
 
-**Cloudera's own docs confirm the gap and the fix — this is not just our field finding.** The CEM 2.4.0 *MiNiFi Java → Processor support* page lists the out-of-the-box processors and includes **no `ExecuteScript` and no Kafka** processors, matching our 114-processor live manifest. Upgrading won't help: `2.24.08` *is* the current CEM 2.4.0 Java agent (only our EFM at `2.3.1.0-2` trails the 2.4.0 umbrella slightly), so there is no newer stock agent to move to — the gap is inherent to the current CEM Java build.
+**The mistake that would have wasted a session:** `mynifi` (the full NiFi instance already running in `cfm-streaming`, CFM `2.6.0.4.3.4.0-234`) already has both NARs (`nifi-kafka-nar`, `nifi-scripting-nar`) unpacked under `work/nar/extensions/`. Copying them straight into the MiNiFi Java agent's `extensions/` autoload dir **will not work** — checked their `META-INF/MANIFEST.MF` first and both declare `Nar-Dependency-Version: 2.6.0.4.3.4.0-234`, pointing at sibling framework NARs of that exact version. The MiNiFi Java agent's own framework NARs are all versioned `2.24.08.0-19` (confirmed by unzipping an installed NAR's manifest) — a completely different Cloudera build/version line, with no `nifi-kafka-service-api-nar` present at all. NiFi's NAR loader matches dependencies by **exact** group+id+version string, no fallback — a straight copy fails to resolve.
 
-**The documented fix — NAR drop-in.** The same Cloudera page states extra NARs from Cloudera Flow Management can be placed in `<MINIFI_AGENT_HOME>/extensions` ("incorporate NARs from Cloudera Flow Management into CEM-AGENTS-JAVA"). So the mechanism is *supported*, not a hack. The open work is narrow: confirm which `nifi-scripting-nar` / `nifi-kafka-*-nar` versions load against the `2.24.08` agent framework, then bake the drop-in into the staging step here — same shape as the C++ `.so` injection in Step 2 §1–2 (unpack `minifi.tar.gz` → add NARs to `extensions/` → re-tar → tar-pipe into the EFM pod → restart). Certify on a live agent before documenting as settled.
+**The real fix — build from the exact matching source.** `~/efm-binaries/nifi-minifi-java-2.0.0.2.24.08.0-19-source.tar.gz` was already sitting on this box — the full Apache NiFi monorepo source for the *exact* installed build, including complete `nifi-extension-bundles/nifi-kafka-bundle/` and `nifi-extension-bundles/nifi-scripting-bundle/` modules. Recipe (JDK 21 + the tarball's own `mvnw`, both already present/bootstrapped without any extra install):
+
+```bash
+tar -xzf ~/efm-binaries/nifi-minifi-java-2.0.0.2.24.08.0-19-source.tar.gz -C /some/scratch/dir
+cd /some/scratch/dir/nifi-minifi-java-2.0.0.2.24.08.0-19
+
+# Rewrite every module's version to match the already-installed agent framework —
+# this is what makes the built NARs' Nar-Dependency-Version strings line up.
+./mvnw -q -N org.codehaus.mojo:versions-maven-plugin:2.17.1:set \
+  -DnewVersion=2.24.08.0-19 -DgenerateBackupPoms=false -DprocessAllModules=true
+
+# Build just the 3 NARs actually needed (and their reactor deps, via -am):
+./mvnw -pl nifi-extension-bundles/nifi-kafka-bundle/nifi-kafka-nar,nifi-extension-bundles/nifi-kafka-bundle/nifi-kafka-3-service-nar,nifi-extension-bundles/nifi-scripting-bundle/nifi-scripting-nar \
+  -am -DskipTests -Dcheckstyle.skip=true -Drat.skip=true -Dlicense.skip=true -Dspotbugs.skip=true \
+  clean install
+```
+
+~3 minutes total for both builds. Produces, all correctly versioned `2.24.08.0-19` with dependency chains matching what's already installed:
+- `nifi-kafka-service-api-nar` (dependency of kafka-nar; not present in stock tarball at all)
+- `nifi-kafka-nar` (`PublishKafka`/`ConsumeKafka` processors)
+- `nifi-kafka-3-service-nar` (`Kafka3ConnectionService` — the controller service `PublishKafka` requires; **easy to miss**, it's a separate module from `nifi-kafka-nar`)
+- `nifi-scripting-nar` (`ExecuteScript`, Groovy 4.0.23 + Clojure 1.8.0 engines — **no Jython/Python** in this build, unlike C++)
+
+**Drop-in mechanism confirmed live, no restart needed:** `nifi.nar.library.autoload.directory=./extensions` (in `conf/minifi.properties`) is watched continuously by a running agent — `kubectl cp` (or copy on Windows) the 3 `.nar` files into `<MINIFI_AGENT_HOME>/extensions/` and the `NAR Auto-Loader` thread picks them up within ~5-10s, no process restart. Confirmed clean loads with `[0] skipped` in `minifi-app.log` for all three.
+
+**Field-certified on `KubernetesPodJava` (2026-07-27):**
+- Live manifest: 114 → **122 processors**, `ExecuteScript`/`ConsumeKafka`/`PublishKafka` all present.
+- **ExecuteScript really executes**: a Groovy script inserted into the live smoke flow (`GenerateFlowFile → ExecuteScript → LogAttribute`) set a custom attribute that showed up on every flowfile reaching `LogAttribute` — not just class-loaded, actually ran.
+- **PublishKafka is a real, working transactional producer**: wired to a `Kafka3ConnectionService` pointed at the in-cluster bootstrap (`my-cluster-kafka-bootstrap.cld-streaming.svc:9092` — no hairpin-NAT issue since this agent runs inside the cluster, unlike the Windows-native C++ test in `efm-validation-agent.md`). Log shows a real Kafka 3.9.0 client connecting, discovering the cluster ID, negotiating a transaction coordinator, and getting a producer ID assigned. The only remaining snag is `UNKNOWN_TOPIC_OR_PARTITION` because the test topic was never created — that's expected, not a NAR problem, and topic creation goes through Surveyor per `[[reference_kafka_ops]]`, not left as CLI cruft here.
+- **Gotcha hit along the way — the class-manifest trap applies to newly-autoloaded processors too**: after the NARs loaded, the Designer still rejected `ExecuteScript`/`PublishKafka` as "not an available Processor type" until the agent class's manifest mapping was explicitly refreshed (`PUT /efm/api/agent-class-manifest-config` to the agent's *new* `agentManifestId`) — same trap `efm-windows-java-minifi.md` documented for C++-vs-Java flows, but it also fires on a same-runtime manifest change.
+
+**Built artifacts persisted** (not committed to this repo — binaries live alongside the other staged agent binaries, not in DesktopShare's docs tree): `~/efm-binaries/java-nar-drop-in-2.24.08.0-19/` on MINI-Gaming-G1 holds all 4 built NARs, ready to copy anywhere without rebuilding:
+```
+nifi-kafka-service-api-nar-2.24.08.0-19.nar   (26 KB)
+nifi-kafka-nar-2.24.08.0-19.nar               (752 KB)
+nifi-kafka-3-service-nar-2.24.08.0-19.nar     (18.8 MB)
+nifi-scripting-nar-2.24.08.0-19.nar           (21.2 MB)
+```
+
+**Also field-certified on the real `WindowsDesktop` Java agent (2026-07-27, same day)** — not just the throwaway K8s pod. Same 4 NARs, copied straight onto `C:\Users\tunas\minifi-java\minifi-2.24.08.0-19\extensions\` via the WSL2 `/mnt/c` mount (no `kubectl cp` needed, native filesystem access), autoloaded clean with `[0] skipped`, same as the K8s pod.
+
+- Manifest count 114 → 122, same as K8s.
+- `ExecuteScript` Groovy really executed on the live agent, same pattern as before — attribute `nar.groovy.smoke=windows-java-nar-drop-in-ok` showed up on every flowfile through the existing smoke flow.
+- `PublishKafka` + `Kafka3ConnectionService` instantiated a real Kafka 3.9.0 transactional producer, attempted a real TCP connect to `192.168.1.121:31623`, and failed with a real `TimeoutException: Timeout expired after 5000ms while awaiting InitProducerId` — the same hairpin-NAT limitation hit in the C++ test (`efm-validation-agent.md` Task 3), not a processor-availability problem. Confirms the NAR is functionally real on native Windows too.
+- **Side gotcha hit and cleared:** the live `WindowsDesktop` designer canvas had two pre-existing orphaned processors (`ExecuteStreamCommand`, `ExecuteProcess` — disconnected, never configured, unrelated to this work) that blocked `/publish` with a 409 until deleted. EFM's Designer has no disable/inert state for a processor — a canvas won't publish until every processor on it, connected or not, passes validation.
+- Agent's C2 heartbeat briefly looked stalled (`lastSeen` ~25h old) before this work started; turned out to be a stale single read, not a real problem — the very next NAR-triggered manifest change ticked `lastSeen` forward within ~13s. Worth knowing this can look alarming without actually being one.
 
 - Cloudera CEM 2.4.0 MiNiFi Java processor support: `docs.cloudera.com/cem/2.4.0/release-notes-minifi-java/topics/cem-java-agent-processors.html`
-
-Until the NAR drop-in is proven, treat Java MiNiFi in this lab as **shell-only** (`ExecuteProcess`/`ExecuteStreamCommand`), route Kafka via full NiFi, and use C++ agents where edge Kafka or scripting is required.
 
 > Field validation of the C++ side (live Windows manifest, live Kafka smoke) is tracked in `efm-validation-agent.md`.
 

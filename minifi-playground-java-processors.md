@@ -17,7 +17,7 @@ For the C++ stock image processor catalog and per-processor gotchas, see `minifi
 
 `container.repo.cloudera.com/cloudera/minifi-java:latest` is Cloudera's build of Apache NiFi MiNiFi Java. The version staged in EFM is `2.24.08.0-19`. The EFM binary path is `binaries/java/linux/2.24.08.0-19/minifi.tar.gz`.
 
-The processor set is a **subset** of the Apache NiFi 2.x catalog shipped as CEM agent NARs. Field-verified 2026-07-25 from a live `minifi-java` agent manifest (`2.24.08.0-19` on MINI-Gaming-G1): **114 processors**, **45 controller services**. Full list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`. Notable **absences** in this CEM tarball: `ExecuteScript`, `PublishKafka` / `ConsumeKafka`. The older "200+" language and "ExecuteScript out of the box" claims do **not** match this binary — use the live manifest, not marketing comparison tables. Full session write-up: `efm-windows-java-minifi.md`.
+The processor set is a **subset** of the Apache NiFi 2.x catalog shipped as CEM agent NARs. Field-verified 2026-07-25 from a live `minifi-java` agent manifest (`2.24.08.0-19` on MINI-Gaming-G1): **114 processors**, **45 controller services**. Full list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`. Stock-tarball absences: `ExecuteScript`, `PublishKafka` / `ConsumeKafka`. The older "200+" language and "ExecuteScript out of the box" claims do **not** match this binary — use the live manifest, not marketing comparison tables. Full session write-up: `efm-windows-java-minifi.md`. **Update 2026-07-27: both absences are now closed via a NAR drop-in, field-verified on `KubernetesPodJava` (122 processors, ExecuteScript/PublishKafka/ConsumeKafka all working) — see `efm-binaries.md` → *Kafka + scripting NARs on the CEM Java agent — SOLVED*.**
 
 The `agentType` in the EFM deployer is `java`. The `osArch` is `linux` or `windows` (same tarball — Java is platform-agnostic). As of 2026-07-25 both `java/linux` and `java/windows` are staged in EFM on the gaming PC; no `linuxaarch64` Java binary yet.
 
@@ -27,10 +27,10 @@ The `agentType` in the EFM deployer is `java`. The `osArch` is `linux` or `windo
 
 | Capability | MiNiFi C++ (`apacheminificpp:latest`) | MiNiFi Java (`minifi-java:latest`) |
 |---|---|---|
-| **ExecuteScript** | Not in stock image; requires extra-extensions or source build | **MISSING** in CEM `2.24.08.0-19` agent tarball (field-verified 2026-07-25) |
+| **ExecuteScript** | Not in stock image; requires extra-extensions or source build | Missing from the stock `2.24.08.0-19` tarball, but **NAR drop-in fix field-verified 2026-07-27** — Groovy execution confirmed working. See `efm-binaries.md` |
 | **ExecuteProcess** | Not in stock image; only via extra-extensions | **[Cloudera stock]** — shell command execution |
 | **HandleHttpRequest / HandleHttpResponse** | Not available at all — no pair exists in C++ | **[Cloudera stock]** — request-reply HTTP (Jetty-backed); both share an `HttpContextMap` controller service |
-| **PublishKafka / ConsumeKafka** | Present (C++ extensions) | **MISSING** in CEM `2.24.08.0-19` agent tarball |
+| **PublishKafka / ConsumeKafka** | Present (C++ extensions) | Missing from the stock `2.24.08.0-19` tarball, but **NAR drop-in fix field-verified 2026-07-27** — real transactional Kafka producer confirmed connecting. See `efm-binaries.md` |
 | **Record Reader/Writer framework** | `ConvertRecord` and `SplitRecord` are present but require controller services | **[Cloudera stock]** — RecordReader/RecordWriter controller services present |
 | **Scripting flexibility** | Limited without extra-extensions | Shell via `ExecuteProcess` / `ExecuteStreamCommand` only in this binary |
 | **Total processors** | 74 (stock), more via extra-extensions | **114** (field-verified from live agent manifest 2026-07-25) |
@@ -194,7 +194,7 @@ This is the biggest structural difference between Java and C++ flows in EFM.
 
 **C++** inlines connection properties directly on the processor. A `PublishKafka` in C++ takes `Known Brokers`, `Topic Name`, and `Client Name` as flat properties. No controller service required.
 
-**Java** uses NiFi's controller service architecture. A `PublishKafka` in Java MiNiFi requires a `StandardKafkaClientService` (or equivalent) controller service wired to it. Same for SSL contexts, Record Readers, and Record Writers.
+**Java** uses NiFi's controller service architecture. A `PublishKafka` in Java MiNiFi requires a **`Kafka3ConnectionService`** (`org.apache.nifi.kafka.service.Kafka3ConnectionService`, from `nifi-kafka-3-service-nar` — field-verified 2026-07-27, wired via the processor's "Kafka Connection Service" property) controller service. Same pattern for SSL contexts, Record Readers, and Record Writers.
 
 Examples:
 
@@ -213,13 +213,13 @@ SSL Certificate Authority: /etc/ssl/certs/ca.crt
 
 **Record Reader/Writer in C++**: `ConvertRecord` and `SplitRecord` exist in the C++ stock image, but controller service wiring for them (JsonTreeReader, JsonRecordSetWriter, etc.) works the same way as Java — you define the controller service in EFM and reference it from the processor.
 
-**[Not yet field-verified: exact controller service FQCN names and EFM wiring procedure for Java MiNiFi 2.24.08.0-19. The above describes the NiFi 2.x pattern; MiNiFi Java may support a subset of controller service types. Verify against a running EFM flow before building a production dependency on a specific controller service type.]**
+**Kafka controller service wiring is now field-verified (2026-07-27)** — see above and `efm-binaries.md`. SSL/Record Reader/Writer controller service FQCNs and wiring are still **not yet field-verified** for MiNiFi Java `2.24.08.0-19`; the above for those describes the general NiFi 2.x pattern, not a confirmed one. Verify against a running EFM flow before building a production dependency on those specific controller service types.
 
 ---
 
 ## Flow patterns
 
-> **Scope caveat — these patterns assume full NiFi or a Java build that includes the scripting + Kafka NARs, NOT the EFM-staged CEM `2.24.08.0-19` tarball.** That CEM binary is field-verified (2026-07-25) to lack `ExecuteScript` and `PublishKafka`/`ConsumeKafka` (see the catalog above and `efm-windows-java-minifi.md`). Any pattern below using those runs only on full NiFi, the Docker `minifi-java:latest` image (unverified — may differ), or after a scripting/Kafka NAR drop-in into the CEM tarball (drop-in path not yet worked out — tracked in `efm-binaries.md`). On the stock CEM agent, route Kafka via full NiFi and do transforms with `ExecuteProcess`/`ExecuteStreamCommand`.
+> **Scope caveat — these patterns need the scripting + Kafka NARs, which are NOT in the stock EFM-staged CEM `2.24.08.0-19` tarball.** That CEM binary is field-verified (2026-07-25) to lack `ExecuteScript` and `PublishKafka`/`ConsumeKafka` out of the box. **Update 2026-07-27: the NAR drop-in is now solved and field-verified** — see `efm-binaries.md` → *Kafka + scripting NARs on the CEM Java agent — SOLVED* for the exact build-from-source recipe (3 NARs, ~3 min build, no restart needed to autoload). Any pattern below using `ExecuteScript`/`PublishKafka`/`ConsumeKafka` needs either that drop-in applied to the agent, or full NiFi / the Docker `minifi-java:latest` image (unverified — may differ) as an alternative.
 
 ### ListenHTTP → PublishKafka + ExecuteScript (Java)
 
@@ -229,7 +229,7 @@ The canonical kitchen-sink flow, on a Java build that includes the scripting + K
 ListenHTTP (port 8080) → ExecuteScript (transform/filter logic) → PublishKafka
 ```
 
-Where the scripting NAR is present, `ExecuteScript` with `Script Engine: groovy` and a Groovy script body works without a C++-style extra-extensions injection or source build. But the scripting NAR is **absent** from the EFM-staged CEM `2.24.08.0-19` (field-verified) — this pattern needs full NiFi or a NAR drop-in there. This is the "kitchen sink" flow that requires either extra-extensions or a source build in C++ — see `minifi-playground-cpp-processors.md`.
+`ExecuteScript` with `Script Engine: Groovy` and a Groovy script body works once the scripting NAR is present — either via full NiFi, or the drop-in fix (`efm-binaries.md`), field-verified 2026-07-27. Only Groovy and Clojure engines are bundled in the built `nifi-scripting-nar`, no Jython. This is the "kitchen sink" flow that requires either extra-extensions or a source build in C++ — see `minifi-playground-cpp-processors.md`.
 
 ### HandleHttpRequest → logic → HandleHttpResponse (Java only)
 
@@ -257,7 +257,7 @@ This is a practical alternative to building a custom Python processor in full Ni
 
 Use Java when:
 
-- You need `ExecuteScript` and your Java build includes the scripting NAR. Full NiFi does; the EFM-staged CEM `2.24.08.0-19` does **not** (field-verified). Groovy and Jython are the engines when present.
+- You need `ExecuteScript` and your Java build includes the scripting NAR. Full NiFi does; the stock EFM-staged CEM `2.24.08.0-19` doesn't but the drop-in fix now covers it (`efm-binaries.md`). Groovy and Clojure are the engines actually bundled in the built NAR — no Jython/Python, unlike the C++ side.
 - You need `HandleHttpRequest`/`HandleHttpResponse` for synchronous HTTP request/reply. C++ can't do this at all.
 - You're building complex transform flows that need the Record framework (`ConvertRecord`, `SplitRecord`, `QueryRecord`) with custom reader/writer controller services.
 - You're developing and testing flow logic before committing to a C++ deployment — Java gives you the full toolkit while you figure out what you actually need.
@@ -272,7 +272,7 @@ Don't use Java for:
 
 - **Do not deploy Java MiNiFi as a production Kubernetes sidecar.** A ~400 MB image that takes 60 seconds to start is not a sidecar. Use C++ for that. Java is for dev/test and flows where scripting flexibility matters more than footprint.
 
-- **Do not mix C++ short class names in a Java EFM flow.** Java MiNiFi flows in EFM use FQCNs like `org.apache.nifi.processors.standard.PublishKafka`. Typing `PublishKafka` as a bare class name may result in a no-op or a processor that fails to instantiate. Read the bundle info from `GET /efm/api/designer/flows/{id}` to see the exact FQCN format the agent class expects.
+- **Do not mix C++ short class names in a Java EFM flow.** Java MiNiFi flows in EFM use FQCNs like `org.apache.nifi.processors.standard.GenerateFlowFile` (standard processors) — note `PublishKafka`/`ConsumeKafka` specifically are `org.apache.nifi.kafka.processors.*`, not under `.standard.` (field-verified 2026-07-27). Typing a bare class name may result in a no-op or a processor that fails to instantiate. Read the bundle info from `GET /efm/api/designer/flows/{id}` to see the exact FQCN format the agent class expects.
 
 - **Do not assume the Java agent binary path in EFM matches the C++ path.** C++ is `binaries/cpp/linux/1.26.02/minifi.tar.gz`. Java is `binaries/java/linux/2.24.08.0-19/minifi.tar.gz`. Different `agentType`, different version string, different path. The EFM deployer resolves the binary from the `agentType` + `osArch` + `agentVersion` coordinates in the curl — send the wrong combination and the deployer returns a 404 or downloads the wrong binary.
 

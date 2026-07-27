@@ -228,6 +228,6 @@ args:
 
 - [x] Publish smoke flow on `KubernetesPodJava` (`a492562d-28db-4e76-ae7e-95e09e13e179`, flowVersion 1) — confirmed `hello-from-k8s-java` in pod logs
 - [x] Update `efm-binaries.md` layout table with the `java/windows` row
-- [ ] Stage Kafka + scripting NARs into Java MiNiFi (or document the drop-in path) if edge Kafka/script is required
+- [x] Stage Kafka + scripting NARs into Java MiNiFi — **done 2026-07-27**, on both `KubernetesPodJava` and the real `WindowsDesktop` agent: built `nifi-kafka-nar`/`nifi-kafka-3-service-nar`/`nifi-scripting-nar` from the exact-matching source tarball, autoloaded live, `ExecuteScript` and `PublishKafka` both field-verified working on both agents (Groovy execution confirmed on each; `KubernetesPodJava`'s Kafka producer negotiated a full transaction coordinator in-cluster, `WindowsDesktop`'s hit the same hairpin-NAT timeout as the C++ agent — still a real connect attempt, not a processor-availability failure). Full recipe: `efm-binaries.md` → *Kafka + scripting NARs on the CEM Java agent — SOLVED*
 - [x] Install C++ side-by-side with ExecuteScript/Python — **done 2026-07-27** as class `WindowsDesktopCpp` (process-mode MSI extract; smoke verified). See `efm-executescript.md` Path D / `efm-binaries-windows-python.md`
 - [ ] Persist `java/windows` into the staging tree under `~/efm-binaries/staging/` so the next EFM PVC rebuild doesn’t forget it
