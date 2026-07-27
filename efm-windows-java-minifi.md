@@ -228,5 +228,5 @@ args:
 - [x] Publish smoke flow on `KubernetesPodJava` (`a492562d-28db-4e76-ae7e-95e09e13e179`, flowVersion 1) — confirmed `hello-from-k8s-java` in pod logs
 - [x] Update `efm-binaries.md` layout table with the `java/windows` row
 - [ ] Stage Kafka + scripting NARs into Java MiNiFi (or document the drop-in path) if edge Kafka/script is required
-- [ ] Install C++ WindowsDesktop with `ADDLOCAL=ALL` side-by-side for a live head-to-head (class split recommended)
+- [x] Install C++ side-by-side with ExecuteScript/Python — **done 2026-07-27** as class `WindowsDesktopCpp` (process-mode MSI extract; smoke verified). See `efm-executescript.md` Path D / `efm-binaries-windows-python.md`
 - [ ] Persist `java/windows` into the staging tree under `~/efm-binaries/staging/` so the next EFM PVC rebuild doesn’t forget it

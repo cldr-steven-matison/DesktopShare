@@ -1,6 +1,66 @@
 # MiNiFi C++ + Python on Windows — Handoff Plan
 
-Written on the Mac (2026-07-22) for future me to pick up on the Windows box (MINI-Gaming-G1 or TunaStarlink — decide before starting). This is the "next time we sit down and look at ExecuteScript-with-Python on Windows, do this" doc.
+## 2026-07-27 — Path D FIELD-VERIFIED (MINI-Gaming-G1)
+
+**ExecuteScript Python works on Windows C++ MiNiFi 1.26.02.** Side-by-side with Java `WindowsDesktop` (left running).
+
+| Item | Value |
+|---|---|
+| Agent class | `WindowsDesktopCpp` (new — do **not** reuse Java's `WindowsDesktop`) |
+| Agent id | `40eb2f92-94c5-4478-beed-7060e41c9d7f` |
+| Manifest id | `ad8fb2bf-a4de-49e6-92ec-4d70fcbe5519` |
+| Install root | `C:\minifi\nifi-minifi-cpp` |
+| Mode | **Process** (`bin\minifi.exe`) — not Windows service (UAC blocked elevated msiexec this session) |
+| Python | 3.14.4 x64 at `C:\Python314` — agent auto-created `minifi-python-env` |
+| Flow | `ListenHTTP:18080/contentListener` → `ExecuteScript` (python) → `LogAttribute` |
+| Proof | LogAttribute: `key:python.smoke value:windows-cpp-executescript-ok` + JSON payload |
+| Java agent | `eeb8cd53-…` `WindowsDesktop` stayed **ONLINE** the whole time |
+
+### Working recipe (no elevation)
+
+```powershell
+# Download MSI from EFM
+New-Item C:\minifi -ItemType Directory -Force | Out-Null
+Invoke-WebRequest "http://127.0.0.1:10090/efm/api/agent-deployer/binary?agentType=cpp&agentVersion=1.26.02&osArch=windows" `
+  -OutFile C:\minifi\minifi.msi -UseBasicParsing
+
+# Administrative extract = all features including Feature Level 2 python DLL
+Start-Process msiexec -ArgumentList "/a `"C:\minifi\minifi.msi`" TARGETDIR=`"C:\minifi\extract`" /quiet /L*v C:\minifi\msi_extract.log" -Wait
+
+# Land tree + create minifi_native.pyd (MSI does mklink at service install; copy is equivalent)
+$src = "C:\minifi\extract\ApacheNiFiMiNiFi\nifi-minifi-cpp"
+$dst = "C:\minifi\nifi-minifi-cpp"
+Copy-Item $src $dst -Recurse -Force
+Copy-Item "$dst\extensions\minifi-python-script-extension.dll" "$dst\extensions\minifi_native.pyd" -Force
+
+# Configure nifi.c2.agent.class=WindowsDesktopCpp + identifier + EFM base URLs in conf\minifi.properties
+# Start:  & "$dst\bin\minifi.exe"   (WorkingDirectory = $dst\bin)
+```
+
+### MSI internals that the old docs got slightly wrong
+
+- `minifi_native.pyd` is **not** a separate packaged file — CustomAction: `mklink extensions\minifi_native.pyd minifi-python-script-extension.dll`
+- Python extension Feature Level is **2** (`CM_C_python_script_extension`); EFM deployer's plain `msiexec /i` only installs Level 1
+- Administrative extract `/a` still unpacks Level 2 files (full cab contents)
+- Python 3.14.4 worked; ABI mismatch was a theoretical risk that did **not** fire for this smoke
+
+### Smoke script body used
+
+```python
+def onTrigger(context, session):
+    flow_file = session.get()
+    if flow_file:
+        session.putAttribute(flow_file, "python.smoke", "windows-cpp-executescript-ok")
+        session.transfer(flow_file, REL_SUCCESS)
+```
+
+Optional note: `Batch Size=1` on ListenHTTP can drop concurrent POSTs (`buffer is NOT full`) — increase batch size if hammering; single POSTs still process.
+
+Helpers left on box: `C:\minifi\setup-cpp-agent.ps1`, `C:\minifi\smoke-post.ps1`, `C:\minifi\deploy-windowsdesktopcpp.ps1`.
+
+---
+
+Written on the Mac (2026-07-22) for future me to pick up on the Windows box (MINI-Gaming-G1 or TunaStarlink — decide before starting). This is the "next time we sit down and look at ExecuteScript-with-Python on Windows, do this" doc. **Superseded for the happy path by the 2026-07-27 section above** — keep the 9-step plan below as failure archaeology.
 
 ## 2026-07-22 re-check on MINI-Gaming-G1 (same day, read-only, no action taken)
 

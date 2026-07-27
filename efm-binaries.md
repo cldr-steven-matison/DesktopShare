@@ -242,108 +242,74 @@ Invoke-WebRequest `
 
 ## Windows Desktop Agent — Full Install with Python Support
 
-> **Key insight:** The EFM deployer script installs MiNiFi without Python extensions by default. Python support is bundled in the MSI but only activated with `ADDLOCAL=ALL`. The clean path is: install via EFM → stop → reinstall with Python → verify → agent appears in EFM.
+> **Field-verified 2026-07-27 on MINI-Gaming-G1** under class **`WindowsDesktopCpp`** (parallel to Java `WindowsDesktop`). Full write-up: `efm-binaries-windows-python.md` + `efm-executescript.md` Path D.
+>
+> **Key insight:** The EFM deployer runs `msiexec` without selecting Feature Level 2 packages. Python (`CM_C_python_script_extension`) is Level 2. Prefer **administrative extract** (`msiexec /a`) when you lack elevation, or `ADDLOCAL=ALL` when you can elevate. Never install from `C:\WINDOWS\system32`.
 
-### Step 1 — Install Agent via EFM Deployer (run as Administrator in PowerShell)
-
-From EFM UI, generate the Windows install script for your agent class (e.g. `WindowsDesktop`) and run it. This is the EFM-generated command — it installs the base agent but **without Python extensions**:
+### Preferred path A — no elevation (verified)
 
 ```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force;`
-Invoke-WebRequest `
- -Uri http://127.0.0.1:46663/efm/api/agent-deployer/script `
- -Method Post `
- -Body ("agentClass=WindowsDesktop" + `
-       "&agentIdentifier=a66d299f-e7a3-42ea-84cf-3669009e4596" + `
-       "&agentType=cpp" + `
-       "&agentVersion=1.26.02" + `
-       "&autoConfigureSecurity=false" + `
-       "&baseUrl=http%3A%2F%2F127.0.0.1%3A46663%2Fefm%2Fapi" + `
-       "&hbPeriod=5000" + `
-       "&osArch=windows" + `
-       "&serviceName=minifi" + `
-       "&serviceUser=minifi" + `
-       "&trustSelfSignedCertificates=false") `
- -UseBasicParsing `
- -ContentType "application/x-www-form-urlencoded" `
- | Invoke-Expression
+New-Item C:\minifi -ItemType Directory -Force | Out-Null
+Invoke-WebRequest "http://127.0.0.1:10090/efm/api/agent-deployer/binary?agentType=cpp&agentVersion=1.26.02&osArch=windows" `
+  -OutFile C:\minifi\minifi.msi -UseBasicParsing
+
+# Unpack ALL MSI payload (including python DLL) without registering a service
+Start-Process msiexec -ArgumentList `
+  "/a `"C:\minifi\minifi.msi`" TARGETDIR=`"C:\minifi\extract`" /quiet /L*v C:\minifi\msi_extract.log" -Wait
+
+Copy-Item C:\minifi\extract\ApacheNiFiMiNiFi\nifi-minifi-cpp C:\minifi\nifi-minifi-cpp -Recurse -Force
+# MSI CustomAction would mklink this; copy is fine:
+Copy-Item C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll `
+          C:\minifi\nifi-minifi-cpp\extensions\minifi_native.pyd -Force
+
+# Wire C2: nifi.c2.agent.class=WindowsDesktopCpp, fresh agentIdentifier, EFM base URLs
+# Start process mode (not service):
+Start-Process C:\minifi\nifi-minifi-cpp\bin\minifi.exe -WorkingDirectory C:\minifi\nifi-minifi-cpp\bin
 ```
 
-> The EFM deployer runs from whatever directory PowerShell is open in. In our lab it ran from `C:\WINDOWS\system32` — the MSI and install tree land at `$PWD` (i.e. `C:\WINDOWS\system32\nifi-minifi-cpp\`).
+Map the class after first heartbeat:
 
-### Step 2 — Stop the Service
-
-```powershell
-Stop-Service "Apache NiFi MiNiFi"
+```bash
+curl -X POST http://127.0.0.1:10090/efm/api/agent-class-manifest-config \
+  -H 'Content-Type: application/json' \
+  -d '{"agentClassName":"WindowsDesktopCpp","agentManifestId":"<id-from-GET-/agents/{id}>"}'
 ```
 
-### Step 3 — Find Python and Reinstall MSI with ADDLOCAL=ALL
+### Preferred path B — elevated service install with ADDLOCAL=ALL
 
-The MSI **already bundles** `minifi-python-script-extension.dll` and `minifi_native.pyd` — there is no separate Windows extras archive from Cloudera (unlike Linux). You just need to reinstall with all features enabled:
-
-```powershell
-# Find your Python install path
-(Get-Command python).Source
-# Lab result: C:\Python314\python.exe  →  use C:\Python314
-```
+When you have an elevated PowerShell (Administrators High integrity):
 
 ```powershell
-# Reinstall with full feature set + Python dir (adjust paths to match your lab)
+cd C:\minifi   # NOT system32
+# Download MSI as above, then:
 Start-Process msiexec.exe -ArgumentList `
-  "/i `"C:\WINDOWS\system32\minifi.msi`" ADDLOCAL=ALL AUTOSTART=0 INSTALL_ROOT=`"C:\WINDOWS\system32`" INSTALLPYTHONDIR=`"C:\Python314`" /quiet /L*v msi_repair.log" `
+  "/i `"C:\minifi\minifi.msi`" ADDLOCAL=ALL AUTOSTART=0 INSTALL_ROOT=`"C:\minifi`" INSTALLPYTHONDIR=`"C:\Python314`" /quiet /L*v C:\minifi\msi_install.log" `
   -PassThru -Wait
+# Configure C2 on the installed tree, then Start-Service "Apache NiFi MiNiFi"
 ```
 
-### Step 4 — Start the Service
+### Why ADDLOCAL=ALL / extract is required
 
-```powershell
-Start-Service "Apache NiFi MiNiFi"
-```
-
-### Step 5 — Verify Extensions Are Present
-
-```powershell
-# Confirm service binary path and install root
-Get-Service "Apache NiFi MiNiFi" | Select-Object -ExpandProperty BinaryPathName
-
-# Both of these must exist
-ls C:\WINDOWS\system32\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll
-ls C:\WINDOWS\system32\nifi-minifi-cpp\extensions\minifi_native.pyd
-
-# List all extensions (should see both .dll files above)
-ls C:\WINDOWS\system32\nifi-minifi-cpp\extensions\
-
-# Check logs for errors
-Get-Content "C:\WINDOWS\system32\nifi-minifi-cpp\logs\minifi-app.log" -Tail 30
-```
-
-Agent appears in EFM UI under `WindowsDesktop` class within one heartbeat (~5s).
-
-### Why ADDLOCAL=ALL is Required
-
-The EFM-generated script calls msiexec without it:
+EFM deployer msiexec line (Level 1 only):
 ```
 msiexec.exe /i minifi.msi AUTOSTART=0 INSTALL_ROOT=$PWD /quiet
 ```
-`INSTALLPYTHONDIR` alone is not enough — the Python script extension is an **optional MSI feature** not selected by default. `ADDLOCAL=ALL` forces every feature including the Python extension to install.
+`minifi_native.pyd` is **not** a separate archive file — it is created at install time as a link/copy of `minifi-python-script-extension.dll`.
 
 ### Smoke Test — Minimal Python Flow via EFM
 
-In EFM UI, create a `WindowsDesktop` class flow with:
-1. **ListenHTTP** — port 8080, path `contentListener`
-2. **ExecuteScript** — Script Engine: `python`, Script Body:
-   ```python
-   flow_file = session.get()
-   if flow_file:
-       session.transfer(flow_file, REL_SUCCESS)
-   ```
-3. **LogAttribute**
+Use class **`WindowsDesktopCpp`** (not the Java `WindowsDesktop` class):
 
-Push the flow to the agent, then POST to it:
+1. **ListenHTTP** — port **18080**, path `contentListener`
+2. **ExecuteScript** — Script Engine: `python`, Script Body with `onTrigger` / `REL_SUCCESS`
+3. **LogAttribute** — Log Payload = true
+
 ```powershell
-Invoke-WebRequest -Uri http://localhost:8080/contentListener -Method Post -Body '{"test":"hello from windows"}' -ContentType "application/json"
+Invoke-WebRequest -Uri http://127.0.0.1:18080/contentListener -Method Post `
+  -Body '{"test":"hello from windows cpp"}' -ContentType "application/json"
 ```
-Verify `LogAttribute` output appears in `minifi-app.log`.
+
+Expect LogAttribute lines with your script's attributes and the JSON payload.
 
 ---
 

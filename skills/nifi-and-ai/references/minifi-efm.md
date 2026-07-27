@@ -56,27 +56,28 @@ curl -L \
 
 ## 5. Windows MiNiFi + Python (the real gotcha)
 
-The Windows MSI **bundles** the Python scripting extension (`minifi-python-script-extension.dll`, `minifi_native.pyd`) but as **optional MSI features not selected by default**. The EFM deployer never passes `ADDLOCAL=ALL`, so Python is silently absent — the symptom is `Could not instantiate: PythonScriptExecutor. Make sure that the python scripting extension is loaded`, retrying every 30s in `minifi-app.log`.
+The Windows MSI **bundles** the Python scripting extension but as **Feature Level 2** (`CM_C_python_script_extension`) — optional, not selected by the EFM deployer. Symptom without it: `Could not instantiate: PythonScriptExecutor` every 30s.
 
-Fix — a second `msiexec` run after the deployer:
+**Field-verified 2026-07-27 (MINI-Gaming-G1, class `WindowsDesktopCpp`):** administrative extract works without elevation and still unpacks the Level-2 DLL:
 
 ```powershell
-Stop-Service "Apache NiFi MiNiFi"
-Start-Process msiexec.exe -ArgumentList `
-  "/i `"C:\minifi\minifi.msi`" ADDLOCAL=ALL AUTOSTART=0 INSTALL_ROOT=`"C:\minifi`" INSTALLPYTHONDIR=`"C:\Python314`" /quiet /L*v msi_repair.log" `
-  -PassThru -Wait
-Start-Service "Apache NiFi MiNiFi"
+# Download MSI, then extract ALL payload (no service):
+msiexec /a C:\minifi\minifi.msi TARGETDIR=C:\minifi\extract /quiet
+# minifi_native.pyd is a CustomAction mklink to the python DLL — copy if no elevation:
+Copy-Item ...\extensions\minifi-python-script-extension.dll ...\extensions\minifi_native.pyd
+# Configure C2 for a *parallel* class (do not reuse a live Java WindowsDesktop class), run bin\minifi.exe
 ```
 
-Verify both `Test-Path C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll` and `.\minifi_native.pyd` are `True`. If the box has a prior install, do a clean-slate uninstall first and bake `ADDLOCAL=ALL` into the *first* `msiexec` rather than repairing after.
+Elevated alternative: `msiexec /i minifi.msi ADDLOCAL=ALL INSTALLPYTHONDIR=C:\Python314 INSTALL_ROOT=C:\minifi`.  
+Do **not** install from `C:\WINDOWS\system32`. Full recipe: DesktopShare `efm-binaries-windows-python.md` / `efm-executescript.md` Path D.
 
 ## 6. `ExecuteScript` availability across builds
 
 | Build | ExecuteScript | Notes |
 |---|---|---|
 | Stock C++ image (`apacheminificpp` / vendor `:latest`) | ❌ | Production-minimal processor set (~55). No scripting. |
-| C++ MSI + `ADDLOCAL=ALL` | ✅ | Only after §5. |
-| MiNiFi Java image | ✅ | Full `ExecuteScript` / `ExecutePythonProcessor` / `ExecuteProcess`. ~300MB (vs C++'s ~15MB). |
+| C++ MSI + extract/`ADDLOCAL=ALL` | ✅ | Field-verified Windows 2026-07-27 (`WindowsDesktopCpp`). See §5. |
+| CEM MiNiFi Java tarball (EFM-staged 2.24.08.0-19) | ❌ | No scripting NAR — only `ExecuteProcess`. |
 | Source-built C++ with `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` | ✅ | Multi-stage Dockerfile from Apache source at the matching tag. |
 
 ## 7. EFM Flow Designer API (no OpenAPI spec)

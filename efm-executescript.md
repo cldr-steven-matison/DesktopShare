@@ -12,7 +12,7 @@ Field-verified in this lab (MINI-Gaming-G1 + FTF3XR2065), not from vendor docs:
 |---|---|---|---|
 | C++ image `apacheminificpp:latest` | 1.26.02 | ❌ — 74-processor production set, no scripting `.so` | Extra-extensions injection (Path A) or source build (Path B) |
 | CEM Java tarball (EFM-staged) | 2.24.08.0-19 | ❌ — **114 processors, no scripting NAR** (verified 2026-07-25) | Stage a scripting NAR (unsolved) or use Docker `minifi-java:latest` (unverified) |
-| C++ Windows MSI | 1.26.02 | ⚠️ bundled but not selected | `ADDLOCAL=ALL` reinstall (Path D) — **never actually verified working** |
+| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — **field-verified 2026-07-27** on MINI-Gaming-G1 (`WindowsDesktopCpp`) |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
 | Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Pull and check — do not trust the "200+" marketing count |
 
@@ -123,22 +123,64 @@ Two live options remain, both unfinished:
 1. Stage a scripting NAR into the Java tarball's NAR dir (drop-in path not yet worked out — this is an open follow-up in `efm-windows-java-minifi.md`).
 2. Pull Docker `container.repo.cloudera.com/cloudera/minifi-java:latest` and extract its manifest — it may differ from the CEM tarball. Not yet done. Do not trust the old "200+ processors, ExecuteScript out of the box" language until a running manifest confirms it.
 
-## Path D — Windows C++ MSI with ADDLOCAL=ALL
+## Path D — Windows C++ MSI (field-verified 2026-07-27)
 
-The DLLs ship in the MSI as unselected optional features. Reinstall forcing all features:
+**Status: operational on MINI-Gaming-G1.** Side-by-side with the existing Java `WindowsDesktop` agent — **do not reuse that class**. Use a parallel class (`WindowsDesktopCpp`).
+
+### What actually works (process-mode install, no Windows service elevation)
+
+Elevated `msiexec` service install was blocked in this session (UAC Medium integrity; Windows `sudo` disabled). The path that **did** work:
 
 ```powershell
-Stop-Service "Apache NiFi MiNiFi"
+# 1) Download MSI from EFM (no admin)
+New-Item -ItemType Directory -Path C:\minifi -Force | Out-Null
+Invoke-WebRequest -Uri "http://127.0.0.1:10090/efm/api/agent-deployer/binary?agentType=cpp&agentVersion=1.26.02&osArch=windows" `
+  -OutFile C:\minifi\minifi.msi -UseBasicParsing
+
+# 2) Administrative extract — pulls *all* MSI files including level-2 python feature
+#    (no service registration; no elevation)
 Start-Process msiexec.exe -ArgumentList `
-  "/i `"C:\minifi\minifi.msi`" ADDLOCAL=ALL AUTOSTART=0 INSTALL_ROOT=`"C:\minifi`" INSTALLPYTHONDIR=`"C:\Python314`" /quiet /L*v msi_repair.log" `
+  "/a `"C:\minifi\minifi.msi`" TARGETDIR=`"C:\minifi\extract`" /quiet /L*v `"C:\minifi\msi_extract.log`"" `
   -PassThru -Wait
-Start-Service "Apache NiFi MiNiFi"
-# both must be True:
-Test-Path "C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll"
-Test-Path "C:\minifi\nifi-minifi-cpp\extensions\minifi_native.pyd"
+
+# 3) Copy tree to C:\minifi\nifi-minifi-cpp
+# 4) MSI CustomAction MakeSymbolicLink: minifi_native.pyd -> minifi-python-script-extension.dll
+#    Without elevation, copy works the same:
+Copy-Item C:\minifi\nifi-minifi-cpp\extensions\minifi-python-script-extension.dll `
+          C:\minifi\nifi-minifi-cpp\extensions\minifi_native.pyd
+
+# 5) Set nifi.c2.* on WindowsDesktopCpp + fresh agentIdentifier; start bin\minifi.exe (process mode)
 ```
 
-**Honest status: never verified operational on Windows.** Both prior attempts failed for the same reason — the `ADDLOCAL=ALL` repair step was described in the docs but never actually executed (see `efm-binaries-windows-python.md`). `StarlinkAI` (the Beelink's Windows C++ agent) *shows* ExecuteScript in the EFM UI, but that's the class→manifest view, not proof the DLL is loaded and the processor runs — so it stays in the "seen, not confirmed" column. MINI-Gaming-G1 is a confirmed clean slate for a real test: no MiNiFi service, no stale install, Python 3.14.4 x64 at `C:\Python314`, VC++ 2015-2022 x64 redist present, and the `WindowsDesktop` EFM class + flow already waiting. The revised plan is to bake `ADDLOCAL=ALL INSTALLPYTHONDIR=C:\Python314` into the *first* `msiexec` call rather than install-then-repair. That's the next executable step on Windows, pending a go.
+MSI facts (1.26.02-b30 x64, inspected 2026-07-27):
+
+| Fact | Detail |
+|---|---|
+| Python feature | `CM_C_python_script_extension` Feature Level **2** (optional; EFM deployer never selects it) |
+| `minifi_native.pyd` | **Not a separate file** — MSI CustomAction `mklink extensions\minifi_native.pyd minifi-python-script-extension.dll` |
+| Python 3.14.4 | Worked as host Python; agent created `minifi-python-env` venv on first boot |
+| Class split | `WindowsDesktop` = Java (untouched). `WindowsDesktopCpp` = this C++ agent |
+
+### Smoke that passed
+
+```
+ListenHTTP :18080 /contentListener
+  → ExecuteScript (python Script Body: onTrigger sets python.smoke attr)
+  → LogAttribute (Log Payload=true)
+```
+
+POST `http://127.0.0.1:18080/contentListener` → **200**. Log:
+
+```
+key:python.smoke value:windows-cpp-executescript-ok
+Payload: {"test":"hello-from-windows-cpp-python","ts":"smoke1"}
+```
+
+Agent: `40eb2f92-94c5-4478-beed-7060e41c9d7f` ONLINE under `WindowsDesktopCpp`.  
+Java agent `eeb8cd53-…` under `WindowsDesktop` stayed ONLINE throughout.
+
+Install root: `C:\minifi\nifi-minifi-cpp` (process, not Windows service).  
+Full recipe/notes: `efm-binaries-windows-python.md` (2026-07-27 section).
 
 ## Getting the *script* onto the agent (independent of the engine)
 
@@ -155,14 +197,15 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 
 **Actually open**, ordered by how close each is to done:
 
-1. **[Windows C++] Confirm ExecuteScript actually runs.** `StarlinkAI` (Beelink) shows it in the EFM UI but that only proves the manifest, not a loaded DLL. MINI-Gaming-G1 is the clean-slate test bed — fresh install with `ADDLOCAL=ALL` baked into the first `msiexec`, then a `ListenHTTP → ExecuteScript → LogAttribute` smoke. First time the Windows repair path gets truly tested end to end.
+1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D field-verified on MINI-Gaming-G1 class `WindowsDesktopCpp` (process-mode extract + `minifi_native.pyd` copy; Python 3.14.4). Optional follow-ups: promote to elevated MSI service install; apply same recipe on Beelink `StarlinkAI`.
 2. **[Java] Decide the Java scripting story.** The CEM `2.24.08.0-19` tarball has `ExecuteProcess` but no `ExecuteScript` / `ExecutePythonProcessor` / Kafka. Either work out the scripting-NAR drop-in for that tarball, or pull `minifi-java:latest` and extract its manifest to see if it differs. Until one is done, Java is shell-only (`ExecuteProcess`) in this lab.
 3. **[Persistence] Persist the injected tarballs + `java/windows` leaf into `~/efm-binaries/staging/`** so the next EFM PVC rebuild doesn't silently drop scripting (open follow-up already noted in `efm-windows-java-minifi.md`).
 
 ## What NOT to do
 
 - **Do not assume `ExecuteScript` is in any stock Cloudera binary.** Neither the C++ image, nor the CEM Java tarball, nor the Windows MSI default feature set has it. The tell is the missing `.so`/`.dll`, or an EFM designer "not a valid Processor type" rejection.
-- **Do not copy Linux `.so` extra-extensions onto a Windows agent.** They're ELF binaries; the Windows agent needs MSVC-built `.dll`s. `ADDLOCAL=ALL` is the only Windows mechanism.
+- **Do not copy Linux `.so` extra-extensions onto a Windows agent.** They're ELF binaries; the Windows agent needs MSVC-built `.dll`s. On Windows get the python DLL from the MSI (administrative extract `/a` or `ADDLOCAL=ALL` install) and ensure `minifi_native.pyd` exists (symlink or copy of the python DLL).
+- **Do not put C++ ExecuteScript on the live Java `WindowsDesktop` class.** Class→manifest validation will fight you; use a parallel class (`WindowsDesktopCpp`).
 - **Do not treat "the `.so` is present" as "ExecuteScript works."** Instantiation can still fail (wrong Python ABI, missing lib loader). The proof is a FlowFile passing through, seen in the log.
 - **Do not put a scripting flow on an agent class whose EFM manifest doesn't include the processor.** The designer validates against the class→manifest mapping, not against whatever agent is online — you get ghost processors and empty flows after a "successful" reload. Remap the class manifest first (see `efm-windows-java-minifi.md`).
 - **Do not skip the resources PVC and then upload scripts.** The DB row survives the pod, the bytes don't, and the failure looks like a phantom resource with no content.
