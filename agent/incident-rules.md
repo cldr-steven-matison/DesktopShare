@@ -26,8 +26,7 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
 
 ## Live triggers and queues
 
-- **Never hand-inject data into a live-posting trigger to shortcut a test.** Even if the payload is real and verified. Let the real pipeline fire the trigger, or scope the test off the live flow entirely.
-- **Never cancel or mutate items already in a live posting queue without an explicit per-instance ask.** Not even ones that are obviously bad. See `live-queues.md`.
+The single home for these is **`live-queues.md`** — read it before touching the Streamers pending/published pipeline. In one line: never hand-inject data into a live trigger to shortcut a test, and never cancel/edit/reorder items already in a live posting queue without an explicit per-instance ask.
 
 ## Live service restarts
 
@@ -37,5 +36,5 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
 
 ## Commits and workflow
 
-- **Commit and push only when explicitly asked.** Working-tree changes stay uncommitted by default. See `workflow.md`.
+- **Commit / branch / push discipline lives in `workflow.md`.** The short version: commit and push only when explicitly asked; working-tree changes stay uncommitted by default.
 - **Don't build a permanent API endpoint to clean up a one-time mess.** This is local infra, not a shipping product. Run the cleanup directly and delete the code path.
