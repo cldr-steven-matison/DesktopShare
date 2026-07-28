@@ -1,6 +1,6 @@
 # SparkPlug Demo
 
-**Subplan — Complete Guide Ch21. Status: 🟡 existing material to assess.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 existing material to assess.**
 
 One of the two real-world finale demos. SparkPlug B is the MQTT payload spec for industrial
 IoT — the natural edge use case for MiNiFi: sensors publishing over MQTT, an edge agent
@@ -31,5 +31,5 @@ Everything below is provisional until that read is done.
 
 ## When this ships
 
-Fold into the guide as the second finale demo, add the flow to the Sample Gallery (Ch19),
-flip Ch21 to ✅.
+Fold into the guide as the second finale demo, add the flow to the Sample Gallery,
+flip this demo's row to ✅.

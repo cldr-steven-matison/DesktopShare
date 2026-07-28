@@ -1,10 +1,10 @@
 # MiNiFi Custom Python Processors
 
-**Subplan — Complete Guide Ch6. Status: 🔲 not started.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🔲 not started.**
 
 Authoring **custom processors in Python** and loading them into a MiNiFi C++ agent at the
 edge — the MiNiFi counterpart to the NiFi 2.x custom Python processors we already run in
-`nifi-custom-processors` (Ch15 / "How to AI with NiFi and Python"). A custom Python processor
+`nifi-custom-processors` (the "How to AI with NiFi and Python" chapter). A custom Python processor
 is a *new processor type* you write: it appears in the agent's manifest under its own name,
 with its own properties and relationships, and is wired into a flow like any stock processor.
 
@@ -19,9 +19,9 @@ draft of this page did — that was the error being corrected here):
 | What it is | **One** built-in, generic processor you paste a script *body* into (or point at a script file) | **A new processor type** you author in Python and add to the agent |
 | Identity in the flow | Always shows as `ExecuteScript` | Shows under its own name (e.g. `MyEdgeTransform`) with its own properties/relationships |
 | Reload behavior | **Re-reads the script every trigger** — hot-edit, no restart | **Not a hot patch** — agent restart required to pick up changes |
-| Where it's covered | **Ch5 / `efm-executescript.md`** (the four availability paths, Path D, etc.) | **Ch6 / this page** |
+| Where it's covered | **`efm-executescript.md`** (the four availability paths, Path D, etc.) | **this page / `minifi-python-processors.md`** |
 
-`ExecuteScript` belongs entirely to Ch5. It is referenced here only to draw the boundary — do
+`ExecuteScript` belongs entirely to `efm-executescript.md`. It is referenced here only to draw the boundary — do
 not document `ExecuteScript` availability, Path D, or script-body howtos on this page. Likewise
 the phantom `ExecutePythonProcessor` from Cloudera's C++ docs does not exist in any live manifest
 (documented in `efm-executescript.md`) — do not propagate it here either.
@@ -80,10 +80,12 @@ asset directory so a delivered `.py` is discovered as a processor *type* — ver
 being only a *property-value* resolver (a path handed to an already-loaded processor, not a
 discovery mechanism for new types). Prove which one actually registers a new type on build `1.26.02`.
 
-**Test sequence — k8s first.** Target: the `KubernetesPod` C++ agent in the minikube
-`cld-streaming` cluster (host **MINI-Gaming-G1**, issue label `device:WindowsDesktop`; the Mac has
-no minikube). Live-state-outranks-docs throughout — read the running config off the pod, don't
-assume the install layout.
+**Test sequence — k8s first.** Target: a `KubernetesPod` C++ agent in the **FTF3XR2065** local
+minikube `cld-streaming` cluster (issue label `device:FTF3XR2065`). The node is **linux/arm64**
+(Apple Silicon), so this is the arm64 C++ leg. EFM/MiNiFi are currently **un-deployed on this
+host** (`svc/efm` absent, the port-forward pane failing quietly) — **redeploy EFM and a
+`KubernetesPod` agent first**, then run the test. Live-state-outranks-docs throughout — read the
+running config off the pod, don't assume the install layout.
 
 1. Read the pod's live `minifi.properties`: capture `nifi.asset.directory`, the python
    processor-dir key, and confirm `AssetInformation` ∈ `nifi.c2.root.classes`.
@@ -105,18 +107,19 @@ assume the install layout.
 
 | Runtime | Platform | Host / route (label) |
 |---|---|---|
-| C++ | Linux x86_64 (this k8s test) | MINI-Gaming-G1 minikube (`device:WindowsDesktop`) — **do this one first** |
+| C++ | Linux arm64 (this k8s test) | FTF3XR2065 local minikube (`device:FTF3XR2065`) — **do this one first** |
+| C++ | Linux x86_64 | MINI-Gaming-G1 minikube (`device:WindowsDesktop`) |
 | C++ | Windows (MSI, Path D box) | MINI-Gaming-G1 (`device:WindowsDesktop`) |
-| C++ | Linux aarch64 | Jetson (`device:NvidiaNano`, via MINI-Gaming-G1 SSH) |
+| C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via MINI-Gaming-G1 SSH) — high-confidence if the arm64 k8s leg passes |
 | Java | CEM Java agent | MINI-Gaming-G1 or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) |
 
-Only the k8s (x86_64 C++) leg is in scope for the first issue; the rest are filed as their own
+Only the k8s (arm64 C++) leg is in scope for the first issue; the rest are filed as their own
 tickets once this one lands.
 
 ### Report-back template (paste into the issue comment when done)
 
 ```
-## Python-processor delivery via EFM Resources — k8s (KubernetesPod, C++ x86_64)
+## Python-processor delivery via EFM Resources — k8s (KubernetesPod, C++ arm64)
 
 - Result: works / partial / blocked
 - nifi.asset.directory (live): <path>
@@ -138,7 +141,7 @@ tickets once this one lands.
 - `~/.claude/skills/nifi-and-ai/references/custom-processors.md` — the NiFi 2.x custom Python processor playbook; the *not-a-hot-patch* restart contrast vs ExecuteScript is called out there directly.
 - `efm-binaries.md` — the on-device `.so`/`.pyd` evidence (prerequisite runtime).
 - `minifi-playground-cpp-processors.md` — the C++ processor catalog these authored types add to.
-- `efm-executescript.md` — **the different, adjacent concept (Ch5)**; here for boundary-drawing only.
+- `efm-executescript.md` — **the different, adjacent concept**; here for boundary-drawing only.
 
 ## Verification
 
@@ -149,8 +152,8 @@ surprised.
 
 ## When this ships
 
-Add `python-processors/` to the Playground, flip Ch6 to ✅ in the master guide, and update
+Add `python-processors/` to the Playground, flip this chapter's row to ✅ in the master guide, and update
 `minifi-playground-cpp-processors.md` alongside (per the cross-reference rule — the source doc
 gets the authored-processor count/mechanics folded in, not left to drift). If the processor does
-AI work, it also becomes one of the capabilities the Ch16 "How to AI with MiNiFi" post covers —
+AI work, it also becomes one of the capabilities the "How to AI with MiNiFi" post covers —
 as one option among several, not the whole post.

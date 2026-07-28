@@ -89,7 +89,7 @@ Also reconfirmed live (per your question about Java Kafka): fresh pull of the Ja
 
 **Audience:** whoever has the Jetson Orin Nano powered on and Online in EFM. Per the guide's routing hint this is reached *via MINI-Gaming-G1* (SSH / same networking the WSL2 box already manages) — the Jetson has no CLAUDE-CHECKIN.md session of its own.
 
-**Standing decision (2026-07-28):** the aarch64 processor manifest is currently *inferred* from x86_64, never field-captured. We're leaving Ch4's aarch64 line open in the guide until these run. The Beelink/StarlinkAI is **x86_64 (AMD Ryzen)**, *not* aarch64 — it cannot close this gap. The only aarch64-Linux silicon in the fleet is the Jetson (`NvidiaNano` class); the Mac M4 Pro is arm64 but Darwin, with MiNiFi disabled. A future `SensorClass` device (see guide Part VII) might also close it if it turns out to be an ARM SBC.
+**Standing decision (2026-07-28):** the aarch64 processor manifest is currently *inferred* from x86_64, never field-captured. We're leaving the C++ processor catalog's aarch64 line open in the guide until these run. The Beelink/StarlinkAI is **x86_64 (AMD Ryzen)**, *not* aarch64 — it cannot close this gap. The only aarch64-Linux silicon in the fleet is the Jetson (`NvidiaNano` class); the Mac M4 Pro is arm64 but Darwin, with MiNiFi disabled. A future `SensorClass` device (see guide Part VII) might also close it if it turns out to be an ARM SBC.
 
 **Known coordinates (confirm, don't trust):**
 
@@ -99,7 +99,7 @@ Also reconfirmed live (per your question about Java Kafka): fresh pull of the Ja
 | Existing flow exports | `files/efm/NvidiaNano.json`, `files/efm/NvidiaNano-TensorRT.json` (both Operational — flow runs; manifest never separately certified) |
 | MiNiFi build on device | C++ `1.26.02` expected (match the x86_64 revision `0d41a46e`) — confirm from the agent |
 
-### Task 5 — Certify the live aarch64 (`NvidiaNano`) processor manifest (closes Ch4's open aarch64 line)
+### Task 5 — Certify the live aarch64 (`NvidiaNano`) processor manifest (closes the C++ processor catalog's open aarch64 line)
 
 The x86_64 Windows MSI is field-verified at **81** (Task 1); the Linux x86_64 C++ catalog is **74** (`minifi-playground-cpp-processors.md`). The `linuxaarch64` count is inferred from those, never captured. Pull the real manifest for the live `NvidiaNano` agent and count it. **This can be done from MINI-Gaming-G1** (hit the local EFM API) as long as the Jetson is Online and has reported its manifest — you do *not* have to be on the Jetson for this one.
 
@@ -126,7 +126,7 @@ for w in ('ExecuteScript','ExecutePythonProcessor','ConsumeKafka','PublishKafka'
 PY
 ```
 
-**Deliver:** commit as `files/efm/NvidiaNano-manifest.json`, report the count and how it compares to x86_64 (74 Linux / 81 Windows MSI). The interesting findings would be any processor that is x86-only (absent on aarch64) or aarch64-only. Then Ch4's aarch64 line in the guide + the `minifi-playground-cpp-processors.md` platform matrix get flipped from inferred to field-verified.
+**Deliver:** commit as `files/efm/NvidiaNano-manifest.json`, report the count and how it compares to x86_64 (74 Linux / 81 Windows MSI). The interesting findings would be any processor that is x86-only (absent on aarch64) or aarch64-only. Then the C++ processor catalog's aarch64 line in the guide + the `minifi-playground-cpp-processors.md` platform matrix get flipped from inferred to field-verified.
 
 ### Task 6 — Confirm Kafka live end-to-end on the Jetson (the test the Windows host couldn't finish)
 

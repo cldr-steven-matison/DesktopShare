@@ -1,6 +1,6 @@
 # Sample Gallery of MiNiFi Flows
 
-**Subplan — Complete Guide Ch19. Status: 🔲 not started (one sample exists today).**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🔲 not started (one sample exists today).**
 
 A curated, runnable set of MiNiFi flows the reader can lift and adapt. This chapter doesn't
 generate new flows so much as it collects and polishes the ones produced by every other
@@ -24,12 +24,12 @@ Each entry gets a uniform card so the gallery reads consistently:
 
 ## Candidate flows to harvest as chapters land
 
-- HTTP → Kafka → File (exists, Ch8)
-- ExecuteScript Python transform (Ch7)
-- S2S source flows, one per path (Ch11–15)
-- Edge-AI router (Ch17/18)
-- TensorRT inference on Jetson (Ch20)
-- SparkPlug / MQTT ingest (Ch21)
+- HTTP → Kafka → File (exists — Standalone MiNiFi C++ on K8s)
+- ExecuteScript Python transform (`efm-executescript.md`)
+- S2S source flows, one per path (Site-to-Site)
+- Edge-AI router (How to AI with MiNiFi / Edge-AI router case study)
+- TensorRT inference on Jetson (EFM + NVIDIA Jetson use case)
+- SparkPlug / MQTT ingest (SparkPlug demo)
 
 ## Home
 

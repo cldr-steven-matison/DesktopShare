@@ -1,8 +1,8 @@
 # How to AI with MiNiFi
 
-**Subplan — Complete Guide Ch17. Status: 🔲 blog not started (source case study is 🟡).**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🔲 blog not started (source case study is 🟡).**
 
-The edge sibling of "How to AI with NiFi and Python" (Ch16, published). Where that post runs
+The edge sibling of "How to AI with NiFi and Python" (published). Where that post runs
 Python inference inside NiFi on Kubernetes, this one is the **umbrella post for everything you
 can do with EFM + AI at the edge** — not a single technique.
 
@@ -10,9 +10,9 @@ can do with EFM + AI at the edge** — not a single technique.
 their own detailed source doc/chapter; this post is the tour that ties them together:
 
 - **Route to a nearby inference server** — the primary case study below: MiNiFi routes requests to a local LLM (Lemonade/vLLM). The agent doesn't hold the model.
-- **`ExecuteScript` (Python) transforms** — inline Python in one processor, now proven on C++ (Path D) and on Java via the NAR drop-in. Detail: Ch6 / `efm-executescript.md`.
-- **Custom Python processors** — authored processor *types* running Python at the edge. Detail: Ch7 / `minifi-python-processors.md`. **This is one option among several — the post is not about custom Python processors specifically**, and `ExecuteScript` (above) is a separate concept from it, not a synonym.
-- **On-device model execution** — e.g. TensorRT / llama.cpp via the flow (`RunLlamaCppInference` in the C++ manifest; the `*-TensorRT.json` flows). Detail: Ch20.
+- **`ExecuteScript` (Python) transforms** — inline Python in one processor, now proven on C++ (Path D) and on Java via the NAR drop-in. Detail: `efm-executescript.md`.
+- **Custom Python processors** — authored processor *types* running Python at the edge. Detail: `minifi-python-processors.md`. **This is one option among several — the post is not about custom Python processors specifically**, and `ExecuteScript` (above) is a separate concept from it, not a synonym.
+- **On-device model execution** — e.g. TensorRT / llama.cpp via the flow (`RunLlamaCppInference` in the C++ manifest; the `*-TensorRT.json` flows). Detail: the EFM + NVIDIA Jetson use case (`efm-nvidia-jetson-nano.md`).
 
 Keep each to a section that summarizes and cross-references its source doc; the deep how-to
 lives in the chapter, not duplicated here.
@@ -28,7 +28,7 @@ transcription) exposed via the per-component EFM Designer API.
 
 Transcription endpoint drops 100% of multipart POSTs (buffer-full, confirmed reproducible
 2026-07-23). The post shouldn't ship claiming a capability that drops everything — resolve
-the transcription drop first (Ch18 open item), then draft.
+the transcription drop first (the Edge-AI router case study's open item), then draft.
 
 ## Post spine (Symptom → Diagnosis → Fix)
 
@@ -46,5 +46,5 @@ the transcription drop first (Ch18 open item), then draft.
 
 ## When this ships
 
-Publish to blog repo `_posts/`, flip Ch17 to ✅📝, and once transcription is fixed, close the
-Ch18 open item in the master guide.
+Publish to blog repo `_posts/`, flip this post's row to ✅📝, and once transcription is fixed,
+close the Edge-AI router case study's open item in the master guide.

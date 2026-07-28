@@ -1,6 +1,6 @@
 # EFM Binaries: getting the right agent onto every device
 
-**Subplan — Complete Guide Ch3. Status: 🟡 content field-validated, blog not yet drafted.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 content field-validated, blog not yet drafted.**
 
 This is the blog-draft plan for the EFM binary staging story. The recipe is proven; the job
 here is to distill four working docs into one publishable post without losing the traps.
@@ -23,7 +23,7 @@ here is to distill four working docs into one publishable post without losing th
 - All five leaves must be present and persisted: `cpp/linux`, `cpp/linuxaarch64`, `cpp/windows`, `java/linux`, `java/windows`.
 - `java/windows` gets dropped on PVC rebuild — persist it in `~/efm-binaries/staging/`.
 - Windows C++ Python needs ADDLOCAL=ALL (Level 2 optional feature), not the default install.
-- CEM Java 2.24.08.0-19 has no ExecuteScript and no Kafka NAR — say so plainly, link Ch5.
+- CEM Java 2.24.08.0-19 has no ExecuteScript and no Kafka NAR — say so plainly, link `efm-executescript.md`.
 
 ## Open before publish
 
