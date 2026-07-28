@@ -6,10 +6,18 @@ This repo is worked on from every device in `CLAUDE-CHECKIN.md` — a Mac, a Win
 
 Steven Matison — Senior SE at Cloudera, builds CSO/CFM/CSA/CSM demos on Kubernetes/Minikube. He works closely with Claude across all of these devices and expects each session to work from history, not re-teach context.
 
+## Start every session with a pull
+
+**`git pull` before any work — on every device, first thing.** This repo is worked from many
+machines; another may have committed since you last ran here, and acting on a stale tree is how
+two devices overwrite each other. Then check this device's GitHub-issue inbox (`gh issue list
+--state open --label "device:<thisDevice>"`) — issues are the async mailbox between devices. Both
+rules, plus the full cross-device protocol and label taxonomy, live in `agent/device-comms.md`.
+
 ## Read before you touch anything
 
 - **`CLAUDE-CHECKIN.md`** — the device roster. Confirms what host you're on, what services are running there, and what per-device paths and port-forwards apply. If you're about to name a specific host or port, check this first.
-- **`agent/`** — the working rules every session follows. Short files: `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. Read `workflow.md` and `incident-rules.md` at least once per session; the other two only when the task calls for them.
+- **`agent/`** — the working rules every session follows. Short files: `device-comms.md`, `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. Read `device-comms.md`, `workflow.md`, and `incident-rules.md` at least once per session; the other two only when the task calls for them.
 - **Skills in `skills/`** — check `~/.claude/skills/` (global) at session start against what's in this repo's `skills/` dir. If a skill listed in `skills/README.md` (e.g. `nifi-and-ai`) isn't installed on this device yet, install it before starting work that needs it: `mkdir -p ~/.claude/skills && cp -r skills/<name> ~/.claude/skills/`. Global, not per-project — NiFi/EFM work spans `cso-operator-app` and `nifi-custom-processors` too, not just this repo. Re-copy after any upstream change to a skill's source files (no versioning yet — a stale copy silently wins otherwise). `nifi-and-ai` is the playbook for building NiFi / MiNiFi / EFM flows — if your task touches any of those, invoke it; its `SKILL.md` plus `references/` files cover the patterns and traps.
 - **This session's memory index** — the local Claude project memory dir on this device. `MEMORY.md` there is one-line pointers, not content — open the linked file when the pointer looks relevant. (The dir path varies per device: on Mac it's under `~/.claude/`, on Linux hosts under `~/.claude/` with a different project-name suffix. The auto-loader finds it.)
 

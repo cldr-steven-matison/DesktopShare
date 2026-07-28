@@ -6,9 +6,10 @@ DesktopShare is worked on from several devices (see `../CLAUDE-CHECKIN.md`). Thi
 
 | File | When to read it |
 |---|---|
-| `writing-style.md` | Before writing or editing any `.md` in DesktopShare that could become a blog post — which is most of them. |
+| `device-comms.md` | Every session. Two mandatory session-start rules — `git pull` first, then check this device's GitHub-issue inbox — plus the cross-device issue protocol and label taxonomy. |
 | `workflow.md` | Every session. Covers commit/push discipline, when to branch, when live state outranks docs. |
 | `incident-rules.md` | Every session. The short list of don't-do-this items that each came from a real incident — read this before touching NiFi flows or credentials in particular. |
+| `writing-style.md` | Before writing or editing any `.md` in DesktopShare that could become a blog post — which is most of them. |
 | `live-queues.md` | Only if you're touching a system that has an active, live-posting queue — today that's `cso-operator-app` and the Streamers pipeline. |
 
 ## What is not in here

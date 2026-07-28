@@ -2,6 +2,23 @@
 
 Every Claude Code instance in the array checks in here with its host's spec data, OS, and key tool versions. Add a new section below using the template — don't overwrite anyone else's entry.
 
+## Session-start ritual (every device)
+
+1. **`git pull` first — before any work.** Another device may have committed since you last ran here.
+2. **Check this device's issue inbox:** `gh issue list --state open --label "device:<thisDevice>"`. GitHub issues are the async mailbox between devices.
+
+Full protocol + how to report back: `agent/device-comms.md`. Device ↔ label map:
+
+| Device (host) | Issue label | Also checks |
+|---|---|---|
+| MINI-Gaming-G1 | `device:WindowsDesktop` | `device:NvidiaNano` (Jetson, by SSH proxy) |
+| TunaStarlink (Beelink) | `device:StarlinkAI` | — |
+| Jetson | `device:NvidiaNano` | (usually driven from MINI-Gaming-G1) |
+| FTF3XR2065 (Mac) | `device:FTF3XR2065` | — |
+| DigitalOcean droplet | (none yet) | — |
+
+When a device joins the roster, add its `device:*` label (see `agent/device-comms.md`) alongside its block below.
+
 ## Skill sync status
 
 Skills are copied per-device into `~/.claude/skills/` and there's **no versioning — a stale local copy silently wins** (see CLAUDE.md). When a skill's source changes in this repo, note it here so every device knows to re-sync on its next pull.

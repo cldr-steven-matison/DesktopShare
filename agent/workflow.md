@@ -1,5 +1,12 @@
 # Workflow
 
+## Start of session
+
+**`git pull` before any work, every session, every device** — see `device-comms.md`. Another
+device may have committed since you last ran here. After pulling, check this device's issue
+inbox (`device:*` labels). The two are the cross-device sync ritual; the rest of this file is
+how you work once you're synced.
+
 ## Commit and push
 
 - **Commit and push only when Steven explicitly asks.** No "I'll commit that for you" — the default across every repo is uncommitted, working-tree changes stay uncommitted until asked.
