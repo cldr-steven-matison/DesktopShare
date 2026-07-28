@@ -3,17 +3,17 @@
 *by Steven Matison*
 
 This is a living document. Today it is the master plan and index for a body of work that
-spans four repos and will a considerable efford to finish and field-validate. As each
+spans four repos and will take a considerable effort to finish and field-validate. As each
 chapter lands — built, run, and proven on real hardware — its content folds in here and
 this becomes the published guide. Nothing below is aspirational hand-waving: every chapter
 marked ✅ points at a source doc I can hand you and a flow I have actually run.
 
-Edge Flow Management is core to the entirely of all of this work as it is the central manager for organizing agent Classes, Resources, and Developing Edge Flows. NiFi in the
+Edge Flow Management is core to the entirety of all of this work as it is the central manager for organizing agent Classes, Resources, and developing Edge Flows. NiFi in the
 datacenter is well documented; EFM is not; until now. What happens out at the edge — a MiNiFi agent on a Jetson, a
 Windows box over Tailscale, a Kubernetes pod with no persistent identity — is where the
 real problems live: binary delivery, agent enrollment, which processors actually exist in
-which build, manging custom processors and resources, and how to get a flow from a designer canvas onto a device that keeps changing
-its IP. This guide is the map I wish I'd had when I first installed [EFM on Kubernets](linktoblog)
+which build, managing custom processors and resources, and how to get a flow from a designer canvas onto a device that keeps changing
+its IP. This guide is the map I wish I'd had when I first installed [EFM on Kubernetes](https://cldr-steven-matison.github.io/blog/cloudera-edge-flow-manager-on-kubernetes/).
 
 ## Status legend
 
@@ -23,61 +23,60 @@ its IP. This guide is the map I wish I'd had when I first installed [EFM on Kube
 
 | Ch | Title | Source doc(s) | Blog | Status | Field-validated | Next action |
 |----|-------|---------------|------|--------|-----------------|-------------|
-| 1 | EFM on Kubernetes | `blog/efm-persistance.md` | `_posts/2026-07-15-Cloudera Edge Flow Manager on Kubernetes.md` | ✅📝 | Yes (EFM 2.3.1.0-2, minikube `cld-streaming`) | [any EFM host] Write the basics directly into this chapter (what EFM is, how to deploy it) — cross-reference the source doc, don't just link out to it |
-| 2 | EFM persistence (Postgres + 2 PVCs) | `blog/efm-persistance.md` | — | ✅ ✍️ | Yes | [FTF3XR2065] Publish as post  - this is already inclusive in #1, #2 can be removed |
-| 3 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | [MINI-Gaming-G1] Keep this section expanded deep into all the binary needs — do not distill down for the blog draft |
-| 4 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64 confirmed; 81 Windows MSI field-verified 2026-07-27, was 76; aarch64 `.so` listing open) | [Jetson, via MINI-Gaming-G1 SSH] Field-verify aarch64 — Jetson has no CLAUDE-CHECKIN.md session of its own, reached from the Windows/WSL2 box that already manages its networking |
-| 5 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114 stock; 122 with the Kafka+scripting NAR drop-in — field-verified 2026-07-27 on both `KubernetesPodJava` and the real `WindowsDesktop` agent) | [MINI-Gaming-G1 or FTF3XR2065 — either local Docker/minikube host] Verify Docker `minifi-java:latest` |
-| 6 | ExecuteScript availability (4 paths) | `efm-executescript.md` | — | 🟡 | Yes (C++/Java/MSI/source mapped) | [any host, doc-only] Fold into Part II narrative |
-| 7 | MiNiFi **custom** Python processors | `minifi-python-processors.md` | — | 🔲 ✍️ | No | [MINI-Gaming-G1] Author `.py` processors loaded natively by the C++ agent (own type/properties/relationships) — **distinct from `ExecuteScript`, which is Ch6**; do not conflate the two |
-| 8 | Standalone MiNiFi C++ on K8s (no EFM) | MiNiFi Playground root scenario | — | ✅ | Yes (v1.26.02) | [any host, doc-only] Fold the content into this chapter directly (not just a link) and cross-reference the source doc; keep the source doc itself updated as this plan progresses |
-| 9 | MiNiFi Java setup | — (absent) | — | 🔲 | No | [MINI-Gaming-G1 or FTF3XR2065 — whichever runs the Playground repo next] Document examples for `java` flavor to root Playground |
-| 10 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | [MINI-Gaming-G1] Add `efm` section to root Playground |
-| 11 | S2S: MiNiFi Java → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [MINI-Gaming-G1] Local build |
-| 12 | S2S: MiNiFi C++ → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [MINI-Gaming-G1] Local build |
-| 13 | S2S: NiFi K8s → Cloudera DataFlow | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP DataFlow (access confirmed) |
-| 14 | S2S: NiFi K8s → Cloudera Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP Data Hub |
-| 15 | S2S: Cloudera DataFlow → Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP-to-CDP |
-| 16 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | [any host, doc-only] Resummarize into this chapter and cross-reference the source doc for the full content, don't just link out |
-| 17 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | [TunaStarlink] Fix transcription drop, then draft |
-| 18 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | [TunaStarlink] Resolve transcription |
-| 19 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | [any host, doc-only] Accumulate flows as built |
-| 20 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | [MINI-Gaming-G1] Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
-| 21 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | [MINI-Gaming-G1, or the incoming SensorClass device once checked in] Assess existing depth |
+| 1 | EFM on Kubernetes (incl. persistence) | `blog/efm-persistance.md` | `_posts/2026-07-15-Cloudera Edge Flow Manager on Kubernetes.md` | ✅📝 | Yes (EFM 2.3.1.0-2, minikube `cld-streaming`) | [any EFM host] Write the basics directly into this chapter (what EFM is, how to deploy it, **and the Postgres + 2-PVC persistence setup** — folded in from the former standalone Ch2) — cross-reference the source doc, don't just link out to it |
+| 2 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | [MINI-Gaming-G1] Keep this section expanded deep into all the binary needs — do not distill down for the blog draft |
+| 3 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64 confirmed; 81 Windows MSI field-verified 2026-07-27, was 76; aarch64 `.so` listing open) | [Jetson, via MINI-Gaming-G1 SSH] Field-verify aarch64 — Jetson has no CLAUDE-CHECKIN.md session of its own, reached from the Windows/WSL2 box that already manages its networking |
+| 4 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114 stock; 122 with the Kafka+scripting NAR drop-in — field-verified 2026-07-27 on both `KubernetesPodJava` and the real `WindowsDesktop` agent) | [MINI-Gaming-G1 or FTF3XR2065 — either local Docker/minikube host] Verify Docker `minifi-java:latest` |
+| 5 | ExecuteScript availability (4 paths) | `efm-executescript.md` | — | 🟡 | Yes (C++/Java/MSI/source mapped) | [any host, doc-only] Fold into Part II narrative |
+| 6 | MiNiFi **custom** Python processors | `minifi-python-processors.md` | — | 🔲 ✍️ | No | [MINI-Gaming-G1] Author `.py` processors loaded natively by the C++ agent (own type/properties/relationships) — **distinct from `ExecuteScript`, which is Ch5**; do not conflate the two |
+| 7 | Standalone MiNiFi C++ on K8s (no EFM) | MiNiFi Playground root scenario | — | ✅ | Yes (v1.26.02) | [any host, doc-only] Fold the content into this chapter directly (not just a link) and cross-reference the source doc; keep the source doc itself updated as this plan progresses |
+| 8 | MiNiFi Java setup | — (absent) | — | 🔲 | No | [MINI-Gaming-G1 or FTF3XR2065 — whichever runs the Playground repo next] Document examples for `java` flavor to root Playground |
+| 9 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | [MINI-Gaming-G1] Add `efm` section to root Playground |
+| 10 | S2S: MiNiFi Java → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [MINI-Gaming-G1] Local build |
+| 11 | S2S: MiNiFi C++ → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [MINI-Gaming-G1] Local build |
+| 12 | S2S: NiFi K8s → Cloudera DataFlow | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP DataFlow (access confirmed) |
+| 13 | S2S: NiFi K8s → Cloudera Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP Data Hub |
+| 14 | S2S: Cloudera DataFlow → Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP-to-CDP |
+| 15 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | [any host, doc-only] Resummarize into this chapter and cross-reference the source doc for the full content, don't just link out |
+| 16 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | [TunaStarlink] Fix transcription drop, then draft |
+| 17 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | [TunaStarlink] Resolve transcription |
+| 18 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | [any host, doc-only] Accumulate flows as built |
+| 19 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | [MINI-Gaming-G1] Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
+| 20 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | [MINI-Gaming-G1, or the incoming SensorClass device once checked in] Assess existing depth |
 
 ## The 7 parts
 
-**Part I — EFM Foundations on Kubernetes** (Ch1–3)
-Get EFM running, persisted, and fed with agent binaries. The infrastructure everything else
-rides on.
+**Part I — EFM Foundations on Kubernetes** (Ch1–2)
+Get EFM running and persisted (Postgres + 2 PVCs, folded into Ch1), and fed with agent
+binaries. The infrastructure everything else rides on.
 
-**Part II — Processors (C++ & Java)** (Ch4–7)
+**Part II — Processors (C++ & Java)** (Ch3–6)
 Which processors actually exist in each build, how **`ExecuteScript`** availability differs
-across C++ / CEM Java / Windows MSI / source builds (Ch6 — pasting a script into one generic
+across C++ / CEM Java / Windows MSI / source builds (Ch5 — pasting a script into one generic
 processor), and separately how to author **custom Python processors** as their own processor
-types at the edge (Ch7). `ExecuteScript` (Ch6) and custom Python processors (Ch7) are two
+types at the edge (Ch6). `ExecuteScript` (Ch5) and custom Python processors (Ch6) are two
 different concepts — kept in separate chapters on purpose.
 
-**Part III — MiNiFi Playground repo** (Ch8–10)
+**Part III — MiNiFi Playground repo** (Ch7–9)
 Install and use plain MiNiFi (the existing C++ scenario adding Java too), then introduces the user to EFM as a proper solution used to
 manage the agents and resources.
 
-**Part IV — Site-to-Site** (Ch11–15)
+**Part IV — Site-to-Site** (Ch10–14)
 The full transport matrix, local and cloud. Reference: apache `SITE_TO_SITE.md`.
 
-**Part V — AI at the Edge** (Ch16–18)
+**Part V — AI at the Edge** (Ch15–17)
 NiFi + Python (done), the same idea pushed to a MiNiFi agent, and the Beelink/Lemonade
 edge-AI router as a worked case study.
 
-**Part VI — Sample Gallery** (Ch19)
-Curated, runnable flows accumulated as the guide is built. Use-able flow frameworks that anyone can use or build new flows with the concepts shared in this gallery.
+**Part VI — Sample Gallery** (Ch18)
+Curated, runnable flows accumulated as the guide is built. Usable flow frameworks that anyone can use or build new flows with the concepts shared in this gallery.
 
-**Part VII — Real-World Demos** (Ch20–21)
+**Part VII — Real-World Demos** (Ch19–20)
 The finale: EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos
 
 > **Incoming:** a new `SensorClass` agent class and a new physical device are coming for the
 > IoT/edge end of these demo stacks. Not checked in yet (see `CLAUDE-CHECKIN.md`) — when it
-> lands, revisit Ch20–21's device assignment, since it may take over or extend the Jetson's role.
+> lands, revisit Ch19–20's device assignment, since it may take over or extend the Jetson's role.
 
 ## Repos, paths, promotion flow
 
@@ -97,23 +96,23 @@ Promotion flow for each piece of content:
 
 ## Subplans (this repo, root)
 
-- `efm-binaries-blog.md` — Ch3 blog draft plan
-- `minifi-python-processors.md` — Ch7
-- `minifi-site-to-site.md` — Ch11–15 (all five paths)
-- `how-to-ai-with-minifi.md` — Ch17
-- `minifi-sample-gallery.md` — Ch19
-- `sparkplug-demo.md` — Ch21
+- `efm-binaries-blog.md` — Ch2 blog draft plan
+- `minifi-python-processors.md` — Ch6
+- `minifi-site-to-site.md` — Ch10–14 (all five paths)
+- `how-to-ai-with-minifi.md` — Ch16
+- `minifi-sample-gallery.md` — Ch18
+- `sparkplug-demo.md` — Ch20
 
 ## Recommended roadmap (sequencing, not a commitment)
 
 1. **Scaffold** — this doc + the six subplan stubs. *(done in the 2026-07-27 session)*
-2. **Harvest done work** — publish `efm-persistance.md` (Ch2); write the EFM Binaries blog (Ch3).
-3. **Finish demos-in-flight** — Nvidia Jetson stubs + `WindowsDesktop-TensorRT.json` (Ch20); assess SparkPlug (Ch21).
-4. **Greenfield build** — MiNiFi Java (Ch9), EFM-in-Playground (Ch10), Python processors (Ch7).
-5. **Site-to-Site** — local paths (Ch11–12) first, then cloud (Ch13–15) against CDP.
-6. **AI at the edge** — How to AI with MiNiFi (Ch17) after the Beelink transcription fix.
-7. **Sample gallery** — Ch19 accumulates flows produced along the way.
-8. **Finale demos** — polish and publish Ch20–21.
+2. **Harvest done work** — the `efm-persistance.md` persistence content is now folded into Ch1; write the EFM Binaries blog (Ch2).
+3. **Finish demos-in-flight** — Nvidia Jetson stubs + `WindowsDesktop-TensorRT.json` (Ch19); assess SparkPlug (Ch20).
+4. **Greenfield build** — MiNiFi Java (Ch8), EFM-in-Playground (Ch9), Python processors (Ch6).
+5. **Site-to-Site** — local paths (Ch10–11) first, then cloud (Ch12–14) against CDP.
+6. **AI at the edge** — How to AI with MiNiFi (Ch16) after the Beelink transcription fix.
+7. **Sample gallery** — Ch18 accumulates flows produced along the way.
+8. **Finale demos** — polish and publish Ch19–20.
 
 ## Ground rules while building this
 
