@@ -1,4 +1,4 @@
-# WindowsDesktop + KubernetesPod: Java MiNiFi via EFM (field-verified 2026-07-25)
+# WindowsDesktop + KubernetesPod: Java MiNiFi via EFM (field-verified 2026-07-25; Kafka + scripting NAR drop-in added 2026-07-27)
 
 I finally opened the black hole around **EFM-deployed Java MiNiFi** on MINI-Gaming-G1 — native Windows (`WindowsDesktop`) and a second k8s pod (`KubernetesPodJava`). The smaller, already-documented hole is **C++ MiNiFi on Windows with Python/ExecuteScript** (`efm-binaries-windows-python.md`). This session is the Java counterpart: what actually installs, what processors are really in the CEM binary, and what breaks when a C++-shaped class flow hits a Java agent.
 
@@ -109,16 +109,27 @@ c2.runtime.type=minifi-java
 | `UpdateAttribute`, Record processors (`ConvertRecord`, `SplitRecord`, …) | Yes |
 | Controller services (HTTP context map, SSL, DBCP, record readers/writers, …) | Yes — **45** services in the manifest |
 
-### Missing from this CEM binary (docs previously implied otherwise)
+### Missing from the *stock* tarball — now added via NAR drop-in (field-verified 2026-07-27)
 
-| Capability | Status in `2.24.08.0-19` lab binary |
-|---|---|
-| **`ExecuteScript`** (Groovy/Jython/JS) | **MISSING** — no scripting NAR |
-| **`PublishKafka` / `ConsumeKafka`** | **MISSING** — no Kafka NAR |
+| Capability | Stock `2.24.08.0-19` tarball | After NAR drop-in |
+|---|---|---|
+| **`ExecuteScript`** | **MISSING** — no scripting NAR | **PRESENT & runs** (Groovy 4.0.23 + Clojure 1.8.0; **no Jython/Python** in this build, unlike C++) |
+| **`PublishKafka` / `ConsumeKafka`** | **MISSING** — no Kafka NAR | **PRESENT & real producer** (needs the `Kafka3ConnectionService` controller from `nifi-kafka-3-service-nar`) |
 
-That rewrites the earlier “Java gives you ExecuteScript out of the box” line in `minifi-playground-java-processors.md` for **this** CEM agent tarball. Docker `minifi-java:latest` may still differ; what we field-verified is the EFM-staged `minifi-2.24.08.0-19-bin.tar.gz`.
+The stock table is still the correct starting point — the EFM-staged `minifi-2.24.08.0-19-bin.tar.gz` genuinely ships neither. Docker `minifi-java:latest` may still differ; what we field-verified is the staged CEM tarball.
 
-**Cloudera's own current doc now agrees.** The CEM 2.4.0 *MiNiFi Java → Processor support* page (`docs.cloudera.com/cem/2.4.0/release-notes-minifi-java/topics/cem-java-agent-processors.html`) lists the out-of-the-box set with **no `ExecuteScript` and no Kafka**, and documents adding them via a CFM-NAR drop-in into `<MINIFI_AGENT_HOME>/extensions`. `2.24.08` is the current CEM 2.4.0 Java agent, so this isn't a stale-version artifact — the “implied otherwise” was older comparison material, not the current vendor doc. NAR drop-in work: `efm-binaries.md` → *Open work — Kafka + scripting NARs*.
+**Cloudera's own current doc agrees on the stock gap.** The CEM 2.4.0 *MiNiFi Java → Processor support* page (`docs.cloudera.com/cem/2.4.0/release-notes-minifi-java/topics/cem-java-agent-processors.html`) lists the out-of-the-box set with **no `ExecuteScript` and no Kafka**, and documents adding them via a CFM-NAR drop-in into `<MINIFI_AGENT_HOME>/extensions`. `2.24.08` is the current CEM 2.4.0 Java agent, so this isn't a stale-version artifact.
+
+**Resolution — SOLVED 2026-07-27 (further install/setup actions, both agents).** The straight copy of `mynifi`'s NARs won't resolve (their `Nar-Dependency-Version` is CFM `2.6.0.4.3.4.0-234`, not the agent's `2.24.08.0-19`). The working fix is to **build the NARs from the exact-matching MiNiFi Java source tarball**, version-pinned to `2.24.08.0-19`, then drop them into the agent's autoload dir (`nifi.nar.library.autoload.directory=./extensions`) — picked up in ~5–10s, **no restart**. Four NARs: `nifi-kafka-service-api-nar`, `nifi-kafka-nar`, `nifi-kafka-3-service-nar` (the controller service — easy to miss, separate module), `nifi-scripting-nar`. Full recipe, build commands, and persisted artifact path live in **`efm-binaries.md` → *Kafka + scripting NARs on the CEM Java agent — SOLVED***.
+
+Manifest goes **114 → 122** on both agents. Field-certified twice:
+
+- **`KubernetesPodJava`** — `ExecuteScript` ran a real Groovy transform (attribute landed on every flowfile); `PublishKafka` + `Kafka3ConnectionService` instantiated a real Kafka 3.9.0 transactional producer against the in-cluster bootstrap — full cluster-ID discovery + transaction-coordinator negotiation + producer ID (only `UNKNOWN_TOPIC_OR_PARTITION` because the test topic wasn't created — expected, not a NAR problem).
+- **Real `WindowsDesktop` Java agent** (not just the throwaway pod) — same 4 NARs via the `/mnt/c` mount, clean autoload; `ExecuteScript` Groovy ran (`nar.groovy.smoke=windows-java-nar-drop-in-ok`); `PublishKafka` built a real producer and hit the **same hairpin-NAT `InitProducerId` timeout** as the C++ agent (`efm-validation-agent.md` Task 3) — a real connect attempt against `192.168.1.121:31623`, not a processor-availability failure.
+
+**Two traps hit during setup (both cost real time):**
+- **The class-manifest trap fires on a same-runtime manifest change too.** After the NARs autoloaded, the Designer still rejected `ExecuteScript`/`PublishKafka` as "not an available Processor type" until the class's mapping was re-pointed to the agent's **new** `agentManifestId` (`PUT /efm/api/agent-class-manifest-config`) — same fix as the C++-vs-Java trap below, but here it's triggered by adding NARs to one runtime, not switching runtimes.
+- **Windows `/publish` 409 on orphaned processors.** The live `WindowsDesktop` canvas had two pre-existing disconnected processors (`ExecuteStreamCommand`, `ExecuteProcess`) that blocked publish until deleted — EFM's Designer has no inert/disabled state, so *every* processor on the canvas must validate, connected or not.
 
 ## C++ WindowsDesktop black hole vs Java (this session)
 
@@ -131,8 +142,8 @@ That rewrites the earlier “Java gives you ExecuteScript out of the box” line
 | Bad install root | `C:\WINDOWS\system32` when admin `$PWD` is wrong | Same — always `cd` to a clean dir first |
 | Class names in flows | Short / `org.apache.nifi.minifi.processors.*` | Full Java FQCNs `org.apache.nifi.processors.standard.*` |
 | Historical `WindowsDesktop` flow | `ListenHTTP → ExecuteScript → PublishKafka` (C++) | **Rejected** by Java agent as invalid processor types |
-| Scripting | Possible after `ADDLOCAL=ALL` (still ABI-risky on Py 3.14) | Not in stock binary at all |
-| Kafka on agent | `PublishKafka` in C++ extensions | Not in stock binary — route via full NiFi / add NAR later |
+| Scripting | Possible after `ADDLOCAL=ALL` (still ABI-risky on Py 3.14) | Not in stock binary; **added via `nifi-scripting-nar` drop-in — Groovy/Clojure only, no Python** (field-verified 2026-07-27) |
+| Kafka on agent | `PublishKafka` in C++ extensions | Not in stock binary; **added via `nifi-kafka-nar` + `nifi-kafka-3-service-nar` drop-in — real producer** (field-verified 2026-07-27) |
 | Smoke that worked | (not completed this session) | `GenerateFlowFile → LogAttribute` every 5s |
 
 ### The class-manifest trap (both runtimes)
@@ -210,7 +221,7 @@ args:
 ## What NOT to do
 
 - **Do not put a Java agent on a class whose designer flow still uses C++ FQCNs.** Ghost processors, validation 409s, empty flows after “successful” reloads.
-- **Do not assume Java MiNiFi CEM = full NiFi processor set.** Field count is **114**, not “200+”, and Kafka/scripting NARs are absent in this tarball.
+- **Do not assume Java MiNiFi CEM = full NiFi processor set.** Field count is **114** stock, not “200+”. Kafka/scripting NARs are absent in the tarball but can be **built from the matching source and dropped in** to reach 122 (field-verified 2026-07-27, see the resolution section above) — don't assume they're simply unavailable either.
 - **Do not replace `KubernetesPod` C++ with Java in place** if gaming/stream flows still depend on C++ `ExecuteScript` assets — run a parallel class/pod.
 - **Do not run the Windows deployer from system32 or a UNC WSL path.** Install root becomes unusable; `run-minifi.bat` fails to find `java`.
 - **Do not skip staging `java/windows`.** Same bytes as linux, different EFM coordinate — required for the PowerShell deployer.

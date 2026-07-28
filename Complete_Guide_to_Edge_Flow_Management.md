@@ -29,7 +29,7 @@ its IP. This guide is the map I wish I'd had.
 | 4 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64 confirmed; 81 Windows MSI field-verified 2026-07-27, was 76; aarch64 `.so` listing open) | [Jetson, via MINI-Gaming-G1 SSH] Field-verify aarch64 — Jetson has no CLAUDE-CHECKIN.md session of its own, reached from the Windows/WSL2 box that already manages its networking |
 | 5 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114 stock; 122 with the Kafka+scripting NAR drop-in — field-verified 2026-07-27 on both `KubernetesPodJava` and the real `WindowsDesktop` agent) | [MINI-Gaming-G1 or FTF3XR2065 — either local Docker/minikube host] Verify Docker `minifi-java:latest` |
 | 6 | ExecuteScript availability (4 paths) | `efm-executescript.md` | — | 🟡 | Yes (C++/Java/MSI/source mapped) | [any host, doc-only] Fold into Part II narrative |
-| 7 | MiNiFi Python processors | `minifi-python-processors.md` (stub) | — | 🔲 ✍️ | No | [MINI-Gaming-G1] Build C++ ExecutePython section with howtos and examples |
+| 7 | MiNiFi **custom** Python processors | `minifi-python-processors.md` | — | 🔲 ✍️ | No | [MINI-Gaming-G1] Author `.py` processors loaded natively by the C++ agent (own type/properties/relationships) — **distinct from `ExecuteScript`, which is Ch6**; do not conflate the two |
 | 8 | Standalone MiNiFi C++ on K8s (no EFM) | MiNiFi Playground root scenario | — | ✅ | Yes (v1.26.02) | [any host, doc-only] Fold the content into this chapter directly (not just a link) and cross-reference the source doc; keep the source doc itself updated as this plan progresses |
 | 9 | MiNiFi Java setup | — (absent) | — | 🔲 | No | [MINI-Gaming-G1 or FTF3XR2065 — whichever runs the Playground repo next] Document examples for `java` flavor to root Playground |
 | 10 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | [MINI-Gaming-G1] Add `efm` section to root Playground |
@@ -52,8 +52,11 @@ Get EFM running, persisted, and fed with agent binaries. The infrastructure ever
 rides on.
 
 **Part II — Processors (C++ & Java)** (Ch4–7)
-Which processors actually exist in each build, how ExecuteScript availability differs across
-C++ / CEM Java / Windows MSI / source builds, and how to run Python at the edge.
+Which processors actually exist in each build, how **`ExecuteScript`** availability differs
+across C++ / CEM Java / Windows MSI / source builds (Ch6 — pasting a script into one generic
+processor), and separately how to author **custom Python processors** as their own processor
+types at the edge (Ch7). `ExecuteScript` (Ch6) and custom Python processors (Ch7) are two
+different concepts — kept in separate chapters on purpose.
 
 **Part III — MiNiFi Playground repo** (Ch8–10)
 Install and use plain MiNiFi (the existing C++ scenario), add Java, then bring EFM in to
