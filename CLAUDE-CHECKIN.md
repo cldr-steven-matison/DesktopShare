@@ -13,7 +13,7 @@ Full protocol + how to report back: `agent/device-comms.md`. Device ↔ label ma
 |---|---|---|
 | MINI-Gaming-G1 | `device:WindowsDesktop` | `device:NvidiaNano` (Jetson, by SSH proxy) |
 | TunaStarlink (Beelink) | `device:StarlinkAI` | — |
-| Jetson | `device:NvidiaNano` | (usually driven from MINI-Gaming-G1) |
+| tunastreet (Jetson Orin Nano) | `device:NvidiaNano` | also reachable via SSH proxy from MINI-Gaming-G1 |
 | FTF3XR2065 (Mac) | `device:FTF3XR2065` | — |
 | Stevens-MacBook-Pro (personal Mac) | `device:macbook` | — |
 | DigitalOcean droplet | (none yet) | — |
@@ -290,3 +290,32 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ### Known issue
 - 1.9GB RAM is tight for NiFi's `-Xmx1g` heap — the OOM-killer took NiFi down on 2026-07-21, and the bootstrap watchdog got stuck retrying against a stale (deleted) `java` binary handle from an earlier JDK reinstall, so it couldn't self-heal. Recovered manually (killed the stuck watchdog, clean restart). Worth lowering `-Xmx` or bumping droplet RAM to prevent recurrence.
+
+---
+
+## tunastreet (NVIDIA Jetson Orin Nano Developer Kit)
+
+- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from MINI-Gaming-G1, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects (matrix screensaver, streamChat launcher, CubeNano OLED status display, Waveshare env sensor) — see this device's own project memory for details, not tracked in this repo.
+- **Checked in**: 2026-07-28
+- **Claude Code version**: 2.1.220
+
+### Hardware
+- CPU: ARM Cortex-A78AE, 6 cores (aarch64)
+- GPU: Integrated NVIDIA Ampere GPU (Jetson Orin Nano Developer Kit)
+- RAM: 7.3GB
+- Storage: 57GB, 18GB free at time of check-in
+
+### OS
+- OS: Ubuntu 24.04.4 LTS
+- Kernel: 6.8.12-1021-tegra
+- L4T: R39 (release), REVISION 2.0
+
+### Key tool versions
+- Git: 2.43.0
+- Python: 3.12.3
+- gh: 2.96.0, logged in as TunaStreetTest
+- Tailscale: not installed
+
+### Network
+- Connection: LAN
+- Tailscale IP: not joined

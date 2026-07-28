@@ -37,7 +37,7 @@ Pick the `device:*` value from the responsibility map below.
 |---|---|
 | `device:WindowsDesktop` | Work for the WindowsDesktop agent host — **MINI-Gaming-G1** |
 | `device:StarlinkAI` | Work for the StarlinkAI agent host — **TunaStarlink / Beelink** |
-| `device:NvidiaNano` | Work for the **Jetson** (`NvidiaNano` agent; no session of its own — reached via MINI-Gaming-G1 SSH) |
+| `device:NvidiaNano` | Work for the **Jetson Orin Nano** (`NvidiaNano` agent; hostname `tunastreet`, runs its own session directly, also reachable via MINI-Gaming-G1 SSH) |
 | `device:FTF3XR2065` | Work for the **Cloudera work Mac** (arm64, local minikube, golden-source / CDP access) |
 | `device:macbook` | Work for the **personal Mac** — Stevens-MacBook-Pro (x86_64, authoring only, no cluster) |
 | `status:todo` | Filed, not yet picked up |
@@ -56,6 +56,7 @@ host is responsible for:
 | Host you're on | Check these labels |
 |---|---|
 | MINI-Gaming-G1 | `device:WindowsDesktop`, `device:NvidiaNano` (Jetson, by SSH proxy) |
+| tunastreet (Jetson Orin Nano) | `device:NvidiaNano` |
 | TunaStarlink (Beelink) | `device:StarlinkAI` |
 | FTF3XR2065 (Mac) | `device:FTF3XR2065` |
 | Stevens-MacBook-Pro (personal Mac) | `device:macbook` |

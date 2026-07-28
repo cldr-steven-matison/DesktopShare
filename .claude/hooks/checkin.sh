@@ -31,7 +31,8 @@ case "$host" in
   Stevens-MacBook-Pro*) labels="macbook" ;;               # personal Mac (x86_64, authoring only)
   MINI-Gaming-G1*) labels="WindowsDesktop NvidiaNano" ;;  # WindowsDesktop + Jetson by SSH proxy
   TunaStarlink*)   labels="StarlinkAI" ;;                 # Beelink
-  *[Jj]etson*)     labels="NvidiaNano" ;;                 # Jetson if it ever runs its own session
+  tunastreet*)     labels="NvidiaNano" ;;                 # Jetson Orin Nano, own session (hostname doesn't say "jetson")
+  *[Jj]etson*)     labels="NvidiaNano" ;;                 # fallback for any other Jetson host
   *)               labels="" ;;
 esac
 
