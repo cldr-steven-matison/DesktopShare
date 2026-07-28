@@ -43,6 +43,7 @@ Pick the `device:*` value from the responsibility map below.
 | `status:todo` | Filed, not yet picked up |
 | `status:in-progress` | A device session is working it |
 | `status:blocked` | Waiting on something (device offline, dependency, a decision) |
+| `status:review` | Work delivered, awaiting Steven's review before it counts as done |
 | `status:done` | Completed; closing comment carries the commit sha |
 
 Add a new `device:*` label when a device joins the roster — keep it in lockstep with
