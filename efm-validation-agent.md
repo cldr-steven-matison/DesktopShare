@@ -85,6 +85,70 @@ Also reconfirmed live (per your question about Java Kafka): fresh pull of the Ja
 
 ---
 
+## Jetson / aarch64 tasks — OPEN (never tested on real aarch64 hardware)
+
+**Audience:** whoever has the Jetson Orin Nano powered on and Online in EFM. Per the guide's routing hint this is reached *via MINI-Gaming-G1* (SSH / same networking the WSL2 box already manages) — the Jetson has no CLAUDE-CHECKIN.md session of its own.
+
+**Standing decision (2026-07-28):** the aarch64 processor manifest is currently *inferred* from x86_64, never field-captured. We're leaving Ch4's aarch64 line open in the guide until these run. The Beelink/StarlinkAI is **x86_64 (AMD Ryzen)**, *not* aarch64 — it cannot close this gap. The only aarch64-Linux silicon in the fleet is the Jetson (`NvidiaNano` class); the Mac M4 Pro is arm64 but Darwin, with MiNiFi disabled. A future `SensorClass` device (see guide Part VII) might also close it if it turns out to be an ARM SBC.
+
+**Known coordinates (confirm, don't trust):**
+
+| Item | Value from docs |
+|---|---|
+| Jetson agent | class `NvidiaNano`, `agentType=cpp`, `osArch=linuxaarch64` — agent id is a fresh random UUID per install (`$(cat /proc/sys/kernel/random/uuid)`), so **discover it live**, don't hardcode |
+| Existing flow exports | `files/efm/NvidiaNano.json`, `files/efm/NvidiaNano-TensorRT.json` (both Operational — flow runs; manifest never separately certified) |
+| MiNiFi build on device | C++ `1.26.02` expected (match the x86_64 revision `0d41a46e`) — confirm from the agent |
+
+### Task 5 — Certify the live aarch64 (`NvidiaNano`) processor manifest (closes Ch4's open aarch64 line)
+
+The x86_64 Windows MSI is field-verified at **81** (Task 1); the Linux x86_64 C++ catalog is **74** (`minifi-playground-cpp-processors.md`). The `linuxaarch64` count is inferred from those, never captured. Pull the real manifest for the live `NvidiaNano` agent and count it. **This can be done from MINI-Gaming-G1** (hit the local EFM API) as long as the Jetson is Online and has reported its manifest — you do *not* have to be on the Jetson for this one.
+
+```bash
+# 1. Find the live NvidiaNano agent id + its manifest id
+curl -s http://127.0.0.1:10090/efm/api/agents \
+  | python3 -c "import sys,json;[print(a['agentClass'],a['identifier'],a.get('agentManifestId')) for a in json.load(sys.stdin) if a.get('agentClass')=='NvidiaNano']"
+
+# 2. Pull the manifest (fallback: EFM UI → Flow Designer → NvidiaNano → Export, same as Task 1)
+curl -s http://127.0.0.1:10090/efm/api/agent-manifests/<manifestId> -o NvidiaNano-manifest.json
+```
+
+Count + spot-check (same script as Task 1):
+
+```bash
+python3 - <<'PY'
+import json
+d=json.load(open('NvidiaNano-manifest.json'))
+am=d.get('agentManifest',d)
+procs=[p['type'].split('.')[-1] for b in am['bundles'] for p in b['componentManifest'].get('processors',[])]
+print('count:',len(procs), 'osArch:', am.get('agentType') or am.get('buildInfo'))
+for w in ('ExecuteScript','ExecutePythonProcessor','ConsumeKafka','PublishKafka','RunLlamaCppInference'):
+    print(w, w in procs)
+PY
+```
+
+**Deliver:** commit as `files/efm/NvidiaNano-manifest.json`, report the count and how it compares to x86_64 (74 Linux / 81 Windows MSI). The interesting findings would be any processor that is x86-only (absent on aarch64) or aarch64-only. Then Ch4's aarch64 line in the guide + the `minifi-playground-cpp-processors.md` platform matrix get flipped from inferred to field-verified.
+
+### Task 6 — Confirm Kafka live end-to-end on the Jetson (the test the Windows host couldn't finish)
+
+Task 3 (C++ Windows) and the Java agent both only got as far as a *real connect attempt + hairpin-NAT timeout* — full delivery was blocked by the WSL2 mirrored-networking self-connect gap on the EFM host itself. **The Jetson is a separate physical box on the LAN**, so it reaches the Kafka NodePort at `gaming-pc-lan-ip` normally (this is exactly the `kafka-nodeport.yaml` + `advertisedHost` path documented in `efm-nvidia-jetson-nano.md` §"Kafka External Access"). So this is the one place we can get an *actual delivered message*, not just a connect attempt.
+
+Wire a throwaway `GenerateFlowFile → PublishKafka` on the `NvidiaNano` designer flow, point `bootstrap.servers` at the NodePort broker list, publish, and consume it back.
+
+```bash
+# on the gaming PC / any broker-reachable box
+kafka-console-consumer.sh --bootstrap-server gaming-pc-lan-ip:31623 --topic minifi-aarch64-test --from-beginning
+```
+
+**Deliver:** pass/fail + the consumed message (or the real broker error if it fails). A genuine delivery here is the first fully-closed Kafka loop from a MiNiFi edge agent in this lab — worth calling out explicitly, and it retroactively confirms the Windows timeouts really were infra-only.
+
+### Task 7 — Confirm ExecuteScript actually *executes* on aarch64 (not just manifest-listed)
+
+C++ Windows ExecuteScript runs (Path D, `efm-executescript.md`), but the Python feature is a manual add there (Feature Level 2, MSI skips it). On the Jetson, confirm `ExecuteScript` both appears in the Task 5 manifest **and** runs a trivial script live (Lua and/or Python — note which engines the aarch64 build actually ships). The existing `NvidiaNano-TensorRT.json` already runs a real `gpu_nifi_tensorRT-3.py` via ExecuteScript, so this may already be effectively proven — if so, just cite that flow's live run as the evidence and mark it confirmed.
+
+**Deliver:** which script engines execute on aarch64 (Python? Lua?), with a one-line log/output proof, or a pointer to the running TensorRT flow if that already settles it.
+
+---
+
 ## Future-release / upgrade wishlist (append as we hit walls)
 
 - **CEM Java agent with scripting + Kafka NARs out of the box** — the 2.24.08 tarball ships neither (`ExecuteScript`, `PublishKafka`/`ConsumeKafka` absent, field-verified *and* confirmed by Cloudera's own CEM 2.4.0 processor-support page). 2.4.0 does **not** fix it; the documented workaround is a CFM-NAR drop-in, still unattempted. A future release that bundles them by default is the real ask.
@@ -103,6 +167,14 @@ Task 2 — WindowsDesktop-TensorRT.json: committed (already existed, misfiled at
 Task 3 — C++ Win Kafka live: pass (processor real, genuine connect attempt + real broker timeout)  proof: minifi-app.log KafkaConnection/PublishKafka lines, quoted above
 Task 4 — versions: EFM=2.3.1.0-2 C++=1.26.02 Java=2.24.08.0-19 (all match docs, no drift) ; CEM 2.4.0 eval worth it? No — closes no known gap, EFM upgrade carries real stateful-redeploy risk, revisit only if a specific need surfaces
 New wishlist items: 127.0.0.1-bound Kafka NodePort forward for MINI-Gaming-G1 (see wishlist above)
+```
+
+Jetson / aarch64 (Tasks 5–7, still OPEN):
+```
+Date / host: <date>, Jetson NvidiaNano (via MINI-Gaming-G1)
+Task 5 — aarch64 manifest: count=? (vs 74 Linux x86 / 81 Win MSI) ExecuteScript=? Kafka=? committed as: files/efm/NvidiaNano-manifest.json ; x86-only or aarch64-only procs: ?
+Task 6 — Jetson Kafka end-to-end: pass/fail (first full delivery in the lab?)  proof: kafka-console-consumer capture
+Task 7 — ExecuteScript on aarch64: engines=(python?/lua?)  proof: log line OR cite running NvidiaNano-TensorRT.json flow
 ```
 
 ## Companions
