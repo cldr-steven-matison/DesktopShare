@@ -59,6 +59,33 @@ host is responsible for:
 | FTF3XR2065 (Mac) | `device:FTF3XR2065` |
 | DigitalOcean droplet | (none yet) |
 
+## Automated check-in (SessionStart hook)
+
+Rules 1 and 2 above are now **automated** so they don't depend on a session
+remembering to run them. `.claude/settings.json` registers a `SessionStart` hook
+that runs `.claude/hooks/checkin.sh` on every session start:
+
+1. `git pull --ff-only` (refuses a non-fast-forward — a diverged tree surfaces as
+   a note to reconcile, it is never silently merged).
+2. Maps the host to its `device:*` label(s) via the case block in the script and
+   lists that inbox with `gh issue list --state open`.
+
+The result is injected into the session as context, so the open issues for this
+host are visible before any work starts. The hook **fails open** (a missing
+`gh`/`jq`, offline network, or non-ff pull never blocks startup) — so it is a
+convenience, not a guarantee: if it didn't run (fresh clone with no hook, a
+device not yet in the case block), fall back to running rules 1 and 2 by hand.
+
+Both are checked into the repo, so every device inherits the hook on pull. Two
+upkeep rules:
+
+- **The hostname→label case block in `checkin.sh` is part of the responsibility
+  map** — keep it in lockstep with the table above and `CLAUDE-CHECKIN.md`. A new
+  device needs a `case` arm or its inbox check silently no-ops.
+- The hook only reloads for a session that had `.claude/settings.json` present at
+  launch. After a first-time install on a device, open `/hooks` once (or restart)
+  so the watcher picks it up.
+
 ## Working an issue
 
 1. Claim it — flip `status:todo` → `status:in-progress`:
