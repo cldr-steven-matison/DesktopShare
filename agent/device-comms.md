@@ -43,7 +43,7 @@ Pick the `device:*` value from the responsibility map below.
 | `status:todo` | Filed, not yet picked up |
 | `status:in-progress` | A device session is working it |
 | `status:blocked` | Waiting on something (device offline, dependency, a decision) |
-| `status:review` | Work delivered, awaiting Steven's review before it counts as done |
+| `status:review` | Work delivered, awaiting Steven's review before it counts as done. **The issue stays open — a device sets this and stops; it never closes its own issue.** |
 | `status:done` | Completed; closing comment carries the commit sha |
 
 Add a new `device:*` label when a device joins the roster — keep it in lockstep with
@@ -106,15 +106,19 @@ upkeep rules:
 
 ## Reporting back
 
-When done, report in a comment (use the source doc's report-back template if it has one), then
-close referencing the commit that carried the artifact:
+When the work is delivered, report in a comment (use the source doc's report-back template if it
+has one) and flip to `status:review`. **Leave the issue open — a device does not close its own
+issue.** Steven closes it once he's reviewed the work:
 
 ```bash
 gh issue comment <n> --body-file report.md          # --body-file, not inline (Telegram /bash: no multi-line)
-gh issue close <n> --comment "Done in <sha> — <what landed>"
+gh issue edit <n> --remove-label status:in-progress --add-label status:review
 ```
 
-Blocked instead of done? Add `status:blocked` and comment what you're waiting on — that surfaces
+The comment still carries the commit sha — that doesn't change, only who closes and when. A
+session that closes its own issue removes the review gate, which is the whole point of the label.
+
+Blocked instead? Add `status:blocked` and comment what you're waiting on — that surfaces
 to whoever's watching without derailing your session.
 
 ## Filing work for another device
