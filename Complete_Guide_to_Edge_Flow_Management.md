@@ -3,17 +3,17 @@
 *by Steven Matison*
 
 This is a living document. Today it is the master plan and index for a body of work that
-spans four repos and will take weeks to months to finish and field-validate. As each
+spans four repos and will a considerable efford to finish and field-validate. As each
 chapter lands — built, run, and proven on real hardware — its content folds in here and
 this becomes the published guide. Nothing below is aspirational hand-waving: every chapter
 marked ✅ points at a source doc I can hand you and a flow I have actually run.
 
-Edge flow management is the part of a data pipeline that most guides skip. NiFi in the
-datacenter is well documented. What happens out at the edge — a MiNiFi agent on a Jetson, a
+Edge Flow Management is core to the entirely of all of this work as it is the central manager for organizing agent Classes, Resources, and Developing Edge Flows. NiFi in the
+datacenter is well documented; EFM is not; until now. What happens out at the edge — a MiNiFi agent on a Jetson, a
 Windows box over Tailscale, a Kubernetes pod with no persistent identity — is where the
 real problems live: binary delivery, agent enrollment, which processors actually exist in
-which build, and how to get a flow from a designer canvas onto a device that keeps changing
-its IP. This guide is the map I wish I'd had.
+which build, manging custom processors and resources, and how to get a flow from a designer canvas onto a device that keeps changing
+its IP. This guide is the map I wish I'd had when I first installed [EFM on Kubernets](linktoblog)
 
 ## Status legend
 
@@ -59,8 +59,8 @@ types at the edge (Ch7). `ExecuteScript` (Ch6) and custom Python processors (Ch7
 different concepts — kept in separate chapters on purpose.
 
 **Part III — MiNiFi Playground repo** (Ch8–10)
-Install and use plain MiNiFi (the existing C++ scenario), add Java, then bring EFM in to
-manage the agents.
+Install and use plain MiNiFi (the existing C++ scenario adding Java too), then introduces the user to EFM as a proper solution used to
+manage the agents and resources.
 
 **Part IV — Site-to-Site** (Ch11–15)
 The full transport matrix, local and cloud. Reference: apache `SITE_TO_SITE.md`.
@@ -70,10 +70,10 @@ NiFi + Python (done), the same idea pushed to a MiNiFi agent, and the Beelink/Le
 edge-AI router as a worked case study.
 
 **Part VI — Sample Gallery** (Ch19)
-Curated, runnable flows accumulated as the guide is built.
+Curated, runnable flows accumulated as the guide is built. Use-able flow frameworks that anyone can use or build new flows with the concepts shared in this gallery.
 
 **Part VII — Real-World Demos** (Ch20–21)
-The finale: EFM + NVIDIA Jetson, and the SparkPlug/IIoT demo.
+The finale: EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos
 
 > **Incoming:** a new `SensorClass` agent class and a new physical device are coming for the
 > IoT/edge end of these demo stacks. Not checked in yet (see `CLAUDE-CHECKIN.md`) — when it
@@ -89,7 +89,7 @@ The finale: EFM + NVIDIA Jetson, and the SparkPlug/IIoT demo.
 | NiFi2 Processor Playground | `~/Documents/GitHub/NiFi2 Processor Playground` | Custom Python/Java processors (companion) |
 | Blog | `~/Documents/GitHub/cldr-steven-matison.github.io` | Jekyll `_posts/`, published on commit |
 
-Per-device paths (Windows, Beelink, Jetson, droplet) live in `CLAUDE-CHECKIN.md`.
+Per-device paths (Windows, Beelink, Jetson, Macbook, droplet) live in `CLAUDE-CHECKIN.md`.
 
 Promotion flow for each piece of content:
 `DesktopShare root (in-progress)` → `completed/` (done iterating) → `blog/` (polished draft)
