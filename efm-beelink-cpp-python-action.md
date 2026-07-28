@@ -335,6 +335,25 @@ beelink-starlink-efm-ai.md updated: Y/N
 
 ---
 
+## Filled report (2026-07-28)
+
+```
+Date: 2026-07-28
+Beelink agent id: f176ca3e-9f7f-418a-ad2e-a6e7f542b0ff (torn down after test)
+Class used: StarlinkAI | other: StarlinkAICpp (disposable eval class, production StarlinkAI never touched)
+Install mode: service ADDLOCAL=ALL | process extract
+Install root: C:\minifi (deleted after test)
+Python path/version: C:\Users\tunas\AppData\Local\Programs\Python\Python312 (3.12.10)
+DLL/PYD present: Y (both — this MSI's admin-extract includes minifi-python-script-extension.dll directly, no ADDLOCAL needed)
+ONLINE in EFM: N/A — EFM (100.68.113.126:10090) was unreachable for most of the session (~2/3 of requests timed out; tailscale ping to the gaming PC was clean, so it's the EFM port specifically, matching timeout errors already in the production agent's own log). Never confirmed a heartbeat register.
+Smoke POST 18080: pass
+Log proof line: [LogAttribute] Logging for flow file / key:python.smoke value:beelink-cpp-executescript-ok
+Issues / log snippets: Production StarlinkAI agent is NOT at C:\minifi as this doc assumes — it's a running Windows service at C:\Users\tunas\efm-agent\nifi-minifi-cpp, missing minifi-python-script-extension.dll (has .pyd, has a differently-named minifi-script-extension.dll instead). Not touched/tested — see beelink-starlink-efm-ai.md for full writeup. EFM link flakiness is a separate, pre-existing issue on the gaming-PC side (port-forward likely), not something this session caused or fixed.
+beelink-starlink-efm-ai.md updated: Y
+```
+
+---
+
 ## Gaming PC artifacts (reference only)
 
 Left on MINI-Gaming-G1 under `C:\minifi\`:

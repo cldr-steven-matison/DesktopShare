@@ -30,7 +30,7 @@ Everything runs natively on Windows — no containers, no WSL2 in the serving pa
 
 Why Vulkan, not ROCm/vLLM: this chip has no NPU, and AMD's ROCm does not support this iGPU either. `llamacpp:vulkan` uses the standard GPU driver stack directly, no special driver package needed.
 
-Why EFM does no Python: the gaming PC's MiNiFi install hit a known-broken `ExecuteScript` Python extension (DLL present but wouldn't load). Routing-only via `ListenHTTP`/`InvokeHTTP` avoids that entirely.
+~~Why EFM does no Python: the gaming PC's MiNiFi install hit a known-broken `ExecuteScript` Python extension (DLL present but wouldn't load). Routing-only via `ListenHTTP`/`InvokeHTTP` avoids that entirely.~~ **Obsolete as of 2026-07-28** — `ExecuteScript` Python is proven working on Windows C++ MiNiFi (Path D, see `efm-beelink-cpp-python-action.md`). See "ExecuteScript Python proven on the Beelink" below.
 
 ## Setup
 
@@ -326,6 +326,24 @@ Picked this back up from the Beelink's own Claude Code session (this box has no 
 Same symptom as the original `MINIFICPP-2243` bug from 2026-07-17 (`ListenHTTP`'s buffer-full check has an off-by-one at `Batch Size`/`Buffer Size: 1`), but this time it's consistent, not intermittent — and it only hits the multipart pair. Embeddings/reranking/speech all run fine at the same `Batch/Buffer Size: 1` with plain JSON POSTs. Working theory: multipart's two-phase send (headers, then body after the `100 Continue`) trips the buffer-full check in a way a single-write JSON POST doesn't. Not root-caused further than that — didn't chase it blind, per the doc's own rule about the write contract.
 
 **Decision: flow edits (buffer-size bump, or whatever the real fix turns out to be) happen from the EFM host session, not from here.** This session's job was "test what we can from the Beelink" — confirmed 3 of 4 new pairs solid, isolated the transcription failure to a specific, reproducible log line, and stopped there rather than mutating the live flow from the wrong box.
+
+## ExecuteScript Python proven on the Beelink (2026-07-28)
+
+Picked up `efm-beelink-cpp-python-action.md` from a Beelink session (GitHub issue #2). Two things didn't match what the checklist assumed.
+
+**The production `StarlinkAI` agent isn't at `C:\minifi`.** It's a running Windows service (`Apache NiFi MiNiFi`, PID confirmed via `Get-CimInstance Win32_Service`) at `C:\Users\tunas\efm-agent\nifi-minifi-cpp` — the checklist's install-root assumption is stale. Its `extensions\` has `minifi_native.pyd` but not `minifi-python-script-extension.dll` (a differently-named `minifi-script-extension.dll` sits next to it instead), so this production install's Python support is unconfirmed/likely broken. Didn't touch it — no reason to restart a live router to test a side install.
+
+**EFM (`100.68.113.126:10090`) is unreachable from the Beelink most of the time right now.** `curl` to `/efm/actuator/health` times out on roughly 2 of 3 tries; `tailscale ping` to the gaming PC comes back clean (54ms), so the tailnet path itself is fine — the failure is TCP to port 10090 specifically. This matches what the production agent's own `minifi-app.log` already shows: repeated `curl_easy_perform() failed ... error code 28` heartbeat timeouts to the same URL going back through the day, plus Kafka bootstrap connection failures to the same host. Likely the gaming PC's `kubectl port-forward` pane for `svc/efm` (see `CLAUDE-CHECKIN.md`) died or is flapping. Not fixed from here — needs a check on the gaming PC side.
+
+**Proved Python anyway, via a disposable side install:**
+1. Fresh admin-extract of the same MSI EFM serves (`msiexec /a ... TARGETDIR=C:\minifi\extract`, no elevation needed) — this extract *does* include `minifi-python-script-extension.dll` directly, no `ADDLOCAL=ALL` dance required.
+2. Created an EFM eval class `StarlinkAICpp` for it (separate from production `StarlinkAI` and from G1's own `WindowsDesktopCpp`, so nothing shared canvases).
+3. EFM being down meant I couldn't publish a designer flow to it, so I bypassed EFM for the test: hand-wrote a local `conf/config.yml` (MiNiFi Config Version 3 schema) — `ListenHTTP:18080/contentListener` → `ExecuteScript` (`Script Engine: python`) → `LogAttribute` — and ran the agent in process mode (`minifi.exe`, no service).
+4. `POST http://127.0.0.1:18080/contentListener` → `200`. Log: `key:python.smoke value:beelink-cpp-executescript-ok`, payload `{"test":"hello from beelink"}` logged by `LogAttribute`, no `PythonScriptExecutor` errors anywhere in the startup or request path.
+
+Torn down after: process stopped, `C:\minifi` deleted. The `StarlinkAICpp` class is still registered in EFM (empty, no flow) — `DELETE /efm/api/agent-classes/StarlinkAICpp` timed out the same way everything else did; needs a retry once the EFM link is stable.
+
+**What this doesn't tell you:** whether the *production* `StarlinkAI` install's Python support actually works — its `.dll`/`.pyd` mismatch was found but not fixed or tested. That's the next real question if Python transforms are ever wanted in the live Lemonade-routing flow.
 
 ## Next Steps
 
