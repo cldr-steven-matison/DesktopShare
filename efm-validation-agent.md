@@ -128,6 +128,8 @@ PY
 
 **Deliver:** commit as `files/efm/NvidiaNano-manifest.json`, report the count and how it compares to x86_64 (74 Linux / 81 Windows MSI). The interesting findings would be any processor that is x86-only (absent on aarch64) or aarch64-only. Then the C++ processor catalog's aarch64 line in the guide + the `minifi-playground-cpp-processors.md` platform matrix get flipped from inferred to field-verified.
 
+**Result (2026-07-28, Jetson `tunastreet`): DONE.** Live count is **79**, not inferred. Manifest id `dab61017-33fb-44e7-a159-882601f01952` (class `NvidiaNano`), build `1.26.02`, pulled via `GET /efm/api/agent-manifests/{id}` from `192.168.1.121:10090`. Committed as `files/efm/NvidiaNano-manifest.json`. Diffed against the 74-processor Linux x86_64 catalog: **5 aarch64-extra, 0 x86-only-missing.** The 5 extras — `ExecuteProcess`, `ExecuteScript`, `FetchOPCProcessor`, `PutOPCProcessor`, `RunLlamaCppInference` — are not aarch64-specific; they're present because this Jetson already had the extra-extensions `.so` files staged in `extensions/` (installed 2026-06-09, same "inject beyond stock image" pattern as Task 1's Windows finding). `ExecuteScript`/`ConsumeKafka`/`PublishKafka` all confirmed present. Platform-matrix row in `minifi-playground-cpp-processors.md` updated to field-verified.
+
 ### Task 6 — Confirm Kafka live end-to-end on the Jetson (the test the Windows host couldn't finish)
 
 Task 3 (C++ Windows) and the Java agent both only got as far as a *real connect attempt + hairpin-NAT timeout* — full delivery was blocked by the WSL2 mirrored-networking self-connect gap on the EFM host itself. **The Jetson is a separate physical box on the LAN**, so it reaches the Kafka NodePort at `gaming-pc-lan-ip` normally (this is exactly the `kafka-nodeport.yaml` + `advertisedHost` path documented in `efm-nvidia-jetson-nano.md` §"Kafka External Access"). So this is the one place we can get an *actual delivered message*, not just a connect attempt.
@@ -141,11 +143,15 @@ kafka-console-consumer.sh --bootstrap-server gaming-pc-lan-ip:31623 --topic mini
 
 **Deliver:** pass/fail + the consumed message (or the real broker error if it fails). A genuine delivery here is the first fully-closed Kafka loop from a MiNiFi edge agent in this lab — worth calling out explicitly, and it retroactively confirms the Windows timeouts really were infra-only.
 
+**Result (2026-07-28, Jetson `tunastreet`): PASS — genuine end-to-end delivery.** Rather than touch the live production `NvidiaNano` designer flow (it drives real local automation — a matrix-screensaver launcher and a streamChat/Chromium launcher — that would visibly fire on the device's desktop if triggered), ran a throwaway **standalone** MiNiFi instance (separate `MINIFI_HOME`, `nifi.c2.enable=false` so it never registers as a second agent) with `GenerateFlowFile → PublishKafka` and a second `ConsumeKafka → LogAttribute` pipeline in the same process, pointed at `192.168.1.121:31623`, topic `minifi-aarch64-test`. Ran 35s: **10/10 messages produced and consumed**, sequential offsets `0`-`9` on partition `0`, topic auto-created on first publish (one transient "Unknown topic or partition" on the very first consume attempt, self-resolved — normal Kafka auto-create-topic behavior, not an error). This is a real broker round trip, not just a connect attempt — the first fully-closed Kafka loop from a MiNiFi edge agent in this lab, confirming the Windows/WSL2 hairpin-NAT timeouts (Task 3) really were infra-only.
+
 ### Task 7 — Confirm ExecuteScript actually *executes* on aarch64 (not just manifest-listed)
 
 C++ Windows ExecuteScript runs (Path D, `efm-executescript.md`), but the Python feature is a manual add there (Feature Level 2, MSI skips it). On the Jetson, confirm `ExecuteScript` both appears in the Task 5 manifest **and** runs a trivial script live (Lua and/or Python — note which engines the aarch64 build actually ships). The existing `NvidiaNano-TensorRT.json` already runs a real `gpu_nifi_tensorRT-3.py` via ExecuteScript, so this may already be effectively proven — if so, just cite that flow's live run as the evidence and mark it confirmed.
 
 **Deliver:** which script engines execute on aarch64 (Python? Lua?), with a one-line log/output proof, or a pointer to the running TensorRT flow if that already settles it.
+
+**Result (2026-07-28, Jetson `tunastreet`): CONFIRMED via citation, as anticipated.** Both engines' `.so` files are staged (`libminifi-lua-script-extension.so`, `libminifi-python-script-extension.so` + `-python-lib-loader-extension.so` + `minifi_native.so`), but **Python** is the one actually proven live: the device's real production flow runs **three** `ExecuteScript` processors, all `Script Engine: python` — `agent-NvidiaNano-launch_matrix.py` (matrix screensaver), `agent-NvidiaNano-launch_stream.py` (streamChat/Chromium launcher), and `gpu_nifi_tensorRT-3.py` (TensorRT inference, the flow this task's fallback explicitly names). `minifi-app.log` confirms `libpython3.12.so.1` loads cleanly at every startup with no `PythonScriptExecutor` instantiation errors, and this device's own session history independently confirms the matrix-screensaver and streamChat scripts running end-to-end (self-launched, no manual trigger) on separate occasions unrelated to this verification pass. Did not additionally live-trigger a script for this task — the existing production evidence already meets the bar the task itself offers as sufficient, and a live trigger would have visibly launched the screensaver/browser on the desktop mid-session. **Lua is staged but not live-exercised** — no Lua script is deployed in the current flow, so it's confirmed loadable, not confirmed executing.
 
 ---
 
@@ -169,12 +175,12 @@ Task 4 — versions: EFM=2.3.1.0-2 C++=1.26.02 Java=2.24.08.0-19 (all match docs
 New wishlist items: 127.0.0.1-bound Kafka NodePort forward for MINI-Gaming-G1 (see wishlist above)
 ```
 
-Jetson / aarch64 (Tasks 5–7, still OPEN):
+Jetson / aarch64 (Tasks 5–7): **DONE**
 ```
-Date / host: <date>, Jetson NvidiaNano (via MINI-Gaming-G1)
-Task 5 — aarch64 manifest: count=? (vs 74 Linux x86 / 81 Win MSI) ExecuteScript=? Kafka=? committed as: files/efm/NvidiaNano-manifest.json ; x86-only or aarch64-only procs: ?
-Task 6 — Jetson Kafka end-to-end: pass/fail (first full delivery in the lab?)  proof: kafka-console-consumer capture
-Task 7 — ExecuteScript on aarch64: engines=(python?/lua?)  proof: log line OR cite running NvidiaNano-TensorRT.json flow
+Date / host: 2026-07-28, Jetson tunastreet (own session, not via MINI-Gaming-G1 proxy)
+Task 5 — aarch64 manifest: count=79 (vs 74 Linux x86 / 81 Win MSI) ExecuteScript=Y Kafka=Y  committed as: files/efm/NvidiaNano-manifest.json ; aarch64-extra procs (already-staged extra-extensions, not arch-specific): ExecuteProcess, ExecuteScript, FetchOPCProcessor, PutOPCProcessor, RunLlamaCppInference ; x86-only-missing: none
+Task 6 — Jetson Kafka end-to-end: PASS (first full delivery in the lab)  proof: throwaway standalone flow, 10/10 messages, sequential offsets 0-9 on partition 0, topic minifi-aarch64-test
+Task 7 — ExecuteScript on aarch64: engines=python confirmed live (3 production ExecuteScript processors, all python engine); lua staged but not live-exercised  proof: production flow's 3 ExecuteScript processors + this device's own prior session history confirming the matrix-screensaver and streamChat scripts ran end-to-end
 ```
 
 ## Companions

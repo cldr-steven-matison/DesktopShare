@@ -315,7 +315,10 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 - Python: 3.12.3
 - gh: 2.96.0, logged in as TunaStreetTest
 - Tailscale: not installed
+- MiNiFi C++ agent: `1.26.02` (`nifi-minifi-cpp-1.26.02`, matches x86_64 build revision), agent class `NvidiaNano`, agent id `4ca82a0d-8e04-4ede-b59d-379de1495f2b`, managed by systemd (`minifi.service`, enabled, running since 2026-07-24). Extra-extensions already staged (`libminifi-execute-process`, `-lua-script-extension`, `-python-script-extension`, `-opc-extensions`, `-llamacpp`) — this build carries 79 processors vs. the stock 74, see `files/efm/NvidiaNano-manifest.json`.
 
 ### Network
-- Connection: LAN
+- Connection: LAN, `192.168.1.197`
 - Tailscale IP: not joined
+- EFM: `http://192.168.1.121:10090/efm/api` — confirmed reachable (heartbeat + REST API both open)
+- Kafka: bootstrap `192.168.1.121:31623` — confirmed reachable; `/etc/hosts` maps `my-cluster-kafka-bootstrap.cld-streaming.svc` and `my-cluster-combined-{0,1,2}.my-cluster-kafka-brokers.cld-streaming.svc` all to `192.168.1.121`
