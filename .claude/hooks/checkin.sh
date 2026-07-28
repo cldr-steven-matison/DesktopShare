@@ -45,10 +45,14 @@ else
   out+="gh not on PATH — check the inbox manually: gh issue list --state open --label device:<label>"$'\n'
 fi
 
-# Emit as SessionStart additionalContext (fall back to plain stdout if jq is absent).
+# Emit for BOTH audiences:
+#   - additionalContext -> injected into the model's context (Claude reads it).
+#   - systemMessage      -> printed to the user's terminal (Steven reads it).
+# Same text to both, so the on-screen check-in matches what the model acted on.
+# Fall back to plain stdout if jq is absent (that path is model-context only).
 if command -v jq >/dev/null 2>&1; then
   jq -nc --arg c "$out" \
-    '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
+    '{systemMessage:$c, hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
 else
   printf '%s\n' "$out"
 fi
