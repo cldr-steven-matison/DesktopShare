@@ -11,12 +11,13 @@ Field-verified in this lab (MINI-Gaming-G1 + FTF3XR2065), not from vendor docs:
 | Build | Version | ExecuteScript in stock? | How to get it |
 |---|---|---|---|
 | C++ image `apacheminificpp:latest` | 1.26.02 | ❌ — 74-processor production set, no scripting `.so` | Extra-extensions injection (Path A) or source build (Path B) |
-| CEM Java tarball (EFM-staged) | 2.24.08.0-19 | ❌ — **114 processors, no scripting NAR** (verified 2026-07-25) | Stage a scripting NAR (unsolved) or use Docker `minifi-java:latest` (unverified) |
+| CEM Java tarball (EFM-staged), stock | 2.24.08.0-19 | ❌ — **114 processors, no scripting NAR** (verified 2026-07-25) | Stock tarball still ships neither — see next row for the fix |
+| CEM Java tarball (EFM-staged), + NAR drop-in | 2.24.08.0-19 | ✅ — **122 processors, real Groovy ExecuteScript + real Kafka producer** — **SOLVED 2026-07-27**, re-confirmed live 2026-07-28 | Build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching source tarball, drop into the agent's autoload dir — see `efm-windows-java-minifi.md` |
 | C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — **✅ field-verified 2026-07-27** on MINI-Gaming-G1: process-mode *and* Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
 | Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Pull and check — do not trust the "200+" marketing count |
 
-The one claim I now treat as dead: **"switch to Java and you get ExecuteScript for free."** That was true of full NiFi and assumed true of MiNiFi Java, but the CEM `2.24.08.0-19` binary EFM actually deploys has no scripting NAR and no Kafka NAR. See `efm-windows-java-minifi.md`.
+The claim I now treat as dead in its original form: **"switch to Java and you get ExecuteScript for free."** The *stock* CEM `2.24.08.0-19` binary EFM deploys has no scripting NAR and no Kafka NAR out of the box — that part of the original correction still holds. What's changed since: it's no longer *unsolvable* in this lab — a same-version NAR drop-in gets it (Groovy, not Python; see `efm-windows-java-minifi.md`), so "Java has no ExecuteScript, period" is now the stale claim, not the corrected one.
 
 ## Symptom
 
@@ -117,13 +118,14 @@ COPY --from=builder /build/extensions/ /opt/minifi/nifi-minifi-cpp-1.26.02/exten
 
 Reach for this only if the extra-extensions tarball is unavailable or a version mismatch bites — Path A gets the same result with Cloudera-built binaries and no compile.
 
-## Path C — Java (debunked for the CEM tarball, open for Docker)
+## Path C — Java (SOLVED for the CEM tarball via NAR drop-in, Docker still open)
 
-The EFM-staged CEM Java binary `2.24.08.0-19` does **not** have `ExecuteScript` or Kafka. Confirmed against the live agent manifest 2026-07-25 (`files/efm/java-minifi-2.24.08.0-19-processors.txt`). What Java *does* give you is `ExecuteProcess` / `ExecuteStreamCommand` — shell command execution, not a script engine. So the answer to "does Java have ExecuteScript" is a flat no in this lab; you get ExecuteProcess and that's it. "Just use Java" is not a shortcut here.
+The **stock** EFM-staged CEM Java binary `2.24.08.0-19` does **not** have `ExecuteScript` or Kafka. Confirmed against the live agent manifest 2026-07-25 (`files/efm/java-minifi-2.24.08.0-19-processors.txt`). Stock Java gives you `ExecuteProcess` / `ExecuteStreamCommand` — shell command execution, not a script engine.
 
-Two live options remain, both unfinished:
-1. Stage a scripting NAR into the Java tarball's NAR dir (drop-in path not yet worked out — this is an open follow-up in `efm-windows-java-minifi.md`).
-2. Pull Docker `container.repo.cloudera.com/cloudera/minifi-java:latest` and extract its manifest — it may differ from the CEM tarball. Not yet done. Do not trust the old "200+ processors, ExecuteScript out of the box" language until a running manifest confirms it.
+**That was the whole story until 2026-07-27.** A same-version NAR drop-in — build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching `2.24.08.0-19` source tarball, drop into the agent's `nifi.nar.library.autoload.directory` — takes the manifest 114 → 122, and `ExecuteScript` runs real **Groovy** (no Python/Jython in this build) on both `KubernetesPodJava` and the real `WindowsDesktop` agent, field-verified twice. So "does Java have ExecuteScript" is now "not out of the box, but yes with one drop-in" — not a flat no. Full recipe and both field-verifications: `efm-windows-java-minifi.md`.
+
+One option remains open:
+- Pull Docker `container.repo.cloudera.com/cloudera/minifi-java:latest` and extract its manifest — it may differ from the CEM tarball (and may ship the NARs already, sidestepping the build-from-source step). Not yet done. Do not trust the old "200+ processors, ExecuteScript out of the box" language until a running manifest confirms it.
 
 ## Path D — Windows C++ MSI (field-verified 2026-07-27) ✅
 
@@ -287,6 +289,72 @@ Java agent under `WindowsDesktop` stayed ONLINE throughout.
 
 Companions: `efm-binaries-windows-python.md`, `efm-binaries.md` § Windows Python, `efm-beelink-cpp-python-action.md`.
 
+### GUI automation from ExecuteScript on Windows — Session 0 kills it in service mode (2026-07-28)
+
+Went further than the LogAttribute smoke test for issue #4 (`!load`/`!matrix` Twitch-chat-triggered
+Chrome launch, ported from `agent-NvidiaNano-launch_stream.py`/`browser_launcher.py`). Built
+`ListenHTTP → ExecuteScript(python) → LogAttribute` on `WindowsDesktopCpp`, script body kills any
+existing Chrome on its own `--user-data-dir`, relaunches windowed on a target monitor, then shells
+out to a PowerShell reposition script (`MoveWindow` + F11, same technique as
+`reposition_chrome.ps1`). Full scripts: `files/windesktop-launch_stream.py`,
+`files/windesktop-launch_matrix.py`, `files/windesktop-reposition_chrome.ps1`.
+
+**Symptom:** the flow runs green (200 OK, attributes set, `REL_SUCCESS`), Chrome genuinely
+launches (confirmed via `Win32_Process`, 8 real child processes — main, crashpad, gpu, utility,
+renderers), but the reposition step always reports
+`FAIL: no chrome window ... appeared within timeout` — never finds a window to move, even with a
+generous timeout and a completely clean profile dir.
+
+**Diagnosis:** `sc.exe qc "Apache NiFi MiNiFi"` shows `SERVICE_START_NAME: LocalSystem` — the
+agent runs as a Windows **service**, which Windows puts in **Session 0**, the non-interactive
+session reserved for services since Vista. `query session` confirms only Session 1 ("console",
+the logged-in user) is interactive; Session 0 is `Disc` (disconnected). A GUI process spawned
+from Session 0 has no interactive desktop to render into — it starts, its process tree looks
+normal, but there's no window station a Session-1 script (or a human at the console) can ever
+see or interact with. This is an OS-level isolation boundary, not a MiNiFi/EFM bug — the same
+reason the existing screen2 architecture (`browser_launcher.py`, `mpv_stream_launcher.py`,
+`windows_matrix_launcher.py`) never drives Chrome from inside a service and instead uses a
+separate always-on listener under a real interactive logon.
+
+A second, independent symptom compounded this while diagnosing it: the *first* SYSTEM-context
+attempt also hit `File ...reposition_chrome.ps1 cannot be loaded because running scripts is
+disabled on this system` — `Get-ExecutionPolicy -List` shows `CurrentUser: RemoteSigned` for the
+interactive user but `LocalMachine`/`MachinePolicy: Undefined` (effectively Restricted for
+LocalSystem, which has no `CurrentUser` HKCU hive matching the logged-in user's). Fixed by adding
+`-ExecutionPolicy Bypass` to the `powershell.exe -File ...` invocation — cheap, works regardless
+of caller identity, and worth doing on any script a Windows service shells out to, but it does
+**not** fix the Session-0 window-visibility problem underneath; both scripts already carry the
+fix.
+
+**Confirmed by contrast, same day:** the **Java leg** (`WindowsDesktop`, run via `run-minifi.bat`,
+**not** a Windows service) runs its `java.exe` process in **Session 1** — the interactive
+console. Wiring the identical kill/launch/reposition logic through `ExecuteStreamCommand`
+(`files/windesktop-launch_stream_java.ps1`, `files/windesktop-launch_matrix_java.ps1`) worked
+end-to-end on the first clean run: real visible Chrome window, `GetWindowRect` confirmed exact
+target-monitor bounds (`OK: L=-1920 T=0 R=-640 B=720`), fullscreen applied. Same code, same
+box, same target monitor — the only variable was Session 0 (service) vs. Session 1
+(process-mode/interactive). **Conclusion: GUI-launching `ExecuteScript`/`ExecuteStreamCommand`
+work needs the agent running interactively (process-mode, or a service configured to run under
+an interactive logon token — not plain `LocalSystem`), never a default LocalSystem service.**
+
+**A separate trap that ate real time before the Session-0 diagnosis was clean:** the very first
+SYSTEM-context Chrome launch left **un-killable zombie processes** — `Get-CimInstance
+Win32_Process -Filter "Name='chrome.exe'"` run as a non-elevated user returns a blank
+`CommandLine` for SYSTEM-owned processes (permission-limited, not actually empty), so a
+profile-dir-scoped kill filter silently matches nothing and "cleanup succeeded" messages are a
+false negative. Those zombies kept holding the profile's `SingletonLock`, so *every* later launch
+attempt — including the interactive Java-leg test — silently IPC-proxied into the invisible
+zombie instead of opening a new window, masking the real Session-1-should-work result until the
+profile dir was rotated (`chrome-profile` → `chrome-profile-v2`) to sidestep the stuck lock
+entirely (the zombie PIDs themselves stayed un-killable — `Stop-Process` on a SYSTEM-owned
+process from a non-elevated account is `Access is denied`, confirmed three separate ways). If
+this bites again: rotate the profile dir rather than trying to kill the zombie, unless real
+elevated access is available.
+
+Companions for this: `files/windesktop-launch_stream.py`, `files/windesktop-launch_matrix.py`,
+`files/windesktop-reposition_chrome.ps1`, `files/windesktop-launch_stream_java.ps1`,
+`files/windesktop-launch_matrix_java.ps1`.
+
 ## Getting the *script* onto the agent (independent of the engine)
 
 Having the engine is half of it — the Script File still has to reach the agent, and survive a restart. Two mechanisms, from the skill's `references/minifi-efm.md` §9:
@@ -303,8 +371,9 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 **Actually open**, ordered by how close each is to done:
 
 1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D verified on MINI-Gaming-G1 (`WindowsDesktopCpp`): process-mode **and** Windows service + `ADDLOCAL=ALL`; Python 3.14.4; smoke `python.smoke=windows-cpp-executescript-ok`. **Open:** re-confirm on Beelink `StarlinkAI` via `efm-beelink-cpp-python-action.md`; optional clean reinstall off `system32` onto `C:\minifi`.
-2. **[Java] Decide the Java scripting story.** The CEM `2.24.08.0-19` tarball has `ExecuteProcess` but no `ExecuteScript` / Kafka. Either work out the scripting-NAR drop-in for that tarball, or pull `minifi-java:latest` and extract its manifest to see if it differs. Until one is done, Java is shell-only (`ExecuteProcess`) in this lab.
+2. ~~**[Java] Decide the Java scripting story.**~~ **Done 2026-07-27** — see `efm-windows-java-minifi.md`'s "SOLVED" section: `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` built from the exact-matching source tarball and dropped into the agent's autoload dir, no restart needed. `ExecuteScript` runs real **Groovy** (no Jython/Python in this build) on both `KubernetesPodJava` and the real `WindowsDesktop` agent, manifest goes 114 → 122. This line in this doc was stale as of 2026-07-28 (issue #4) — cross-check `efm-windows-java-minifi.md` before repeating "Java is shell-only" anywhere else, that's no longer accurate for this lab's staged tarball.
 3. **[Persistence] Persist the injected tarballs + `java/windows` leaf into `~/efm-binaries/staging/`** so the next EFM PVC rebuild doesn't silently drop scripting (open follow-up already noted in `efm-windows-java-minifi.md`).
+4. **[Windows GUI automation] Session 0 vs. Session 1 for any `ExecuteScript`/`ExecuteStreamCommand` that launches a visible window.** Confirmed 2026-07-28 (issue #4, see the new subsection above under Path D) — a Windows-service agent (`LocalSystem`) can run the script and even spawn the target process, but the window is never visible/discoverable since Session 0 has no interactive desktop; a process-mode or interactive-logon agent (Session 1) works cleanly. Anyone building a similar on-device UI-driving flow on Windows should default to process-mode (or a service running under a real interactive account, not `LocalSystem`) from the start rather than rediscovering this.
 
 ## What NOT to do
 
@@ -317,13 +386,15 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 - **PowerShell 5.1 + UTF-8 scripts:** avoid Unicode em-dashes in `.ps1` files or save ASCII/BOM — otherwise you get bogus “string missing terminator” parse errors.
 - **Do not put a scripting flow on an agent class whose EFM manifest doesn't include the processor.** The designer validates against the class→manifest mapping, not against whatever agent is online — you get ghost processors and empty flows after a "successful" reload. Remap the class manifest first (see `efm-windows-java-minifi.md`).
 - **Do not skip the resources PVC and then upload scripts.** The DB row survives the pod, the bytes don't, and the failure looks like a phantom resource with no content.
+- **Do not expect a Windows-service (`LocalSystem`) agent to launch a visible GUI window.** Session 0 isolation means the process spawns fine but has no interactive desktop — confirmed 2026-07-28 with a real Chrome-launch test that ran green end-to-end yet never produced a discoverable window. Use process-mode, or a service configured under a real interactive logon, for anything that needs to actually appear on screen.
+- **Do not trust a scoped `Get-CimInstance`/`Get-Process` kill filter to have worked just because it returned no error.** A non-elevated account gets a blank `CommandLine` back for SYSTEM-owned processes (permission-limited, not actually empty), so a profile-dir-scoped filter silently matches zero and "cleaned up" is a false negative — the zombie keeps holding the profile's `SingletonLock` and every later launch silently proxies into it instead of opening a new window. Confirmed 2026-07-28; the practical fix when it happens is to rotate the profile/user-data dir, not to keep trying to kill an unkillable (non-elevated) SYSTEM process.
 
 ## Companion docs
 
 - `efm-binaries.md` — the binary staging tree + the extra-extensions injection recipe (Path A) + Windows MSI/ADDLOCAL section
 - `efm-binaries-windows-python.md` — Windows Path D history + G1 verified recipes (process + service)
 - `efm-beelink-cpp-python-action.md` — Beelink checklist to re-confirm Path D on `StarlinkAI`
-- `efm-windows-java-minifi.md` — the CEM Java field verification (114 processors, no scripting/Kafka NAR)
+- `efm-windows-java-minifi.md` — the CEM Java field verification (114 stock, 122 after the scripting/Kafka NAR drop-in — SOLVED 2026-07-27)
 - `minifi-playground-cpp-processors.md` — the C++ stock catalog and the four fix paths in processor terms
 - `minifi-playground-java-processors.md` — Java patterns and footprint tradeoffs
 - `skills/nifi-and-ai/references/minifi-efm.md` — deployer + designer + resource-manager API contract, and the ExecuteScript-across-builds table (§6)
