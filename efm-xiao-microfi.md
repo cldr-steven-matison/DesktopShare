@@ -2,7 +2,7 @@
 
 `efm-xiao.md` plans to hand-write an Arduino sketch that publishes JSON to Mosquitto on `test/sensor/data`, so `ConsumeMQTT` in the `SparkPlug` PG picks it up with no NiFi-side change. That plan is sound and it still works. But Chris Burns has a private repo, `Christopheraburns/MicroFi`, that reframes the problem: it's a clean-room reimplementation of the MiNiFi C2 protocol targeting ESP32, and if it runs on our hardware the XIAO stops being a dumb publisher and becomes an agent that shows up in EFM next to `StarlinkAI`, `WindowsDesktop`, and `NvidiaNano` — flow pushed from the EFM Designer, not flashed by hand.
 
-This is the evaluation of whether that's real, what it changes, and what `FTF3XR2065` has to do to field-verify it.
+This is the evaluation of whether that's real, what it changes, and what `StarlinkAI` — the host the XIAO is actually plugged into — has to do to field-verify it.
 
 ## Access — confirmed, and broader than expected
 
@@ -91,52 +91,50 @@ Those are the same two URLs `efm-executescript.md` already sets as `nifi.c2.rest
 
 MicroFi's README calls out that `localhost` in the default heartbeat URL cannot work from a real ESP32. Our equivalent: the XIAO needs a routable address for EFM, which on this array is `gaming-pc-lan-ip:10090` on LAN or `efm-host-ip:10090` over Tailscale.
 
-## Why `FTF3XR2065` can't run this today
+## This runs on `StarlinkAI`, not the Mac
 
-Four things are true at once and all four have to be fixed before a field test:
+The XIAO is plugged into TunaStarlink's front-facing USB — that's where `efm-xiao.md` put it and that's where it still is. So the device leg of this work belongs to `StarlinkAI`, and the host picks up three advantages plus one new hazard.
 
-1. **EFM is not deployed on the Mac.** `CLAUDE-CHECKIN.md` is explicit: EFM/MiNiFi are intentionally disabled on `FTF3XR2065`, `svc/efm` does not exist in the cluster, and the `service/efm 10090:10090 -n cld-streaming` port-forward pane is failing quietly. There is no EFM on that host to heartbeat into.
-2. **EFM lives on `MINI-Gaming-G1`**, exposed at `gaming-pc-lan-ip:10090` (LAN) and `efm-host-ip:10090` (Tailscale).
-3. **The Mac is not on the tailnet.** It's a corp laptop and joins the array over LAN only when on-site. So reaching `MINI-Gaming-G1`'s EFM means both machines on the same LAN — which they are, `mac-lan-ip` and `gaming-pc-lan-ip` are the same subnet.
-4. **The XIAO is physically plugged into TunaStarlink**, per `efm-xiao.md` — front-facing USB on the Beelink, not the Mac. Whether a second board exists is the one prerequisite I can't check from here.
+**EFM reachability is already proven from this host.** `CLAUDE-CHECKIN.md` records a MiNiFi agent installed on the Windows side, class `StarlinkAI`, confirmed Online in the EFM UI and heartbeating to `efm-host-ip:10090` over Tailscale. There's no on-site-LAN precondition and no cluster change needed anywhere — the path the XIAO needs is the path this box already uses.
 
-That gives two viable shapes for the field test:
+For contrast, `FTF3XR2065` would have been the harder host: EFM is intentionally not deployed there, `svc/efm` doesn't exist, its `service/efm 10090:10090` port-forward pane is failing quietly, and it isn't on the tailnet. Running the test there would have meant either carrying the board across the room or a stateful EFM redeploy (Postgres + 2 PVCs, `blog/efm-persistance.md`). Neither is necessary now.
 
-- **Shape A — borrow `MINI-Gaming-G1`'s EFM.** Mac builds and flashes, XIAO points at `gaming-pc-lan-ip:10090`. No cluster changes anywhere. Requires both machines on-site on the same LAN, and the XIAO on the Mac's USB. **This is the one to run first** — it touches no live service.
-- **Shape B — restore EFM on the Mac.** Redeploy EFM into `cld-streaming` on `FTF3XR2065` so the test is self-contained. The port-forward pane already anticipates it. But this is a stateful deploy — EFM needs Postgres + 2 PVCs (`blog/efm-persistance.md`, Ch1 of the guide) — and per `agent/incident-rules.md` it needs a fresh explicit ask before anyone runs it. Don't do it just to avoid carrying a board across the room.
+**The hazard is the agent class.** `StarlinkAI` is already a live class in EFM with a real agent in it. If MicroFi registers under that same class, it joins a class that already has an agent and a flow — and an EFM push aimed at one lands on both. **Set `CONFIG_MICROFI_AGENT_CLASS` to something distinct (`MicroFi`) before the first boot, not after.** The default is `default`, which is equally wrong but at least harmless. This is the one configuration mistake here that can disturb a working agent rather than just fail.
 
-## Field validation instructions — `FTF3XR2065`
+**The toolchain wrinkle is USB.** Claude Code on this host runs in WSL2, but the XIAO enumerates on the Windows side. WSL2 has no native USB passthrough — reaching `/dev/ttyACM0` from Ubuntu means `usbipd-win` attach-per-boot. Run PlatformIO natively on Windows instead: the board appears as a `COM` port, `pio` drives it directly, and the WSL2 session is only for editing. Don't burn a session chasing a device node that was never going to exist.
 
-Prerequisites: a XIAO on this Mac's USB, both machines on the same LAN, VS Code + PlatformIO installed. Do **not** push to `Christopheraburns/MicroFi` — read-only, despite the token.
+## Field validation instructions — `StarlinkAI`
 
-**Task 1 — pin the chip.** Nothing else is decidable until this is known.
+Prerequisites: the XIAO on TunaStarlink's front USB (it's already there), Tailscale up, VS Code + PlatformIO **on the Windows host, not in WSL2**. Do **not** push to `Christopheraburns/MicroFi` — read-only, despite the token.
 
-```bash
-esptool.py --port /dev/cu.usbmodem* chip_id
+**Task 1 — pin the chip.** Nothing else is decidable until this is known. Windows host, PowerShell:
+
+```powershell
+esptool.py --port COM3 chip_id      # substitute the real COM port
 ```
 
-Record S3 vs C3 vs C6. If C6, stop and report — MicroFi has no environment for it.
+Find the port first in Device Manager under "Ports (COM & LPT)", or `[System.IO.Ports.SerialPort]::GetPortNames()`. Record S3 vs C3 vs C6. **If C6, stop and report** — MicroFi has no environment for it and everything below is moot.
 
-**Task 2 — confirm EFM is reachable from the Mac.**
+**Task 2 — confirm EFM is reachable.** This host already heartbeats there with its MiNiFi agent, so this should pass on the first try:
 
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://<gaming-pc-lan-ip>:10090/efm/ui/
+```powershell
+(Invoke-WebRequest -Uri "http://efm-host-ip:10090/efm/ui/" -UseBasicParsing).StatusCode
 ```
 
-Expect `200`. If it fails, the port-forward pane on `MINI-Gaming-G1` is down and nothing downstream will work.
+Expect `200`. If it fails, Tailscale is down or the port-forward pane on `MINI-Gaming-G1` died — fix that before flashing anything.
 
-**Task 3 — build.** Clone read-only, copy the config template, fill in WiFi + the EFM LAN address, set a real agent class:
+**Task 3 — build.** Clone read-only, copy the config template, fill in WiFi + the Tailscale EFM address:
 
-```bash
+```powershell
 gh repo clone Christopheraburns/MicroFi
 cd MicroFi
-cp sdkconfig.defaults.local.example sdkconfig.defaults.local
-# edit: SSID, password, and both C2 URLs -> http://<gaming-pc-lan-ip>:10090/...
+copy sdkconfig.defaults.local.example sdkconfig.defaults.local
+# edit: SSID, password, and both C2 URLs -> http://efm-host-ip:10090/efm/api/c2-protocol/...
 ```
 
-Set `CONFIG_MICROFI_AGENT_CLASS` in `sdkconfig.defaults` to something that doesn't collide with `StarlinkAI` / `WindowsDesktop` / `NvidiaNano` / `KubernetesPod` — `MicroFi` is the obvious choice. Then, per what Task 1 found:
+**Set `CONFIG_MICROFI_AGENT_CLASS` in `sdkconfig.defaults` to `MicroFi` before building.** Not `StarlinkAI` — that class already holds this host's live MiNiFi agent, and a shared class means an EFM push aimed at one reaches both. Not `default` either. Then, per what Task 1 found:
 
-```bash
+```powershell
 pio run -e esp32-c3                 # C3
 pio run -e esp32s3-4mb              # S3, accepting the 4 MB layout on 8 MB flash
 ```
@@ -145,13 +143,13 @@ Record the firmware size from `.pio/build/<env>/firmware.bin` — MicroFi's own 
 
 **Task 4 — flash and watch the first heartbeat.**
 
-```bash
+```powershell
 pio run -e <env> -t upload -t monitor
 ```
 
 Serial should show WiFi association then an HTTP POST to the heartbeat URL. Capture the exact first-heartbeat log lines verbatim — that's the artifact.
 
-**Task 5 — confirm registration in EFM.** The agent should appear under the configured class in the EFM UI at `http://<gaming-pc-lan-ip>:10090/efm/ui/`. Per `minifi-efm.md`, don't trust the UI alone — query the `agent` table's `last_seen` / `agent_state` in EFM's Postgres directly to confirm the heartbeat is landing and not just that a row exists.
+**Task 5 — confirm registration in EFM.** The agent should appear under class `MicroFi` in the EFM UI at `http://efm-host-ip:10090/efm/ui/`. Per `minifi-efm.md`, don't trust the UI alone — query the `agent` table's `last_seen` / `agent_state` in EFM's Postgres directly to confirm the heartbeat is landing and not just that a row exists. **Also confirm the existing `StarlinkAI` agent is still Online and unchanged** — that's the check that proves the new class didn't disturb it.
 
 **Task 6 — verify the manifest.** This is the real test of the clean-room bet. The first heartbeat carries a full manifest derived from the static registry; subsequent ones send only the hash. Confirm EFM parses it and that the Designer offers exactly `GenerateFlowFile` and `LogAttribute` for that class — no more, no less. If EFM rejects a manifest advertising two processors, that's the finding and the whole approach needs rework.
 
@@ -164,7 +162,8 @@ Report back with: chip variant, chosen env, firmware size, the first-heartbeat l
 ## What NOT to do
 
 - **Don't push to `Christopheraburns/MicroFi`.** The token allows it. The task doesn't.
-- **Don't redeploy EFM on the Mac to make the test self-contained** without a fresh explicit ask. It's a stateful service (Postgres + 2 PVCs) and `agent/incident-rules.md` covers exactly this. Shape A needs no cluster change — use it.
+- **Don't register MicroFi under the `StarlinkAI` agent class.** That class holds this host's live, Online MiNiFi agent. A shared class means an EFM flow push aimed at one device reaches both. Use a distinct class and verify the existing agent afterward.
+- **Don't try to flash from WSL2.** No native USB passthrough; the board enumerates on the Windows side as a `COM` port. PlatformIO runs on the Windows host. `usbipd-win` is a workaround, not the path of least resistance.
 - **Don't treat the 48-processor roadmap as available.** Two processors are built. Every capability claim in `Processor-Inventory-And-Roadmap.md` beyond `GenerateFlowFile` and `LogAttribute` is a plan.
 - **Don't expect this to feed Kafka.** No `PublishMQTT`, and the `SparkPlug` PG still dead-ends at `EOL`. Both gaps are real and neither is closed by flashing MicroFi.
 - **Don't flash the default `esp32s3` env onto a XIAO S3.** Its `partitions.csv` assumes 16 MB; the XIAO has 8 MB.
