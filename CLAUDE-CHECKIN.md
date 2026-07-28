@@ -15,7 +15,12 @@ Full protocol + how to report back: `agent/device-comms.md`. Device ↔ label ma
 | TunaStarlink (Beelink) | `device:StarlinkAI` | — |
 | Jetson | `device:NvidiaNano` | (usually driven from MINI-Gaming-G1) |
 | FTF3XR2065 (Mac) | `device:FTF3XR2065` | — |
+| Stevens-MacBook-Pro (personal Mac) | `device:macbook` | — |
 | DigitalOcean droplet | (none yet) | — |
+
+**Two Macs, two labels — don't conflate them.** `FTF3XR2065` is the Cloudera-issued M4 Pro work
+laptop (arm64, full local minikube). `Stevens-MacBook-Pro` is the personal 2017 Intel MacBook Pro
+(x86_64, no minikube). A doc or issue that says "the Mac" is ambiguous — name the host.
 
 When a device joins the roster, add its `device:*` label (see `agent/device-comms.md`) alongside its block below.
 
@@ -206,6 +211,52 @@ Active `kubectl port-forward` panes (all `--address 0.0.0.0` so LAN peers can re
 - `service/efm 10090:10090 -n cld-streaming` — **NOTE**: pane is up but `svc/efm` does not currently exist in the cluster (EFM/MiNiFi are the intentionally-disabled bits); forward is failing quietly, remove or restore EFM when the flow is next needed
 
 Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip` for the four forwarded ports above.
+
+---
+
+## Stevens-MacBook-Pro (personal MacBook Pro, 2017)
+
+- **Role**: Steven's personal Mac — docs/plans authoring and repo work. **Not** a cluster host: no minikube, no Tailscale, Docker installed but daemon not running. Intel/x86_64, so it is also the only Mac in the array that can test amd64-native behaviour (FTF3XR2065 is arm64).
+- **Checked in**: 2026-07-28
+- **Claude Code version**: 2.1.220 (fresh install — `~/.claude` created this session)
+
+### Hardware
+- CPU: Intel Core i7-7660U @ 2.50GHz (2 cores / 4 threads)
+- GPU: Intel Iris Plus 640 (integrated) — no discrete GPU, no local inference capacity
+- RAM: 16GB
+- Storage: 466GB APFS, **31GB free after a 2026-07-28 cleanup** (was 12GB) — a further ~185GB is pinned by a stale Time Machine snapshot, see known issue below
+
+### OS
+- macOS 13.7.8 (Ventura), build 22H730
+- Kernel: Darwin 22.6.0 (xnu-8796.141.3.713.2, **x86_64**)
+
+### Key tool versions
+- Git: 2.24.3 (Apple Git-128) — old; ships with the outdated Command Line Tools
+- Python: 3.9.10
+- Java: OpenJDK 11.0.11
+- kubectl: v1.25.0 (contexts `kind-k8ssandra-0` (current), `k3d-k3s-default` — both stale local leftovers, no live cluster)
+- helm: v3.9.4
+- Docker: 20.10.18, **daemon not running**
+- Homebrew: 6.0.13 — see known issue, source builds fail on this host
+- gh: 2.63.2, installed manually to `~/.local/bin/gh` (already on PATH via `.zshrc`), authenticated as `steven-matison`
+- minikube / Tailscale / node / jq: not installed — **`jq` absent means `checkin.sh` takes its plain-stdout fallback here**, so the session check-in reaches the model but does not print to the terminal
+
+### Repo homes on this host
+- DesktopShare: `~/Documents/GitHub/DesktopShare` (all repos live under `~/Documents/GitHub/`)
+- `cso-operator-app`, `nifi-custom-processors`, `ClouderaStreamingOperators`, `MiNiFi-Kubernetes-Playground`: **not cloned here** — this host does no app or flow work
+
+### Skills
+- `nifi-and-ai` installed to `~/.claude/skills/` on 2026-07-28, current as of the 2026-07-27 hygiene pass
+
+### Network
+- Connection: LAN, `macbook-lan-ip` (same 192.168.1.x subnet as the rest of the array)
+- Tailscale IP: n/a — not joined to `tailnet.ts.net`
+
+### Known issues
+- **Homebrew cannot install anything that needs compiling.** `brew install gh jq` failed with *"Your Command Line Tools are too outdated"* — Homebrew fell through to a source build (pulling `go` as a dependency) and aborted. Until CLT is updated (`sudo rm -rf /Library/Developer/CommandLineTools && sudo xcode-select --install`), prefer prebuilt release binaries dropped into `~/.local/bin` over `brew install`. That is how `gh` got here.
+- **~185GB is pinned by a stale Time Machine reference snapshot — deleting files does not free space until it goes.** On 2026-07-28 the volume reported 467.7GB used against only 280.8GB of live files. The cause is `com.apple.TimeMachine.2025-12-09-100538.local`, recorded in `/Library/Preferences/com.apple.TimeMachine.plist` as `ReferenceLocalSnapshotDate` — i.e. Time Machine's *baseline for the next incremental backup*, not a routine hourly snapshot, which is why macOS never thinned it despite 7 months at 98% full. The encrypted destination ("Backups of Steven's MacBook Pro", ~1TB and 94% full itself) last completed a consistency scan 2025-11-29 and went away mid-run on 2025-12-09; TM has been holding the baseline ever since. Fix: `sudo tmutil deletelocalsnapshots 2025-12-09-100538`, then either reattach the destination or turn AutoBackup off, or a new baseline accumulates the same way. **Diagnostic worth reusing on any Mac in the array:** compare `du -skx /System/Volumes/Data` against `diskutil info /System/Volumes/Data | grep "Volume Used Space"` — a large gap is snapshot-pinned space, not missing files.
+- **Disk headroom is still thin.** Not enough for minikube images or a large model pull; assume this host stays an authoring box. Largest live consumer by far is `~/Pictures/Photos Library.photoslibrary` at 154GB.
+- **Homebrew cache, NetBeans/JetBrains/VisualStudioInstaller/go-build caches, `~/.m2/repository` and `~/.vagrant.d/boxes` were cleared on 2026-07-28** (19.2GB). Maven and Vagrant are still installed — their first run after this re-downloads.
 
 ---
 

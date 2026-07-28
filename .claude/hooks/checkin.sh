@@ -27,7 +27,8 @@ fi
 #    (device-comms.md "Responsibility map"; some agents are reached by proxy).
 host="$(hostname -s 2>/dev/null || hostname)"
 case "$host" in
-  FTF3XR2065*)     labels="FTF3XR2065" ;;                 # Mac (authoring / golden-source)
+  FTF3XR2065*)     labels="FTF3XR2065" ;;                 # Cloudera work Mac (arm64, golden-source)
+  Stevens-MacBook-Pro*) labels="macbook" ;;               # personal Mac (x86_64, authoring only)
   MINI-Gaming-G1*) labels="WindowsDesktop NvidiaNano" ;;  # WindowsDesktop + Jetson by SSH proxy
   TunaStarlink*)   labels="StarlinkAI" ;;                 # Beelink
   *[Jj]etson*)     labels="NvidiaNano" ;;                 # Jetson if it ever runs its own session
