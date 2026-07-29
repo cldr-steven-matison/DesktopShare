@@ -217,6 +217,65 @@ LittleFS durability tier onto SD instead of trying to fit it inside the tiny onb
 unknown") is still untested — that requires Task 7's flow push, which requires the partition-table
 fix above first.
 
+## Field validation completed, 2026-07-29 — Tasks 7-8, all 8 tasks done
+
+Picked back up once the 2MB-safe partition table (`partitions_2mb.csv`, `esp32s3-2mb` env — see
+above) was built and flashed clean, no mismatch warning. Forked `Christopheraburns/MicroFi` to
+`steven-matison/MicroFi` (`--remote`, remote name `fork`) and pushed the partition-table fix to a
+`xiao-s3-2mb-partition` branch there — `origin` still points at the real repo, untouched, no PR
+opened yet ("when the time is right" per Steven). The field-test-specific
+`CONFIG_MICROFI_AGENT_CLASS` override stayed local-only, not committed.
+
+**Task 7 — pushed the flow, implicit ack confirmed.** Built `GenerateFlowFile → LogAttribute` via
+the EFM Designer's real per-component API (`GET .../client-identifier` for the write-clientId,
+`POST .../process-groups/{pgId}/processors` ×2, `POST .../process-groups/{pgId}/connections`,
+`GET .../validate`, `POST .../publish`) — the envelope needs
+`{"revision":{...},"componentConfiguration":{...},"requestId":...}`, not a flat or
+`component`-wrapped body; a flat/wrong-wrapper body 400s with the unhelpful `"Component details
+must be specified."` regardless of which wrapper is missing, so this is worth remembering as its
+own trap. Every new component's create-request needs `revision.version: 0` — that field tracks
+the component's own revision line, not the flow's overall version. `LogAttribute` needs `success`
+explicitly auto-terminated (no downstream consumer); `GET .../validate` came back
+`{"validationErrors":[]}` before publish.
+
+Published clean (`flowVersion: 1`, `dirty: false`). **EFM itself went down mid-test** (same
+flapping-connectivity shape as #11/#25 — confirmed both from this session's own Tailscale checks
+and the live `StarlinkAI` agent's own heartbeat timeouts, not caused by the publish) and came back
+after Steven restarted it. Once stable, `GET /efm/api/agents/microfi_1` showed `state: ONLINE`,
+`flowId: e9aac4e6-4124-45a6-92d3-ce09505974d1` (the boot-default's all-zero placeholder replaced
+by a real UUID), `flowUpdateDate` matching `lastSeen`, both `GenerateFlowFile`/`LogAttribute`
+`running: true` — **all of that with MicroFi never once POSTing to `/acknowledge`** (confirmed
+absent from every log across the whole session). **This answers the doc's original load-bearing
+question: EFM 2.3.1.0-2 does accept the implicit ack** — a heartbeat whose `flowInfo.flowId`
+matches the published flow is sufficient on its own.
+
+**Task 8 — power-cycle: flow definition persists.** Two real physical unplug/replugs (Steven's
+hand on the cable) both resumed `GenerateFlowFile`/`LogAttribute` cleanly with reset FlowFile
+counters (genuine reboots, not soft resets) — but capturing the exact boot-log line proved to be
+a real tooling problem: `pio device monitor` attached *before* a physical unplug reliably lost
+everything from the disconnect gap through the reconnect burst, across three separate attempts,
+even via PlatformIO's own `log2file` filter (writes to a *different* file than the redirect, same
+loss). Root cause not nailed down (not a COM-port renumber — confirmed same `COM5` after
+reconnect); reads like an internal buffer that doesn't survive the physical link actually dropping
+mid-session, as opposed to a tool-triggered reset which keeps the OS-level handle alive throughout.
+**Fix that actually worked**: re-run `pio run -t upload -t monitor` (re-flashes identical firmware
+— LittleFS is a separate partition, untouched — and its own RTS-pin hard-reset is a real full
+reboot) instead of relying on a physical disconnect for the capture. That caught it cleanly:
+```
+microfi.flowstore: flow def loaded: 2872 bytes from /littlefs/.flowdef
+microfi.flowstore: flow_id loaded: e9aac4e6-4124-45a6-92d3-ce09505974d1
+```
+Exact match to the published flow's `flowId`. Persistence confirmed for real, not inferred from
+absence of an error.
+
+**All 8 tasks complete.** Chip: XIAO ESP32-S3 **Sense** (has a camera + microSD slot — corrected
+mid-session, not the base board), 2MB actual flash (not the 8MB assumed), custom
+`esp32s3-2mb`/`partitions_2mb.csv` env built for it. Firmware 1,044,597 bytes (88.6% of the 2MB
+layout's app slot). Agent class `MicroFi`, isolated from the live `StarlinkAI` agent throughout
+(confirmed unaffected at every check). Manifest: exactly `GenerateFlowFile` + `LogAttribute`, no
+more. Implicit ack: confirmed working on EFM 2.3.1.0-2. Persistence: confirmed working via
+LittleFS on the corrected partition table.
+
 ## Field validation instructions — `StarlinkAI`
 
 Prerequisites: the XIAO on StarlinkAI's front USB (it's already there), Tailscale up, VS Code + PlatformIO **on the Windows host, not in WSL2**. Do **not** push to `Christopheraburns/MicroFi` — read-only, despite the token.
@@ -285,6 +344,14 @@ Report back with: chip variant, chosen env, firmware size, the first-heartbeat l
 
 ## When this ships
 
-Update this doc with the confirmed chip variant, the real firmware size, whether EFM 2.3.1.0-2 accepted a two-processor manifest, and whether the implicit ack worked. If a XIAO-specific board JSON and partition table get written, that's the point at which it's worth asking Chris whether they belong upstream — which is a conversation, not a push.
+**Done** (2026-07-29): chip variant confirmed (XIAO ESP32-S3 Sense, 2MB flash), real firmware
+size (1,044,597 bytes / 88.6% of a 2MB-sized layout), EFM 2.3.1.0-2 confirmed accepting the
+implicit ack, persistence confirmed via LittleFS. The `esp32s3-2mb` partition-table fix is pushed
+to `steven-matison/MicroFi`'s `xiao-s3-2mb-partition` branch — that's the point to ask Chris
+whether it belongs upstream, once a PR is actually opened (not yet, per Steven — "when the time is
+right").
 
-Update `efm-xiao.md` too: if MicroFi registers cleanly, that plan's "hand-write the sketch" section becomes the fallback rather than the primary path, and the decision point is whether `PublishMQTT` is close enough to wait for.
+Update `efm-xiao.md` too: MicroFi registers cleanly and the implicit ack works, so its "hand-write
+the sketch" plan is now genuinely the fallback rather than the primary path — the open decision is
+still whether `PublishMQTT` (unbuilt, `P0` on MicroFi's roadmap) is close enough to wait for before
+committing to one path for real telemetry-to-Kafka work.
