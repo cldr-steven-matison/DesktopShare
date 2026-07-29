@@ -26,7 +26,7 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | EFM deploys clean on a CSO host (Postgres + PVCs + ConfigMap prereqs) | Field-verified 2026-07-29 on FTF3XR2065 — `kubectl apply -f efm-deployment-persisted.yaml`, pod `Running`, `/efm/actuator/health` → `200` | ✅ |
 | EFM Prometheus endpoint serves on **`efm-ui`/10090**, not `metrics`/9092 | Field-verified 2026-07-29 — `10090/efm/actuator/prometheus` returns 1429 lines of `efm_*` metrics; `9092` accepts a TCP connection but returns an **empty reply** (no `management.server.port=9092` set). The old "metrics port is 9092" claim was a Service-definition artifact, not a live scrape. | ✅ |
 | EFM scrape wired into CSO Prometheus via `ServiceMonitor` (port `efm-ui`) | Field-verified 2026-07-29 — `ServiceMonitor` applied, target `http://10.244.x.x:10090/efm/actuator/prometheus` green, `up{job="efm"}=1` in Prometheus | ✅ |
-| MiNiFi C++ native Prometheus publisher (`nifi.c2.*.prometheus`) | Config documented; agent enrolled on K8s (`KubernetesPod` class) 2026-07-29 — the `9092` publisher scrape into Grafana still open on this host | 🟡 |
+| MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. Wiring the endpoint into the CSO Prometheus as a scrape target (WindowsDesktop) is still open. | 🟡 |
 | XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
 
 ## Layer 0 — get EFM running (prerequisites + deploy)
@@ -202,20 +202,49 @@ If you'd rather use the `metrics/9092` port (cleaner separation from the UI), se
 
 ## Layer 2 — MiNiFi C++ agent metrics
 
-MiNiFi C++ has a native Prometheus publisher — no ExecuteScript, no sidecar. Turn it on in the
-agent's `minifi.properties`:
+MiNiFi C++ has a native Prometheus publisher — no ExecuteScript, no sidecar. It ships as a
+separate extension, `libminifi-prometheus.so` — confirm it's present in the agent's
+`extensions/` directory before troubleshooting a "publisher never starts" symptom.
+
+**The property names below are corrected as of 2026-07-29 field validation on NvidiaNano.** The
+previous revision of this doc documented `nifi.c2.enable.metrics` / `nifi.c2.metrics.publisher` /
+`nifi.c2.metrics.publisher.prometheus.port` — those keys **do not exist** in MiNiFi C++ 1.26.02;
+they were never read by the binary (confirmed by `strings` against
+`libminifi-prometheus.so`, which shows the real key names below, and by the shipped
+`minifi.properties` template itself, which ships these exact keys commented out under a
+"Publish metrics to external consumers" header). The real property namespace is
+`nifi.metrics.publisher.*`, not `nifi.c2.*`:
 
 ```properties
-# Enable the Prometheus metrics publisher
-nifi.c2.enable.metrics=true
-nifi.c2.metrics.publisher=prometheus
-nifi.c2.metrics.publisher.prometheus.port=9092
+# Publish metrics to external consumers
+nifi.metrics.publisher.agent.identifier=<agent-uuid, matches nifi.c2.agent.identifier>
+nifi.metrics.publisher.class=PrometheusMetricsPublisher
+nifi.metrics.publisher.PrometheusMetricsPublisher.port=9936
+nifi.metrics.publisher.metrics=QueueMetrics,RepositoryMetrics,DeviceInfoNode,FlowInformation
 ```
 
+Notes on the real config, from the field validation:
+
+- **Default/example port is `9936`, not `9092`.** Nothing in the binary forces this value — any
+  free port works — but `9092` (the value the old doc revision used) collides by name with the
+  common Kafka broker convention, and the shipped template itself suggests `9936`. Prefer `9936`
+  unless there's a specific reason to pick something else.
+- **`nifi.metrics.publisher.metrics` is a comma-separated list of metric-node classes, not a
+  boolean toggle.** `QueueMetrics` and `RepositoryMetrics` are always available. `DeviceInfoNode`
+  and `FlowInformation` are the general per-agent / per-processor nodes. A class tied to a specific
+  processor (e.g. `GetFileMetrics`) only emits if a processor of that type actually exists in the
+  agent's flow — check the flow's `config.yml` before listing one, or it's silently a no-op.
+- **Follow the `minifi.properties.d/` convention, don't edit `minifi.properties` directly.** The
+  main file's own header warns changes there are overwritten on upgrade; this build already uses
+  `conf/minifi.properties.d/*.properties` for other overrides (EFM writes its own `90_c2.properties`
+  there on enrollment). Add a new file, e.g. `95-metrics.properties`, rather than uncommenting the
+  block in the shipped `minifi.properties`.
+- **The setting only takes effect on a service restart, not a config-only reload.**
+
 That stands up a Prometheus text endpoint **on the agent host** (system metrics — CPU, memory,
-repo sizes — plus per-processor throughput). Note the `9092` here is the *agent's* port on the
-edge device; it has nothing to do with EFM's own `9092` on the EFM pod. They collide by
-coincidence of the default, not by design.
+repo sizes — plus per-processor throughput). This `9936`/`9092`/whatever-you-pick port is the
+*agent's own* port on the edge device; it has nothing to do with EFM's own metrics port on the EFM
+pod (Layer 1). They only collide if you pick the same number, not by design.
 
 On the Jetson this is how system + processor + model-inference metrics were meant to reach the CSO
 Prometheus. Two ways to get the scrape:
@@ -225,10 +254,61 @@ Prometheus. Two ways to get the scrape:
 - **Agent registered with EFM**, and EFM knows the scrape target — cleaner but relies on the
   agent maintaining its heartbeat.
 
-**Status: config documented, not confirmed end-to-end into a Grafana panel.** The publisher
-properties are right, but I have not stood a Jetson (or any C++ agent) up and watched its metrics
-land on a dashboard. That's the open field-validation item for this layer — see
-`efm-nvidia-jetson-nano.md`, whose metrics section is the origin of this config.
+**Field-validation status (2026-07-29, NvidiaNano — real Jetson hardware, not a K8s pod):**
+publisher **confirmed working end-to-end on the agent host.** After restarting the systemd-managed
+`minifi` service with the corrected config above:
+
+```text
+[...] [PrometheusExposerWrapper] [info] Started Prometheus metrics publisher on port 9936
+[...] [PrometheusMetricsPublisher] [info] Loading metric node 'flowInfo'
+[...] [PrometheusMetricsPublisher] [info] Loading metric node 'deviceInfo'
+[...] [PrometheusMetricsPublisher] [info] Loading metric node 'RepositoryMetrics'
+[...] [PrometheusMetricsPublisher] [info] Loading metric node 'QueueMetrics'
+
+$ ss -tlnp | grep 9936
+LISTEN 0  200  0.0.0.0:9936  0.0.0.0:*  users:(("minifi",pid=203867,fd=18))
+
+$ curl -s http://127.0.0.1:9936/metrics | wc -l
+204
+$ curl -s http://127.0.0.1:9936/metrics | grep minifi_is_running | head -3
+minifi_is_running{metric_class="FlowInformation",component_name="FlowController",
+  component_uuid="87ea1666-8b6f-11f1-bcfa-580205de1a71",
+  agent_identifier="4ca82a0d-8e04-4ede-b59d-379de1495f2b"} 1
+minifi_is_running{metric_class="FlowInformation",processor_name="ExecuteScript",
+  processor_uuid="93897bfc-dc4b-4fd3-8161-64b6fe431c91",
+  agent_identifier="4ca82a0d-8e04-4ede-b59d-379de1495f2b"} 1
+```
+
+Binds `0.0.0.0`, so it's LAN-reachable in principle (not just loopback) — series carry
+`agent_identifier`, `metric_class`, and per-connection/per-processor tags, which is exactly the
+shape a Grafana panel needs. **Still open:** the Jetson's host firewall state wasn't checked (no
+passwordless sudo on this device — see the restart note below — so a `ufw status` read wasn't
+done), and nothing on the CSO Prometheus side scrapes `:9936` yet. That wiring — a static scrape
+config or target discovery pointed at the Nano's LAN IP — is the WindowsDesktop handoff (the CSO
+Prometheus lives there); see `efm-nvidia-jetson-nano.md` for the device-specific detail and the
+subtask filed for WindowsDesktop.
+
+### Restarting the agent to pick up a metrics config change — the real mechanics
+
+Applying a `minifi.properties.d/*.properties` change requires restarting the `minifi` systemd
+service. Field-tested on NvidiaNano 2026-07-29 — two of the three restart paths this guide
+previously suggested don't actually work as described:
+
+- **`sudo systemctl restart minifi` — the only path that reliably works.** Requires an
+  interactive sudo password on this device; no `NOPASSWD` sudoers entry exists for it as of
+  2026-07-29. An agent session cannot supply that password non-interactively — it has to be run
+  by a human at the terminal (or via the harness's `!` passthrough).
+  `~/minifi-1.26.02/bin/minifi.sh restart` is **not an independent alternative** — reading the
+  script shows its `restart_service()` just calls `systemctl restart minifi.service` on Linux, so
+  it needs the exact same sudo privilege. Same for `minifi.sh start`/`stop`.
+- **Killing the process directly does *not* reliably force a restart.** The unit file sets
+  `Restart=on-failure` with `RestartForceExitStatus=3` — that force-restart rule fires on a
+  specific exit code (used by the agent's own C2-triggered restart path), not on an externally
+  sent `SIGTERM`. Confirmed live: sending `SIGTERM` to the MiNiFi PID as the owning user (no sudo
+  needed to send the signal — the service runs as a normal user, not root) made the process exit
+  cleanly and `systemctl is-active` immediately reported `inactive` — no watchdog respawn. The
+  agent stayed down until a human ran `sudo systemctl start minifi`. Don't treat "kill the process"
+  as a safe unattended fallback.
 
 ### Networking gotcha — the port has to be reachable
 
@@ -283,6 +363,11 @@ MiNiFi are the edge-side complement to that datacenter-side endpoint.
 - **Don't add a firewall `9092` rule on the tailnet hosts reflexively.** Confirm metrics access
   over Tailscale is actually needed before widening a profile — an unneeded inbound rule is attack
   surface for a capability nobody's using yet.
+- **Don't configure the MiNiFi C++ publisher with `nifi.c2.*` property names.** That namespace was
+  wrong (field-corrected 2026-07-29) — the real keys are `nifi.metrics.publisher.*`. See Layer 2.
+- **Don't assume killing the MiNiFi process forces a systemd respawn.** `Restart=on-failure` does
+  not catch a plain `SIGTERM` on this build — confirmed live, the agent stayed down. Use
+  `sudo systemctl restart minifi` (needs a human at the terminal; no passwordless sudo configured).
 
 ## When this ships, update
 
