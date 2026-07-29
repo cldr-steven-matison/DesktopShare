@@ -25,13 +25,18 @@ Bump both, but **the horizontal needs to grow quite a bit more than the vertical
 
 This is EFM-Designer-only — it does **not** change the NiFi defaults.
 
+**Field-validated 2026-07-29 against live EFM flows.** `KubernetesPod` (human-tidied, 3 parallel vertical chains) measures row pitch ≈300 (296–315) and column pitch ≈715 — confirms the numbers above for a **vertical chain** shape. `KubernetesPodPyTest` and `MicroFi` (both flagged cramped) hadn't been rebuilt against the new pitch: `KubernetesPodPyTest` is still the old 200-pitch vertical chain the bump above was written for, and `MicroFi` (2 processors at `(0,0)` → `(400,0)`) isn't even on the vertical axis — see the axis note below. `StarlinkAI` (also human-tidied) uses a shape the row/column split above doesn't cover at all — see "Parallel independent pipelines" below.
+
 ### Per-shape placement rules
+
+Confirm the axis before tuning the pitch — a bigger row/column number only helps if the chain is already stepping the right one. `MicroFi`'s two processors sit at `(0,0)` → `(400,0)`: x-incrementing with constant y, a sideways linear chain, not a cramped vertical one. Default every linear chain to vertical (constant x, `y +=` pitch) unless deliberately building the row-based shape below.
 
 - **Linear chain** — same x, `y += 200` each step (`TwitchChatListener` 0,0 → `RouteOnAttribute` 0,200 → …). **On an EFM Designer build use `y += 300`** per the pitch note in "Grounded constants" above.
 - **Branch / fan-out** (a `RouteOnAttribute`/`RouteOnContent` feeding N targets) — router stays at center; the N targets **share one row** (`y = router.y + 200`) and spread symmetric `x = center ± pitch`. Odd count keeps one target on center (−pitch, 0, +pitch); even count straddles (−pitch/2, +pitch/2 or ±pitch).
 - **Join / merge** (funnel, or several branches into one processor) — the merge target sits at center **x = 0**, one row below the lowest branch row.
 - **Self-loop** (e.g. `Retry` self-loop on `InvokeHTTP`, rule 7) — leave the processor where it is; the loop renders as a small bend, no new column needed. Route the terminal `Failure`/`No Retry` to a log processor one row down — exactly what `TwitchChatBot` does with `LogInvokeFailure` at (0, 600).
 - **Pre-source timers** (a `GenerateFlowFile` timer or roster fetch ahead of the real source) — negative y, above the source (`StreamersApp`: `PollTimer` at y = −264, `GetRoster` at −120).
+- **Parallel independent pipelines (EFM Designer only)** — N short, mostly-unrelated pipelines (e.g. `ListenHTTP → EvaluateJsonPath → InvokeHTTP` repeated per pipeline) that only converge at one shared downstream sink. Don't stack them into one tall vertical chain — lay each pipeline out as its own **horizontal row** (source on the left, reading left-to-right, each role sharing one column per "Deriving from a live flow" below), then stack the rows top-to-bottom. Grounded off `StarlinkAI`: lane-to-lane pitch ≈190–200 (tighter than the 300 stage pitch above — there's no connecting line to clear between lanes), stage-to-stage column pitch ≈600 (the same branch-column number, but here it's the main reading-direction pitch, not a spread), and the shared merge sink pushed a further ≈950–1000 out past the last per-lane column to leave room for the multi-way fan-in.
 
 ### Inserting a new node into an existing connection
 
