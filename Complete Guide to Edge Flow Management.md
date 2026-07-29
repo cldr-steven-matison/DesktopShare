@@ -45,7 +45,7 @@ issue, a bare `#n` is still open. Issues base URL:
 | 13 | S2S: NiFi K8s → Cloudera Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | FTF3XR2065 | — | CDP Data Hub (corp VPN/CDP access) |
 | 14 | S2S: Cloudera DataFlow → Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | FTF3XR2065 | — | CDP-to-CDP (corp VPN/CDP access) |
 | 15 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | any | — | Resummarize into this chapter and cross-reference the source doc for the full content, don't just link out |
-| 16 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | FTF3XR2065 | [#14](https://github.com/cldr-steven-matison/DesktopShare/issues/14) | #14: draft `blog/Blog How to AI with MiNiFi.md` from all source docs — theme is *using* MiNiFi via AI agents (EFM/agent flows from the `nifi-and-ai` skill), sections for custom Python processors and ExecuteScript, references the EFM Binaries blog; StarlinkAI is an example, not the theme. Authoring moved to FTF3XR2065 (was StarlinkAI) |
+| 16 | How to AI with MiNiFi | `completed/how-to-ai-with-minifi.md` (subplan), `beelink-starlink-efm-ai.md` | `how-to-ai-with-minifi-blog.md` (drafted 2026-07-29, pending images + publish) | 🟡 ✍️ | Partial | FTF3XR2065 | [#14](https://github.com/cldr-steven-matison/DesktopShare/issues/14), [#24](https://github.com/cldr-steven-matison/DesktopShare/issues/24) | Blog drafted from all source docs (#14) — theme is *using* MiNiFi via AI agents (custom Python processors + ExecuteScript sections, EFM Designer write contract, StarlinkAI router as the example, references the EFM Binaries blog). Gather images/screenshots (#24), then publish to blog repo `_posts/` and flip to ✅📝. Transcription endpoint stays honestly flagged as open (Ch17 / #18), not featured |
 | 17 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | StarlinkAI | [#18](https://github.com/cldr-steven-matison/DesktopShare/issues/18) | #18: resolve the transcription validation issues so all GPU services are operational, then update this plan with progress |
 | 18 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | any | — | Accumulate flows as built |
 | 19 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | WindowsDesktop | — | Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
@@ -121,7 +121,7 @@ Promotion flow for each piece of content:
 - `efm-binaries-blog.md` — Ch2 blog draft plan
 - `minifi-python-processors.md` — Ch6
 - `minifi-site-to-site.md` — Ch10–14 (all five paths)
-- `how-to-ai-with-minifi.md` — Ch16
+- `how-to-ai-with-minifi-blog.md` — Ch16 blog draft (subplan archived at `completed/how-to-ai-with-minifi.md`)
 - `minifi-sample-gallery.md` — Ch18
 - `sparkplug-demo.md` — Ch20
 - `efm-metrics.md` — Ch21 (EFM actuator + MiNiFi C++ publisher + heartbeat metrics → CSO Prometheus/Grafana)
