@@ -27,6 +27,7 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | EFM Prometheus endpoint serves on **`efm-ui`/10090**, not `metrics`/9092 | Field-verified 2026-07-29 — `10090/efm/actuator/prometheus` returns 1429 lines of `efm_*` metrics; `9092` accepts a TCP connection but returns an **empty reply** (no `management.server.port=9092` set). The old "metrics port is 9092" claim was a Service-definition artifact, not a live scrape. | ✅ |
 | EFM scrape wired into CSO Prometheus via `ServiceMonitor` (port `efm-ui`) | Field-verified 2026-07-29 — `ServiceMonitor` applied, target `http://10.244.x.x:10090/efm/actuator/prometheus` green, `up{job="efm"}=1` in Prometheus | ✅ |
 | MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. Wiring the endpoint into the CSO Prometheus as a scrape target (WindowsDesktop) is still open. | 🟡 |
+| MiNiFi Java (`WindowsDesktop` class) metrics | Field-validated 2026-07-29 (WindowsDesktop, issue #20) — **no drop-in equivalent of the C++ publisher exists**. No `nifi.metrics.publisher.*`-style properties, no Prometheus reporting-task NAR shipped, embedded web API (`nifi.web.http.port`) disabled (fully headless). Needs a real design decision (enable the web API vs. source/build a reporting-task NAR), not a config toggle. See Layer 2 below. | 🔲 |
 | XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
 
 ## Layer 0 — get EFM running (prerequisites + deploy)
@@ -322,6 +323,66 @@ the same one from the S2S and agent chapters):
   10090` and generic Kafka `9092` rules, but no EFM-metrics `9092` rule, and Tailscale's adapter
   can land on a firewall profile the existing rules don't cover. Don't add a `9092` rule blindly —
   confirm metrics-over-tailnet is actually wanted first (see `beelink-starlink-efm-ai.md`).
+
+### WindowsDesktop-class field validation (2026-07-29, issue #20)
+
+Both real physical `WindowsDesktop`-class agents are confirmed ONLINE and heartbeating (verified
+via `cso-operator-app`'s `/api/efm/agents`, which reads EFM's Postgres registry directly — see
+[[project-efm-agent-registry-fix-2026-07-18]]):
+
+- **`WindowsDesktop` (Java)** — MiNiFi Java `2.24.08.0-19`, running as a bootstrap+worker Java
+  process pair (`RunMiNiFi` + `org.apache.nifi.minifi.MiNiFi`), not a Windows service. Install root
+  `C:\Users\tunas\minifi-java\minifi-2.24.08.0-19`. Agent id `eeb8cd53-656e-4dc2-b1d0-8b025cb2fd19`
+  (`c2.agent.identifier` in `minifi.properties`, matches EFM).
+- **`WindowsDesktopCpp` (C++)** — MiNiFi C++ `1.26.02` (Cloudera build), the same line as
+  NvidiaNano/StarlinkAI, running as the `Apache NiFi MiNiFi` Windows service. Install root
+  `C:\Windows\System32\nifi-minifi-cpp`. Agent id (fallback)
+  `ea11f1bb-89cc-11f1-a204-c48b66d5e900`.
+
+**Layer 1 (EFM server metrics) confirmed on this host's own `cld-streaming` cluster** — same
+result as FTF3XR2065's: `http://192.168.1.121:10090/efm/actuator/prometheus` returns 1965 lines of
+real `efm_*` text; `:9092` doesn't even accept a TCP connection locally (worse than FTF3XR2065's
+"empty reply" case, same underlying trap — no `management.server.port=9092` configured). No
+`ServiceMonitor` CRD exists on this cluster (confirmed: `kubectl get crd | grep servicemonitor`
+empty, no `prometheus`/`grafana` pods anywhere) — there is no Prometheus/Grafana stack here yet.
+That's issue #19, not done; wiring a scrape target is blocked on it for both Layer 1 and Layer 2
+on this host.
+
+**Layer 2, C++ (`WindowsDesktopCpp`) — same drop-in pattern as NvidiaNano, not yet enabled.**
+`extensions\minifi-prometheus.dll` is present. `conf\minifi.properties` carries the same
+`nifi.metrics.publisher.*` block as NvidiaNano's corrected template, shipped commented out.
+`conf\minifi.properties.d\` already exists (holds EFM's `90_c2.properties`). Turning this on is a
+config-file addition (a new `95-metrics.properties` under `minifi.properties.d\`) plus a service
+restart — not yet done this session, restart needs a fresh go-ahead per `agent/incident-rules.md`.
+
+**Layer 2, Java (`WindowsDesktop`) — genuinely different and harder than C++, no drop-in property.**
+This is the real finding of this pass. MiNiFi Java has no equivalent of the C++ publisher:
+- `minifi.properties` has no `metric`/`prometheus`/`reporting` properties at all (grepped, zero
+  hits) — there's no commented-out template to uncomment, unlike C++.
+- `bootstrap.conf`'s only documented "Status Reporter" is
+  `org.apache.nifi.minifi.bootstrap.status.reporters.StatusLogger` — logs periodic status to a
+  file, not a metrics endpoint.
+- The live `flow.json.gz` has `"reportingTasks":[]` — no reporting task configured, and no
+  Prometheus-capable reporting-task NAR is even present in `lib\` or `extensions\` (checked both;
+  only `nifi-site-to-site-reporting-nar` ships, which is S2S provenance reporting, not Prometheus).
+- `nifi.web.http.port` is **empty** — this MiNiFi Java instance runs fully headless, no embedded
+  Jetty web server at all. The NiFi 2.x built-in `/nifi-api/flow/metrics/prometheus` REST endpoint
+  (the mechanism that replaced `PrometheusReportingTask` — see the playbook's own note under "For
+  contrast" in `SKILL.md`) can't be reached without first turning that web server on.
+
+**So getting Layer 2 metrics out of the Java agent means picking one of two real changes, not a
+config toggle**: (a) set `nifi.web.http.port` to stand up the embedded web API just for
+`/nifi-api/flow/metrics/prometheus` (turns a headless edge agent into one exposing the full NiFi
+REST surface — a real security/footprint decision, not just a metrics one), or (b) find/build a
+Prometheus reporting-task NAR and add it via an EFM Designer flow edit (same live-flow-edit
+category as issue #25's fix, and no such NAR is confirmed to exist for MiNiFi Java as shipped).
+Neither was attempted this session — this needs a decision from Steven, not a default pick (this
+repo's `agent/incident-rules.md` "no module-flag defaults" rule applies squarely here: this is
+exactly the kind of "pick a better default" call that needs an explicit ask).
+
+**Status: field-validated, not yet enabled.** C++ is a known, low-risk config-and-restart away.
+Java needs a real design decision first. Both restarts need a fresh go-ahead regardless. The
+Grafana-panel step is out of scope until #19 lands a Prometheus/Grafana stack on this host.
 
 ## Layer 3 — embedded / heartbeat metrics (XIAO/microfi)
 

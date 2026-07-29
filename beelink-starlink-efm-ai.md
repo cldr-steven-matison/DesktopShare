@@ -164,7 +164,7 @@ Also check the EFM UI's per-processor In/Out counters directly (`ListenHTTP` →
 
 **Not yet root-caused, not currently blocking:**
 - [ ] EFM C2 heartbeat timeouts (~18:34 onward, `efm-host-ip:10090`) — seen once, not investigated further, may have been related to the zellij/port-forward outage above. **Recurring again as of 2026-07-29**, tracked by #11.
-- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — **2026-07-29 re-test: now reproduces on all 5 pairs, not just transcription** (was thought transcription-only as of 2026-07-23). See "Re-verification from StarlinkAI (2026-07-29)" below. Fix handed off to WindowsDesktop as [#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25).
+- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — **2026-07-29 re-test: now reproduces on all 5 pairs, not just transcription** (was thought transcription-only as of 2026-07-23). See "Re-verification from StarlinkAI (2026-07-29)" below. Fix handed off to WindowsDesktop as [#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25). **Partial fix from WindowsDesktop (2026-07-29, same day)**: a clean flow republish fixed chat/embeddings/reranking (confirmed via real Kafka consume). Speech and transcription still drop every request — property comparison ruled out a config difference, and a full StarlinkAI service restart ruled out stuck runtime state too. Points at a real payload-shape-specific bug (binary/multipart) that needs StarlinkAI's own log to pinpoint. See "Property comparison + service restart" below.
 
 **New endpoint pairs (embeddings/reranking/speech/transcription, ports 8081-8084) — status as of 2026-07-29 (supersedes the 2026-07-23 entry below):**
 - [x] All 5 `ListenHTTP` ports confirmed bound (`netstat`), agent has picked up the flow
@@ -370,6 +370,76 @@ from here even if that were in scope, and can't confirm via Kafka whether anythi
 and suggested next steps (republish once #11 clears, try `Batch/Buffer Size: 2`, check for a
 newer MiNiFi C++ build). No flow write, no restart attempted from StarlinkAI this pass — per the
 2026-07-23 decision, the write stays with the EFM host session.
+
+## Republish + retest from WindowsDesktop (2026-07-29, issue #25)
+
+Picked up #25's suggested first step now that #11's EFM connectivity gap is resolved (the
+Tailscale-bound `kubectl port-forward` to `svc/efm` was hung on a stale PID; a fresh zellij pane
+set replaced it and 3/3 curls to `/efm/actuator/health` over Tailscale came back clean `200`s).
+
+**Flow was already clean before touching anything** — live `GET .../flows/a05b9ca5-...` showed
+`flowVersion: 16`, `dirty: false`, `localChanges: false`, all 5 `ListenHTTP` pairs still correctly
+persisted at `Batch Size`/`Buffer Size: 1`. Republished anyway (`POST .../publish`) to force a
+clean resync to the agent, per the suggested first step — now `flowVersion: 17`.
+
+**Verified via real Kafka consume from WindowsDesktop (`kubectl exec ... kafka-console-consumer.sh`
+against `StarlinkAI-response`), not HTTP 200 alone** — this is the check StarlinkAI's own session
+couldn't do (no `kubectl` there). Sent one fresh request per endpoint with a unique `request_id`,
+then confirmed by topic offset delta + content match, not just presence of *a* message:
+
+| Endpoint | HTTP | Landed in Kafka with real content |
+|---|---|---|
+| `/contentListener` (chat, 8080) | 200 | **Yes** — real Lemonade completion |
+| `/embeddings` (8081) | 200 | **Yes** — real embedding vector |
+| `/reranking` (8082) | 200 | **Yes** — real relevance scores |
+| `/speech` (8083) | 200 | **No** — retested twice (incl. a second fresh `request_id`, 12s wait), topic offset never moved |
+| `/transcriptions` (8084) | 200 | **No** — retested twice, same as speech |
+
+**The republish fixed 3 of 5 pairs** — chat, embeddings, and reranking, which the 2026-07-29
+StarlinkAI-side re-test had found newly regressed (all 5 failing), are confirmed working again
+end-to-end. **Speech and transcription remain broken**, unchanged from every prior test. This
+narrows the earlier "all 5 regressed" finding: whatever the republish fixed (likely theory 2 from
+the StarlinkAI-side write-up — flow drift from the 2026-07-28 service restart) explains
+chat/embeddings/reranking, but speech and transcription have a distinct, still-unresolved cause.
+Both remaining-broken pairs are structurally different from the 3 that now work: speech returns
+binary MP3 (not JSON), and transcription is multipart with no `EvaluateJsonPath` step — consistent
+with the original working theory that binary/multipart payloads trip `ListenHTTP`'s buffer-full
+check (`MINIFICPP-2243`-shaped) in a way single-write JSON POSTs don't.
+
+**Stopped here per the session's scope** — next step (try `Batch Size`/`Buffer Size: 2` on the two
+still-broken pairs) needs a fresh ask before touching the live flow again.
+
+### Property comparison + service restart — config and runtime state both ruled out
+
+Before guessing at a property tweak, diffed every property across all 5 live `ListenHTTP`
+processors (and their downstream `InvokeHTTP`/`EvaluateJsonPath`) from the flow JSON pulled above.
+**Result: zero property differences** between the 3 now-working pairs and the 2 still-broken pairs,
+other than the expected per-service `Base Path`/`Listening Port`/`Remote URL` (and transcription's
+`request_id` header-regex, which it needs). `ListenHTTP-Speech`'s `Buffer Size`, `Batch Size`, and
+every other setting are byte-identical to `ListenHTTP-Reranking`, which now works fine. This rules
+out a processor-property fix — there's nothing different to tune between the working and broken
+pairs.
+
+That pointed at runtime/agent state instead (a stuck thread or wedged buffer in those two specific
+processor instances, from an earlier failed multipart/binary request, that a flow republish
+wouldn't clear since republish only reloads the flow definition). **Steven restarted the StarlinkAI
+MiNiFi service directly.** Retested both endpoints post-restart with fresh `request_id`s, same
+method as before (HTTP 200 + Kafka offset/content check, 12s wait): **offset didn't move, neither
+request landed.** Confirmed via the raw consumer dump, not just an absent grep hit.
+
+**So both config and runtime state are ruled out — the differentiator is payload shape.** Speech's
+response from Lemonade is binary MP3 (not JSON like the working 3), and transcription's request is
+multipart (not single-write JSON like the working 3). Both still-broken pairs are the only two
+whose payload isn't a simple single-write JSON body in both directions. This is consistent with the
+original 2026-07-17 theory (a `MINIFICPP-2243`-shaped buffer-full-check bug specific to
+multi-phase/binary content), now with config and stuck-state both eliminated as alternate
+explanations — not just a hunch.
+
+**What's needed next isn't available from WindowsDesktop**: pinpointing which processor actually
+drops the content (`ListenHTTP` itself, or something downstream choking on binary/multipart
+flowfile content) requires StarlinkAI's own `minifi-app.log`, which only a StarlinkAI-side session
+can read. This is StarlinkAI's next pickup, not WindowsDesktop's — the EFM/flow-side levers
+available from here (republish, restart) are now both exhausted without effect.
 
 ## ExecuteScript Python proven on StarlinkAI (2026-07-28)
 
