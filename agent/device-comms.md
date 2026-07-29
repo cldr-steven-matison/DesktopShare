@@ -76,6 +76,14 @@ that runs `.claude/hooks/checkin.sh` on every session start:
    lose to a stale local copy). Prints one line per skill updated; silent when current.
 3. Maps the host to its `device:*` label(s) via the case block in the script and
    lists that inbox with `gh issue list --state open`.
+4. For any issue still labelled `status:todo`, emits a **CLAIM-FIRST banner** with the
+   exact `gh issue edit … status:in-progress` command per issue. Sessions kept starting
+   work without flipping the label; prose here alone didn't stop it, so the
+   guaranteed-seen session-start context now spells out the claim command. This is
+   backed by a deterministic backstop in the `PreToolUse` Bash guard
+   (`.claude/hooks/guard.sh`): marking an issue `status:review`/`status:done` while it
+   still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
+   can land.
 
 The result is injected into the session as context, so the open issues for this
 host are visible before any work starts. The hook **fails open** (a missing
@@ -103,6 +111,9 @@ upkeep rules:
    ```bash
    gh issue edit <n> --remove-label status:todo --add-label status:in-progress
    ```
+   This is now enforced two ways (see "Automated check-in" above): the SessionStart hook
+   surfaces a claim command for every `status:todo` issue, and the Bash guard prompts if you
+   try to mark an issue `review`/`done` that was never claimed.
 2. **The body is a pointer, not the spec.** It names a golden-source doc (e.g.
    `efm-validation-agent.md`); the doc holds the exact commands and the report-back template.
    This is the *cross-reference, don't cross-link* rule applied to issues — the detail lives in
