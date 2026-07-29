@@ -1,6 +1,6 @@
 # MiNiFi Custom Python Processors
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task below still 🔲.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10). Remaining legs (Windows MSI via EFM Resources, Jetson aarch64 real HW, Java) still 🔲.**
 
 Authoring **custom processors in Python** and loading them into a MiNiFi C++ agent at the
 edge — the MiNiFi counterpart to the NiFi 2.x custom Python processors we already run in
@@ -211,14 +211,70 @@ running config off the pod, don't assume the install layout.
 
 | Runtime | Platform | Host / route (label) |
 |---|---|---|
-| C++ | Linux arm64 (this k8s test) | FTF3XR2065 local minikube (`device:FTF3XR2065`) — **do this one first** |
-| C++ | Linux x86_64 | WindowsDesktop minikube (`device:WindowsDesktop`) |
+| C++ | Linux arm64 (this k8s test) | FTF3XR2065 local minikube (`device:FTF3XR2065`) — **✅ done, issue #6** |
+| C++ | Linux x86_64 | WindowsDesktop minikube (`device:WindowsDesktop`) — **✅ done, issue #10** |
 | C++ | Windows (MSI, Path D box) | WindowsDesktop (`device:WindowsDesktop`) |
 | C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via WindowsDesktop SSH) — high-confidence if the arm64 k8s leg passes |
 | Java | CEM Java agent | WindowsDesktop or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) |
 
-Only the k8s (arm64 C++) leg is in scope for the first issue; the rest are filed as their own
-tickets once this one lands.
+The k8s (arm64 C++) leg (issue #6) and k8s (x86_64 C++) leg (issue #10) are both done. Issue #10
+additionally closed the gap #6 left open — the full EFM Designer build-and-publish path, not a
+hand-authored local `config.yml` — see the result block below. Remaining legs are filed as their
+own tickets.
+
+#### Result — k8s x86_64 C++ leg (issue #10, 2026-07-29, WindowsDesktop)
+
+Ran against a **new, disposable agent class/pod** (`KubernetesPodPyTest` /
+`minifi-agent-k8s-pytest`), not the host's existing `KubernetesPod` agent — that class/pod
+(`minifi-agent-k8s-gaming`) turned out to already carry a live production flow (the
+matrix-screensaver / streamChat automation from `project_beelink_mpv_stream_loader.md`), so it
+was left untouched rather than overwritten. See `ClouderaStreamingOperators/minifi-agent-pod-pytest.yaml`.
+
+- **Prereqs confirmed live:** `nifi.asset.directory=${MINIFI_HOME}/asset`; `AssetInformation` ∈
+  `nifi.c2.root.classes`; `.so` pair present (`libminifi-python-script-extension.so` +
+  `minifi_native.so`); `nifi.python.processor.dir` default `${MINIFI_HOME}/minifi-python/`, set to
+  `${MINIFI_HOME}/asset` for the crux test — identical mechanism to the arm64 leg.
+- **Resource lifecycle — full cycle exercised (the part #6 didn't do):** v1 uploaded → assigned →
+  asset-synced (~seconds, `.state` digest matched) → **unassign → delete → re-upload (v2) →
+  reassign** (no in-place update, matches the skill doc's §9) → repeated once more for v3. Each
+  unassign+delete produced a real C2 removal (`AssetManager` log: "We no longer need asset" →
+  "Successfully deleted obsolete asset") before the next asset landed. Ended by restoring the
+  canonical v1 content as the final assigned resource.
+- **Type discovery:** processor-dir-into-asset-dir, same as arm64 — `PythonCreator` log:
+  "Adding .../asset/EdgeTagger.py to paths" → "Registering MiNiFi python processor: EdgeTagger".
+- **EFM Designer build + publish (the gap #6 left open):** built `ListenHTTP → EdgeTagger →
+  LogAttribute → PutFile` via the real Designer API (`POST .../processors` ×4, `POST
+  .../connections` ×3) — **not** a hand-written `config.yml`. First validate attempt returned
+  `"Processor is of type org.apache.nifi.minifi.processors.EdgeTagger, but this is not an
+  available Processor type"` — the agent class's bound manifest hadn't refreshed to the one
+  containing EdgeTagger yet; fixed with `PUT /agent-classes/{name}` pointing `agentManifests` at
+  the new manifest id (confirmed first via `GET /agent-classes/{name}/manifest-diff`), then
+  deleting and recreating the EdgeTagger processor component so its `propertyDescriptors`
+  resolved against the refreshed manifest. After that: **zero validation errors.** Published via
+  `POST /designer/flows/{id}/publish`; the agent picked it up on its next heartbeat (`"Starting to
+  reload Flow Controller"` in the agent log), `ListenHTTP` bound the new port, 3 test POSTs → 3/3
+  `edge.tag=field-test-x86_64` landed at `LogAttribute`, 3/3 files written by `PutFile`. No drops
+  (Batch/Buffer Size = 1).
+- **Restart / hot-reload — style comparison:** this leg used the same **`minifi_native`
+  function-style** processor as #6 (`describe`/`onInitialize`/`onTrigger` module functions), not
+  the `nifiapi` class-style #4 used on Windows. Result matches #6, not #4: an **`onTrigger`-only
+  code change hot-reloaded with no restart** (added an `edge.reload` attribute; POSTed a payload
+  immediately after the resource-lifecycle swap, no agent restart, and the new attribute appeared
+  on the very next trigger). A **`describe()`/`onInitialize()` (type-signature) change required a
+  restart** to take effect locally — confirmed via the agent's own log (`PythonCreator` only
+  re-registers at process init) — but with one added nuance: EFM's own tracked `agentManifestId`
+  for the class did **not** change even after the restart, because EFM's manifest content-hash
+  appears to be structural (type/property/relationship names) and doesn't factor in the freeform
+  `typeDescription` text. So a description-only edit is a real, restart-required local change that
+  is nonetheless invisible to EFM's own manifest-diff bookkeeping — a Designer palette/tooltip
+  reading the description text could go stale for that reason and not be caught by the normal
+  "new manifest available" signal.
+- **Artifacts:** `files/efm-python-processor-x86_64/EdgeTagger.py`,
+  `KubernetesPodPyTest-flow-export.json`, `agent-manifest.json`, `edgetagger-manifest-entry.json`,
+  `minifi.properties.snippet`; `ClouderaStreamingOperators/minifi-agent-pod-pytest.yaml`.
+- **Left running:** `minifi-agent-k8s-pytest` pod, EFM class `KubernetesPodPyTest`, with the
+  canonical `EdgeTagger.py` assigned and the published flow live — a disposable test agent, safe
+  to tear down or leave for review.
 
 ### Report-back template (paste into the issue comment when done)
 
@@ -264,8 +320,10 @@ gets the authored-processor count/mechanics folded in, not left to drift). If th
 AI work, it also becomes one of the capabilities the "How to AI with MiNiFi" post covers —
 as one option among several, not the whole post.
 
-**Not there yet as of 2026-07-28** — the Windows C++ leg (`WindowsDesktopCpp`) is fully proven
-(registration + real flow + real transform, see above) but the k8s/arm64 leg
-(`KubernetesPod`/FTF3XR2065, the "Field-validation task" below) hasn't started, and step 5's
-Playground packaging wasn't done this session either. Ship criteria: both legs proven AND
-packaged, not just one.
+**Not there yet as of 2026-07-29** — three legs are now fully proven end-to-end: Windows C++
+(`WindowsDesktopCpp`, issue #4), k8s arm64 C++ (`KubernetesPod`/FTF3XR2065, issue #6), and k8s
+x86_64 C++ (`KubernetesPodPyTest`/WindowsDesktop, issue #10, the first leg to also prove the full
+EFM Designer build-and-publish path rather than a local `config.yml`). Still open: Windows MSI via
+EFM Resources specifically (not just direct file placement), Jetson aarch64 on real hardware, the
+Java CEM agent, and step 5's Playground packaging (not done on any leg yet). Ship criteria: all
+legs proven AND packaged, not just three of them.
