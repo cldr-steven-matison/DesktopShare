@@ -50,7 +50,7 @@ The tracker is narrow by design — cells **stack top-to-bottom**:
 | **14**<br>🔲<br>— | **S2S: Cloudera DataFlow → Data Hub**<br>src `minifi-site-to-site.md` (stub)<br>blog — | No | FTF3XR2065 | CDP-to-CDP (corp VPN/CDP access) |
 | **15**<br>✅📝<br>— | **How to AI with NiFi and Python**<br>src NiFi2 Processor Playground<br>blog `_posts/2026-05-06-How to AI with NiFi and Python.md` | Yes | any | Resummarize into this chapter and cross-reference the source doc for the full content, don't just link out |
 | **16**<br>🟡✍️<br>[#14](https://github.com/cldr-steven-matison/DesktopShare/issues/14), [#24](https://github.com/cldr-steven-matison/DesktopShare/issues/24) | **How to AI with MiNiFi**<br>src `completed/how-to-ai-with-minifi.md` (subplan), `beelink-starlink-efm-ai.md`<br>blog `how-to-ai-with-minifi-blog.md` (drafted 2026-07-29, pending images + publish) | Partial | FTF3XR2065 | Blog drafted from all source docs (#14) — theme is *using* MiNiFi via AI agents (custom Python processors + ExecuteScript sections, EFM Designer write contract, StarlinkAI router as the example, references the EFM Binaries blog). Gather images/screenshots (#24), then publish to blog repo `_posts/` and flip to ✅📝. Transcription endpoint stays honestly flagged as open (Ch17 / #18), not featured |
-| **17**<br>🟡<br>[#18](https://github.com/cldr-steven-matison/DesktopShare/issues/18) | **Edge-AI router case study**<br>src `beelink-starlink-efm-ai.md`<br>blog — | Partial | StarlinkAI | Field: transcription 100%-drop open. #18: resolve the transcription validation issues so all GPU services are operational, then update this plan with progress |
+| **17**<br>🟡<br>[#18](https://github.com/cldr-steven-matison/DesktopShare/issues/18), [#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25) | **Edge-AI router case study**<br>src `beelink-starlink-efm-ai.md`<br>blog — | Partial | WindowsDesktop | Field: 2026-07-29 re-test found `ListenHTTP` buffer-drop hits all 5 pairs, not just transcription. #25: WindowsDesktop fixes the flow-wide bug (was blocked on #11's EFM connectivity, now resolved), re-verify all 5 pairs from StarlinkAI, then #18 closes and this row flips to ✅ |
 | **18**<br>🔲<br>— | **Sample gallery of MiNiFi flows**<br>src `minifi-sample-gallery.md` (stub)<br>blog — | No | any | Accumulate flows as built |
 | **19**<br>🟡✍️<br>— | **EFM + NVIDIA Jetson use case**<br>src `efm-nvidia-jetson-nano.md`<br>blog — | Partial | WindowsDesktop | Field: flow runs; post has stubs. Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
 | **20**<br>🟡<br>— | **SparkPlug demo**<br>src `sparkplug-demo.md` (stub), `sparkplug-iott.md`<br>blog — | Unknown | WindowsDesktop | Field: assess `sparkplug-iott.md`. Assess existing depth (or the incoming SensorClass device once checked in) |
@@ -59,7 +59,17 @@ The tracker is narrow by design — cells **stack top-to-bottom**:
 **Open issues not yet mapped to a chapter:**
 [#9](https://github.com/cldr-steven-matison/DesktopShare/issues/9) — MicroFi (ESP32 MiNiFi C2
 agent) on the XIAO field-validated against EFM (`efm-xiao-microfi.md`, `device:StarlinkAI`); an
-edge-device validation that may seed a future Part V/VII chapter.
+edge-device validation that may seed a future Part V/VII chapter. **2026-07-29: Tasks 1-6 of 8
+done.** Chip pinned (ESP32-S3 Sense — has a camera + microSD slot, not the base board),
+LAN-direct to WindowsDesktop (`192.168.1.121`, bypassing Tailscale/Starlink), build/flash/first
+heartbeat all succeeded (real EFM `200`, manifest exactly `GenerateFlowFile`+`LogAttribute`,
+`StarlinkAI`'s live agent confirmed unaffected). **Stopped before Task 7/8**: this unit's actual
+flash is 2MB, smaller than any of MicroFi's 3 shipped partition layouts — the 4MB env's `littlefs`
+partition extends ~2MB past the physical chip, and Task 7's flow push would write into that
+out-of-bounds range. Needs either a from-scratch 2MB partition table or (now that we know it's a
+Sense board) using the onboard microSD via `CONFIG_MICROFI_SD_OVERFLOW` instead. The doc's
+original load-bearing question (EFM 2.3.1.0-2's implicit-ack behavior) is still untested pending
+that.
 [#4](https://github.com/cldr-steven-matison/DesktopShare/issues/4) — a Windows Python processor
 for the Streamers `TwitchChatListener` (`device:WindowsDesktop`); belongs to **cso-operator-app**,
 out of scope for this guide, tracked here only for correlation.
