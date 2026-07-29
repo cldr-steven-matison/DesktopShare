@@ -383,7 +383,7 @@ buffer is NOT full 1/5
 
 ### PublishKafka — NodePort vs in-cluster
 
-**Symptom:** `PublishKafka` fails with `Connection refused` or `LEADER_NOT_AVAILABLE` when the agent is running outside the Kubernetes cluster (EFM-deployed edge agent, Beelink/StarlinkAI shape).
+**Symptom:** `PublishKafka` fails with `Connection refused` or `LEADER_NOT_AVAILABLE` when the agent is running outside the Kubernetes cluster (EFM-deployed edge agent, StarlinkAI shape).
 
 **Diagnosis:** The `Known Brokers` property is set to the in-cluster DNS name and port (`my-cluster-kafka-bootstrap.cld-streaming.svc:9092`). That address is only reachable from inside the cluster.
 

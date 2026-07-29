@@ -1,6 +1,6 @@
 # Twitch Chat Bot — Multi-Screen Stream Loader + Chat Automation
 
-**Status (2026-07-24):** Live and confirmed working end-to-end: screen1 (NvidiaNano/Jetson), screen2 (gaming PC via `KubernetesPod`), `!matrix` screensaver trigger, `!commands`/`!help`, on-demand `!watchlist`, join announcement (no longer auto-posts the watchlist — see section 3), dispatch-success chat confirmation, and — new this session — the watchlist channel-join bot (section 13). All built entirely inside existing infra — no standalone bot process, everything runs as NiFi/MiNiFi processors managed through the normal deployment paths (API, EFM Flow Designer/Resource Manager). See the `TODO / To Review` section at the bottom for what's still open.
+**Status (2026-07-24):** Live and confirmed working end-to-end: screen1 (NvidiaNano/Jetson), screen2 (WindowsDesktop via `KubernetesPod`), `!matrix` screensaver trigger, `!commands`/`!help`, on-demand `!watchlist`, join announcement (no longer auto-posts the watchlist — see section 3), dispatch-success chat confirmation, and — new this session — the watchlist channel-join bot (section 13). All built entirely inside existing infra — no standalone bot process, everything runs as NiFi/MiNiFi processors managed through the normal deployment paths (API, EFM Flow Designer/Resource Manager). See the `TODO / To Review` section at the bottom for what's still open.
 
 ---
 
@@ -8,7 +8,7 @@
 
 **Goal:** Let viewers in Twitch chat trigger physical actions — loading a stream full-screen on a specific monitor across the array's devices — using one bot account (`@TunaStreetTest`) and the existing MiNiFi/EFM infrastructure.
 
-**Achieved scope:** 2 screens (NvidiaNano, gaming PC), plus a bonus `!matrix` screensaver trigger and chat-automation features (commands, announcements, dispatch confirmations) beyond the original stream-loading goal. The original 4-5 screen/mixed-Windows-fleet vision is deferred, not abandoned — see TODO.
+**Achieved scope:** 2 screens (NvidiaNano, WindowsDesktop), plus a bonus `!matrix` screensaver trigger and chat-automation features (commands, announcements, dispatch confirmations) beyond the original stream-loading goal. The original 4-5 screen/mixed-Windows-fleet vision is deferred, not abandoned — see TODO.
 
 ## 2. High-Level Architecture
 
@@ -20,7 +20,7 @@ TwitchChatListenerProcessor (custom NiFi Python processor, persistent IRC socket
 TwitchChatBot process group (mynifi, isolated from StreamersApp/LiveStreamerAlert)
   RouteOnAttribute → InvokeHTTP (per device)
         ↓
-Edge MiNiFi agents (EFM-managed): NvidiaNano, KubernetesPod (gaming PC)
+Edge MiNiFi agents (EFM-managed): NvidiaNano, KubernetesPod (WindowsDesktop)
   ListenHTTP → ExecuteScript → Chromium (kiosk, forced fullscreen)
 ```
 
@@ -43,7 +43,7 @@ See the mermaid diagram at the bottom for the full real topology (Kafka, EFM, op
 | Logical target | Device (EFM agent class) | Mechanism |
 |---|---|---|
 | `screen1` | `NvidiaNano` (Jetson Orin Nano) | `ListenHTTP` (`streamChatListener`, :8081) → `ExecuteScript` (`agent-NvidiaNano-launch_stream.py`) |
-| `screen2` | `KubernetesPod` (gaming PC, pod has no GUI socket access) | `ListenHTTP` (:8082 on the pod) → `ExecuteScript` POSTs to `browser_launcher.py`, a native Windows listener (`host.docker.internal:5901`) that owns the real Chrome launch |
+| `screen2` | `KubernetesPod` (WindowsDesktop, pod has no GUI socket access) | `ListenHTTP` (:8082 on the pod) → `ExecuteScript` POSTs to `browser_launcher.py`, a native Windows listener (`host.docker.internal:5901`) that owns the real Chrome launch |
 | `matrix-screen1` | `NvidiaNano` | second `ListenHTTP` (`matrixListener`, :8082) → `ExecuteScript` (`agent-NvidiaNano-launch_matrix.py`) |
 
 Routing is `RouteOnAttribute` inside `TwitchChatBot`, branching on `${screen}` (`screen1`/`screen2`/`matrix-screen1`, plus `matrix-screen2`/`3`/`4` added later — see `claude-screen.md`) — `InvokeNvidiaNano`, `InvokeGamingPC`, `InvokeNvidiaNanoMatrix`. (Renamed from bare `matrix` to `matrix-screen1` on 2026-07-25 to unify with the other screens' explicit numbering — same endpoint, only the internal routing name changed.)
@@ -56,13 +56,13 @@ Routing is `RouteOnAttribute` inside `TwitchChatBot`, branching on `${screen}` (
 
 **5.2 Central NiFi** — `TwitchChatBot` process group: `TwitchChatListenerProcessor` → `RouteOnAttribute` → 3× `InvokeHTTP` → `TwitchChatReplyProcessor` (dispatch-success chat confirmation, wired off each `InvokeHTTP`'s `Original` relationship). `TwitchChatReplyProcessor` deliberately does *not* reuse the listener's rotating user token — it mints a stateless App Access Token via Client Credentials grant (Client ID + Secret only), avoiding any collision with the listener's refresh cycle. Posts via Twitch Helix `POST /helix/chat/messages`, not IRC.
 
-**5.3 Edge MiNiFi agents** — `NvidiaNano` and `KubernetesPod` (gaming PC) both run `ListenHTTP`→`ExecuteScript` pairs added onto their existing canvases without disturbing prior flows (the Jetson's TensorRT flow, the pod's other work). Deployed/updated via EFM's real Flow Designer + Resource Manager API (reverse-engineered from EFM's own Angular bundle — no OpenAPI spec exists; full contract in `reference-efm-flow-designer-api` memory). EFM has no in-place asset update — changing a script's content is unassign → delete → re-upload → reassign.
+**5.3 Edge MiNiFi agents** — `NvidiaNano` and `KubernetesPod` (WindowsDesktop) both run `ListenHTTP`→`ExecuteScript` pairs added onto their existing canvases without disturbing prior flows (the Jetson's TensorRT flow, the pod's other work). Deployed/updated via EFM's real Flow Designer + Resource Manager API (reverse-engineered from EFM's own Angular bundle — no OpenAPI spec exists; full contract in `reference-efm-flow-designer-api` memory). EFM has no in-place asset update — changing a script's content is unassign → delete → re-upload → reassign.
 
 ## 6. Browser Launch Logic (as built)
 
 Kill/relaunch Chromium per command (`pkill -9` + dedicated `--user-data-dir` to avoid single-instance flag-ignoring), then force real fullscreen state after launch since Chromium's own `--kiosk`/`--start-fullscreen` flags aren't reliably honored:
 - **Linux (NvidiaNano):** `wmctrl -b add,fullscreen`, polled/detached since MiNiFi C++'s `ExecuteScript` runs on a single shared thread.
-- **Windows (gaming PC, via `browser_launcher.py`):** exact monitor coordinates (`--window-position`/`--window-size`, confirmed via `GetWindowRect`), plus a simulated F11.
+- **Windows (WindowsDesktop, via `browser_launcher.py`):** exact monitor coordinates (`--window-position`/`--window-size`, confirmed via `GetWindowRect`), plus a simulated F11.
 
 The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedicated embed URL, `player.twitch.tv`, was tried and rejected the live channel as "offline" — an embed-parent validation failure, not a real live-status check). To hide Twitch's own sidebar/chat/nav on the real page, both scripts simulate a real viewer action after the page renders: click the player center, then send Twitch's own fullscreen hotkey (`f`).
 
@@ -80,7 +80,7 @@ The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedi
 - **Chat listener/reply**: custom NiFi Python processors (`TwitchChatListenerProcessor`, `TwitchChatReplyProcessor`), not `twitchio`/external bot frameworks.
 - **Central brain**: Apache NiFi 2.x (`mynifi`, `cfm-streaming` namespace).
 - **Edge agents**: MiNiFi C++ (NvidiaNano) and MiNiFi in a `KubernetesPod`, both EFM-managed.
-- **Browser control**: Chromium (`subprocess`/`pkill`/`wmctrl` on Linux; native Windows listener + Win32 window APIs on the gaming PC).
+- **Browser control**: Chromium (`subprocess`/`pkill`/`wmctrl` on Linux; native Windows listener + Win32 window APIs on WindowsDesktop).
 - **Communication**: HTTP between NiFi and edge `ListenHTTP` endpoints; Twitch IRC for chat read/write; Twitch Helix REST for dispatch-confirmation replies and (planned) live-status checks.
 
 ## 9. Security & Best Practices (as built)
@@ -187,7 +187,7 @@ graph TD
     %% Edge Layer
     subgraph Agents ["Edge Devices (EFM Managed)"]
         Nano["NvidiaNano (Jetson)"]
-        Pod["KubernetesPod (Gaming PC)"]
+        Pod["KubernetesPod (WindowsDesktop)"]
         Win["WindowsDesktop"]
         Starlink["StarlinkAI"]
     end

@@ -1,6 +1,6 @@
 # MiNiFi C++ + Python on Windows — Handoff Plan
 
-## 2026-07-27 — Path D FIELD-VERIFIED (MINI-Gaming-G1)
+## 2026-07-27 — Path D FIELD-VERIFIED (WindowsDesktop)
 
 **ExecuteScript Python works on Windows C++ MiNiFi 1.26.02.** Side-by-side with Java `WindowsDesktop` (left running).
 
@@ -68,15 +68,15 @@ C:\minifi\install-service-addlocal.ps1
 C:\minifi\fix-service-c2.ps1
 ```
 
-**Result on G1:** service `Apache NiFi MiNiFi` Running/Automatic; Python ExecuteScript smoke passed again (`python.smoke=windows-cpp-executescript-ok`). Tree landed under `C:\WINDOWS\system32\nifi-minifi-cpp` (Admin `$PWD` trap). Unattended/non-elevated msiexec still **exit 1625**. Full how-to: `efm-executescript.md` § Path D. Beelink: `efm-beelink-cpp-python-action.md`.
+**Result on WindowsDesktop:** service `Apache NiFi MiNiFi` Running/Automatic; Python ExecuteScript smoke passed again (`python.smoke=windows-cpp-executescript-ok`). Tree landed under `C:\WINDOWS\system32\nifi-minifi-cpp` (Admin `$PWD` trap). Unattended/non-elevated msiexec still **exit 1625**. Full how-to: `efm-executescript.md` § Path D. StarlinkAI: `efm-beelink-cpp-python-action.md`.
 
 ---
 
-Written on the Mac (2026-07-22) for future me to pick up on the Windows box (MINI-Gaming-G1 or TunaStarlink — decide before starting). This is the "next time we sit down and look at ExecuteScript-with-Python on Windows, do this" doc. **Superseded for the happy path by the 2026-07-27 section above** — keep the 9-step plan below as failure archaeology.
+Written on the Mac (2026-07-22) for future me to pick up on the Windows box (WindowsDesktop or StarlinkAI — decide before starting). This is the "next time we sit down and look at ExecuteScript-with-Python on Windows, do this" doc. **Superseded for the happy path by the 2026-07-27 section above** — keep the 9-step plan below as failure archaeology.
 
-## 2026-07-22 re-check on MINI-Gaming-G1 (same day, read-only, no action taken)
+## 2026-07-22 re-check on WindowsDesktop (same day, read-only, no action taken)
 
-Sat down on MINI-Gaming-G1 itself (the actual WSL2/Windows box, not the Mac) a few hours after writing the plan above and re-verified everything read-only before touching Step 1. **The clean-slate assumption changed the shape of this plan.** There is no broken install sitting around waiting to be repaired — this box is a clean slate for the Python/ExecuteScript project specifically:
+Sat down on WindowsDesktop itself (the actual WSL2/Windows box, not the Mac) a few hours after writing the plan above and re-verified everything read-only before touching Step 1. **The clean-slate assumption changed the shape of this plan.** There is no broken install sitting around waiting to be repaired — this box is a clean slate for the Python/ExecuteScript project specifically:
 
 - `Get-Service -Name '*minifi*','*NiFi*'` — nothing registered, confirmed twice (narrow filter and a broad `DisplayName -like '*NiFi*'` sweep). No MiNiFi service exists on this box in any form.
 - `C:\WINDOWS\system32\nifi-minifi-cpp\` — does not exist (`Test-Path` → `False`). The bad-location install from the 2026-06-08 transcript is gone.
@@ -86,7 +86,7 @@ Sat down on MINI-Gaming-G1 itself (the actual WSL2/Windows box, not the Mac) a f
 - **EFM `WindowsDesktop` class**: the agent class and its flow (`4615bdc2-823a-4c13-b51d-edc85dd6c929`, flowVersion 2, designerFlowRevision 5) are alive and well in EFM, `created`/`updated` timestamps resolve to 2026-06-11→12 — a few days after the doc's stated 06-08 install date, consistent with "installed 06-08, flow edited a few days later." One correction to Step 4's flow description: the actual deployed flow is `ListenHTTP → ExecuteScript → PublishKafka`, not `→ LogAttribute` as the plan's smoke-test steps describe — use `PublishKafka` as the observed downstream if reproducing the exact historical flow, or swap in `LogAttribute` deliberately for a simpler smoke test.
 - **No live agent, confirmed multiple ways**: `GET /efm/api/agents/2fcc8516-23cc-4f88-90eb-ce74e15bf36a` (the failed-transcript's agent ID) → `404 Agent not found`. `GET /efm/api/agents/a66d299f-e7a3-42ea-84cf-3669009e4596` (the *working*-lab agent ID referenced in `efm-binaries.md`'s own worked example) → also `404 Agent not found`. `GET /efm/api/events?filter=agentClass:eq:WindowsDesktop` → zero events, ever (no heartbeat-loss alerts, no operation failures logged for this class at all). The monitor detail endpoint's `flowSummary.numberOfAgentsOnLatestFlowVersion: 2` looked like a live agent count at first glance but its `created`/`updated` timestamps match the June deploy exactly — it's a stale cached count from that session, not current state. There's no `GET /efm/api/agents` listing endpoint (`No static resource api/agents`); agent status has to be queried by known ID or via `/efm/api/monitor/agent-classes/{class}`.
 - **Open Question #4 (old agent identity) is answered**: `2fcc8516-23cc-4f88-90eb-ce74e15bf36a` is gone from EFM, not just off-disk. Nothing to preserve — generate a fresh UUID when Step 3 runs, no decision needed.
-- **Open Question #1 (which box) is effectively answered**: this re-check ran directly on MINI-Gaming-G1, and it already has the `WindowsDesktop` agent class + flow sitting in EFM waiting for an agent (confirmed via `GET /efm/api/designer/flows?agentClass=WindowsDesktop`). TunaStarlink runs the `StarlinkAI` class instead — separate flow entirely (`a05b9ca5-eddb-47e3-9182-e3d2a5ceb7f5`). Unless there's a reason to want a fresh VM for reproducibility, MINI-Gaming-G1 is the natural target — no decision blocking Step 1.
+- **Open Question #1 (which box) is effectively answered**: this re-check ran directly on WindowsDesktop, and it already has the `WindowsDesktop` agent class + flow sitting in EFM waiting for an agent (confirmed via `GET /efm/api/designer/flows?agentClass=WindowsDesktop`). TunaStarlink runs the `StarlinkAI` class instead — separate flow entirely (`a05b9ca5-eddb-47e3-9182-e3d2a5ceb7f5`). Unless there's a reason to want a fresh VM for reproducibility, WindowsDesktop is the natural target — no decision blocking Step 1.
 
 **What this changes about the plan below**: Step 1 (uninstall) is largely moot as written — there's nothing MiNiFi-shaped to stop, unregister, or delete at `C:\WINDOWS\system32\nifi-minifi-cpp` or `C:\Program Files\Apache NiFi MiNiFi`; it's already not there. (The `ApacheNiFiMiNiFi\nifi-minifi-cpp` data-dir leftover found above is from the unrelated Music Edge project, not from this project's prior install — don't let Step 1's cleanup script delete it under a false assumption it's related; worth a human decision on whether to clean it at all, separately.) Step 2's prereqs are already confirmed present (Python 3.14.4 x64, VC++ redist installed) — nothing to install there either. **Step 3 (fresh install) becomes the real starting point.** Given Steps 1's root-cause finding (the upgrade-onto-existing-install skipped ADDLOCAL) no longer applies to a clean box, the better move is to install with `ADDLOCAL=ALL INSTALLPYTHONDIR=C:\Python314` **baked into the very first `msiexec` call** rather than doing a base install via the EFM deployer and then repairing it — i.e., intercept the EFM-generated command before piping to `Invoke-Expression`, or run the deployer once to fetch `minifi.msi` and then call `msiexec` directly with the full flag set, instead of Step 3 → Step 5 as two separate passes. This is a plan revision only — **nothing above has been executed**; still needs a decision on install root (`C:\minifi` as the plan suggests, vs. accepting whatever the EFM deployer defaults to) before Step 1/3 actually run.
 
@@ -342,11 +342,11 @@ This is a 4-8 hour rabbit hole with Windows dev toolchain (Visual Studio, CMake,
 
 ## Open questions before Step 1
 
-1. ~~**Which Windows box**~~ — **Answered 2026-07-22**: MINI-Gaming-G1. Confirmed by running the re-check directly on it — it already has the `WindowsDesktop` agent class + flow (`4615bdc2-...`) sitting in EFM, and no conflicting install exists there anymore. TunaStarlink runs `StarlinkAI` instead, a separate class/flow. No fresh-VM need identified unless reproducibility across boxes becomes a goal later.
+1. ~~**Which Windows box**~~ — **Answered 2026-07-22**: WindowsDesktop. Confirmed by running the re-check directly on it — it already has the `WindowsDesktop` agent class + flow (`4615bdc2-...`) sitting in EFM, and no conflicting install exists there anymore. TunaStarlink runs `StarlinkAI` instead, a separate class/flow. No fresh-VM need identified unless reproducibility across boxes becomes a goal later.
 2. ~~**Python currently installed**~~ — **Answered 2026-07-22**: `3.14.4`, 64-bit, `C:\Python314\python.exe`. Matches the doc's assumed path.
 3. **Internal archive access** — still open. Cloudera Slack `#minifi` or the internal Cloudera archive — do we have alternate MSI builds (e.g. bound to different Python versions, debug builds with symbols) beyond the public `1.26.02-b30`? Not checked this session (would require leaving read-only local investigation).
 4. ~~**Preserve or discard the existing agent identity?**~~ — **Answered 2026-07-22**: discard, nothing to preserve. `2fcc8516-23cc-4f88-90eb-ce74e15bf36a` returns `404 Agent not found` in EFM now — it's gone from EFM's registry, not just off-disk. Generate a fresh UUID when Step 3 runs.
-5. **New, raised by the 2026-07-22 re-check**: VC++ redist and Python prereqs (Step 2) are already satisfied on MINI-Gaming-G1 — is there still value in running Step 2 as a formal step, or can the plan skip straight from Step 1 (now mostly a no-op) to a Step 3 that bakes `ADDLOCAL=ALL` into the first install rather than doing install-then-repair? Leaning toward the latter but this is a plan revision, not yet decided/executed.
+5. **New, raised by the 2026-07-22 re-check**: VC++ redist and Python prereqs (Step 2) are already satisfied on WindowsDesktop — is there still value in running Step 2 as a formal step, or can the plan skip straight from Step 1 (now mostly a no-op) to a Step 3 that bakes `ADDLOCAL=ALL` into the first install rather than doing install-then-repair? Leaning toward the latter but this is a plan revision, not yet decided/executed.
 
 ## What NOT to do
 
@@ -363,10 +363,10 @@ This is a 4-8 hour rabbit hole with Windows dev toolchain (Visual Studio, CMake,
 
 - Docs and history all present on the Mac (this repo) — nothing on the Windows box has been touched today
 - Last known Windows state: `C:\WINDOWS\system32\nifi-minifi-cpp\` install from 2026-06-08, ExecuteScript still failing, service probably still running with retrying-failed-processors on a loop
-- EFM cluster: assumed still running on MINI-Gaming-G1's minikube (see `CLAUDE-CHECKIN.md` for services + port-forwards); confirm reachable from the Windows box before Step 3
+- EFM cluster: assumed still running on WindowsDesktop's minikube (see `CLAUDE-CHECKIN.md` for services + port-forwards); confirm reachable from the Windows box before Step 3
 - Target port: EFM was on `http://127.0.0.1:42779` in the last session (via `minikube service` tunnel). It may be different this time — the EFM deployer's `Body` param embeds whatever `baseUrl` was live when the deploy command was copied out of the UI
 
-### Actual state as of 2026-07-22 (read-only re-check, MINI-Gaming-G1, no action taken)
+### Actual state as of 2026-07-22 (read-only re-check, WindowsDesktop, no action taken)
 
 - No MiNiFi service registered anywhere on this box (`Get-Service` empty, checked twice with different filters)
 - No install at `C:\WINDOWS\system32\nifi-minifi-cpp` — confirmed gone, `Test-Path` → `False`

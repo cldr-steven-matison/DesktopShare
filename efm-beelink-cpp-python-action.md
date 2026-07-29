@@ -1,16 +1,16 @@
-# Beelink (TunaStarlink) action: C++ MiNiFi + ExecuteScript Python
+# StarlinkAI (TunaStarlink) action: C++ MiNiFi + ExecuteScript Python
 
 **Audience:** session on **TunaStarlink** (Beelink SER9 Pro / SER9 MAX H260)  
-**Author host:** MINI-Gaming-G1 (2026-07-27)  
-**Goal:** Get **working `ExecuteScript` (Python)** on the Beelink’s Windows MiNiFi C++ agent, using the Path D recipe field-verified on the gaming PC.  
-**Status of Path D (MINI-Gaming-G1, 2026-07-27):** **fully proven** — process-mode **and** Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke (`python.smoke=windows-cpp-executescript-ok` on `:18080`). Canonical how-to: **`efm-executescript.md` § Path D**. This file is the Beelink checklist to re-confirm the same path on `StarlinkAI`.
+**Author host:** WindowsDesktop (2026-07-27)  
+**Goal:** Get **working `ExecuteScript` (Python)** on StarlinkAI’s Windows MiNiFi C++ agent, using the Path D recipe field-verified on WindowsDesktop.  
+**Status of Path D (WindowsDesktop, 2026-07-27):** **fully proven** — process-mode **and** Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke (`python.smoke=windows-cpp-executescript-ok` on `:18080`). Canonical how-to: **`efm-executescript.md` § Path D**. This file is the StarlinkAI checklist to re-confirm the same path on `StarlinkAI`.
 
-**G1 service path notes (so Beelink doesn’t repeat traps):**
+**WindowsDesktop service path notes (so StarlinkAI doesn’t repeat traps):**
 
 - Needs a **real elevated Admin PowerShell** (UAC). Unattended/non-elevated `msiexec /i` → exit **1625**. Agent-launched RunAs from WSL is unreliable.
-- Always `cd C:\minifi` **before** msiexec — Admin shells start in `C:\WINDOWS\system32`; G1’s service landed under `C:\WINDOWS\system32\nifi-minifi-cpp` despite `INSTALL_ROOT=C:\minifi`.
+- Always `cd C:\minifi` **before** msiexec — Admin shells start in `C:\WINDOWS\system32`; WindowsDesktop’s service landed under `C:\WINDOWS\system32\nifi-minifi-cpp` despite `INSTALL_ROOT=C:\minifi`.
 - After install: confirm DLL + `minifi_native.pyd`; **uncomment/set `nifi.c2.*`** (stock is commented); restart service; then smoke.
-- G1 helpers: `C:\minifi\install-service-addlocal.ps1`, `C:\minifi\fix-service-c2.ps1` (ASCII-only scripts).
+- WindowsDesktop helpers: `C:\minifi\install-service-addlocal.ps1`, `C:\minifi\fix-service-c2.ps1` (ASCII-only scripts).
 
 Companion deep dives (already on `main`):
 
@@ -23,13 +23,13 @@ Companion deep dives (already on `main`):
 
 ## Context you need before touching the box
 
-### What Grok proved on MINI-Gaming-G1 (2026-07-27)
+### What Grok proved on WindowsDesktop (2026-07-27)
 
 | Item | Value |
 |---|---|
-| EFM | `http://127.0.0.1:10090` on gaming PC (also Tailscale `efm-host-ip:10090`) |
+| EFM | `http://127.0.0.1:10090` on WindowsDesktop (also Tailscale `efm-host-ip:10090`) |
 | Working C++ agent | class **`WindowsDesktopCpp`**, id `40eb2f92-94c5-4478-beed-7060e41c9d7f` |
-| Install (final) | Windows service **`Apache NiFi MiNiFi`** Running/Automatic; tree on G1: `C:\WINDOWS\system32\nifi-minifi-cpp` (prefer `C:\minifi` next time) |
+| Install (final) | Windows service **`Apache NiFi MiNiFi`** Running/Automatic; tree on WindowsDesktop: `C:\WINDOWS\system32\nifi-minifi-cpp` (prefer `C:\minifi` next time) |
 | Earlier same day | process-mode under `C:\minifi\nifi-minifi-cpp` also smoked successfully |
 | Proof | `ListenHTTP:18080` → `ExecuteScript` python → `LogAttribute` → `python.smoke=windows-cpp-executescript-ok` (process **and** service) |
 | Java agent | left running on class `WindowsDesktop` at `C:\Users\tunas\minifi-java\...` |
@@ -40,7 +40,7 @@ EFM **agent classes** are holders for device types / flow canvases. **A single c
 
 Grok created **`WindowsDesktopCpp`** (and earlier **`KubernetesPodJava`**) **only for evaluation** so a C++ smoke flow could not break the live Java `WindowsDesktop` designer canvas. That split is **not** a platform requirement.
 
-**On the Beelink:** prefer staying on the existing **`StarlinkAI`** class (already Online / heartbeating to the gaming PC EFM). Only invent a second class if you need a disposable canvas that must not disturb the production StarlinkAI flow.
+**On StarlinkAI:** prefer staying on the existing **`StarlinkAI`** class (already Online / heartbeating to the WindowsDesktop EFM). Only invent a second class if you need a disposable canvas that must not disturb the production StarlinkAI flow.
 
 ### Architecture reminder (Beelink)
 
@@ -57,7 +57,7 @@ Earlier docs avoided ExecuteScript because Windows Python was unproven. That bla
 Run in **PowerShell on the Windows host** (not only WSL):
 
 ```powershell
-# EFM reachability over Tailscale (gaming PC)
+# EFM reachability over Tailscale (WindowsDesktop)
 curl.exe -sS -m 5 http://efm-host-ip:10090/efm/actuator/health
 # expect {"status":"UP",...}
 
@@ -81,7 +81,7 @@ Capture:
 2. Python directory (e.g. `C:\Python314`).  
 3. Whether a service named **`Apache NiFi MiNiFi`** already exists (StarlinkAI prior install).
 
-If EFM health fails: fix Tailscale + gaming-PC port-forward first (`beelink-starlink-efm-ai.md`). Do not reinstall MiNiFi until C2 can reach EFM.
+If EFM health fails: fix Tailscale + WindowsDesktop port-forward first (`beelink-starlink-efm-ai.md`). Do not reinstall MiNiFi until C2 can reach EFM.
 
 ---
 
@@ -200,7 +200,7 @@ In EFM UI / API: agent **ONLINE** under `StarlinkAI` within ~5–15s.
 Optional designer mapping (only if ExecuteScript is rejected as invalid type):
 
 ```bash
-# From gaming PC — map class to the C++ agent's reported agentManifestId after first heartbeat
+# From WindowsDesktop — map class to the C++ agent's reported agentManifestId after first heartbeat
 curl -sS http://127.0.0.1:10090/efm/api/agents/<agentId>
 curl -X POST http://127.0.0.1:10090/efm/api/agent-class-manifest-config \
   -H 'Content-Type: application/json' \
@@ -232,7 +232,7 @@ Start-Process C:\minifi\nifi-minifi-cpp\bin\minifi.exe `
   -WorkingDirectory C:\minifi\nifi-minifi-cpp\bin
 ```
 
-Process mode does not auto-start at boot — service install is still preferred for Beelink production.
+Process mode does not auto-start at boot — service install is still preferred for StarlinkAI production.
 
 ---
 
@@ -257,7 +257,7 @@ def onTrigger(context, session):
 
 3. **LogAttribute** — Log Payload = true  
 
-Wire success → success. Publish. Then on the Beelink:
+Wire success → success. Publish. Then on StarlinkAI:
 
 ```powershell
 Invoke-WebRequest -Uri http://127.0.0.1:18080/contentListener -Method Post `
@@ -312,7 +312,7 @@ Create class via EFM API/UI, deploy second agent identity, map C++ manifest, sam
 | `minifi_native.pyd` missing | Copy/link from `minifi-python-script-extension.dll` |
 | Designer rejects ExecuteScript | Remap class → this agent’s C++ `agentManifestId` |
 | Agent never ONLINE | C2 URLs / Tailscale / EFM port-forward |
-| ABI / `Py_Initialize` errors | Install Python major.minor matching MSI build side-by-side; re-set `INSTALLPYTHONDIR` (3.14 worked on G1; still note if Beelink differs) |
+| ABI / `Py_Initialize` errors | Install Python major.minor matching MSI build side-by-side; re-set `INSTALLPYTHONDIR` (3.14 worked on WindowsDesktop; still note if Beelink differs) |
 
 ---
 
@@ -320,7 +320,7 @@ Create class via EFM API/UI, deploy second agent identity, map C++ manifest, sam
 
 ```
 Date:
-Beelink agent id:
+StarlinkAI agent id:
 Class used: StarlinkAI | other: ______
 Install mode: service ADDLOCAL=ALL | process extract
 Install root:
@@ -339,28 +339,28 @@ beelink-starlink-efm-ai.md updated: Y/N
 
 ```
 Date: 2026-07-28
-Beelink agent id: f176ca3e-9f7f-418a-ad2e-a6e7f542b0ff (torn down after test)
+StarlinkAI agent id: f176ca3e-9f7f-418a-ad2e-a6e7f542b0ff (torn down after test)
 Class used: StarlinkAI | other: StarlinkAICpp (disposable eval class, production StarlinkAI never touched)
 Install mode: service ADDLOCAL=ALL | process extract
 Install root: C:\minifi (deleted after test)
 Python path/version: C:\Users\tunas\AppData\Local\Programs\Python\Python312 (3.12.10)
 DLL/PYD present: Y (both — this MSI's admin-extract includes minifi-python-script-extension.dll directly, no ADDLOCAL needed)
-ONLINE in EFM: N/A — EFM (100.68.113.126:10090) was unreachable for most of the session (~2/3 of requests timed out; tailscale ping to the gaming PC was clean, so it's the EFM port specifically, matching timeout errors already in the production agent's own log). Never confirmed a heartbeat register.
+ONLINE in EFM: N/A — EFM (100.68.113.126:10090) was unreachable for most of the session (~2/3 of requests timed out; tailscale ping to WindowsDesktop was clean, so it's the EFM port specifically, matching timeout errors already in the production agent's own log). Never confirmed a heartbeat register.
 Smoke POST 18080: pass
 Log proof line: [LogAttribute] Logging for flow file / key:python.smoke value:beelink-cpp-executescript-ok
-Issues / log snippets: Production StarlinkAI agent is NOT at C:\minifi as this doc assumes — it's a running Windows service at C:\Users\tunas\efm-agent\nifi-minifi-cpp, missing minifi-python-script-extension.dll (has .pyd, has a differently-named minifi-script-extension.dll instead). Not touched/tested — see beelink-starlink-efm-ai.md for full writeup. EFM link flakiness is a separate, pre-existing issue on the gaming-PC side (port-forward likely), not something this session caused or fixed.
+Issues / log snippets: Production StarlinkAI agent is NOT at C:\minifi as this doc assumes — it's a running Windows service at C:\Users\tunas\efm-agent\nifi-minifi-cpp, missing minifi-python-script-extension.dll (has .pyd, has a differently-named minifi-script-extension.dll instead). Not touched/tested — see beelink-starlink-efm-ai.md for full writeup. EFM link flakiness is a separate, pre-existing issue on the WindowsDesktop side (port-forward likely), not something this session caused or fixed.
 beelink-starlink-efm-ai.md updated: Y
 ```
 
 ---
 
-## Gaming PC artifacts (reference only)
+## WindowsDesktop artifacts (reference only)
 
-Left on MINI-Gaming-G1 under `C:\minifi\`:
+Left on WindowsDesktop under `C:\minifi\`:
 
 - `minifi.msi`  
 - `setup-cpp-agent.ps1` — process-mode setup used for Path D proof  
 - `install-service-addlocal.ps1` — elevated service installer script (run as Admin)  
 - `smoke-post.ps1` — POST helper  
 
-EFM class `WindowsDesktopCpp` remains for evaluation; production Beelink work should prefer **`StarlinkAI`**.
+EFM class `WindowsDesktopCpp` remains for evaluation; production StarlinkAI work should prefer **`StarlinkAI`**.

@@ -56,7 +56,7 @@ Open the SSB SQL Stream Editor:
 minikube service ssb-sse --namespace cld-streaming
 ```
 
-SSB is loopback-only today. The port-forward is not in the current `kube-service-ports-efm.kdl` Zellij layout with `--address 0.0.0.0`, so it isn't reachable from the gaming PC or Beelink over LAN. To expose it (same pattern as EFM and Kafka):
+SSB is loopback-only today. The port-forward is not in the current `kube-service-ports-efm.kdl` Zellij layout with `--address 0.0.0.0`, so it isn't reachable from WindowsDesktop or StarlinkAI over LAN. To expose it (same pattern as EFM and Kafka):
 
 ```bash
 kubectl port-forward --address 0.0.0.0 service/ssb-sse 18121:18121 -n cld-streaming
@@ -68,7 +68,7 @@ Confirm the correct internal port with `kubectl get svc ssb-sse -n cld-streaming
 
 ## 4. Deploying / Re-installing the CSA Operator
 
-Full install command with Prometheus values overlay (current working version, as used on both the Mac and gaming PC):
+Full install command with Prometheus values overlay (current working version, as used on both the Mac and WindowsDesktop):
 
 ```bash
 helm install csa-operator \
@@ -203,7 +203,7 @@ Both should show RUNNING/STABLE. If they bounced (e.g. after a FlinkDeployment p
 
 ## 7. GPU Flink — History and Status
 
-The GPU experiment ran on MINI-Gaming-G1 (RTX 4060, WSL2/Ubuntu) in early 2026. A custom image `custom-flink-gpu:v5` was built from `container.repository.cloudera.com/cloudera/flink:1.20.1-csaop1.5.0-b275` with PyTorch + CUDA 12.4 wheels installed via pip-inject (the RHEL/UBI base can't use CUDA system packages cleanly; pip-installed `nvidia-cuda-runtime-cu12` with `ldconfig` works). A PyFlink UDF performing matrix multiply ran against the GPU. Output:
+The GPU experiment ran on WindowsDesktop (RTX 4060, WSL2/Ubuntu) in early 2026. A custom image `custom-flink-gpu:v5` was built from `container.repository.cloudera.com/cloudera/flink:1.20.1-csaop1.5.0-b275` with PyTorch + CUDA 12.4 wheels installed via pip-inject (the RHEL/UBI base can't use CUDA system packages cleanly; pip-installed `nvidia-cuda-runtime-cu12` with `ldconfig` works). A PyFlink UDF performing matrix multiply ran against the GPU. Output:
 
 ```
 CUDA Available: True
@@ -212,14 +212,14 @@ Device: NVIDIA GeForce RTX 4060
 
 A coworker review recommended moving the Python job into the Docker image at build time and using application-mode `FlinkDeployment` with an embedded `job:` spec (rather than post-deploy `kubectl cp` + `flink run`). That architectural note is in `completed/flink-minikube-gpu-working-2.md` and is the right approach if anyone wants to build on this.
 
-This experiment is complete. The Mac (M4 Pro, Metal GPU, no CUDA) and the Beelink (AMD Radeon 780M, Vulkan, no CUDA) cannot reproduce it. Neither machine has a GPU Flink deployment today. GPU Flink is not a current priority.
+This experiment is complete. The Mac (M4 Pro, Metal GPU, no CUDA) and StarlinkAI (Beelink SER9, AMD Radeon 780M, Vulkan, no CUDA) cannot reproduce it. Neither machine has a GPU Flink deployment today. GPU Flink is not a current priority.
 
 Where to find the artifacts:
 - `completed/flink-minikube-gpu-working.md` — the build and deployment walkthrough
 - `completed/flink-minikube-gpu-working-2.md` — the architectural refinement notes
 - `Flink Kubernetes Playground/flink-gpu/` — `Dockerfile.5` and `gpu_test.py`
 
-To resume on the gaming PC: pull those three sources, apply the application-mode YAML pattern from `-gpu-working-2.md`, and rebuild as `:v6` with the job embedded in the image.
+To resume on WindowsDesktop: pull those three sources, apply the application-mode YAML pattern from `-gpu-working-2.md`, and rebuild as `:v6` with the job embedded in the image.
 
 ---
 
@@ -290,7 +290,7 @@ Items in priority order. "Live" means deployed and running. "Aspirational" means
 
 **[ ] NiFi → Kafka → Flink → Qdrant/vLLM** — aspirational. The full AI pipeline. NiFi and Kafka are live; the gap is a Flink job reading `new_documents` or `new_audio` from Kafka and calling the embedding server or vLLM. SSB Python UDFs or a PyFlink job are the path. The GPU experiment proved PyFlink works in this CSA image — the CPU path for embedding calls (no CUDA needed) is the same approach without the NVIDIA runtime.
 
-**[ ] Expose SSB UI on array tailnet** — not started. Currently loopback-only on the Mac. Same treatment as EFM and Kafka: add `--address 0.0.0.0` to the port-forward pane so the gaming PC (efm-host-ip) and Beelink (beelink-ip) can reach it over the tailnet.
+**[ ] Expose SSB UI on array tailnet** — not started. Currently loopback-only on the Mac. Same treatment as EFM and Kafka: add `--address 0.0.0.0` to the port-forward pane so WindowsDesktop (efm-host-ip) and StarlinkAI (beelink-ip) can reach it over the tailnet.
 
 **[ ] CSO Operator App — Flink tab** — aspirational. The app (`cso-operator-app`) has Operator / EFM / RAG / Streamers tabs. A Flink tab showing live `FlinkSessionJob` status, SSB job list, and basic metrics (records/sec, uptime) would round out the dashboard. The SSB REST API is the data source; the Streamers tab pattern in `backend/services/streamers.py` is the right reference for how to build a new tab.
 

@@ -7,16 +7,17 @@ Every Claude Code instance in the array checks in here with its host's spec data
 1. **`git pull` first — before any work.** Another device may have committed since you last ran here.
 2. **Check this device's issue inbox:** `gh issue list --state open --label "device:<thisDevice>"`. GitHub issues are the async mailbox between devices.
 
-Full protocol + how to report back: `agent/device-comms.md`. Device ↔ label map:
+Full protocol + how to report back: `agent/device-comms.md`. Device ↔ hostname ↔ label map
+(name each device by its **device name** — the EFM class — not its hostname):
 
-| Device (host) | Issue label | Also checks |
-|---|---|---|
-| MINI-Gaming-G1 | `device:WindowsDesktop` | `device:NvidiaNano` (Jetson, by SSH proxy) |
-| TunaStarlink (Beelink) | `device:StarlinkAI` | — |
-| tunastreet (Jetson Orin Nano) | `device:NvidiaNano` | also reachable via SSH proxy from MINI-Gaming-G1 |
-| FTF3XR2065 (Mac) | `device:FTF3XR2065` | — |
-| Stevens-MacBook-Pro (personal Mac) | `device:macbook` | — |
-| DigitalOcean droplet | (none yet) | — |
+| Device name | Hostname | Issue label | Also checks |
+|---|---|---|---|
+| WindowsDesktop | MINI-Gaming-G1 | `device:WindowsDesktop` | `device:NvidiaNano` (Jetson, by SSH proxy) |
+| StarlinkAI | TunaStarlink (Beelink) | `device:StarlinkAI` | — |
+| NvidiaNano | tunastreet (Jetson Orin Nano) | `device:NvidiaNano` | also reachable via SSH proxy from WindowsDesktop |
+| FTF3XR2065 (Mac) | FTF3XR2065 | `device:FTF3XR2065` | — |
+| Stevens-MacBook-Pro (personal Mac) | Stevens-MacBook-Pro | `device:macbook` | — |
+| DigitalOcean droplet | nifi.sceneserver.net | (none yet) | — |
 
 **Two Macs, two labels — don't conflate them.** `FTF3XR2065` is the Cloudera-issued M4 Pro work
 laptop (arm64, full local minikube). `Stevens-MacBook-Pro` is the personal 2017 Intel MacBook Pro
@@ -33,11 +34,12 @@ Skills are copied per-device into `~/.claude/skills/` and there's **no versionin
   rm -rf ~/.claude/skills/nifi-and-ai && cp -r skills/nifi-and-ai ~/.claude/skills/
   ```
   Installed & current on **FTF3XR2065 (Mac)** as of 2026-07-24.
-- **2026-07-24 (same day, later) — `layout.md` gained a new "Inserting a new node into an existing connection" section.** Real incident: building `WatchlistChatJoiner`'s `BuildJoinedEvent`, Claude placed it at the midpoint between two existing processors' y-values instead of preserving the column's established row pitch — compressed one hop, desynced it from a parallel column that shared rows with it. Fixed live on canvas + added the rule so it doesn't repeat. Re-synced on **MINI-Gaming-G1** as of 2026-07-24 — this device had never picked up the earlier rename either (still had the old `human-touch-followups.md`), both caught up in the same pass. Other devices: still re-sync on next pull.
-- **2026-07-24 (same day, later still) — `flow-api.md` gained a new §4 "Downloading a flow definition."** Documents the re-export-to-keep-current workflow (`GET /process-groups/{id}/download`, pretty-print before committing, confirmed no credential leakage) after `cso-operator-app`'s checked-in flow exports had gone weeks stale. Sections 4-6 renumbered to 5-7 — check any external notes citing the old `§5`/`§6` by number. `SKILL.md`'s reference table and the top-level `skills/README.md` summary both updated to mention it. Re-synced on **MINI-Gaming-G1**. **Standing rule going forward: any `nifi-and-ai` skill change gets its own separate commit**, never bundled with unrelated work in the same commit.
-- **2026-07-25 — `minifi-efm.md` gained a new §11 on recovering a `KubernetesPod`-class agent whose EFM heartbeat has gone dark.** Real incident on `minifi-agent-k8s-gaming` (6 days silent, bare pod with no Deployment/StatefulSet owner, asset-sync race after restart, IP changes on every restart). `SKILL.md`'s reference table updated. Re-synced on **MINI-Gaming-G1** as of 2026-07-25.
-- **2026-07-25 (same day, later) — Rule 2's GET-then-PUT check tightened to a concrete step: verify `descriptors[...].sensitive` on any processor before a full-entity PUT, not just ones already known to hold credentials.** Re-synced on **MINI-Gaming-G1** as of 2026-07-25.
+- **2026-07-24 (same day, later) — `layout.md` gained a new "Inserting a new node into an existing connection" section.** Real incident: building `WatchlistChatJoiner`'s `BuildJoinedEvent`, Claude placed it at the midpoint between two existing processors' y-values instead of preserving the column's established row pitch — compressed one hop, desynced it from a parallel column that shared rows with it. Fixed live on canvas + added the rule so it doesn't repeat. Re-synced on **WindowsDesktop** as of 2026-07-24 — this device had never picked up the earlier rename either (still had the old `human-touch-followups.md`), both caught up in the same pass. Other devices: still re-sync on next pull.
+- **2026-07-24 (same day, later still) — `flow-api.md` gained a new §4 "Downloading a flow definition."** Documents the re-export-to-keep-current workflow (`GET /process-groups/{id}/download`, pretty-print before committing, confirmed no credential leakage) after `cso-operator-app`'s checked-in flow exports had gone weeks stale. Sections 4-6 renumbered to 5-7 — check any external notes citing the old `§5`/`§6` by number. `SKILL.md`'s reference table and the top-level `skills/README.md` summary both updated to mention it. Re-synced on **WindowsDesktop**. **Standing rule going forward: any `nifi-and-ai` skill change gets its own separate commit**, never bundled with unrelated work in the same commit.
+- **2026-07-25 — `minifi-efm.md` gained a new §11 on recovering a `KubernetesPod`-class agent whose EFM heartbeat has gone dark.** Real incident on `minifi-agent-k8s-gaming` (6 days silent, bare pod with no Deployment/StatefulSet owner, asset-sync race after restart, IP changes on every restart). `SKILL.md`'s reference table updated. Re-synced on **WindowsDesktop** as of 2026-07-25.
+- **2026-07-25 (same day, later) — Rule 2's GET-then-PUT check tightened to a concrete step: verify `descriptors[...].sensitive` on any processor before a full-entity PUT, not just ones already known to hold credentials.** Re-synced on **WindowsDesktop** as of 2026-07-25.
 - **2026-07-27 — `nifi-and-ai` hygiene + reinforcement pass.** `SKILL.md` rules 8 & 9 rewritten as tight imperatives (war-stories compressed to a one-clause *why*), and a new "A redeploy can break a live flow" note added — it reinforces the deploy/restart policy that lives in `agent/incident-rules.md` rather than duplicating it. `references/layout.md` de-cluttered (dated post-mortems dropped, all coordinates kept, "Steven" → "a human"); `references/flow-api.md` inline date stripped. No behavioral rule text moved out of the skill. Re-synced on **FTF3XR2065 (Mac)** as of 2026-07-27. Other devices: re-sync on next pull.
+- **2026-07-29 — `references/minifi-efm.md` device-name normalization.** §5's field-verified note now names the device by its canonical EFM-class name (`MINI-Gaming-G1` → **WindowsDesktop**), matching the repo-wide device-naming cleanup (call the device by its EFM class — StarlinkAI / WindowsDesktop / NvidiaNano — not its hostname). No behavioral rule change. Re-synced on **FTF3XR2065 (Mac)** as of 2026-07-29. Other devices: re-sync on next pull.
 
 ## Template
 
@@ -70,7 +72,7 @@ Skills are copied per-device into `~/.claude/skills/` and there's **no versionin
 
 ---
 
-## TunaStarlink (Beelink SER9 Pro)
+## StarlinkAI (Beelink SER9 Pro, hostname TunaStarlink)
 
 - **Role**: Array AI workhorse — iGPU (Vulkan) inference via Lemonade Server, fronted by an EFM/MiNiFi router, on Starlink
 - **Checked in**: 2026-07-17
@@ -96,13 +98,13 @@ Skills are copied per-device into `~/.claude/skills/` and there's **no versionin
 
 ### Network
 - Connection: Starlink
-- Tailscale IP: beelink-ip (rejoined 2026-07-17 under tailnet `steven.matison@gmail.com`, was previously `old-beelink-ip` on a different account before both machines were aligned onto the same tailnet — confirmed reachable from the gaming PC via `tailscale ping`)
+- Tailscale IP: beelink-ip (rejoined 2026-07-17 under tailnet `steven.matison@gmail.com`, was previously `old-beelink-ip` on a different account before both machines were aligned onto the same tailnet — confirmed reachable from WindowsDesktop via `tailscale ping`)
 
 ---
 
-## MINI-Gaming-G1 (Windows gaming PC)
+## WindowsDesktop (Windows gaming PC, hostname MINI-Gaming-G1)
 
-- **Role**: EFM/minikube host — runs the `cld-streaming` cluster (NiFi, EFM, Kafka/Strimzi, vLLM, cso-operator-app); the control-plane counterpart the Beelink's MiNiFi agent will call into over Tailscale
+- **Role**: EFM/minikube host — runs the `cld-streaming` cluster (NiFi, EFM, Kafka/Strimzi, vLLM, cso-operator-app); the control-plane counterpart StarlinkAI's MiNiFi agent will call into over Tailscale
 - **Checked in**: 2026-07-17
 - **Claude Code version**: 2.1.212
 
@@ -125,7 +127,7 @@ Skills are copied per-device into `~/.claude/skills/` and there's **no versionin
 
 ### Network
 - Connection: LAN, gaming-pc-lan-ip (WSL2 mirrored networking, shares host's LAN interface)
-- Tailscale IP: efm-host-ip (tailnet `steven.matison@gmail.com`, `tailnet.ts.net`) — joined 2026-07-17; Beelink (`tunastarlink`, `beelink-ip`) confirmed as a peer via `tailscale ping`, and EFM confirmed reachable from the Beelink over the tailnet (see `beelink-starlink-efm-ai.md`)
+- Tailscale IP: efm-host-ip (tailnet `steven.matison@gmail.com`, `tailnet.ts.net`) — joined 2026-07-17; StarlinkAI (hostname `tunastarlink`, `beelink-ip`) confirmed as a peer via `tailscale ping`, and EFM confirmed reachable from StarlinkAI over the tailnet (see `beelink-starlink-efm-ai.md`)
 
 ### Services (for other array machines, e.g. StarlinkAI)
 
@@ -156,7 +158,7 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 
 ## FTF3XR2065 (MacBook Pro, work laptop)
 
-- **Role**: Steven's Cloudera-issued daily driver — full local minikube (123 days old, docker driver, k8s v1.34.0) running the same CSO/CFM/CSA + monitoring stack the gaming PC does, plus the macOS build of the cso-operator-app RAG stack (`default` namespace: cso-operator-app + vLLM + Whisper + Qdrant + embedding-server, all `-cpu`). EFM/MiNiFi have been intentionally disabled here (not deployed today) but the rest is live. Also serves as docs/plans authoring host and DesktopShare golden source.
+- **Role**: Steven's Cloudera-issued daily driver — full local minikube (123 days old, docker driver, k8s v1.34.0) running the same CSO/CFM/CSA + monitoring stack WindowsDesktop does, plus the macOS build of the cso-operator-app RAG stack (`default` namespace: cso-operator-app + vLLM + Whisper + Qdrant + embedding-server, all `-cpu`). EFM/MiNiFi have been intentionally disabled here (not deployed today) but the rest is live. Also serves as docs/plans authoring host and DesktopShare golden source.
 - **Checked in**: 2026-07-20
 - **Claude Code version**: 2.1.169
 
@@ -179,13 +181,13 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 - Tailscale: not installed on this host (corp laptop; joins the array over LAN only when on-site)
 
 ### Network
-- Connection: LAN, `mac-lan-ip` (same subnet as MINI-Gaming-G1 at `gaming-pc-lan-ip`)
+- Connection: LAN, `mac-lan-ip` (same subnet as WindowsDesktop at `gaming-pc-lan-ip`)
 - Cloudera VPN: `corp-vpn-ip` (utun, up when on the corp VPN)
 - Tailscale IP: n/a — not joined to `tailnet.ts.net`
 
 ### Minikube cluster on this host
 
-Same shape as the gaming PC's `cld-streaming` cluster, running locally. Namespaces and what's live in each:
+Same shape as WindowsDesktop's `cld-streaming` cluster, running locally. Namespaces and what's live in each:
 
 **`default` — cso-operator-app RAG stack (macOS build):**
 - `cso-operator-app` — LoadBalancer, `8090:30090/TCP` (also exposed via `kubectl port-forward --address 0.0.0.0 service/cso-operator-app 8090:8090`)
@@ -293,9 +295,9 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ---
 
-## tunastreet (NVIDIA Jetson Orin Nano Developer Kit)
+## NvidiaNano (NVIDIA Jetson Orin Nano Developer Kit, hostname tunastreet)
 
-- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from MINI-Gaming-G1, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects (matrix screensaver, streamChat launcher, CubeNano OLED status display, Waveshare env sensor) — see this device's own project memory for details, not tracked in this repo.
+- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from WindowsDesktop, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects (matrix screensaver, streamChat launcher, CubeNano OLED status display, Waveshare env sensor) — see this device's own project memory for details, not tracked in this repo.
 - **Checked in**: 2026-07-28
 - **Claude Code version**: 2.1.220
 

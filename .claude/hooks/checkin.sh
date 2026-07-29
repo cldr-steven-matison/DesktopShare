@@ -29,9 +29,9 @@ host="$(hostname -s 2>/dev/null || hostname)"
 case "$host" in
   FTF3XR2065*)     labels="FTF3XR2065" ;;                 # Cloudera work Mac (arm64, golden-source)
   Stevens-MacBook-Pro*) labels="macbook" ;;               # personal Mac (x86_64, authoring only)
-  MINI-Gaming-G1*) labels="WindowsDesktop NvidiaNano" ;;  # WindowsDesktop + Jetson by SSH proxy
-  TunaStarlink*)   labels="StarlinkAI" ;;                 # Beelink
-  tunastreet*)     labels="NvidiaNano" ;;                 # Jetson Orin Nano, own session (hostname doesn't say "jetson")
+  MINI-Gaming-G1*) labels="WindowsDesktop NvidiaNano" ;;  # device WindowsDesktop (+ Jetson NvidiaNano by SSH proxy)
+  TunaStarlink*)   labels="StarlinkAI" ;;                 # device StarlinkAI (Beelink)
+  tunastreet*)     labels="NvidiaNano" ;;                 # device NvidiaNano (Jetson Orin Nano, own session; hostname doesn't say "jetson")
   *[Jj]etson*)     labels="NvidiaNano" ;;                 # fallback for any other Jetson host
   *)               labels="" ;;
 esac

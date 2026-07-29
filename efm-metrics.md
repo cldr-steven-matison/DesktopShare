@@ -32,7 +32,7 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 
 EFM ships a Spring Boot actuator. Its Kubernetes `Service` exposes two named ports: `efm-ui` on
 `10090` (the UI/API) and `metrics` on `9092`. That's not a guess — it shows up directly in the
-service listing on the gaming PC's minikube:
+service listing on WindowsDesktop's minikube:
 
 ```text
 ┌───────────────┬──────┬──────────────┬───────────────────────────┐
@@ -116,8 +116,8 @@ the same one from the S2S and agent chapters):
 
 - The publisher listens on `0.0.0.0`, not `127.0.0.1`, or the scrape hangs from anywhere but the
   box itself.
-- The host firewall allows `9092` on the interface the scraper arrives on. On the Beelink over
-  Tailscale this is an **open question, not a solved one**: the gaming PC has `Allow EFM Port
+- The host firewall allows `9092` on the interface the scraper arrives on. On StarlinkAI over
+  Tailscale this is an **open question, not a solved one**: WindowsDesktop has `Allow EFM Port
   10090` and generic Kafka `9092` rules, but no EFM-metrics `9092` rule, and Tailscale's adapter
   can land on a firewall profile the existing rules don't cover. Don't add a `9092` rule blindly —
   confirm metrics-over-tailnet is actually wanted first (see `beelink-starlink-efm-ai.md`).

@@ -50,7 +50,7 @@ This is the easier problem by a wide margin: a clip's transcript and duration ar
 
 ## Phase B: Live Stream Co-Host (after Phase A proves the character out)
 
-Once the persona, voice, and visual read well on clips, the same pieces move to a real-time loop on the Beelink.
+Once the persona, voice, and visual read well on clips, the same pieces move to a real-time loop on StarlinkAI.
 
 **Target Stack**
 - **OS**: Windows 11 (Beelink SER9 Pro)

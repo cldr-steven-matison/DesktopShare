@@ -21,7 +21,7 @@
   - **Hot-reload of `onTrigger`** is the headline finding vs the doc — worth folding into the skill/doc.
   - The agent-deployer's systemd install fails in-container (`systemctl: command not found`); `minifi` must be started by hand (`cd $MINIFI_HOME && ./bin/minifi`) — matches the §11 recovery note.
   - Runtime was proven via a **local config.yml** (C2 temporarily disabled) + the resource/asset-sync/type-registration path via the EFM API. The **EFM Designer wire-and-publish of a Python type** was not exercised (EdgeTagger is in the palette/manifest, so it should wire like any type) — good candidate for a follow-up.
-  - Remaining legs (separate tickets): C++ x86_64 (MINI-Gaming-G1), Windows MSI, Jetson aarch64 (high-confidence given this pass), Java.
+  - Remaining legs (separate tickets): C++ x86_64 (WindowsDesktop), Windows MSI, Jetson aarch64 (high-confidence given this pass), Java.
 
 ### Current live state (this device, left running)
 - EFM deployed (`deployment/efm`, `svc/efm`) in `cld-streaming`; port-forward `127.0.0.1:10090`.

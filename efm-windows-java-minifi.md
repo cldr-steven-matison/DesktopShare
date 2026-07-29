@@ -1,8 +1,8 @@
 # WindowsDesktop + KubernetesPod: Java MiNiFi via EFM (field-verified 2026-07-25; Kafka + scripting NAR drop-in added 2026-07-27)
 
-I finally opened the black hole around **EFM-deployed Java MiNiFi** on MINI-Gaming-G1 — native Windows (`WindowsDesktop`) and a second k8s pod (`KubernetesPodJava`). The smaller, already-documented hole is **C++ MiNiFi on Windows with Python/ExecuteScript** (`efm-binaries-windows-python.md`). This session is the Java counterpart: what actually installs, what processors are really in the CEM binary, and what breaks when a C++-shaped class flow hits a Java agent.
+I finally opened the black hole around **EFM-deployed Java MiNiFi** on WindowsDesktop — native Windows (`WindowsDesktop`) and a second k8s pod (`KubernetesPodJava`). The smaller, already-documented hole is **C++ MiNiFi on Windows with Python/ExecuteScript** (`efm-binaries-windows-python.md`). This session is the Java counterpart: what actually installs, what processors are really in the CEM binary, and what breaks when a C++-shaped class flow hits a Java agent.
 
-## Live state after this session (MINI-Gaming-G1)
+## Live state after this session (WindowsDesktop)
 
 | Agent | Class | Type | Version | Install root | State |
 |---|---|---|---|---|---|
@@ -61,7 +61,7 @@ binaries/java/windows/2.24.08.0-19/minifi.tar.gz   # NEW
 
 ## Windows Java install (working recipe)
 
-Prereqs on MINI-Gaming-G1 (confirmed):
+Prereqs on WindowsDesktop (confirmed):
 
 - **OpenJDK 21** — `C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot` (class file version 65; deployer rejects &lt; 21)
 - **Python 3.14.4** — not required for this Java binary (see processor catalog below)

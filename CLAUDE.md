@@ -1,6 +1,6 @@
 # DesktopShare — session start
 
-This repo is worked on from every device in `CLAUDE-CHECKIN.md` — a Mac, a Windows gaming PC, a Beelink, a DigitalOcean droplet, and whatever gets added next. Everything below applies on every device. Anything device-specific lives in that device's block in `CLAUDE-CHECKIN.md`; anything app-specific lives in that app's own `CLAUDE.md`.
+This repo is worked on from every device in `CLAUDE-CHECKIN.md` — a Mac, the WindowsDesktop gaming PC, the StarlinkAI Beelink, a DigitalOcean droplet, and whatever gets added next. Everything below applies on every device. Anything device-specific lives in that device's block in `CLAUDE-CHECKIN.md`; anything app-specific lives in that app's own `CLAUDE.md`.
 
 ## Who's asking
 

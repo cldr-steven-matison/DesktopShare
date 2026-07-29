@@ -130,7 +130,7 @@ nipyapi.security.set_service_auth_token(service='nifi', token=BEARER)
 
 `ListenHTTP` (port 8080, `/contentListener`) → `EvaluateJsonPath` (`request_id: $.request_id`) → `InvokeHTTP` (POST to local inference server) → `PublishKafka` (Kafka key `${request_id}`). Fire-and-forget: reply comes out on the response Kafka topic, not the HTTP call.
 
-**Gotchas (all real bugs found on TunaStarlink 2026-07-17):**
+**Gotchas (all real bugs found on StarlinkAI 2026-07-17):**
 - `ListenHTTP` defaults `Batch Size`/`Buffer Size` to `5/5`. A single request never fires the buffer-full path and gets silently dropped (`buffer is NOT full 1/5`). Set both to `1`. If you see `1/1 buffer is NOT full` still dropping, that's **MINFICPP-2243**, fixed on MiNiFi C++ main Dec 2024 — check your agent version.
 - `InvokeHTTP`'s `HTTP Method` **must** be set explicitly. It persists as `GET` even when you meant `POST` if you don't touch that field in EFM UI.
 - `PublishKafka`'s `Known Brokers` must be the **external NodePort port** (`31623` for our Strimzi bootstrap), not the in-cluster `9092`.
@@ -336,7 +336,7 @@ Confirmed working contract (built 2026-07-18/19, structurally re-verified 2026-0
 
 **EFM's `agent`/`device` Postgres tables, not its REST heuristics, are the real source of truth for online/offline agent status.** EFM's `operation` table has no automatic retention, and a crash-looping agent can flood it (9,800+ rows in 15 hours, observed once) — this hangs `/efm/api/operations` entirely (60s+, no response) and silently breaks anything reconstructing "which agents are online" from it, including EFM's own UI. If you need reliable programmatic online/offline status, a direct read-only query against `agent`(`agent_class`,`agent_state`,`last_seen`) joined to `device`(`ip_address`,`hostname`) in EFM's Postgres is the durable fix — this is what `cso-operator-app`'s EFM page does today, and it's immune to the `operation` table's size.
 
-**An EFM agent-class name is not guaranteed to map to one physical machine.** `KubernetesPod` alone has (at least) two real, separately-registered deployments in this array — the gaming PC (has a GPU, runs a real `tensorrt` import) and a MacBook (no GPU, runs a CPU-stub script with the same output schema). Don't assume a script/hardware mismatch in an exported flow is a bug without checking which agent identifier — which physical machine — you're actually looking at.
+**An EFM agent-class name is not guaranteed to map to one physical machine.** `KubernetesPod` alone has (at least) two real, separately-registered deployments in this array — WindowsDesktop (has a GPU, runs a real `tensorrt` import) and a MacBook (no GPU, runs a CPU-stub script with the same output schema). Don't assume a script/hardware mismatch in an exported flow is a bug without checking which agent identifier — which physical machine — you're actually looking at.
 
 ### 5i. Canvas layout — column alignment
 
@@ -397,7 +397,7 @@ Never replace the operator's `security.nodeCertGen` chain with an LE cert — th
 | ClouderaStreamingOperators | (per-host clone) | `nifi-cluster-30-nifi2x-*.yaml`, `nar-loader.yaml`, `efm-*.yaml`, `minifi-agent-pod.yaml` — every CR we apply |
 | MiNiFi-Kubernetes-Playground | GitHub `cldr-steven-matison/MiNiFi-Kubernetes-Playground` | MiNiFi C++ playground, Dockerfile with `ENABLE_PYTHON_SCRIPTING=ON` recipe |
 | cso-operator-app | (per-host clone) | Backend + frontend + `nifi-processors/` for the RAG/Streamers PGs |
-| nifi-custom-processors | `~/nifi-custom-processors` (Mac/gaming PC, not git-tracked in some hosts) | Local `.py` processors; `XLivePostProcessor.py` is the canonical `FlowFileTransform` example |
+| nifi-custom-processors | `~/nifi-custom-processors` (Mac/WindowsDesktop, not git-tracked in some hosts) | Local `.py` processors; `XLivePostProcessor.py` is the canonical `FlowFileTransform` example |
 
 ---
 
@@ -418,15 +418,15 @@ Each block below lists only where that host diverges from the shared playbook ab
 - `minikube mount` works reliably — path 1 in §4e is the default. Docker driver, k8s v1.34.0.
 - EFM/MiNiFi are intentionally not deployed on this host today; the mac cluster runs the CSO stack + cso-operator-app RAG only.
 
-### MINI-Gaming-G1 (Windows gaming PC, WSL2 + minikube)
+### WindowsDesktop (MINI-Gaming-G1 / Windows gaming PC, WSL2 + minikube)
 - `minikube mount` from WSL2/docker-driver is flaky → prefer path 2 (PVC + loader pod) for custom processors.
-- Hosts the EFM server the array's edge MiNiFi agents heartbeat to. Reachable to Beelink over Tailscale at `efm-host-ip:10090`.
+- Hosts the EFM server the array's edge MiNiFi agents heartbeat to. Reachable to StarlinkAI over Tailscale at `efm-host-ip:10090`.
 - **`WindowsDesktop` EFM class exists (class + flow `4615bdc2-...`) but has never had a live agent** — confirmed 2026-07-22: `GET /efm/api/designer/flows?agentClass=WindowsDesktop` returns the class/flow fine, but both known prior agent identifiers 404 and zero events were ever logged for this class. The 06-08 broken-Python install this box is theorized to have (`efm-binaries-windows-python.md`'s original premise) is fully gone too — no service, no `system32` install dir. Net: this box is a clean slate, not a repair job. When the install actually runs, bake `ADDLOCAL=ALL` into the *first* `msiexec` call (§5e) instead of installing plain and repairing after — there's no prior state to preserve.
 - **`KubernetesPod` here is specifically the GPU (RTX 4060) instance** — see the two-instances gotcha in §5h, don't assume a script referencing `tensorrt` on this host is wrong just because the class's other (MacBook) instance runs a CPU stub.
 - The `KubernetesPod`→native-Windows-listener bridge pattern (§4g) runs from this host: `browser_launcher.py` on `C:\minifi-manual\`, port 5901, kept alive by Scheduled Task `BrowserLauncherListener`.
 - `StarlinkAI`'s designer API write/publish contract (§5h) has still never actually been exercised even from this host, which is where EFM itself runs — a prepared script (`files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py`) was structurally verified byte-for-byte against the live flow on 2026-07-22 (bundle versions, property names, `PublishKafka` presence all match) but the real PUT/publish has not been run. Structurally-safe is not the same as confirmed — treat the first real run as the actual test.
 
-### TunaStarlink (Beelink SER9, Windows 11, Vulkan iGPU)
+### StarlinkAI (TunaStarlink / Beelink SER9, Windows 11, Vulkan iGPU)
 - MiNiFi agent runs Windows-native as `Apache NiFi MiNiFi` service. Class `StarlinkAI`.
 - `ListenHTTP :8080` + planned 8081-8084 for embeddings/reranking/TTS/transcription — all hit Lemonade on `localhost:13305`. Fire-and-forget → PublishKafka keyed on `request_id` (see §4b).
 - Windows firewall + Tailscale gotcha (§5g) hit here.

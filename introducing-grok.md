@@ -1,4 +1,4 @@
-# Introducing Grok — first DesktopShare session on MINI-Gaming-G1
+# Introducing Grok — first DesktopShare session on WindowsDesktop
 
 Session artifact from a Grok Build (`grok-4.5`) run against this repo on **2026-07-25**. Captures the prompts, the closing summary of the main engineering task, and whatever session stats were recoverable from local Grok state.
 
@@ -40,7 +40,7 @@ end), And the Stats for this Session, how long, tokens, etc. into a file introdu
 
 This is the end-of-task summary that was shown after the Java MiNiFi / EFM work landed (edited only for markdown structure; substance unchanged).
 
-### Done — Java MiNiFi black hole opened on MINI-Gaming-G1
+### Done — Java MiNiFi black hole opened on WindowsDesktop
 
 Full write-up: **`efm-windows-java-minifi.md`**
 

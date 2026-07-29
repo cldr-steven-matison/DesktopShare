@@ -24,26 +24,26 @@ its IP. This guide is the map I wish I'd had when I first installed [EFM on Kube
 | Ch | Title | Source doc(s) | Blog | Status | Field-validated | Next action |
 |----|-------|---------------|------|--------|-----------------|-------------|
 | 1 | EFM on Kubernetes (incl. persistence) | `blog/efm-persistance.md` | `_posts/2026-07-15-Cloudera Edge Flow Manager on Kubernetes.md` | ✅📝 | Yes (EFM 2.3.1.0-2, minikube `cld-streaming`) | [any EFM host] Write the basics directly into this chapter (what EFM is, how to deploy it, **and the Postgres + 2-PVC persistence setup** — folded in from the former standalone Ch2) — cross-reference the source doc, don't just link out to it |
-| 2 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | [MINI-Gaming-G1] Keep this section expanded deep into all the binary needs — do not distill down for the blog draft |
-| 3 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64 confirmed; 81 Windows MSI field-verified 2026-07-27, was 76; aarch64 `.so` listing open) | [Jetson, via MINI-Gaming-G1 SSH] Field-verify aarch64 — Jetson has no CLAUDE-CHECKIN.md session of its own, reached from the Windows/WSL2 box that already manages its networking |
-| 4 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114 stock; 122 with the Kafka+scripting NAR drop-in — field-verified 2026-07-27 on both `KubernetesPodJava` and the real `WindowsDesktop` agent) | [MINI-Gaming-G1 or FTF3XR2065 — either local Docker/minikube host] Verify Docker `minifi-java:latest` |
+| 2 | EFM Binaries & staging tree | `efm-binaries.md`, `efm-binaries-windows-python.md`, `efm-windows-java-minifi.md`, `efm-binaries-manual-deliver.md` | — | 🟡 ✍️ | Yes (5 leaves verified 2026-07-25) | [WindowsDesktop] Keep this section expanded deep into all the binary needs — do not distill down for the blog draft |
+| 3 | C++ processor catalog | `minifi-playground-cpp-processors.md` | — | 🟡 | Partial (74 x86_64 confirmed; 81 Windows MSI field-verified 2026-07-27, was 76; aarch64 `.so` listing open) | [Jetson, via WindowsDesktop SSH] Field-verify aarch64 — Jetson has no CLAUDE-CHECKIN.md session of its own, reached from the Windows/WSL2 box that already manages its networking |
+| 4 | Java processor catalog | `minifi-playground-java-processors.md` | — | 🟡 | Yes (114 stock; 122 with the Kafka+scripting NAR drop-in — field-verified 2026-07-27 on both `KubernetesPodJava` and the real `WindowsDesktop` agent) | [WindowsDesktop or FTF3XR2065 — either local Docker/minikube host] Verify Docker `minifi-java:latest` |
 | 5 | ExecuteScript availability (4 paths) | `efm-executescript.md` | — | 🟡 | Yes (C++/Java/MSI/source mapped) | [any host, doc-only] Fold into Part II narrative |
-| 6 | MiNiFi **custom** Python processors | `minifi-python-processors.md` | — | 🔲 ✍️ | No | [MINI-Gaming-G1] Author `.py` processors loaded natively by the C++ agent (own type/properties/relationships) — **distinct from `ExecuteScript`, which is Ch5**; do not conflate the two |
+| 6 | MiNiFi **custom** Python processors | `minifi-python-processors.md` | — | 🔲 ✍️ | No | [WindowsDesktop] Author `.py` processors loaded natively by the C++ agent (own type/properties/relationships) — **distinct from `ExecuteScript`, which is Ch5**; do not conflate the two |
 | 7 | Standalone MiNiFi C++ on K8s (no EFM) | MiNiFi Playground root scenario | — | ✅ | Yes (v1.26.02) | [any host, doc-only] Fold the content into this chapter directly (not just a link) and cross-reference the source doc; keep the source doc itself updated as this plan progresses |
-| 8 | MiNiFi Java setup | — (absent) | — | 🔲 | No | [MINI-Gaming-G1 or FTF3XR2065 — whichever runs the Playground repo next] Document examples for `java` flavor to root Playground |
-| 9 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | [MINI-Gaming-G1] Add `efm` section to root Playground |
-| 10 | S2S: MiNiFi Java → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [MINI-Gaming-G1] Local build |
-| 11 | S2S: MiNiFi C++ → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [MINI-Gaming-G1] Local build |
+| 8 | MiNiFi Java setup | — (absent) | — | 🔲 | No | [WindowsDesktop or FTF3XR2065 — whichever runs the Playground repo next] Document examples for `java` flavor to root Playground |
+| 9 | Introduce EFM into the Playground | ClouderaStreamingOperators `minifi-agent-pod.yaml` | — | 🔲 | Partial (agent pod exists) | [WindowsDesktop] Add `efm` section to root Playground |
+| 10 | S2S: MiNiFi Java → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [WindowsDesktop] Local build |
+| 11 | S2S: MiNiFi C++ → NiFi K8s | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [WindowsDesktop] Local build |
 | 12 | S2S: NiFi K8s → Cloudera DataFlow | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP DataFlow (access confirmed) |
 | 13 | S2S: NiFi K8s → Cloudera Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP Data Hub |
 | 14 | S2S: Cloudera DataFlow → Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | [FTF3XR2065 — corp VPN/CDP access] CDP-to-CDP |
 | 15 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | [any host, doc-only] Resummarize into this chapter and cross-reference the source doc for the full content, don't just link out |
-| 16 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | [TunaStarlink] Fix transcription drop, then draft |
-| 17 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | [TunaStarlink] Resolve transcription |
+| 16 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | [StarlinkAI] Fix transcription drop, then draft |
+| 17 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | [StarlinkAI] Resolve transcription |
 | 18 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | [any host, doc-only] Accumulate flows as built |
-| 19 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | [MINI-Gaming-G1] Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
-| 20 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | [MINI-Gaming-G1, or the incoming SensorClass device once checked in] Assess existing depth |
-| 21 | Metrics & Observability | `efm-metrics.md` | — | 🟡 ✍️ | Partial (EFM `metrics/9092` service port field-verified; `ServiceMonitor` scrape untested; MiNiFi C++ publisher config documented, not confirmed end-to-end) | [FTF3XR2065 or MINI-Gaming-G1 — a live CSO/Prometheus host] Apply the EFM `ServiceMonitor`, confirm a green scrape target + a value in Prometheus, then stand a C++ agent's native publisher up onto a Grafana panel |
+| 19 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | [WindowsDesktop] Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
+| 20 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | [WindowsDesktop, or the incoming SensorClass device once checked in] Assess existing depth |
+| 21 | Metrics & Observability | `efm-metrics.md` | — | 🟡 ✍️ | Partial (EFM `metrics/9092` service port field-verified; `ServiceMonitor` scrape untested; MiNiFi C++ publisher config documented, not confirmed end-to-end) | [FTF3XR2065 or WindowsDesktop — a live CSO/Prometheus host] Apply the EFM `ServiceMonitor`, confirm a green scrape target + a value in Prometheus, then stand a C++ agent's native publisher up onto a Grafana panel |
 
 ## The 8 parts
 
@@ -66,7 +66,7 @@ manage the agents and resources.
 The full transport matrix, local and cloud. Reference: apache `SITE_TO_SITE.md`.
 
 **Part V — AI at the Edge** (Ch15–17)
-NiFi + Python (done), the same idea pushed to a MiNiFi agent, and the Beelink/Lemonade
+NiFi + Python (done), the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade
 edge-AI router as a worked case study.
 
 **Part VI — Sample Gallery** (Ch18)
@@ -95,7 +95,7 @@ monitoring silo.
 | NiFi2 Processor Playground | `~/Documents/GitHub/NiFi2 Processor Playground` | Custom Python/Java processors (companion) |
 | Blog | `~/Documents/GitHub/cldr-steven-matison.github.io` | Jekyll `_posts/`, published on commit |
 
-Per-device paths (Windows, Beelink, Jetson, Macbook, droplet) live in `CLAUDE-CHECKIN.md`.
+Per-device paths (WindowsDesktop, StarlinkAI, Jetson, Macbook, droplet) live in `CLAUDE-CHECKIN.md`.
 
 Promotion flow for each piece of content:
 `DesktopShare root (in-progress)` → `completed/` (done iterating) → `blog/` (polished draft)
@@ -118,7 +118,7 @@ Promotion flow for each piece of content:
 3. **Finish demos-in-flight** — Nvidia Jetson stubs + `WindowsDesktop-TensorRT.json` (Ch19); assess SparkPlug (Ch20).
 4. **Greenfield build** — MiNiFi Java (Ch8), EFM-in-Playground (Ch9), Python processors (Ch6).
 5. **Site-to-Site** — local paths (Ch10–11) first, then cloud (Ch12–14) against CDP.
-6. **AI at the edge** — How to AI with MiNiFi (Ch16) after the Beelink transcription fix.
+6. **AI at the edge** — How to AI with MiNiFi (Ch16) after the StarlinkAI transcription fix.
 7. **Sample gallery** — Ch18 accumulates flows produced along the way.
 8. **Finale demos** — polish and publish Ch19–20.
 

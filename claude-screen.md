@@ -7,8 +7,8 @@ tricks. Read the section for the device you're touching — don't assume a fix
 on one side applies to the other without checking.
 
 - **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21; command syntax unified to `!matrix screen1` (explicit, no bare `!matrix`) on 2026-07-25 — see "Chat command syntax" note below.
-- **TunaStarlink (Beelink, Windows 11 + WSL2)** — see "Windows implementation (TunaStarlink)" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Wired to Twitch chat since 2026-07-25** — `!matrix screen3`/`!matrix screen4` (array-wide numbering, same mismatch-with-local-names as `!load` — see `streamers-twitch-bot-mpv-plan.md`).
-- **MINI-Gaming-G1 (Windows gaming PC)** — see "Windows implementation (MINI-Gaming-G1)" below. Built, verified, and wired to Twitch chat 2026-07-25 (`!matrix screen2`) — ported from the TunaStarlink implementation, ported over close to verbatim as expected. Same session also replaced this device's `!load` (Chrome/`browser_launcher.py`) with the mpv-based approach — see `streamers-twitch-bot-mpv-plan.md`.
+- **StarlinkAI (TunaStarlink / Beelink, Windows 11 + WSL2)** — see "Windows implementation (TunaStarlink)" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Wired to Twitch chat since 2026-07-25** — `!matrix screen3`/`!matrix screen4` (array-wide numbering, same mismatch-with-local-names as `!load` — see `streamers-twitch-bot-mpv-plan.md`).
+- **WindowsDesktop (MINI-Gaming-G1 / Windows gaming PC)** — see "Windows implementation (WindowsDesktop / MINI-Gaming-G1)" below. Built, verified, and wired to Twitch chat 2026-07-25 (`!matrix screen2`) — ported from the StarlinkAI implementation, ported over close to verbatim as expected. Same session also replaced this device's `!load` (Chrome/`browser_launcher.py`) with the mpv-based approach — see `streamers-twitch-bot-mpv-plan.md`.
 
 **Chat command syntax (updated 2026-07-25):** `!matrix` now always requires an explicit screen argument — `!matrix screen1|screen2|screen3|screen4` — matching `!load`'s own explicit numbering. There is no more bare `!matrix` defaulting to the Jetson; a bare `!matrix` (or any unrecognized screen token) is simply not a recognized command and gets no reply, same as an unrecognized `!load` screen. Changed in `TwitchChatListenerProcessor` (`0.0.18-SNAPSHOT`) and in central NiFi's `TwitchChatBot` `RouteOnAttribute`, which had its `matrix` dynamic property/relationship renamed to `matrix-screen1` (still targets the same Jetson `matrixListener` endpoint — only the internal routing name changed, not the wiring). Nothing on the edge/device side needed to change for this — `windows_matrix_launcher.py` never had a `screen1` entry (see "Known failure mode" #2 below), and the Jetson's own launcher script only ever served one screen.
 
@@ -175,7 +175,7 @@ Steven had hands on the device: EFM showed the `NvidiaNano` agent `ONLINE`
 with a heartbeat only seconds old, but the device (`192.168.1.195`) was
 100% unreachable for everything inbound — `ping` and direct `curl` to all
 three relevant listener ports (8080/8081/8082) all timed out. Confirmed
-both from the gaming-PC host and from *inside* the `mynifi-0` pod (the
+both from WindowsDesktop and from *inside* the `mynifi-0` pod (the
 actual source of the real `InvokeNvidiaNano`/`InvokeNvidiaNanoMatrix`
 trigger calls), ruling out a routing fluke specific to one machine.
 
@@ -209,7 +209,7 @@ To watch it fire without waiting: temporarily set `IDLE_THRESHOLD_MS` low
 few seconds — any input, including interacting with a terminal, resets the
 idle clock.
 
-## Windows implementation (TunaStarlink)
+## Windows implementation (StarlinkAI / TunaStarlink)
 
 ### What it is
 
@@ -222,7 +222,7 @@ xscreensaver-equivalent conflict to route around); a Python idle-watcher
 polling `GetLastInputInfo` stands in for `xprintidle`. Both run as persistent
 Scheduled Tasks instead of systemd user services.
 
-Built to match the GamingPC's existing `browser_launcher.py` /
+Built to match WindowsDesktop's existing `browser_launcher.py` /
 `gaming-pc-launch_stream.py` pattern (see `streamers-twitch-bot.md` and
 `files/browser_launcher.py`) as closely as possible, since that pattern is
 the one already proven to work for triggering Windows GUI actions from NiFi
@@ -261,7 +261,7 @@ without touching native MiNiFi C++'s broken Python `ExecuteScript` support
   on real activity resuming. Registered as Scheduled Task `MatrixIdleWatcher`.
 - Both Scheduled Tasks: `AtLogOn` trigger for `TunaStarlink\tunas`,
   `RestartCount=3`/`RestartInterval=1min`, unlimited execution time — same
-  shape as the GamingPC's `BrowserLauncherListener` task. Action is
+  shape as WindowsDesktop's `BrowserLauncherListener` task. Action is
   `pythonw.exe` (not `python.exe`) as of 2026-07-24 — see "Known failure
   mode" #3.
 
@@ -280,10 +280,10 @@ Screens, confirmed via `[System.Windows.Forms.Screen]::AllScreens`:
 - **No wmctrl/F11 fullscreen-force needed.** Confirmed live: unlike Linux
   Chromium (which locks `--kiosk`'s rendered output to whichever monitor the
   *cursor* is on at launch, ignoring `--window-position` entirely — this is
-  why the GamingPC's `reposition_chrome.ps1` exists, launching windowed then
+  why WindowsDesktop's `reposition_chrome.ps1` exists, launching windowed then
   forcing position+fullscreen after the fact), Edge on Windows honors
   `--window-position`/`--window-size` together with `--kiosk` directly. A
-  first attempt at porting the GamingPC's MoveWindow+simulated-F11 approach
+  first attempt at porting WindowsDesktop's MoveWindow+simulated-F11 approach
   actually shipped and was tested first — it worked for *positioning* but the
   simulated F11 keypress (`keybd_event`) never actually triggered fullscreen,
   most likely because a background/non-interactive process can't reliably
@@ -449,22 +449,22 @@ kept only for `idle_watcher.py`'s existing calls — prefer the explicit
 box throws a `NullReferenceException` from its HTML-parsing path, unrelated
 to the actual HTTP response. Basic parsing skips that entirely.)
 
-## Windows implementation (MINI-Gaming-G1)
+## Windows implementation (WindowsDesktop / MINI-Gaming-G1)
 
 ### What it is
 
-Ported from TunaStarlink's implementation above, close to verbatim as
+Ported from StarlinkAI's implementation above, close to verbatim as
 expected (`claude-screen.md`'s own earlier "Next steps" note predicted this).
 Built 2026-07-25 from a Claude Code session running directly on this box
 (WSL2), which meant direct filesystem access to `C:\minifi-manual\` via
 `/mnt/c/minifi-manual/` and `powershell.exe` interop for testing — unlike
-TunaStarlink, no separate device session was needed.
+StarlinkAI, no separate device session was needed.
 
 Single target screen in scope: the right/primary monitor (`0,0` `1920x1080`),
 the same monitor `!load` already used before this work — see
 `streamers-twitch-bot.md` for the original `screen1`=left-non-primary /
 `screen2`=right-primary layout. `screen1` (left monitor) was never in scope
-here, matching TunaStarlink's own primary-monitor exclusion for a different
+here, matching StarlinkAI's own primary-monitor exclusion for a different
 reason (there it's Steven's own work screen; here it's simply not the
 `!load`-targeted screen).
 
@@ -477,16 +477,16 @@ reason (there it's Steven's own work screen; here it's simply not the
 - `C:\minifi-manual\windows_matrix_launcher.py` — port `5903` (not `5901`:
   that port is `browser_launcher.py`'s, now retired — see below). `SCREENS`
   dict has one entry, `screen2`. Same unique-profile-dir-per-launch and
-  PID-tracked kill discipline as TunaStarlink's version. One additive
+  PID-tracked kill discipline as StarlinkAI's version. One additive
   coexistence call: `POST 127.0.0.1:5902/stop/screen2` (the mpv listener)
   before showing matrix. Registered as Scheduled Task
   `MatrixLauncherListener`, `pythonw.exe`.
 - `C:\minifi-manual\mpv_stream_launcher.py` — port `5902`, single `screen2`
   entry, same `SetWindowPos`/`--force-window=immediate` approach already
-  proven on TunaStarlink (ported directly, not re-derived — see
+  proven on StarlinkAI (ported directly, not re-derived — see
   `streamers-twitch-bot-mpv-plan.md` for why `--screen=N`/`--geometry` don't
   work). Replaces `browser_launcher.py`'s role for `!load` entirely: calls
-  `:5903/kill/screen2` best-effort before playing, same as TunaStarlink's
+  `:5903/kill/screen2` best-effort before playing, same as StarlinkAI's
   coexistence pattern in the other direction. Registered as Scheduled Task
   `MpvStreamLauncherListener`, `pythonw.exe`.
 - `browser_launcher.py`'s `BrowserLauncherListener` Scheduled Task —

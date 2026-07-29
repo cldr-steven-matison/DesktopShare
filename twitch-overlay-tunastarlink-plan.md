@@ -142,7 +142,7 @@ OBS Browser Source:
 - Custom CSS: `body { background-color: rgba(0,0,0,0); margin: 0; overflow: hidden; }`  
 - Edit file → right-click source → Refresh  
 
-**Can:** layout, CSS/JS animation, Lottie, local `fetch` to Beelink services, chat-driven widgets.  
+**Can:** layout, CSS/JS animation, Lottie, local `fetch` to StarlinkAI services, chat-driven widgets.  
 **Can’t alone:** true mic lip-sync, heavy 3D without taxing the encode, transparent MP4 (use WebM+alpha or sprites).
 
 Ship static HTML first (parity with Phase 0), then add motion.
@@ -168,7 +168,7 @@ Do not block brand overlay on this.
 | Tier | What | Tools |
 |------|------|--------|
 | **A — Easy** | Mascot idle + mouth flap on alert/chat/`!hi` + optional TTS file | HTML/JS + local sound |
-| **B — Medium** | Bot/service → TTS → overlay subtitle + flap | Beelink Python + overlay events |
+| **B — Medium** | Bot/service → TTS → overlay subtitle + flap | StarlinkAI Python + overlay events |
 | **C — Real lips** | Audio → lip-sync clip → Media/Browser play | Wav2Lip / SadTalker path (see `heygen-avatar-api.md` / tuna mascot notes); HeyGen if paying |
 
 Tier A is enough for “the brand is alive.” Tier C is event moments, not continuous commentary, unless we commit GPU + latency budget.

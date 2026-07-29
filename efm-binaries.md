@@ -242,7 +242,7 @@ Invoke-WebRequest `
 
 ## Windows Desktop Agent — Full Install with Python Support
 
-> **Field-verified 2026-07-27 on MINI-Gaming-G1** under class **`WindowsDesktopCpp`** (parallel to Java `WindowsDesktop`). Full write-up: `efm-binaries-windows-python.md` + `efm-executescript.md` Path D.
+> **Field-verified 2026-07-27 on WindowsDesktop** under class **`WindowsDesktopCpp`** (parallel to Java `WindowsDesktop`). Full write-up: `efm-binaries-windows-python.md` + `efm-executescript.md` Path D.
 >
 > **Key insight:** The EFM deployer runs `msiexec` without selecting Feature Level 2 packages. Python (`CM_C_python_script_extension`) is Level 2. Prefer **administrative extract** (`msiexec /a`) when you lack elevation, or `ADDLOCAL=ALL` when you can elevate. Never install from `C:\WINDOWS\system32`.
 
@@ -313,7 +313,7 @@ Expect LogAttribute lines with your script's attributes and the JSON payload.
 
 ---
 
-## Kafka + scripting NARs on the CEM Java agent — SOLVED 2026-07-27 (field-verified, MINI-Gaming-G1)
+## Kafka + scripting NARs on the CEM Java agent — SOLVED 2026-07-27 (field-verified, WindowsDesktop)
 
 **The gap (historical):** the EFM-staged CEM Java tarball `minifi-2.24.08.0-19-bin.tar.gz` is field-verified (2026-07-25, `efm-windows-java-minifi.md`) to ship **114 processors with no `ExecuteScript` and no `PublishKafka`/`ConsumeKafka` NAR**. C++ has both (Kafka via `libminifi-rdkafka-extensions.so` in the stock set; scripting via extra-extensions / `ADDLOCAL=ALL`) — so this was a **Java-only** shortfall.
 
@@ -350,7 +350,7 @@ cd /some/scratch/dir/nifi-minifi-java-2.0.0.2.24.08.0-19
 - **PublishKafka is a real, working transactional producer**: wired to a `Kafka3ConnectionService` pointed at the in-cluster bootstrap (`my-cluster-kafka-bootstrap.cld-streaming.svc:9092` — no hairpin-NAT issue since this agent runs inside the cluster, unlike the Windows-native C++ test in `efm-validation-agent.md`). Log shows a real Kafka 3.9.0 client connecting, discovering the cluster ID, negotiating a transaction coordinator, and getting a producer ID assigned. The only remaining snag is `UNKNOWN_TOPIC_OR_PARTITION` because the test topic was never created — that's expected, not a NAR problem, and topic creation goes through Surveyor per `[[reference_kafka_ops]]`, not left as CLI cruft here.
 - **Gotcha hit along the way — the class-manifest trap applies to newly-autoloaded processors too**: after the NARs loaded, the Designer still rejected `ExecuteScript`/`PublishKafka` as "not an available Processor type" until the agent class's manifest mapping was explicitly refreshed (`PUT /efm/api/agent-class-manifest-config` to the agent's *new* `agentManifestId`) — same trap `efm-windows-java-minifi.md` documented for C++-vs-Java flows, but it also fires on a same-runtime manifest change.
 
-**Built artifacts persisted** (not committed to this repo — binaries live alongside the other staged agent binaries, not in DesktopShare's docs tree): `~/efm-binaries/java-nar-drop-in-2.24.08.0-19/` on MINI-Gaming-G1 holds all 4 built NARs, ready to copy anywhere without rebuilding:
+**Built artifacts persisted** (not committed to this repo — binaries live alongside the other staged agent binaries, not in DesktopShare's docs tree): `~/efm-binaries/java-nar-drop-in-2.24.08.0-19/` on WindowsDesktop holds all 4 built NARs, ready to copy anywhere without rebuilding:
 ```
 nifi-kafka-service-api-nar-2.24.08.0-19.nar   (26 KB)
 nifi-kafka-nar-2.24.08.0-19.nar               (752 KB)

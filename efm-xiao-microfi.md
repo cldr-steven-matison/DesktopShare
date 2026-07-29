@@ -93,7 +93,7 @@ MicroFi's README calls out that `localhost` in the default heartbeat URL cannot 
 
 ## This runs on `StarlinkAI`, not the Mac
 
-The XIAO is plugged into TunaStarlink's front-facing USB — that's where `efm-xiao.md` put it and that's where it still is. So the device leg of this work belongs to `StarlinkAI`, and the host picks up three advantages plus one new hazard.
+The XIAO is plugged into StarlinkAI's front-facing USB — that's where `efm-xiao.md` put it and that's where it still is. So the device leg of this work belongs to `StarlinkAI`, and the host picks up three advantages plus one new hazard.
 
 **EFM reachability is already proven from this host.** `CLAUDE-CHECKIN.md` records a MiNiFi agent installed on the Windows side, class `StarlinkAI`, confirmed Online in the EFM UI and heartbeating to `efm-host-ip:10090` over Tailscale. There's no on-site-LAN precondition and no cluster change needed anywhere — the path the XIAO needs is the path this box already uses.
 
@@ -105,7 +105,7 @@ For contrast, `FTF3XR2065` would have been the harder host: EFM is intentionally
 
 ## Field validation instructions — `StarlinkAI`
 
-Prerequisites: the XIAO on TunaStarlink's front USB (it's already there), Tailscale up, VS Code + PlatformIO **on the Windows host, not in WSL2**. Do **not** push to `Christopheraburns/MicroFi` — read-only, despite the token.
+Prerequisites: the XIAO on StarlinkAI's front USB (it's already there), Tailscale up, VS Code + PlatformIO **on the Windows host, not in WSL2**. Do **not** push to `Christopheraburns/MicroFi` — read-only, despite the token.
 
 **Task 1 — pin the chip.** Nothing else is decidable until this is known. Windows host, PowerShell:
 

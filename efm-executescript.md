@@ -6,14 +6,14 @@ I keep hitting the same wall from a different direction. Every time a MiNiFi flo
 
 ## The short answer
 
-Field-verified in this lab (MINI-Gaming-G1 + FTF3XR2065), not from vendor docs:
+Field-verified in this lab (WindowsDesktop + FTF3XR2065), not from vendor docs:
 
 | Build | Version | ExecuteScript in stock? | How to get it |
 |---|---|---|---|
 | C++ image `apacheminificpp:latest` | 1.26.02 | ❌ — 74-processor production set, no scripting `.so` | Extra-extensions injection (Path A) or source build (Path B) |
 | CEM Java tarball (EFM-staged), stock | 2.24.08.0-19 | ❌ — **114 processors, no scripting NAR** (verified 2026-07-25) | Stock tarball still ships neither — see next row for the fix |
 | CEM Java tarball (EFM-staged), + NAR drop-in | 2.24.08.0-19 | ✅ — **122 processors, real Groovy ExecuteScript + real Kafka producer** — **SOLVED 2026-07-27**, re-confirmed live 2026-07-28 | Build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching source tarball, drop into the agent's autoload dir — see `efm-windows-java-minifi.md` |
-| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — **✅ field-verified 2026-07-27** on MINI-Gaming-G1: process-mode *and* Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
+| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — **✅ field-verified 2026-07-27** on WindowsDesktop: process-mode *and* Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
 | Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Pull and check — do not trust the "200+" marketing count |
 
@@ -129,7 +129,7 @@ One option remains open:
 
 ## Path D — Windows C++ MSI (field-verified 2026-07-27) ✅
 
-**Status: works.** Proven twice on MINI-Gaming-G1 the same day:
+**Status: works.** Proven twice on WindowsDesktop the same day:
 
 | Mode | Result |
 |---|---|
@@ -138,7 +138,7 @@ One option remains open:
 
 Both ran **side-by-side with Java** MiNiFi on class `WindowsDesktop` (left ONLINE). Eval class used for the C++ canvas: **`WindowsDesktopCpp`** (agent id `40eb2f92-94c5-4478-beed-7060e41c9d7f`). Agent classes can host mixed runtimes; the parallel class was evaluation-only so the Java designer canvas stayed clean.
 
-Beelink re-confirm: follow **`efm-beelink-cpp-python-action.md`** (prefer production class `StarlinkAI`).
+StarlinkAI re-confirm: follow **`efm-beelink-cpp-python-action.md`** (prefer production class `StarlinkAI`).
 
 ### MSI facts (1.26.02-b30 x64)
 
@@ -164,7 +164,7 @@ New-Item C:\minifi -ItemType Directory -Force | Out-Null
 Set-Location C:\minifi
 
 # 1) Download MSI from EFM (adjust host/port)
-$efm = 'http://127.0.0.1:10090'   # Beelink: http://efm-host-ip:10090
+$efm = 'http://127.0.0.1:10090'   # StarlinkAI: http://efm-host-ip:10090
 Invoke-WebRequest `
   "$efm/efm/api/agent-deployer/binary?agentType=cpp&agentVersion=1.26.02&osArch=windows" `
   -OutFile C:\minifi\minifi.msi -UseBasicParsing
@@ -213,12 +213,12 @@ Start-Service 'Apache NiFi MiNiFi'   # or Restart-Service after editing props
 # EFM: agent ONLINE within ~5–15s
 ```
 
-On G1, helpers under `C:\minifi\`:
+On WindowsDesktop, helpers under `C:\minifi\`:
 
 - `install-service-addlocal.ps1` — elevated MSI install (ASCII-only; PowerShell 5.1 chokes on Unicode em-dashes)
 - `fix-service-c2.ps1` — pyd copy + C2 enable + service restart (used after system32 land)
 
-**G1 live outcome after service path:** service Running/Automatic; Python DLL+pyd present; C2 on; ListenHTTP `:18080`; smoke LogAttribute `python.smoke=windows-cpp-executescript-ok`. Install tree that day: `C:\WINDOWS\system32\nifi-minifi-cpp` (ugly but functional — reinstall from `cd C:\minifi` if you want a clean root).
+**WindowsDesktop live outcome after service path:** service Running/Automatic; Python DLL+pyd present; C2 on; ListenHTTP `:18080`; smoke LogAttribute `python.smoke=windows-cpp-executescript-ok`. Install tree that day: `C:\WINDOWS\system32\nifi-minifi-cpp` (ugly but functional — reinstall from `cd C:\minifi` if you want a clean root).
 
 ---
 
@@ -245,7 +245,7 @@ Start-Process C:\minifi\nifi-minifi-cpp\bin\minifi.exe `
   -WorkingDirectory C:\minifi\nifi-minifi-cpp\bin
 ```
 
-Does **not** auto-start at boot — prefer service path for Beelink/production.
+Does **not** auto-start at boot — prefer service path for StarlinkAI/production.
 
 ---
 
@@ -275,7 +275,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:18080/contentListener -Method Post `
   -Body '{"test":"hello-from-windows-cpp-python","ts":"smoke1"}' -UseBasicParsing
 ```
 
-**Pass criteria (observed on G1 process-mode and service):**
+**Pass criteria (observed on WindowsDesktop process-mode and service):**
 
 ```
 POST → 200
@@ -370,7 +370,7 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 
 **Actually open**, ordered by how close each is to done:
 
-1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D verified on MINI-Gaming-G1 (`WindowsDesktopCpp`): process-mode **and** Windows service + `ADDLOCAL=ALL`; Python 3.14.4; smoke `python.smoke=windows-cpp-executescript-ok`. **Open:** re-confirm on Beelink `StarlinkAI` via `efm-beelink-cpp-python-action.md`; optional clean reinstall off `system32` onto `C:\minifi`.
+1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D verified on WindowsDesktop (`WindowsDesktopCpp`): process-mode **and** Windows service + `ADDLOCAL=ALL`; Python 3.14.4; smoke `python.smoke=windows-cpp-executescript-ok`. **Open:** re-confirm on StarlinkAI via `efm-beelink-cpp-python-action.md`; optional clean reinstall off `system32` onto `C:\minifi`.
 2. ~~**[Java] Decide the Java scripting story.**~~ **Done 2026-07-27** — see `efm-windows-java-minifi.md`'s "SOLVED" section: `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` built from the exact-matching source tarball and dropped into the agent's autoload dir, no restart needed. `ExecuteScript` runs real **Groovy** (no Jython/Python in this build) on both `KubernetesPodJava` and the real `WindowsDesktop` agent, manifest goes 114 → 122. This line in this doc was stale as of 2026-07-28 (issue #4) — cross-check `efm-windows-java-minifi.md` before repeating "Java is shell-only" anywhere else, that's no longer accurate for this lab's staged tarball.
 3. **[Persistence] Persist the injected tarballs + `java/windows` leaf into `~/efm-binaries/staging/`** so the next EFM PVC rebuild doesn't silently drop scripting (open follow-up already noted in `efm-windows-java-minifi.md`).
 4. **[Windows GUI automation] Session 0 vs. Session 1 for any `ExecuteScript`/`ExecuteStreamCommand` that launches a visible window.** Confirmed 2026-07-28 (issue #4, see the new subsection above under Path D) — a Windows-service agent (`LocalSystem`) can run the script and even spawn the target process, but the window is never visible/discoverable since Session 0 has no interactive desktop; a process-mode or interactive-logon agent (Session 1) works cleanly. Anyone building a similar on-device UI-driving flow on Windows should default to process-mode (or a service running under a real interactive account, not `LocalSystem`) from the start rather than rediscovering this.
@@ -393,7 +393,7 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 
 - `efm-binaries.md` — the binary staging tree + the extra-extensions injection recipe (Path A) + Windows MSI/ADDLOCAL section
 - `efm-binaries-windows-python.md` — Windows Path D history + G1 verified recipes (process + service)
-- `efm-beelink-cpp-python-action.md` — Beelink checklist to re-confirm Path D on `StarlinkAI`
+- `efm-beelink-cpp-python-action.md` — StarlinkAI checklist to re-confirm Path D on `StarlinkAI`
 - `efm-windows-java-minifi.md` — the CEM Java field verification (114 stock, 122 after the scripting/Kafka NAR drop-in — SOLVED 2026-07-27)
 - `minifi-playground-cpp-processors.md` — the C++ stock catalog and the four fix paths in processor terms
 - `minifi-playground-java-processors.md` — Java patterns and footprint tradeoffs

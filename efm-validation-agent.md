@@ -1,6 +1,6 @@
 # EFM field-validation tasks — for WindowsDesktop (MINI-Gaming-G1)
 
-**Audience:** the session running on **MINI-Gaming-G1** (the Windows/EFM host — "WindowsDesktop").
+**Audience:** the session running on **WindowsDesktop** (the Windows/EFM host — "WindowsDesktop").
 **Author host:** FTF3XR2065 (Mac, DesktopShare golden source), 2026-07-27.
 **Why:** a doc-accuracy audit of the `efm-*` library turned up claims that are only *captured* or *implied*, not *live-certified*. This file is the punch-list to certify them on the box that can actually reach the agents and EFM. Each task says exactly what to run and what to commit back.
 
@@ -47,7 +47,7 @@ PY
 
 **Deliver:** commit the captured manifest as `files/efm/WindowsDesktopCpp-manifest.json` (or `-processors.txt`), and report the count. Expected ≈76 incl. `ExecuteScript`. If it differs from the committed 76, that's the finding — note what changed. Then I'll update the platform-matrix row from "captured, live re-validation pending" to field-verified.
 
-**Result (2026-07-27, MINI-Gaming-G1): DONE.** Live count is **81, not 76** — same binary revision (`0d41a46e`, v1.26.02) as the June capture, so not a version change. 5 new processors: `FetchOPCProcessor`, `PutOPCProcessor`, `GetCouchbaseKey`, `PutCouchbaseKey`, `RunLlamaCppInference` — extension bundles that weren't enabled/loaded at June-capture time. `ExecuteScript`/`ConsumeKafka`/`PublishKafka` all confirmed present (as before). Committed as `files/efm/WindowsDesktopCpp-manifest.json`. Platform-matrix row in `minifi-playground-cpp-processors.md` updated to field-verified.
+**Result (2026-07-27, WindowsDesktop): DONE.** Live count is **81, not 76** — same binary revision (`0d41a46e`, v1.26.02) as the June capture, so not a version change. 5 new processors: `FetchOPCProcessor`, `PutOPCProcessor`, `GetCouchbaseKey`, `PutCouchbaseKey`, `RunLlamaCppInference` — extension bundles that weren't enabled/loaded at June-capture time. `ExecuteScript`/`ConsumeKafka`/`PublishKafka` all confirmed present (as before). Committed as `files/efm/WindowsDesktopCpp-manifest.json`. Platform-matrix row in `minifi-playground-cpp-processors.md` updated to field-verified.
 
 ## Task 2 — Produce the missing `WindowsDesktop-TensorRT.json`
 
@@ -87,9 +87,9 @@ Also reconfirmed live (per your question about Java Kafka): fresh pull of the Ja
 
 ## Jetson / aarch64 tasks — OPEN (never tested on real aarch64 hardware)
 
-**Audience:** whoever has the Jetson Orin Nano powered on and Online in EFM. Per the guide's routing hint this is reached *via MINI-Gaming-G1* (SSH / same networking the WSL2 box already manages) — the Jetson has no CLAUDE-CHECKIN.md session of its own.
+**Audience:** whoever has the Jetson Orin Nano powered on and Online in EFM. Per the guide's routing hint this is reached *via WindowsDesktop* (SSH / same networking the WSL2 box already manages) — the Jetson has no CLAUDE-CHECKIN.md session of its own.
 
-**Standing decision (2026-07-28):** the aarch64 processor manifest is currently *inferred* from x86_64, never field-captured. We're leaving the C++ processor catalog's aarch64 line open in the guide until these run. The Beelink/StarlinkAI is **x86_64 (AMD Ryzen)**, *not* aarch64 — it cannot close this gap. The only aarch64-Linux silicon in the fleet is the Jetson (`NvidiaNano` class); the Mac M4 Pro is arm64 but Darwin, with MiNiFi disabled. A future `SensorClass` device (see guide Part VII) might also close it if it turns out to be an ARM SBC.
+**Standing decision (2026-07-28):** the aarch64 processor manifest is currently *inferred* from x86_64, never field-captured. We're leaving the C++ processor catalog's aarch64 line open in the guide until these run. StarlinkAI is **x86_64 (AMD Ryzen)**, *not* aarch64 — it cannot close this gap. The only aarch64-Linux silicon in the fleet is the Jetson (`NvidiaNano` class); the Mac M4 Pro is arm64 but Darwin, with MiNiFi disabled. A future `SensorClass` device (see guide Part VII) might also close it if it turns out to be an ARM SBC.
 
 **Known coordinates (confirm, don't trust):**
 
@@ -101,7 +101,7 @@ Also reconfirmed live (per your question about Java Kafka): fresh pull of the Ja
 
 ### Task 5 — Certify the live aarch64 (`NvidiaNano`) processor manifest (closes the C++ processor catalog's open aarch64 line)
 
-The x86_64 Windows MSI is field-verified at **81** (Task 1); the Linux x86_64 C++ catalog is **74** (`minifi-playground-cpp-processors.md`). The `linuxaarch64` count is inferred from those, never captured. Pull the real manifest for the live `NvidiaNano` agent and count it. **This can be done from MINI-Gaming-G1** (hit the local EFM API) as long as the Jetson is Online and has reported its manifest — you do *not* have to be on the Jetson for this one.
+The x86_64 Windows MSI is field-verified at **81** (Task 1); the Linux x86_64 C++ catalog is **74** (`minifi-playground-cpp-processors.md`). The `linuxaarch64` count is inferred from those, never captured. Pull the real manifest for the live `NvidiaNano` agent and count it. **This can be done from WindowsDesktop** (hit the local EFM API) as long as the Jetson is Online and has reported its manifest — you do *not* have to be on the Jetson for this one.
 
 ```bash
 # 1. Find the live NvidiaNano agent id + its manifest id
@@ -137,7 +137,7 @@ Task 3 (C++ Windows) and the Java agent both only got as far as a *real connect 
 Wire a throwaway `GenerateFlowFile → PublishKafka` on the `NvidiaNano` designer flow, point `bootstrap.servers` at the NodePort broker list, publish, and consume it back.
 
 ```bash
-# on the gaming PC / any broker-reachable box
+# on WindowsDesktop / any broker-reachable box
 kafka-console-consumer.sh --bootstrap-server gaming-pc-lan-ip:31623 --topic minifi-aarch64-test --from-beginning
 ```
 
@@ -159,25 +159,25 @@ C++ Windows ExecuteScript runs (Path D, `efm-executescript.md`), but the Python 
 
 - **CEM Java agent with scripting + Kafka NARs out of the box** — the 2.24.08 tarball ships neither (`ExecuteScript`, `PublishKafka`/`ConsumeKafka` absent, field-verified *and* confirmed by Cloudera's own CEM 2.4.0 processor-support page). 2.4.0 does **not** fix it; the documented workaround is a CFM-NAR drop-in, still unattempted. A future release that bundles them by default is the real ask.
 - **Windows C++ MSI that installs the Python feature by default** (or an EFM deployer that passes `ADDLOCAL=ALL`) — today Python scripting is Feature Level 2 and silently skipped. Update: the manual workaround itself is now proven and repeatable (Path D, field-verified 2026-07-27, see `efm-executescript.md`) — this item is now purely "make it the default," not "make it possible."
-- **aarch64 parity** — a published/confirmed processor manifest for the `linuxaarch64` build (currently inferred from x86_64). Needs an aarch64-capable device (Jetson session) — not actionable from MINI-Gaming-G1.
-- **New (2026-07-27):** a `127.0.0.1`-bound `kubectl port-forward` for the Kafka NodePort (bootstrap `31623` + brokers `31850`/`31935`/`30336`) on MINI-Gaming-G1, mirroring what EFM effectively gets via loopback — without it, native Windows processes on this same host can't reach Kafka at all (hairpin NAT through the WSL2 mirrored-networking vSwitch blocks LAN-IP self-connects). Currently un-fixed by choice (Task 3 only needed the processor to attempt a connection, not deliver).
+- **aarch64 parity** — a published/confirmed processor manifest for the `linuxaarch64` build (currently inferred from x86_64). Needs an aarch64-capable device (Jetson session) — not actionable from WindowsDesktop.
+- **New (2026-07-27):** a `127.0.0.1`-bound `kubectl port-forward` for the Kafka NodePort (bootstrap `31623` + brokers `31850`/`31935`/`30336`) on WindowsDesktop, mirroring what EFM effectively gets via loopback — without it, native Windows processes on this same host can't reach Kafka at all (hairpin NAT through the WSL2 mirrored-networking vSwitch blocks LAN-IP self-connects). Currently un-fixed by choice (Task 3 only needed the processor to attempt a connection, not deliver).
 
 ---
 
 ## Report-back template
 
 ```
-Date / host: 2026-07-27, MINI-Gaming-G1
+Date / host: 2026-07-27, WindowsDesktop
 Task 1 — live C++ Win manifest: count=81 (was 76) ExecuteScript=Y Kafka=Y  committed as: files/efm/WindowsDesktopCpp-manifest.json
 Task 2 — WindowsDesktop-TensorRT.json: committed (already existed, misfiled at repo root — moved to files/efm/, WIP→Operational)
 Task 3 — C++ Win Kafka live: pass (processor real, genuine connect attempt + real broker timeout)  proof: minifi-app.log KafkaConnection/PublishKafka lines, quoted above
 Task 4 — versions: EFM=2.3.1.0-2 C++=1.26.02 Java=2.24.08.0-19 (all match docs, no drift) ; CEM 2.4.0 eval worth it? No — closes no known gap, EFM upgrade carries real stateful-redeploy risk, revisit only if a specific need surfaces
-New wishlist items: 127.0.0.1-bound Kafka NodePort forward for MINI-Gaming-G1 (see wishlist above)
+New wishlist items: 127.0.0.1-bound Kafka NodePort forward for WindowsDesktop (see wishlist above)
 ```
 
 Jetson / aarch64 (Tasks 5–7): **DONE**
 ```
-Date / host: 2026-07-28, Jetson tunastreet (own session, not via MINI-Gaming-G1 proxy)
+Date / host: 2026-07-28, Jetson tunastreet (own session, not via WindowsDesktop proxy)
 Task 5 — aarch64 manifest: count=79 (vs 74 Linux x86 / 81 Win MSI) ExecuteScript=Y Kafka=Y  committed as: files/efm/NvidiaNano-manifest.json ; aarch64-extra procs (already-staged extra-extensions, not arch-specific): ExecuteProcess, ExecuteScript, FetchOPCProcessor, PutOPCProcessor, RunLlamaCppInference ; x86-only-missing: none
 Task 6 — Jetson Kafka end-to-end: PASS (first full delivery in the lab)  proof: throwaway standalone flow, 10/10 messages, sequential offsets 0-9 on partition 0, topic minifi-aarch64-test
 Task 7 — ExecuteScript on aarch64: engines=python confirmed live (3 production ExecuteScript processors, all python engine); lua staged but not live-exercised  proof: production flow's 3 ExecuteScript processors + this device's own prior session history confirming the matrix-screensaver and streamChat scripts ran end-to-end
@@ -189,4 +189,4 @@ Task 7 — ExecuteScript on aarch64: engines=python confirmed live (3 production
 - `efm-binaries.md` — binary staging + the Kafka/scripting-NAR open work (Java)
 - `minifi-playground-cpp-processors.md` — the 74-processor C++ catalog + platform matrix
 - `efm-windows-java-minifi.md` — the 114-processor Java manifest + class-manifest trap
-- `CLAUDE-CHECKIN.md` — MINI-Gaming-G1 services/ports block
+- `CLAUDE-CHECKIN.md` — WindowsDesktop services/ports block

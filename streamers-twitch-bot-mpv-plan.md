@@ -2,17 +2,17 @@
 
 This replaces the current kill-Chrome/relaunch-Chrome cycle used by both screens with a persistent `mpv` player controlled over its IPC socket. Written up before starting so there's a clear reference when it gets picked up.
 
-## Status as of 2026-07-25: MINI-Gaming-G1 (`screen2`) done too — both mpv screens now built, real chat test still the one open item on both
+## Status as of 2026-07-25: WindowsDesktop (`screen2`) done too — both mpv screens now built, real chat test still the one open item on both
 
-Session on MINI-Gaming-G1 itself (not TunaStarlink) replaced `!load screen2`'s Chrome/`browser_launcher.py` path with the same mpv approach below — `mpv_stream_launcher.py` ported directly (`SetWindowPos` positioning, `--force-window=immediate`, single `screen2` entry, port `5902`), verified end-to-end via direct pod-internal `curl` calls (WSL2 can't route to raw pod IPs, so central-NiFi-path testing from a dev shell isn't possible — same limitation hit on both devices' work). `browser_launcher.py`'s `BrowserLauncherListener` task stopped (not deleted). Same session also built `!matrix screen2` (Windows implementation ported from TunaStarlink, port `5903`) — see `claude-screen.md`'s "Windows implementation (MINI-Gaming-G1)" section for the full writeup, including a real gotcha: `minifi-agent-k8s-gaming`'s EFM heartbeat had been dead 6 days, needed a pod restart to fix, which also changed the pod's IP (bare pod, no stable Service) and broke both `InvokeGamingPCScreen2` and the new `InvokeGamingPCMatrixScreen2` in central NiFi until caught and fixed same-session.
+Session on WindowsDesktop itself (not StarlinkAI) replaced `!load screen2`'s Chrome/`browser_launcher.py` path with the same mpv approach below — `mpv_stream_launcher.py` ported directly (`SetWindowPos` positioning, `--force-window=immediate`, single `screen2` entry, port `5902`), verified end-to-end via direct pod-internal `curl` calls (WSL2 can't route to raw pod IPs, so central-NiFi-path testing from a dev shell isn't possible — same limitation hit on both devices' work). `browser_launcher.py`'s `BrowserLauncherListener` task stopped (not deleted). Same session also built `!matrix screen2` (Windows implementation ported from StarlinkAI, port `5903`) — see `claude-screen.md`'s "Windows implementation (WindowsDesktop / MINI-Gaming-G1)" section for the full writeup, including a real gotcha: `minifi-agent-k8s-gaming`'s EFM heartbeat had been dead 6 days, needed a pod restart to fix, which also changed the pod's IP (bare pod, no stable Service) and broke both `InvokeGamingPCScreen2` and the new `InvokeGamingPCMatrixScreen2` in central NiFi until caught and fixed same-session.
 
 Also fixed this session: the double chat-message bug (`!matrix` was posting both an immediate "loading" ack and `TwitchChatReplyProcessor`'s own "now active" confirmation — now just the one, screen-number-aware reply), and added a global cooldown shared by `!load`/`!matrix` (`Cooldown Seconds` property, default 10s) to protect the edge hardware from chat spam.
 
-## Status as of 2026-07-24 (night session): Beelink-side built, deployed, and manually verified end-to-end; real Twitch-chat test still pending
+## Status as of 2026-07-24 (night session): StarlinkAI-side built, deployed, and manually verified end-to-end; real Twitch-chat test still pending
 
-**This session's work (2026-07-24, TunaStarlink-side Claude session):** installed
+**This session's work (2026-07-24, StarlinkAI-side Claude session):** installed
 `mpv`(`shinchiro.mpv` via winget) and `yt-dlp`(`yt-dlp.yt-dlp` via winget,
-pulls in `deno`/`FFmpeg` deps automatically) on TunaStarlink. Deployed
+pulls in `deno`/`FFmpeg` deps automatically) on StarlinkAI. Deployed
 `mpv_stream_launcher.py` to `C:\minifi-manual\`, registered as Scheduled Task
 `MpvStreamLauncherListener` (same shape as the Matrix tasks — see
 `claude-screen.md`). Hit **three separate, real bugs** getting mpv to land on
@@ -94,7 +94,7 @@ all), find its window via `Get-Process -Id <pid>` from a PowerShell
 subprocess, `SetWindowPos` it to the absolute target rect, *then* toggle
 fullscreen via mpv's own JSON IPC (`set_property fullscreen true`) only after
 that placement has settled — mirrors the "position first, fullscreen after"
-technique already used for the GamingPC's Chrome (`reposition_chrome.ps1`,
+technique already used for WindowsDesktop's Chrome (`reposition_chrome.ps1`,
 see `streamers-twitch-bot.md`) for exactly the same underlying reason
 (fullscreening onto "whichever monitor the window is currently on" only works
 if the window is already actually on the right monitor first).
@@ -113,21 +113,21 @@ fresh launch): `ShowWindow(..., SW_RESTORE)` then IPC `fullscreen` `true` —
 without this, a second `/load` on a screen that was previously stopped would
 have loaded the stream invisibly behind a still-minimized window.
 
-Real scope decision (2026-07-24/25): build `screen3`/`screen4` (array-facing) stream loading on TunaStarlink/Beelink directly via `mpv`+IPC now — **not** the Jetson-first rollout order this doc originally proposed below. Went straight to the Beelink because StarlinkAI/EFM was already confirmed ready and Steven asked for `screen2`/`screen3` (Beelink's local names) in chat now. The "prototype on the Jetson first" section further down is superseded for this build; kept for reference only.
+Real scope decision (2026-07-24/25): build `screen3`/`screen4` (array-facing) stream loading on StarlinkAI directly via `mpv`+IPC now — **not** the Jetson-first rollout order this doc originally proposed below. Went straight to StarlinkAI because StarlinkAI/EFM was already confirmed ready and Steven asked for `screen2`/`screen3` (StarlinkAI's local names) in chat now. The "prototype on the Jetson first" section further down is superseded for this build; kept for reference only.
 
 **Decisions locked in (confirmed with Steven):**
 - Separate sibling script (`mpv_stream_launcher.py`, port 5902), not folded into `windows_matrix_launcher.py` — different process-lifecycle models (persistent-IPC vs. kill-relaunch).
 - Rollout pace: move fast, no long soak requirement — but still bring each screen up and test it **one at a time**, not both simultaneously, until each is independently confirmed working. (The known `DPC_WATCHDOG_VIOLATION` crash was from 3 *matrix* screens at once, a different load profile than mpv's decode path — Steven's call was not to over-apply that caution here, just to keep proving screens independently before combining.)
 - **Kick is in scope now**, not deferred. `!load kick:<slug> [screen]` reaches the launcher with the whole `kick:<slug>` token as one string (regex already generic, no `TwitchChatListenerProcessor` change needed beyond the screen-count text update below) — `mpv_stream_launcher.py`'s `build_url()` strips the `kick:` prefix and builds `kick.com/<slug>`, matching the same prefix convention already used for the watchlist/roster (`services/streamers.py`). Kick's `yt-dlp` extractor reliability is **unverified** — check this for real as part of first testing, don't assume parity with Twitch.
 
-**Already built and live (2026-07-25, this session, from the gaming-PC-side Claude session — not the Beelink):**
-- `StarlinkAI` EFM flow: `ListenHTTP-StreamScreen3` (port `8085`) → `InvokeHTTP-StreamScreen3` (`POST 127.0.0.1:5902/load/screen2`), and the `screen4`/`8086`/`screen3` pair. Built via the EFM Designer API (`minifi-efm.md` §7), published — flow version 13 → 14, confirmed cross-Tailscale reachable (`curl` from the gaming PC to `100.110.253.66:8085` and `:8086` both returned `200`).
+**Already built and live (2026-07-25, this session, from the WindowsDesktop-side Claude session — not StarlinkAI):**
+- `StarlinkAI` EFM flow: `ListenHTTP-StreamScreen3` (port `8085`) → `InvokeHTTP-StreamScreen3` (`POST 127.0.0.1:5902/load/screen2`), and the `screen4`/`8086`/`screen3` pair. Built via the EFM Designer API (`minifi-efm.md` §7), published — flow version 13 → 14, confirmed cross-Tailscale reachable (`curl` from WindowsDesktop to `100.110.253.66:8085` and `:8086` both returned `200`).
 - Central NiFi `TwitchChatBot` PG: `RouteOnAttribute` gained `screen3`/`screen4` dynamic properties; new `InvokeStarlinkScreen3`/`InvokeStarlinkScreen4` `InvokeHTTP` processors point at `http://100.110.253.66:8085` / `:8086` (TunaStarlink's real Tailscale IP — pulled live via `powershell.exe -Command "tailscale status"` interop from WSL2, since the checked-in docs deliberately store this as redacted placeholder text). Both new processors auto-terminate `Response`/`No Retry`/`Retry`/`Failure` and route `Original` → `TwitchChatReplyProcessor`, matching the existing `InvokeNvidiaNano`/`InvokeGamingPC` pattern exactly (confirmed against live flow state, not the stale checked-in export — `LogInvokeFailure` is wired from `TwitchChatReplyProcessor`'s `failure` only, not per-`InvokeHTTP`, contrary to an earlier draft of this plan). All processors `RUNNING`/`VALID`.
 - `TwitchChatListenerProcessor.py`: chat-text updated to advertise `[screen1|screen2|screen3|screen4]` in both the join announcement and `!commands`/`!help`. Version bumped `0.0.13-SNAPSHOT` → `0.0.14-SNAPSHOT`, `kubectl cp`'d onto `mynifi-0`, running instance switched to the new bundle version and restarted. Live.
-- `files/mpv_stream_launcher.py` (this repo) — **deployed and running on TunaStarlink as of 2026-07-24** (see the status section at the top for what changed getting it there). Port 5902, endpoints `POST /load/<screen>`, `POST /stop/<screen>`, `POST /kill/<screen>` (screen = `screen2`/`screen3`, Beelink-local names). Lazy-starts `mpv --idle --force-window=immediate --input-ipc-server=...` on first `/load` for that screen (no `--screen`/`--fullscreen` flags at launch — positioned via `SetWindowPos` and fullscreened via IPC only after placement settles, see above), then only sends IPC `loadfile`/`stop` commands after. Calls `windows_matrix_launcher.py`'s `:5901/kill/<screen>` best-effort before loading a stream.
+- `files/mpv_stream_launcher.py` (this repo) — **deployed and running on StarlinkAI as of 2026-07-24** (see the status section at the top for what changed getting it there). Port 5902, endpoints `POST /load/<screen>`, `POST /stop/<screen>`, `POST /kill/<screen>` (screen = `screen2`/`screen3`, StarlinkAI-local names). Lazy-starts `mpv --idle --force-window=immediate --input-ipc-server=...` on first `/load` for that screen (no `--screen`/`--fullscreen` flags at launch — positioned via `SetWindowPos` and fullscreened via IPC only after placement settles, see above), then only sends IPC `loadfile`/`stop` commands after. Calls `windows_matrix_launcher.py`'s `:5901/kill/<screen>` best-effort before loading a stream.
 - Flow definitions re-exported and pretty-printed (not yet committed): `cso-operator-app/flows/TwitchChatBot.json`, `DesktopShare/files/StarlinkAI.json`.
 
-**Still needed — Beelink-side, hands-on (a separate Claude session running on TunaStarlink, per Steven's call on 2026-07-25):**
+**Still needed — StarlinkAI-side, hands-on (a separate Claude session running on StarlinkAI, per Steven's call on 2026-07-25):**
 1. ~~Install `mpv`...~~ **Done 2026-07-24.** Installed via `winget install shinchiro.mpv` and `winget install yt-dlp.yt-dlp` (the latter pulled in `deno`/`FFmpeg` deps automatically). Real path: `C:\Program Files\MPV Player\mpv.exe` — added to `MPV_PATHS` in the checked-in script.
 2. ~~Step 0...~~ **Done 2026-07-24.** `yt-dlp -g` resolved both `https://www.twitch.tv/xqc` and `https://kick.com/xqc` to real playable stream URLs. Kick's extractor is reliable, not unverified.
 3. ~~Confirm `mpv`'s `--screen=N` indices...~~ **Superseded 2026-07-24.** `--screen=N` turned out to be unstable across reboots (see the "Three real bugs" section above) — abandoned entirely in favor of direct `SetWindowPos`, which doesn't depend on any enumeration index at all.
@@ -143,7 +143,7 @@ Real scope decision (2026-07-24/25): build `screen3`/`screen4` (array-facing) st
 
 ## Why
 
-`!load <streamer> [screen1|screen2]` works end-to-end today on both the Jetson (`NvidiaNano`) and the gaming PC (`KubernetesPod`, via the `browser_launcher.py` Windows bridge), but every single command does a full kill-and-relaunch of Chrome/Chromium:
+`!load <streamer> [screen1|screen2]` works end-to-end today on both the Jetson (`NvidiaNano`) and WindowsDesktop (`KubernetesPod`, via the `browser_launcher.py` Windows bridge), but every single command does a full kill-and-relaunch of Chrome/Chromium:
 
 1. `taskkill`/`pkill` the existing browser
 2. Launch a new one, positioned and sized for the target monitor
@@ -168,19 +168,19 @@ No window ever closes. No kiosk/fullscreen negotiation happens more than once (a
 mpv --idle --input-ipc-server=<socket-or-pipe> --fullscreen --screen=<N> --ytdl-format=best
 ```
 - Linux (Jetson): `--input-ipc-server=/tmp/mpv-screen1.sock`
-- Windows (gaming PC): `--input-ipc-server=\\.\pipe\mpv-screen2`
+- Windows (WindowsDesktop): `--input-ipc-server=\\.\pipe\mpv-screen2`
 
 **Control script** (replaces `agent-NvidiaNano-launch_stream.py` / `gaming-pc-launch_stream.py` + `browser_launcher.py`'s launch logic): reads `{"streamer": "..."}` from the flowfile/POST body same as today, builds the Twitch URL, and instead of spawning a browser, opens the IPC socket/pipe and sends the `loadfile` JSON command. Same `onTrigger`/success/failure contract as the existing scripts — failure now means "couldn't write to the IPC socket" or "mpv returned an error event," not "process exit code lied to us."
 
-**Gaming PC bridge stays the same shape.** `KubernetesPod` still has no GUI access from inside the container, so the pod's `ExecuteScript` still needs to call out to something running natively on Windows — that part of the architecture (`browser_launcher.py`'s role) doesn't go away, it just controls `mpv` over the named pipe instead of launching/repositioning Chrome. Everything upstream of it (NiFi routing, `RouteOnAttribute` on `${screen}`) is untouched.
+**WindowsDesktop bridge stays the same shape.** `KubernetesPod` still has no GUI access from inside the container, so the pod's `ExecuteScript` still needs to call out to something running natively on Windows — that part of the architecture (`browser_launcher.py`'s role) doesn't go away, it just controls `mpv` over the named pipe instead of launching/repositioning Chrome. Everything upstream of it (NiFi routing, `RouteOnAttribute` on `${screen}`) is untouched.
 
-**Windows-native option, worth testing alongside this (separate, already-corrected finding):** a real `WindowsDesktop` MiNiFi agent does reach EFM fine — the earlier "Windows can't reach EFM" note was wrong and has been corrected in memory. The actual Windows limitation is that *custom compiled* NiFi/MiNiFi processors don't have Windows binaries; the built-in `ExecuteScript` processor works fine there. That reopens running the gaming-PC screen2 flow as a native `WindowsDesktop` agent (talking to a local `mpv` pipe directly) instead of the pod+bridge-listener shape — worth trying once `WindowsDesktop` class testing happens, independent of the mpv work itself.
+**Windows-native option, worth testing alongside this (separate, already-corrected finding):** a real `WindowsDesktop` MiNiFi agent does reach EFM fine — the earlier "Windows can't reach EFM" note was wrong and has been corrected in memory. The actual Windows limitation is that *custom compiled* NiFi/MiNiFi processors don't have Windows binaries; the built-in `ExecuteScript` processor works fine there. That reopens running the WindowsDesktop screen2 flow as a native `WindowsDesktop` agent (talking to a local `mpv` pipe directly) instead of the pod+bridge-listener shape — worth trying once `WindowsDesktop` class testing happens, independent of the mpv work itself.
 
 ## Rollout order
 
 1. **Prototype on the Jetson only.** Simplest target — already Linux/native, no bridge process involved, no Windows named-pipe unknowns. Install `mpv`+`yt-dlp`, hand-test IPC control from a shell (`socat - /tmp/mpv-screen1.sock` or similar) before touching the MiNiFi flow.
 2. Swap `agent-NvidiaNano-launch_stream.py`'s Chromium kill/relaunch for the IPC `loadfile` call. Confirm `!load <streamer>` (no screen arg, defaults to screen1) still works via real chat, with no regression.
-3. Only once that's solid, do the same for the gaming PC: persistent `mpv` on Windows, `browser_launcher.py` rewritten to speak the named-pipe IPC instead of launching Chrome. Re-verify screen2 positioning is a non-issue here (the player never moves, it's launched once already fullscreen on the correct monitor — no more `AllScreens`/`GetWindowRect` juggling per command).
+3. Only once that's solid, do the same for WindowsDesktop: persistent `mpv` on Windows, `browser_launcher.py` rewritten to speak the named-pipe IPC instead of launching Chrome. Re-verify screen2 positioning is a non-issue here (the player never moves, it's launched once already fullscreen on the correct monitor — no more `AllScreens`/`GetWindowRect` juggling per command).
 4. Re-test both screens together, same as always: `!load <streamer>`, `!load <streamer> screen1`, `!load <streamer> screen2`, no cross-regression.
 
 ## Real tradeoffs, going in with eyes open

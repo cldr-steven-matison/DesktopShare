@@ -212,10 +212,10 @@ running config off the pod, don't assume the install layout.
 | Runtime | Platform | Host / route (label) |
 |---|---|---|
 | C++ | Linux arm64 (this k8s test) | FTF3XR2065 local minikube (`device:FTF3XR2065`) — **do this one first** |
-| C++ | Linux x86_64 | MINI-Gaming-G1 minikube (`device:WindowsDesktop`) |
-| C++ | Windows (MSI, Path D box) | MINI-Gaming-G1 (`device:WindowsDesktop`) |
-| C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via MINI-Gaming-G1 SSH) — high-confidence if the arm64 k8s leg passes |
-| Java | CEM Java agent | MINI-Gaming-G1 or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) |
+| C++ | Linux x86_64 | WindowsDesktop minikube (`device:WindowsDesktop`) |
+| C++ | Windows (MSI, Path D box) | WindowsDesktop (`device:WindowsDesktop`) |
+| C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via WindowsDesktop SSH) — high-confidence if the arm64 k8s leg passes |
+| Java | CEM Java agent | WindowsDesktop or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) |
 
 Only the k8s (arm64 C++) leg is in scope for the first issue; the rest are filed as their own
 tickets once this one lands.
