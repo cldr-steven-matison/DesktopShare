@@ -332,6 +332,42 @@ Serial should show WiFi association then an HTTP POST to the heartbeat URL. Capt
 
 Report back with: chip variant, chosen env, firmware size, the first-heartbeat log lines, whether the manifest was accepted, whether the implicit ack worked on 2.3.1.0-2, and the reboot behavior.
 
+## Next: processors for deeper testing
+
+All 8 validation tasks passed, but they only ever exercised MicroFi's two built-in processors,
+and both are synthetic: `GenerateFlowFile` fabricates payload from nothing, `LogAttribute` writes
+it to the serial log. The flow round-trips entirely inside the device — **nothing enters from a
+real source and nothing leaves the board.** That's enough to prove registration, the implicit ack,
+and LittleFS persistence. It is not enough to test MicroFi as a data agent. Deeper testing needs
+real ingress and real egress, which means new processors compiled into the static registry.
+
+Filed as **[#26](https://github.com/cldr-steven-matison/DesktopShare/issues/26)** (sub-issue of #9)
+for `FTF3XR2065` — this is eval + dev work against the compile-time registry, so it lands on the
+Mac rather than StarlinkAI where the board is; anything built there gets on-hardware verification
+back on StarlinkAI as a follow-up. Priority order:
+
+1. **`PublishMQTT` — P0, the load-bearing gap.** This is the same missing piece flagged in the
+   opening comparison and the "What NOT to do" list: with no `PublishMQTT` in the registry, a
+   MicroFi XIAO cannot publish to Mosquitto at all, so it can't feed `ConsumeMQTT` in the
+   `SparkPlug` PG and can't reach Kafka. It's `P0` on MicroFi's own roadmap and unbuilt. Until it
+   exists, MicroFi stays a parallel track to the hand-written sketch in `efm-xiao.md`, never a
+   replacement. Everything else on this list is secondary to closing this.
+2. **A real ingress processor.** `GenerateFlowFile` is a stand-in. The XIAO ESP32-S3 **Sense**
+   variant this array actually runs has a camera and onboard sensors — a processor that emits real
+   device telemetry (even a simple periodic sensor read) is what turns the round-trip into an
+   actual edge-data test rather than a loopback.
+3. **Attribute / routing processors** — `UpdateAttribute`, `RouteOnAttribute`. The current flow is
+   linear (source → log); testing branch logic and attribute mutation needs these, and they're
+   cheap to embed.
+
+Two design constraints carry over from the validation and bound this work: processors are
+**compile-time-embedded and resolved by name against a static registry** (no `dlopen`, no runtime
+plugin load — adding a processor means a rebuild and reflash), and property names must stay
+**MiNiFi-C++-compatible** (as `GenerateFlowFile`/`LogAttribute` already are) so an EFM flow
+definition written against MiNiFi C++ resolves unchanged. Any dev branches go on the
+`steven-matison/MicroFi` fork, not upstream — `Christopheraburns/MicroFi` stays read-only unless
+Steven says otherwise.
+
 ## What NOT to do
 
 - **Don't push to `Christopheraburns/MicroFi`.** The token allows it. The task doesn't.

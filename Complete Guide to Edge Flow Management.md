@@ -57,7 +57,7 @@ The tracker is narrow by design — cells **stack top-to-bottom**:
 | **21**<br>🟡✍️<br>[#12](https://github.com/cldr-steven-matison/DesktopShare/issues/12)✓, [#16](https://github.com/cldr-steven-matison/DesktopShare/issues/16), [#19](https://github.com/cldr-steven-matison/DesktopShare/issues/19), [#20](https://github.com/cldr-steven-matison/DesktopShare/issues/20) | **Metrics & Observability**<br>src `efm-metrics.md`<br>blog — | Layer 1 + 2 (agent-side) | FTF3XR2065 (Layer 1) + NvidiaNano (Layer 2) → WindowsDesktop next | Field-validated Layer 1 2026-07-29 (FTF3XR2065): EFM deployed, `ServiceMonitor` scrapes `efm-ui/10090` (NOT `metrics/9092` — empty), `up{job="efm"}=1`, agent enrolled (`KubernetesPod`). Field-validated Layer 2 agent-side publisher 2026-07-29 (NvidiaNano, real Jetson hardware): corrected the property namespace (`nifi.metrics.publisher.*`, not `nifi.c2.*`; default port `9936` not `9092`) and the restart mechanics (only `sudo systemctl restart` reliably works — killing the process does not force a systemd respawn on this build); publisher confirmed serving 204 lines of valid Prometheus text on `:9936`, bound `0.0.0.0`. Open: CSO-side scrape target + Grafana panel for the agent publisher (WindowsDesktop), `agentClass`-tagged EFM series, then the WindowsDesktop subtasks — Prometheus/Grafana runbook on CSO (#19) + java/c++ `WindowsDesktop`-class validation (#20) |
 
 **Open issues not yet mapped to a chapter:**
-[#9](https://github.com/cldr-steven-matison/DesktopShare/issues/9) — MicroFi (ESP32 MiNiFi C2
+[#9](https://github.com/cldr-steven-matison/DesktopShare/issues/9)✓ — MicroFi (ESP32 MiNiFi C2
 agent) on the XIAO field-validated against EFM (`efm-xiao-microfi.md`, `device:StarlinkAI`); an
 edge-device validation that may seed a future Part V/VII chapter — **all 8 field-validation tasks
 now complete (2026-07-29), the case for a real chapter is made, not yet drafted.** Chip: XIAO
@@ -70,7 +70,11 @@ ack (a heartbeat with a matching `flowInfo.flowId` is sufficient, no explicit
 `/acknowledge` POST) — confirmed by pushing a real `GenerateFlowFile → LogAttribute` flow via the
 EFM Designer's per-component API and watching the agent transition to `ONLINE` with the correct
 `flowId`. Persistence across power-cycle also confirmed (Task 8) — the flow definition survives in
-LittleFS on the corrected partition table. Full write-up in `efm-xiao-microfi.md`.
+LittleFS on the corrected partition table. Full write-up in `efm-xiao-microfi.md`. **#9 closed done
+2026-07-29**; the follow-up
+[#26](https://github.com/cldr-steven-matison/DesktopShare/issues/26) (sub-issue, `device:FTF3XR2065`)
+picks up eval + dev of the processors needed for deeper testing beyond the synthetic
+`GenerateFlowFile → LogAttribute` round-trip — `PublishMQTT` (the P0 egress gap) first.
 [#4](https://github.com/cldr-steven-matison/DesktopShare/issues/4) — a Windows Python processor
 for the Streamers `TwitchChatListener` (`device:WindowsDesktop`); belongs to **cso-operator-app**,
 out of scope for this guide, tracked here only for correlation.
