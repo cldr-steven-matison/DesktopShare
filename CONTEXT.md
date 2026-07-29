@@ -27,7 +27,7 @@ hostname. Full specs and per-device paths: `CLAUDE-CHECKIN.md`.
 - **CSM** — Cloudera Streams Messaging = **Kafka** (via Strimzi).
 - **EFM / CEM** — Edge Flow Manager (CEM = Cloudera Edge Management, the product; EFM the
   component). Manages MiNiFi agent classes, resources, and edge flows. See
-  `Complete_Guide_to_Edge_Flow_Management.md`.
+  `Complete Guide to Edge Flow Management.md`.
 - **NiFi** — the datacenter dataflow engine (`mynifi-0` pod). **MiNiFi** — its edge agent, in
   **C++** (small, native) and **Java** flavors.
 - **Agent class** — an EFM grouping of MiNiFi agents sharing one flow (e.g. `StarlinkAI`,
@@ -59,7 +59,7 @@ hostname. Full specs and per-device paths: `CLAUDE-CHECKIN.md`.
   gates on Steven's review). Full protocol: `agent/device-comms.md`.
 - **Promotion flow** — content moves DesktopShare root (in-progress) → `completed/` (done
   iterating) → `blog/` (polished draft) → blog repo `_posts/` (published).
-- **The guide** — `Complete_Guide_to_Edge_Flow_Management.md`, the master EFM plan/index;
+- **The guide** — `Complete Guide to Edge Flow Management.md`, the master EFM plan/index;
   chapters are numbered only there.
 - **Streamers** — the cso-operator-app pipeline that generates and posts stream content
   (Twitch/Kick/X); has a live pending/published queue governed by `agent/live-queues.md`.

@@ -1,6 +1,6 @@
 # EFM & MiNiFi Metrics — feeding the edge into Prometheus/Grafana
 
-*Source doc for Ch21 of `Complete_Guide_to_Edge_Flow_Management.md` (Part VIII — Observability).*
+*Source doc for Ch21 of `Complete Guide to Edge Flow Management.md` (Part VIII — Observability).*
 
 Everything else in this guide gets a flow onto a device. This chapter answers the next
 question: once a MiNiFi agent is running out at the edge — on a Jetson, a Windows box over
@@ -286,7 +286,7 @@ MiNiFi are the edge-side complement to that datacenter-side endpoint.
 
 ## When this ships, update
 
-- `Complete_Guide_to_Edge_Flow_Management.md` — Ch21 status row (flip 🟡/🔲 → ✅ per layer as each
+- `Complete Guide to Edge Flow Management.md` — Ch21 status row (flip 🟡/🔲 → ✅ per layer as each
   is field-run).
 - `efm-nvidia-jetson-nano.md` — its metrics section is Layer 2's origin; keep the publisher config
   and the ServiceMonitor in sync with this doc once either is field-validated.
