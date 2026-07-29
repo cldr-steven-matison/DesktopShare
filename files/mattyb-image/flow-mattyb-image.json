@@ -1,0 +1,444 @@
+{
+  "flowContents": {
+    "identifier": "b0000000-0000-1000-8000-000000000000",
+    "instanceIdentifier": "b0000000-0000-1000-8000-000000000000",
+    "name": "MattyBImageProcessor",
+    "comments": "GetFile -> ShapeDetector -> BoundingBoxCropper -> SplitJson -> FetchFile -> PutFile (LogFailure sink). SplitJson is the fan-out: one manifest FlowFile becomes one FlowFile per crop.",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "processGroups": [],
+    "remoteProcessGroups": [],
+    "inputPorts": [],
+    "outputPorts": [],
+    "labels": [],
+    "funnels": [],
+    "controllerServices": [],
+    "variables": {},
+    "parameterContextName": null,
+    "flowFileConcurrency": "UNBOUNDED",
+    "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+    "defaultFlowFileExpiration": "0 sec",
+    "defaultBackPressureObjectThreshold": 10000,
+    "defaultBackPressureDataSizeThreshold": "1 GB",
+    "componentType": "PROCESS_GROUP",
+    "processors": [
+      {
+        "identifier": "a1000000-0000-1000-8000-00000000000a",
+        "name": "GetFile",
+        "type": "org.apache.nifi.processors.standard.GetFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "position": {
+          "x": 400,
+          "y": 0
+        },
+        "properties": {
+          "Input Directory": "/tmp/mattyb-in",
+          "Keep Source File": "false",
+          "File Filter": "[^\\.].*\\.(png|jpg|jpeg)"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      },
+      {
+        "identifier": "a1000000-0000-1000-8000-00000000000b",
+        "name": "MattyBShapeDetector",
+        "type": "MattyBShapeDetector",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "python-extensions",
+          "version": "0.0.1"
+        },
+        "position": {
+          "x": 400,
+          "y": 200
+        },
+        "properties": {},
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      },
+      {
+        "identifier": "a1000000-0000-1000-8000-00000000000c",
+        "name": "MattyBBoundingBoxCropper",
+        "type": "MattyBBoundingBoxCropper",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "python-extensions",
+          "version": "0.0.1"
+        },
+        "position": {
+          "x": 400,
+          "y": 400
+        },
+        "properties": {
+          "Output Directory": "/tmp/mattyb"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      },
+      {
+        "identifier": "a1000000-0000-1000-8000-00000000000d",
+        "name": "SplitJson",
+        "type": "org.apache.nifi.processors.standard.SplitJson",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "position": {
+          "x": 400,
+          "y": 600
+        },
+        "properties": {
+          "JsonPath Expression": "$.*"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "original",
+          "failure"
+        ],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      },
+      {
+        "identifier": "a1000000-0000-1000-8000-00000000000e",
+        "name": "FetchFile",
+        "type": "org.apache.nifi.processors.standard.FetchFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "position": {
+          "x": 400,
+          "y": 800
+        },
+        "properties": {
+          "File to Fetch": "${path}",
+          "Completion Strategy": "None"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      },
+      {
+        "identifier": "a1000000-0000-1000-8000-00000000000f",
+        "name": "PutFile",
+        "type": "org.apache.nifi.processors.standard.PutFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "position": {
+          "x": 400,
+          "y": 1000
+        },
+        "properties": {
+          "Directory": "/tmp/mattyb-out",
+          "Conflict Resolution Strategy": "replace"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success",
+          "failure"
+        ],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      },
+      {
+        "identifier": "a1000000-0000-1000-8000-000000000010",
+        "name": "LogFailure",
+        "type": "org.apache.nifi.processors.standard.LogAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "position": {
+          "x": 800,
+          "y": 400
+        },
+        "properties": {
+          "Log Level": "error"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "schedulingPeriod": "0 sec",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
+        "scheduledState": "ENABLED",
+        "componentType": "PROCESSOR"
+      }
+    ],
+    "connections": [
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000001",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000a",
+          "type": "PROCESSOR",
+          "name": "GetFile"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-00000000000b",
+          "type": "PROCESSOR",
+          "name": "MattyBShapeDetector"
+        },
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000002",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000b",
+          "type": "PROCESSOR",
+          "name": "MattyBShapeDetector"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-00000000000c",
+          "type": "PROCESSOR",
+          "name": "MattyBBoundingBoxCropper"
+        },
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000003",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000b",
+          "type": "PROCESSOR",
+          "name": "MattyBShapeDetector"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-000000000010",
+          "type": "PROCESSOR",
+          "name": "LogFailure"
+        },
+        "selectedRelationships": [
+          "failure"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000004",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000c",
+          "type": "PROCESSOR",
+          "name": "MattyBBoundingBoxCropper"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-00000000000d",
+          "type": "PROCESSOR",
+          "name": "SplitJson"
+        },
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000005",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000c",
+          "type": "PROCESSOR",
+          "name": "MattyBBoundingBoxCropper"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-000000000010",
+          "type": "PROCESSOR",
+          "name": "LogFailure"
+        },
+        "selectedRelationships": [
+          "failure"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000006",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000d",
+          "type": "PROCESSOR",
+          "name": "SplitJson"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-00000000000e",
+          "type": "PROCESSOR",
+          "name": "FetchFile"
+        },
+        "selectedRelationships": [
+          "split"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000007",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000e",
+          "type": "PROCESSOR",
+          "name": "FetchFile"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-00000000000f",
+          "type": "PROCESSOR",
+          "name": "PutFile"
+        },
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      },
+      {
+        "identifier": "c0000000-0000-1000-8000-000000000008",
+        "name": "",
+        "source": {
+          "id": "a1000000-0000-1000-8000-00000000000e",
+          "type": "PROCESSOR",
+          "name": "FetchFile"
+        },
+        "destination": {
+          "id": "a1000000-0000-1000-8000-000000000010",
+          "type": "PROCESSOR",
+          "name": "LogFailure"
+        },
+        "selectedRelationships": [
+          "failure",
+          "not.found",
+          "permission.denied"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "bends": []
+      }
+    ]
+  },
+  "externalControllerServices": {},
+  "parameterContexts": {},
+  "parameterProviders": {},
+  "flowEncodingVersion": "1.0",
+  "latest": false
+}

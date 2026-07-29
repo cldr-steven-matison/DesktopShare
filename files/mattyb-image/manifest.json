@@ -1,0 +1,110 @@
+[
+  {
+    "id": 1,
+    "label": "red",
+    "color": [
+      220,
+      30,
+      30
+    ],
+    "box": {
+      "x": 60,
+      "y": 60,
+      "w": 181,
+      "h": 181
+    },
+    "path": "/tmp/mattyb/shape-1-red.png",
+    "width": 181,
+    "height": 181
+  },
+  {
+    "id": 2,
+    "label": "green",
+    "color": [
+      30,
+      160,
+      30
+    ],
+    "box": {
+      "x": 360,
+      "y": 60,
+      "w": 181,
+      "h": 181
+    },
+    "path": "/tmp/mattyb/shape-2-green.png",
+    "width": 181,
+    "height": 181
+  },
+  {
+    "id": 3,
+    "label": "blue",
+    "color": [
+      30,
+      60,
+      200
+    ],
+    "box": {
+      "x": 660,
+      "y": 60,
+      "w": 181,
+      "h": 181
+    },
+    "path": "/tmp/mattyb/shape-3-blue.png",
+    "width": 181,
+    "height": 181
+  },
+  {
+    "id": 4,
+    "label": "orange",
+    "color": [
+      240,
+      140,
+      20
+    ],
+    "box": {
+      "x": 45,
+      "y": 385,
+      "w": 211,
+      "h": 131
+    },
+    "path": "/tmp/mattyb/shape-4-orange.png",
+    "width": 211,
+    "height": 131
+  },
+  {
+    "id": 5,
+    "label": "purple",
+    "color": [
+      140,
+      30,
+      160
+    ],
+    "box": {
+      "x": 364,
+      "y": 360,
+      "w": 172,
+      "h": 163
+    },
+    "path": "/tmp/mattyb/shape-5-purple.png",
+    "width": 172,
+    "height": 163
+  },
+  {
+    "id": 6,
+    "label": "teal",
+    "color": [
+      20,
+      150,
+      150
+    ],
+    "box": {
+      "x": 660,
+      "y": 385,
+      "w": 181,
+      "h": 131
+    },
+    "path": "/tmp/mattyb/shape-6-teal.png",
+    "width": 181,
+    "height": 131
+  }
+]
