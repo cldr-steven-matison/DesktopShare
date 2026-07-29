@@ -33,6 +33,7 @@ Full list with the incident background is in `agent/incident-rules.md`. The shor
 - **Don't over-claim.** State plainly what happened. Adding logging isn't fixing.
 - **Commit and push only when explicitly asked.**
 - **Confirm before every restart or redeploy of a live service, and check the live flow first.** A rebuild/redeploy — or a single-replica pod restart — of a service a running NiFi `InvokeHTTP` calls into kills the in-flight request (`unexpected end of stream`). This has bitten repeatedly. Before each one: dump the live NiFi flow, confirm no processor is running/mid-fetch and let in-flight ones drain (don't just fire and hope they stopped), confirm exactly one pod `Running`, and ask fresh every time — an earlier "ok to deploy" never covers a later redeploy. Full incident history and the exact check: `agent/incident-rules.md`.
+- **Never start an ad-hoc `kubectl port-forward`/`minikube tunnel` — check for one already running first.** The canonical set lives as zellij panes (`kube-service-ports-efm.kdl`); a duplicate on the same target silently orphans or hangs. Any sub-agent touching a k8s service needs this spelled out in its prompt explicitly — it can't see this file. Details: `agent/incident-rules.md`.
 
 ## Finding the pattern you need
 
