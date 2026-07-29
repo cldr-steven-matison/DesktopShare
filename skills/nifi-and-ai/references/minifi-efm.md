@@ -58,7 +58,7 @@ curl -L \
 
 The Windows MSI **bundles** the Python scripting extension but as **Feature Level 2** (`CM_C_python_script_extension`) — optional, not selected by the EFM deployer. Symptom without it: `Could not instantiate: PythonScriptExecutor` every 30s.
 
-**Field-verified 2026-07-27 (MINI-Gaming-G1, class `WindowsDesktopCpp`):** administrative extract works without elevation and still unpacks the Level-2 DLL:
+**Field-verified 2026-07-27 (WindowsDesktop, class `WindowsDesktopCpp`):** administrative extract works without elevation and still unpacks the Level-2 DLL:
 
 ```powershell
 # Download MSI, then extract ALL payload (no service):
