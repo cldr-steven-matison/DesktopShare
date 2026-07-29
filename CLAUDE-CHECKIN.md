@@ -27,7 +27,12 @@ When a device joins the roster, add its `device:*` label (see `agent/device-comm
 
 ## Skill sync status
 
-Skills are copied per-device into `~/.claude/skills/` and there's **no versioning — a stale local copy silently wins** (see CLAUDE.md). When a skill's source changes in this repo, note it here so every device knows to re-sync on its next pull.
+**Skill sync is now automatic** (2026-07-29): the SessionStart hook runs `skills/sync-skills.sh`
+after each `git pull`, re-installing any skill whose committed git tree hash differs from the
+`~/.claude/skills/` copy. This retired the old "copy by hand, a stale local copy silently wins"
+trap — you no longer have to note a re-sync here or remember to `cp`. The log below is kept as
+history; new skill changes just land on every device's next pull automatically. (Editing a skill
+and want it live before committing? Run `bash skills/sync-skills.sh` by hand.)
 
 - **2026-07-24 — `nifi-and-ai` updated (layout overhaul + file rename).** Canvas-layout guidance was sharpened into a real technique and its home was renamed `references/human-touch-followups.md` → `references/layout.md`. Because a file was **renamed**, a plain `cp -r` over an existing install leaves the stale old file behind — remove the old dir first:
   ```bash

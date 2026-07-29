@@ -23,6 +23,15 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   out+="\$ git pull --ff-only"$'\n'"$pull"$'\n\n'
 fi
 
+# 1b. Auto-sync this repo's skills into ~/.claude/skills after the pull, so a
+#     freshly-pulled skill can't lose to a stale local copy. Drift is detected
+#     via the git tree hash; the helper fails open and prints one line per skill
+#     it updated (silent when everything is already current). See skills/sync-skills.sh.
+if [ -f "$proj/skills/sync-skills.sh" ]; then
+  synced="$(bash "$proj/skills/sync-skills.sh" 2>/dev/null)"
+  [ -n "$synced" ] && out+="$synced"$'\n\n'
+fi
+
 # 2. Map this host -> the device label(s) it is responsible for
 #    (device-comms.md "Responsibility map"; some agents are reached by proxy).
 host="$(hostname -s 2>/dev/null || hostname)"

@@ -8,21 +8,28 @@ A bare-minimum playbook for building **Apache NiFi 2.x + MiNiFi + EFM** flows pr
 
 It's the sanitized, external-friendly distillation of the hard-won lessons in this repo — with the device names, network topology, and internal file references stripped out.
 
-### Install
+### Install — automatic on this repo's devices
 
-**Per-project** (available in one repo):
+You don't hand-copy skills anymore. `skills/sync-skills.sh` installs every skill in
+this directory into `~/.claude/skills/` and the **SessionStart hook runs it after each
+`git pull`** (`.claude/hooks/checkin.sh`), so a freshly-pulled skill can't lose to a
+stale local copy — the drift that used to bite us. Drift is detected via each skill's
+**git tree hash** (`git rev-parse HEAD:skills/<name>`), so nobody has to remember to bump
+a version number. The helper fails open and only ever copies repo → installed, never the
+reverse, and only touches skills this repo provides.
+
+Run it by hand any time (e.g. after committing a skill change you want live immediately):
 ```bash
-mkdir -p .claude/skills
-cp -r skills/nifi-and-ai .claude/skills/
+bash skills/sync-skills.sh          # syncs all skills; prints one line per skill updated, silent when current
 ```
 
-**Global** (available everywhere):
-```bash
-mkdir -p ~/.claude/skills
-cp -r skills/nifi-and-ai ~/.claude/skills/
-```
+The marker lives at `~/.claude/skills/<name>/.synced-from` (the tree hash last synced).
+Note the check compares against the **committed** tree — a skill edit you haven't committed
+yet won't auto-sync until it's committed (or run the helper by hand after `cp`-ing your WIP).
 
-Claude picks it up automatically the next session and loads it when you're working on a NiFi/MiNiFi/EFM task. The `SKILL.md` stays concise; the deeper material in `references/` is loaded only when the task needs it.
+Dropping a skill into a *foreign* repo (one without this hook) still works the old way —
+`cp -r skills/<name> ~/.claude/skills/`. Claude loads it the next session and pulls the
+deeper `references/` material only when the task needs it.
 
 ### Which `CLAUDE.md` rules govern NiFi work (this repo)
 

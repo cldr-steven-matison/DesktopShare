@@ -71,7 +71,10 @@ that runs `.claude/hooks/checkin.sh` on every session start:
 
 1. `git pull --ff-only` (refuses a non-fast-forward — a diverged tree surfaces as
    a note to reconcile, it is never silently merged).
-2. Maps the host to its `device:*` label(s) via the case block in the script and
+2. Runs `skills/sync-skills.sh` to auto-install any skill whose committed git tree
+   hash differs from the `~/.claude/skills/` copy (so a freshly-pulled skill can't
+   lose to a stale local copy). Prints one line per skill updated; silent when current.
+3. Maps the host to its `device:*` label(s) via the case block in the script and
    lists that inbox with `gh issue list --state open`.
 
 The result is injected into the session as context, so the open issues for this
