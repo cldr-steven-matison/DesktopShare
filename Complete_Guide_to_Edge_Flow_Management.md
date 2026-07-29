@@ -43,8 +43,9 @@ its IP. This guide is the map I wish I'd had when I first installed [EFM on Kube
 | 18 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | [any host, doc-only] Accumulate flows as built |
 | 19 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | [MINI-Gaming-G1] Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
 | 20 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | [MINI-Gaming-G1, or the incoming SensorClass device once checked in] Assess existing depth |
+| 21 | Metrics & Observability | `efm-metrics.md` | — | 🟡 ✍️ | Partial (EFM `metrics/9092` service port field-verified; `ServiceMonitor` scrape untested; MiNiFi C++ publisher config documented, not confirmed end-to-end) | [FTF3XR2065 or MINI-Gaming-G1 — a live CSO/Prometheus host] Apply the EFM `ServiceMonitor`, confirm a green scrape target + a value in Prometheus, then stand a C++ agent's native publisher up onto a Grafana panel |
 
-## The 7 parts
+## The 8 parts
 
 **Part I — EFM Foundations on Kubernetes** (Ch1–2)
 Get EFM running and persisted (Postgres + 2 PVCs, folded into Ch1), and fed with agent
@@ -72,7 +73,13 @@ edge-AI router as a worked case study.
 Curated, runnable flows accumulated as the guide is built. Usable flow frameworks that anyone can use or build new flows with the concepts shared in this gallery.
 
 **Part VII — Real-World Demos** (Ch19–20)
-The finale: EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos
+EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos.
+
+**Part VIII — Observability** (Ch21)
+The layer that watches all of the above. EFM's own actuator metrics, the MiNiFi C++ agent's native
+Prometheus publisher, and the smallest agents' heartbeat metrics — all sinking into the same CSO
+Prometheus/Grafana stack that already covers NiFi, Kafka, and Flink. The edge doesn't get its own
+monitoring silo.
 
 > **Incoming:** a new `SensorClass` agent class and a new physical device are coming for the
 > IoT/edge end of these demo stacks. Not checked in yet (see `CLAUDE-CHECKIN.md`) — when it
@@ -102,6 +109,7 @@ Promotion flow for each piece of content:
 - `how-to-ai-with-minifi.md` — Ch16
 - `minifi-sample-gallery.md` — Ch18
 - `sparkplug-demo.md` — Ch20
+- `efm-metrics.md` — Ch21 (EFM actuator + MiNiFi C++ publisher + heartbeat metrics → CSO Prometheus/Grafana)
 
 ## Recommended roadmap (sequencing, not a commitment)
 
