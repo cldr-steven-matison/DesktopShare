@@ -103,6 +103,120 @@ For contrast, `FTF3XR2065` would have been the harder host: EFM is intentionally
 
 **The toolchain wrinkle is USB.** Claude Code on this host runs in WSL2, but the XIAO enumerates on the Windows side. WSL2 has no native USB passthrough — reaching `/dev/ttyACM0` from Ubuntu means `usbipd-win` attach-per-boot. Run PlatformIO natively on Windows instead: the board appears as a `COM` port, `pio` drives it directly, and the WSL2 session is only for editing. Don't burn a session chasing a device node that was never going to exist.
 
+## Field validation run, 2026-07-29 — blocked at Task 2
+
+Picked up via issue #9. Found the XIAO on `COM5` (`USB\VID_303A&PID_1001&MI_00`, matches the
+documented Espressif signature exactly — `COM4`/`COM1` are unrelated devices on this host).
+
+**Task 1 — chip pinned: ESP32-S3.** `esptool` wasn't installed on the Windows host yet (`pip
+install esptool`, v5.3.1); `python -m esptool --port COM5 chip-id` (the `chip_id` subcommand is
+now deprecated in favor of `chip-id`, same output):
+```
+Chip type:          ESP32-S3 (QFN56) (revision v0.2)
+Features:           Wi-Fi, BT 5 (LE), Dual Core + LP Core, 240MHz, Embedded PSRAM 8MB (AP_3v3)
+MAC:                e0:72:a1:fb:fd:04
+```
+8MB embedded PSRAM confirms this is the XIAO ESP32-S3 case this doc already analyzed (not a C6 —
+not a stop condition). Per the doc's own hardware table, this means **`esp32s3-4mb`** is the
+right build env (4MB layout on 8MB flash, OTA given up) — not bare `esp32s3` (assumes a 16MB
+board and would overflow).
+
+**Task 2 — EFM reachability: failed, 4/4 retries, `Invoke-WebRequest` to
+`http://100.68.113.126:10090/efm/ui/` all timed out.** This is the same symptom found the same
+day working issue #18 (`beelink-starlink-efm-ai.md`'s "Re-verification from StarlinkAI
+(2026-07-29)" section) and already tracked by
+[#11](https://github.com/cldr-steven-matison/DesktopShare/issues/11) — Tailscale itself is fine
+(`tailscale ping` to `mini-gaming-g1` returns in ~56ms), the failure is TCP to port 10090
+specifically, most likely WindowsDesktop's `kubectl port-forward` pane for `svc/efm` down or
+flapping again.
+
+**Stopped here per the doc's own instruction**: "if it fails, Tailscale is down or the
+port-forward pane on `MINI-Gaming-G1` died — fix that before flashing anything." Tasks 3-8 all
+either need EFM to actually confirm a heartbeat/registration (5, 6, 7) or would be flashing a
+device toward a C2 endpoint that can't be reached yet (3, 4, 8) — none of that is worth doing
+blind when the core point of the exercise (register in EFM, verify the manifest, test the
+implicit ack) can't be completed until connectivity is back. Read-only work only this pass; no
+firmware built, no flash attempted, `MicroFi` repo not yet cloned.
+
+**Next step**: once #11/#25 restore EFM reachability from StarlinkAI, resume at Task 3 using the
+env pinned above (`esp32s3-4mb`).
+
+## Field validation resumed, 2026-07-29 — Tasks 3-6 done, stopped before Task 7 (real hardware risk)
+
+WindowsDesktop restarted the flapping port-forwards; EFM reachable again (4/4 clean `200`s from
+StarlinkAI). Resumed at Task 3.
+
+**Per Steven's direction, this run goes LAN-direct to WindowsDesktop, not over Tailscale** — the
+XIAO joins a WiFi network (`ATTyjuHfEi`) on the same subnet as WindowsDesktop's LAN IP
+(`192.168.1.121`), bypassing Starlink and Tailscale entirely for the device's own path. Skips the
+doc's original `efm-host-ip`/Tailscale assumption; `sdkconfig.defaults.local` points both C2 URLs
+at `http://192.168.1.121:10090/efm/api/c2-protocol/...` instead. The WiFi password was entered
+directly into the gitignored local file on the Windows host, never through chat.
+
+**Toolchain gap found and closed**: neither `esptool` nor PlatformIO Core was actually installed
+on the Windows host (contrary to this doc's "VS Code + PlatformIO" prerequisite) — installed both
+via `pip install esptool platformio` (esptool 5.3.1, PlatformIO 6.1.19). No VS Code needed; every
+doc-specified step is a `pio`/`esptool` CLI command.
+
+**Task 3 — build: succeeded, but over the size budget.** `CONFIG_MICROFI_AGENT_CLASS` set to
+`MicroFi` in `sdkconfig.defaults` (its actual default was `"ESP32"`, not `"default"` as this doc
+previously assumed — minor drift, corrected). `pio run -e esp32s3-4mb`: **Flash 66.4% (1,044,597 /
+1,572,864 bytes)** — over MicroFi's own stated "under 50%" success criterion. RAM 36.1%.
+
+**Task 4 — flash + first heartbeat: succeeded, real EFM 200.** `pio run -e esp32s3-4mb -t upload
+-t monitor` (upload and monitor must be chained in one invocation — attaching monitor after a
+separate upload misses the boot sequence, the device has already reset and moved on). WiFi
+associated with `ATTyjuHfEi` in ~2.5s (one retry), got `192.168.1.198`. First heartbeat:
+```
+I (7575) microfi.c2: heartbeat #0 -> 200 (sent 5677 bytes, manifest=yes, recv 28 bytes)
+```
+Full manifest (3840 bytes) sent inline on this first heartbeat, exactly as the doc predicted.
+
+**Task 5 — EFM registration: confirmed, `StarlinkAI` unaffected.** `GET
+/efm/api/agent-classes` (via Tailscale, `100.68.113.126` — this Windows host's own network path
+can't reach `192.168.1.121` directly, only the XIAO's separate WiFi join can) lists a new
+`MicroFi` class with a real manifest id. `StarlinkAI`'s class entry is present with its same
+manifest id as before this test, and its own agent's `minifi-app.log` shows no renewed heartbeat
+failures since the connectivity fix — the live production agent is untouched.
+
+**Task 6 — manifest verified: exactly 2 processors, no more.** `GET
+/efm/api/agent-manifests/{id}` on the new manifest returns exactly `GenerateFlowFile` and
+`LogAttribute` with their full property descriptors — confirms the clean-room registry design bet
+this doc opened with.
+
+**Stopped before Task 7 — real hardware risk found, not a software gate.** The upload step logged:
+```
+Warning! Flash memory size mismatch detected. Expected 4MB, found 2MB!
+```
+This specific XIAO unit's physical flash is **2MB**, not the 8MB this doc's hardware section
+assumed for "XIAO ESP32-S3." `partitions_4mb.csv`'s `littlefs` partition is declared
+`0x1A0000`-`0x400000` (ending exactly at the 4MB boundary) — **roughly 2MB of that declared range
+doesn't exist on this chip.** Task 7 pushes a flow, which MicroFi persists to
+`/littlefs/.flowdef`; Task 8's power-cycle test depends on the same filesystem. Most SPI NOR flash
+aliases (wraps) addresses past the physical chip boundary back to low addresses — a write aimed at
+the "high" end of the declared LittleFS space could land on the bootloader/partition table/app
+image instead of failing cleanly. The device booted and mounted LittleFS fine for Task 4 (a
+read-only check for an absent file), which doesn't prove writes into the out-of-bounds region are
+safe.
+
+Given Steven's call to stop rather than build a custom 2MB-fit partition table, **Tasks 7 and 8
+were not attempted.** No flow was pushed, no write beyond boot-time LittleFS mount was made to
+this board.
+
+**This is itself a real, useful finding, not a null result**: neither of MicroFi's two sub-16MB
+S3 environments (`esp32s3`, 16MB Lonely Binary; `esp32s3-4mb`, 4MB DevKitC) fits this specific XIAO
+unit's actual 2MB flash. A genuinely XIAO-S3-safe env needs its own board JSON and a partition
+table sized for 2MB, not the existing 4MB one accepted with a warning. **Correction**: this unit
+has a camera, so it's the **XIAO ESP32-S3 Sense** variant, not the base board — it does have a
+microSD slot (small push-type, on the back of the camera expansion board, easy to miss visually).
+That means `CONFIG_MICROFI_SD_OVERFLOW` is a real option here, not a dead end — worth revisiting
+as an alternative to a from-scratch 2MB partition table if a card is available: overflow the
+LittleFS durability tier onto SD instead of trying to fit it inside the tiny onboard flash.
+
+**Open**: whether EFM 2.3.1.0-2 accepts the implicit ack (the doc's original "load-bearing
+unknown") is still untested — that requires Task 7's flow push, which requires the partition-table
+fix above first.
+
 ## Field validation instructions — `StarlinkAI`
 
 Prerequisites: the XIAO on StarlinkAI's front USB (it's already there), Tailscale up, VS Code + PlatformIO **on the Windows host, not in WSL2**. Do **not** push to `Christopheraburns/MicroFi` — read-only, despite the token.

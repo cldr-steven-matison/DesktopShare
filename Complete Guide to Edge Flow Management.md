@@ -46,7 +46,7 @@ issue, a bare `#n` is still open. Issues base URL:
 | 14 | S2S: Cloudera DataFlow → Data Hub | `minifi-site-to-site.md` (stub) | — | 🔲 | No | FTF3XR2065 | — | CDP-to-CDP (corp VPN/CDP access) |
 | 15 | How to AI with NiFi and Python | NiFi2 Processor Playground | `_posts/2026-05-06-How to AI with NiFi and Python.md` | ✅📝 | Yes | any | — | Resummarize into this chapter and cross-reference the source doc for the full content, don't just link out |
 | 16 | How to AI with MiNiFi | `how-to-ai-with-minifi.md` (stub), `beelink-starlink-efm-ai.md` | — | 🔲 ✍️ | Partial | FTF3XR2065 | [#14](https://github.com/cldr-steven-matison/DesktopShare/issues/14) | #14: draft `blog/Blog How to AI with MiNiFi.md` from all source docs — theme is *using* MiNiFi via AI agents (EFM/agent flows from the `nifi-and-ai` skill), sections for custom Python processors and ExecuteScript, references the EFM Binaries blog; StarlinkAI is an example, not the theme. Authoring moved to FTF3XR2065 (was StarlinkAI) |
-| 17 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (transcription 100%-drop open) | StarlinkAI | [#18](https://github.com/cldr-steven-matison/DesktopShare/issues/18) | #18: resolve the transcription validation issues so all GPU services are operational, then update this plan with progress |
+| 17 | Edge-AI router case study | `beelink-starlink-efm-ai.md` | — | 🟡 | Partial (2026-07-29 re-test: `ListenHTTP` buffer-drop now hits all 5 pairs, not just transcription — see doc) | WindowsDesktop | [#18](https://github.com/cldr-steven-matison/DesktopShare/issues/18), [#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25) | #25: WindowsDesktop fixes the flow-wide `ListenHTTP` buffer-drop (blocked on #11's EFM connectivity first), re-verify all 5 pairs from StarlinkAI, then #18 closes and this row flips to ✅ |
 | 18 | Sample gallery of MiNiFi flows | `minifi-sample-gallery.md` (stub) | — | 🔲 | No | any | — | Accumulate flows as built |
 | 19 | EFM + NVIDIA Jetson use case | `efm-nvidia-jetson-nano.md` | — | 🟡 ✍️ | Partial (flow runs; post has stubs) | WindowsDesktop | — | Fill `[insert]`/`[screenshot]`. `WindowsDesktop-TensorRT.json` was already built (June), just misfiled at repo root and linked as WIP — moved to `files/efm/` and relinked as Operational 2026-07-27, no rebuild needed. Watch for the incoming SensorClass/edge device (see note below) — it may become this chapter's real target alongside or instead of the Jetson |
 | 20 | SparkPlug demo | `sparkplug-demo.md` (stub), `sparkplug-iott.md` | — | 🟡 | Unknown (assess `sparkplug-iott.md`) | WindowsDesktop | — | Assess existing depth (or the incoming SensorClass device once checked in) |
@@ -55,7 +55,17 @@ issue, a bare `#n` is still open. Issues base URL:
 **Open issues not yet mapped to a chapter:**
 [#9](https://github.com/cldr-steven-matison/DesktopShare/issues/9) — MicroFi (ESP32 MiNiFi C2
 agent) on the XIAO field-validated against EFM (`efm-xiao-microfi.md`, `device:StarlinkAI`); an
-edge-device validation that may seed a future Part V/VII chapter.
+edge-device validation that may seed a future Part V/VII chapter. **2026-07-29: Tasks 1-6 of 8
+done.** Chip pinned (ESP32-S3 Sense — has a camera + microSD slot, not the base board),
+LAN-direct to WindowsDesktop (`192.168.1.121`, bypassing Tailscale/Starlink), build/flash/first
+heartbeat all succeeded (real EFM `200`, manifest exactly `GenerateFlowFile`+`LogAttribute`,
+`StarlinkAI`'s live agent confirmed unaffected). **Stopped before Task 7/8**: this unit's actual
+flash is 2MB, smaller than any of MicroFi's 3 shipped partition layouts — the 4MB env's `littlefs`
+partition extends ~2MB past the physical chip, and Task 7's flow push would write into that
+out-of-bounds range. Needs either a from-scratch 2MB partition table or (now that we know it's a
+Sense board) using the onboard microSD via `CONFIG_MICROFI_SD_OVERFLOW` instead. The doc's
+original load-bearing question (EFM 2.3.1.0-2's implicit-ack behavior) is still untested pending
+that.
 [#4](https://github.com/cldr-steven-matison/DesktopShare/issues/4) — a Windows Python processor
 for the Streamers `TwitchChatListener` (`device:WindowsDesktop`); belongs to **cso-operator-app**,
 out of scope for this guide, tracked here only for correlation.

@@ -163,14 +163,14 @@ Also check the EFM UI's per-processor In/Out counters directly (`ListenHTTP` →
 - [x] **End-to-end confirmed working**: `ListenHTTP` → `EvaluateJsonPath` → `InvokeHTTP` (real Lemonade completion) → Kafka, correct `request_id` key throughout, data confirmed landing in the Kafka topic
 
 **Not yet root-caused, not currently blocking:**
-- [ ] EFM C2 heartbeat timeouts (~18:34 onward, `efm-host-ip:10090`) — seen once, not investigated further, may have been related to the zellij/port-forward outage above.
-- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — **confirmed, 2026-07-23: this is a real, reproducible blocker for the transcription pair specifically** (100% drop rate over 3 attempts), while the other 3 new pairs run fine at the same `Batch/Buffer Size: 1`. See "Endpoint verification from StarlinkAI itself" below for the full finding. Fix to be done from the EFM host session.
+- [ ] EFM C2 heartbeat timeouts (~18:34 onward, `efm-host-ip:10090`) — seen once, not investigated further, may have been related to the zellij/port-forward outage above. **Recurring again as of 2026-07-29**, tracked by #11.
+- [ ] `ListenHTTP` single-request drops (`buffer is NOT full 1/1`) — **2026-07-29 re-test: now reproduces on all 5 pairs, not just transcription** (was thought transcription-only as of 2026-07-23). See "Re-verification from StarlinkAI (2026-07-29)" below. Fix handed off to WindowsDesktop as [#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25).
 
-**New endpoint pairs (embeddings/reranking/speech/transcription, ports 8081-8084) — status as of 2026-07-23:**
+**New endpoint pairs (embeddings/reranking/speech/transcription, ports 8081-8084) — status as of 2026-07-29 (supersedes the 2026-07-23 entry below):**
 - [x] All 5 `ListenHTTP` ports confirmed bound (`netstat`), agent has picked up the flow
 - [x] Firewall confirmed permissive for the new ports via the existing `Tailscale-In` Any/Any rule — no new rule needed
-- [x] Embeddings, reranking, speech confirmed working end-to-end (real Lemonade responses, correct `request_id` threading)
-- [ ] Transcription confirmed broken (`ListenHTTP` buffer-full drop, 100% reproducible) — fix pending, from the EFM host
+- [ ] **Regressed**: embeddings, reranking, speech — previously confirmed working (2026-07-23) — now show the same buffer-drop symptom as transcription on re-test. See "Re-verification from StarlinkAI (2026-07-29)" for the full finding.
+- [ ] Transcription confirmed broken (`ListenHTTP` buffer-full drop, 100% reproducible) — unchanged, still open, now bundled into #25
 - [ ] Cross-Tailscale test from a second array machine (only local curl tested so far)
 
 ## Real-workload test — streamers caption generation (2026-07-21)
@@ -327,6 +327,50 @@ Same symptom as the original `MINIFICPP-2243` bug from 2026-07-17 (`ListenHTTP`'
 
 **Decision: flow edits (buffer-size bump, or whatever the real fix turns out to be) happen from the EFM host session, not from here.** This session's job was "test what we can from StarlinkAI" — confirmed 3 of 4 new pairs solid, isolated the transcription failure to a specific, reproducible log line, and stopped there rather than mutating the live flow from the wrong box.
 
+## Re-verification from StarlinkAI (2026-07-29) — regression is wider than "transcription only"
+
+Picked up via issue #18 ("Resolve transcription Issues"). Re-tested all 5 `ListenHTTP` endpoints
+locally (`curl.exe` from the Windows host, one request per endpoint), not just transcription —
+and found **all 5 now fail**, not just the multipart pair. `config.yml` confirms `Batch Size`/
+`Buffer Size: 1` is still correctly persisted for every pair, ruling out the earlier-documented
+"reverts to 5/5 on restart" bug (Bug #3) recurring in its original form.
+
+```
+[ListenHTTP] [warning] ListenHTTP buffer is NOT full 1/1, 'POST' request for '<path>' uri was dropped
+```
+
+- `/transcriptions` (8084): drops with nothing further downstream — unchanged from 2026-07-23.
+- `/contentListener` (8080), `/embeddings` (8081), `/reranking` (8082), `/speech` (8083) — all now
+  log the same "dropped" warning too, but a flowfile still reaches `EvaluateJsonPath` ~1-2s later
+  and fails there: `FlowFile content is not a valid JSON document ... Expected object member key
+  at line 1 and column 2`. So "dropped" doesn't always mean the request vanishes — for the JSON
+  pairs a corrupted/empty flowfile still gets created and dies at JSON parsing instead;
+  transcription has no `EvaluateJsonPath` step to catch the same corruption, so it just disappears.
+
+**Two live theories, not adjudicated** — didn't chase further per the "don't root-cause blind"
+rule: (1) the 2026-07-28 18:19:31 service restart (`Starting Flow Controller` in
+`minifi-app.log`) reintroduced something, though `config.yml`'s persisted `Batch`/`Buffer Size`
+values argue against the exact Bug #3 shape; (2) the 2026-07-23 "confirmed working" pass checked
+HTTP 200 + EFM UI counters, not flowfile content — a corrupted-but-counted flowfile would have
+looked identical to "working." May have been broken for the JSON pairs the whole time.
+
+**Upstream fix research, inconclusive**: `MINIFICPP-2243` ("avoid reading full input/output flow
+file contents into memory") has fix version `0.99.1` per the Apache JIRA/mail-archive. Our
+installed build reports `1.26.02` — Cloudera's own version line (NiFi 1.26 train), not upstream's
+`0.99.x` tags — so this doesn't confirm whether the fix commit is actually in our build.
+
+**Confounding factor**: EFM (`100.68.113.126:10090`) is unreachable from StarlinkAI right now —
+ongoing heartbeat timeouts in `minifi-app.log`, same shape #11 is already tracking (Tailscale
+path itself is fine, TCP to 10090 specifically isn't). Couldn't push a republish to test a fix
+from here even if that were in scope, and can't confirm via Kafka whether anything reached
+`StarlinkAI-response` (no `kubectl` from this host).
+
+**Handed off to WindowsDesktop**: filed
+[#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25) with the full findings above
+and suggested next steps (republish once #11 clears, try `Batch/Buffer Size: 2`, check for a
+newer MiNiFi C++ build). No flow write, no restart attempted from StarlinkAI this pass — per the
+2026-07-23 decision, the write stays with the EFM host session.
+
 ## ExecuteScript Python proven on StarlinkAI (2026-07-28)
 
 Picked up `efm-beelink-cpp-python-action.md` from a StarlinkAI session (GitHub issue #2). Two things didn't match what the checklist assumed.
@@ -347,7 +391,7 @@ Torn down after: process stopped, `C:\minifi` deleted. The `StarlinkAICpp` class
 
 ## Next Steps
 
-1. ~~Route to Lemonade's other endpoints, not just chat completions.~~ **✓ BUILT AND PUBLISHED LIVE (2026-07-22)** — flow version 12, 16 processors, 19 connections, `validationErrors: []`. See "Real run, 2026-07-22" above for the full story, including that the handoff script's whole-flow `PUT` was actually broken (not just unconfirmed) and had to be rebuilt around the real per-component API. **Verification pass done from StarlinkAI (2026-07-23)**: firewall confirmed fine, agent pickup confirmed, embeddings/reranking/speech confirmed working end-to-end, transcription confirmed broken (`ListenHTTP` buffer-full drop, 100% reproducible) — see "Endpoint verification from StarlinkAI itself" above. **Still not done**: fix the transcription drop and port the corrected write logic back into `files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py` — both are flow/EFM-side work, picked up from the EFM host session, not StarlinkAI.
+1. ~~Route to Lemonade's other endpoints, not just chat completions.~~ **✓ BUILT AND PUBLISHED LIVE (2026-07-22)** — flow version 12, 16 processors, 19 connections, `validationErrors: []`. See "Real run, 2026-07-22" above for the full story, including that the handoff script's whole-flow `PUT` was actually broken (not just unconfirmed) and had to be rebuilt around the real per-component API. **Verification pass done from StarlinkAI (2026-07-23)**: firewall confirmed fine, agent pickup confirmed, embeddings/reranking/speech confirmed working end-to-end, transcription confirmed broken (`ListenHTTP` buffer-full drop, 100% reproducible) — see "Endpoint verification from StarlinkAI itself" above. **2026-07-29 re-test found the regression is wider**: all 5 pairs now show the buffer-drop symptom, not just transcription — see "Re-verification from StarlinkAI (2026-07-29)" above. Handed off to WindowsDesktop as [#25](https://github.com/cldr-steven-matison/DesktopShare/issues/25), which also needs to port the corrected write logic back into `files/agent-WindowsDesktop-efm-add-starlinkai-endpoints.py` — both are flow/EFM-side work, not StarlinkAI's to write.
 2. **Remove debug scaffolding** — `LogAttribute` and the failure/retry/no-retry funnel were added for troubleshooting during setup. Strip them out now that the flow is confirmed stable, to keep the production flow clean. (The 4 new `InvokeHTTP`s added by the handoff script deliberately auto-terminate their failure/retry/no-retry relationships instead of wiring into this funnel, so it doesn't grow right before removal.)
 3. **Confirm `InvokeHTTP` success/failure handling properly** — `Response`/`Success` currently route to `PublishKafka`, but it's not yet confirmed that a non-2xx response from Lemonade (timeout, model not loaded, malformed request) is actually distinguished from a real success rather than silently treated the same way. Need to verify the `Success`/`Failure`/`Retry`/`No Retry` relationship split matches Lemonade's actual HTTP status codes, and decide what should happen on failure (log it, retry, dead-letter to a separate Kafka topic) now that the debug funnel that gave visibility into this is being removed per item 2.
 5. Revisit the two still-open real-workload-test questions from the section above: whether Qwen3's thinking mode can be disabled (now lower priority since the Instruct-2507 swap sidesteps it), and how `process_clip()` would actually consume the async pub/sub response shape.
