@@ -164,6 +164,7 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 ## FTF3XR2065 (MacBook Pro, work laptop)
 
 - **Role**: Steven's Cloudera-issued daily driver — full local minikube (123 days old, docker driver, k8s v1.34.0) running the same CSO/CFM/CSA + monitoring stack WindowsDesktop does, plus the macOS build of the cso-operator-app RAG stack (`default` namespace: cso-operator-app + vLLM + Whisper + Qdrant + embedding-server, all `-cpu`). EFM + a C++ `KubernetesPod` MiNiFi agent are now deployed here as of 2026-07-29 (for the EFM-metrics field validation, issue #16 — previously intentionally disabled). Also serves as docs/plans authoring host and DesktopShare golden source.
+  - **2026-07-29 — RAG stack + EFM scaled to 0 to free node RAM.** The node was memory-overcommitted (limits 122%) and NiFi `mynifi-0` was OOMKilled → CrashLoopBackOff. Scaled the `default`-ns RAG deployments (vLLM/Whisper/Qdrant/embedding/cso-operator-app) **and** `efm` (`cld-streaming`) to 0 replicas; NiFi recovered to 7/7. `minifi-agent-k8s` heartbeat is paused while EFM is down (issue #16 field-validation on hold). All reversible via scale-to-1 — teardown/restore runbook in `cso-operator-app-plan.md` ("Free node RAM"). Don't expect RAG/EFM up on this host until restored.
 - **Checked in**: 2026-07-20
 - **Claude Code version**: 2.1.169
 

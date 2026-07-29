@@ -180,6 +180,41 @@ Imports `streamers/StreamersApp.json` (FetchClips + ProcessClips + PublishClip) 
 
 ---
 
+## Free node RAM — scale-to-0 teardown / scale-to-1 restore
+
+When the single-node minikube runs out of memory (limits overcommitted), the first casualty is
+whatever pod has no memory request — on FTF3XR2065 that's NiFi (`mynifi-0`, BestEffort QoS), which
+gets **OOMKilled (`exitCode 137`) ~7s into JVM startup and CrashLoopBackOffs**. The RAG backing
+stack is the cheapest thing to shed to make room, and **scaling it to 0 is fully reversible** — it
+destroys nothing: `qdrant-data` and vLLM `model-cache` are `emptyDir` (models re-pull via the
+`hf-token` secret, vectors re-ingest), and the `clips-storage` PVC, the `hf-token`/`nifi-app-creds`
+secrets, the `cso-operator-app-config` ConfigMap, and the live-injected `kubectl set env`
+credentials all live on separate objects a scale-to-0 leaves untouched. No rebuild, no re-inject.
+
+Teardown (frees ~2.75Gi; EFM adds ~2Gi more — see the EFM guide for its own restore):
+
+```bash
+kubectl scale -n default --replicas=0 \
+  deploy/vllm-cpu-server deploy/whisper-cpu-server deploy/qdrant \
+  deploy/embedding-server-cpu deploy/cso-operator-app
+kubectl scale deploy/efm -n cld-streaming --replicas=0   # optional, if EFM isn't in use
+```
+
+Restore (all five deployments run a single replica normally):
+
+```bash
+kubectl scale -n default --replicas=1 \
+  deploy/vllm-cpu-server deploy/whisper-cpu-server deploy/qdrant \
+  deploy/embedding-server-cpu deploy/cso-operator-app
+kubectl scale deploy/efm -n cld-streaming --replicas=1
+```
+
+Only reach for a from-scratch rebuild (`make bootstrap STACK=cpu` + `make deploy
+MODULES=rag,streamers` + re-inject creds) if the deployments themselves were **deleted**, not
+merely scaled down.
+
+---
+
 ## ConfigMap
 
 `k8s/configmap.yaml` drives every service URL — same image runs on any machine:
