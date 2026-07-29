@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# PreToolUse guard for Bash commands. Enforces two repo rules that prose alone
+# PreToolUse guard for Bash commands. Enforces three repo rules that prose alone
 # has failed to enforce (see agent/incident-rules.md, agent/workflow.md):
 #   1. Confirm before any live-service redeploy/restart — a redeploy or single-pod
 #      restart of a service a running NiFi InvokeHTTP calls into kills the in-flight
 #      request (`unexpected end of stream`). This incident recurred 3x.
 #   2. git commit / push only when explicitly requested.
+#   3. Never start an ad-hoc kubectl port-forward / minikube tunnel / minikube
+#      service — the canonical set lives as zellij panes (kube-service-ports-efm.kdl);
+#      a duplicate on the same target silently orphans or hangs (2026-07-29, issue #11).
 # On a match it returns permissionDecision "ask" so the user is prompted with the
 # reason. Non-matching commands pass through untouched. Fails open (exit 0) so a
 # missing jq never blocks all Bash.
@@ -29,6 +32,14 @@ fi
 # 2. Commit / push only when explicitly asked.
 if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit|push)\b'; then
   emit_ask "git commit/push only when explicitly requested (agent/workflow.md). Confirm this commit/push was asked for in the current turn before approving."
+fi
+
+# 3. Ad-hoc port-forwards / tunnels. The canonical set lives as zellij panes
+# (kube-service-ports-efm.kdl) — starting a duplicate on the same target silently
+# orphans or hangs (2026-07-29, issue #11: a hung forward misdiagnosed cross-device
+# as tailnet flakiness; same session, a sub-agent's own untracked local forward hung too).
+if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])kubectl +port-forward\b|(^|[;&| ])minikube +(tunnel|service)\b'; then
+  emit_ask "Ad-hoc port-forward/tunnel detected. Per agent/incident-rules.md (Port-forwards and tunnels): check for one already running first (ss -tlnp / ps aux | grep port-forward) and reuse it — the canonical set lives as zellij panes in kube-service-ports-efm.kdl, not background processes an agent owns. A duplicate on the same target can silently orphan or hang. If this is a genuine one-off (e.g. a sub-agent's own temporary test forward it will tear down before finishing), confirm that's the case before approving."
 fi
 
 exit 0

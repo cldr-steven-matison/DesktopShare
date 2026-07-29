@@ -436,15 +436,11 @@ model-inference metrics** (edge-side, published by the agent itself). The full t
 EFM server, MiNiFi C++ native publisher, and the heartbeat path for tiny agents — is written up
 canonically in `efm-metrics.md`. This section is the Jetson-specific slice; keep the two in sync.
 
-:warning: **Work in progress** — the wiring below is proven at the EFM-server layer on a CSO host
-(the `ServiceMonitor` scrape), but the Jetson edge-side publisher scrape is **not field-validated
-on the Nano yet**. That validation is a much-later step; until then treat the agent-side numbers as
-the intended path, not a confirmed one.
-{: .notice--warning}
-
-**Layer 1 — EFM server metrics (scraped from the EFM pod).** EFM exposes a Spring Boot actuator
-Prometheus endpoint at `/efm/actuator/prometheus` on its `metrics/9092` port. Wire it into the
-existing Prometheus Operator with a `ServiceMonitor` that selects the EFM service:
+**Layer 1 (EFM server metrics) is field-validated** — on FTF3XR2065, not this device — see
+`efm-metrics.md` Layer 1. One correction that applies everywhere, including here: the actuator
+Prometheus endpoint is served on the **`efm-ui`/`10090`** port under `/efm`, not `metrics/9092` as
+originally written below — `9092` accepts a connection but returns an empty reply. Point any
+`ServiceMonitor` or scrape config at `10090/efm/actuator/prometheus`.
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -452,54 +448,87 @@ kind: ServiceMonitor
 metadata:
   name: efm
   namespace: cld-streaming
+  labels:
+    release: prometheus
 spec:
   selector:
     matchLabels:
       app: efm
   endpoints:
-  - port: metrics
+  - port: efm-ui                      # NOT `metrics` — 9092 serves nothing
     path: /efm/actuator/prometheus
     interval: 15s
 ```
 
 ```bash
-kubectl apply -f efm-servicemonitor.yaml
+kubectl apply -f efm-service-monitor.yaml
 ```
 
-Curl the endpoint from inside the cluster before trusting the ServiceMonitor — if the `efm-config`
-ConfigMap that turns on `management.prometheus.metrics.export.enabled` isn't mounted, this 404s and
-the scrape silently collects nothing:
+The EFM image ships no `curl` — check the endpoint via a host port-forward, not `kubectl exec`:
 
 ```bash
-kubectl exec -n cld-streaming deploy/efm -- curl -s localhost:9092/efm/actuator/prometheus | head
+kubectl port-forward -n cld-streaming deploy/efm 10190:10090 &
+curl -s http://localhost:10190/efm/actuator/prometheus | head
 ```
 
-**Layer 2 — Jetson agent metrics (published on the edge device).** MiNiFi C++ has a native
-Prometheus publisher — no ExecuteScript, no sidecar. Turn it on in the agent's `minifi.properties`:
+**Layer 2 — Jetson agent metrics (published on the edge device) — field-validated 2026-07-29 on
+this device (NvidiaNano, real Jetson hardware, systemd-managed agent).** MiNiFi C++ has a native
+Prometheus publisher — no ExecuteScript, no sidecar — shipped as the `libminifi-prometheus.so`
+extension. **The property names below are corrected from what this doc originally said**:
+`nifi.c2.enable.metrics` / `nifi.c2.metrics.publisher` / `nifi.c2.metrics.publisher.prometheus.port`
+don't exist in this build (confirmed against the binary and the shipped config template) — the
+real namespace is `nifi.metrics.publisher.*`. Add a new file under `conf/minifi.properties.d/`
+(don't edit `minifi.properties` directly — its own header warns changes there are lost on upgrade,
+and this build already uses the `.d/` convention: EFM writes its own `90_c2.properties` there on
+enrollment):
 
 ```properties
-# Enable the native Prometheus metrics publisher
-nifi.c2.enable.metrics=true
-nifi.c2.metrics.publisher=prometheus
-nifi.c2.metrics.publisher.prometheus.port=9092
+# conf/minifi.properties.d/95-metrics.properties
+nifi.metrics.publisher.agent.identifier=<agent-uuid, matches nifi.c2.agent.identifier>
+nifi.metrics.publisher.class=PrometheusMetricsPublisher
+nifi.metrics.publisher.PrometheusMetricsPublisher.port=9936
+nifi.metrics.publisher.metrics=QueueMetrics,RepositoryMetrics,DeviceInfoNode,FlowInformation
 ```
 
-That stands up a Prometheus endpoint **on the Jetson itself** (the `9092` here is the agent's port
-on the Nano — unrelated to EFM's `9092` on the EFM pod; they collide only by default). Prometheus
-reaches it one of two ways: a static scrape config pointing at the Jetson host:port (simplest for a
-fixed-IP Nano), or via EFM knowing the scrape target once the agent is enrolled.
+That stands up a Prometheus endpoint **on the Jetson itself** (`9936` here is the agent's own port
+on the Nano — unrelated to EFM's port on the EFM pod; they'd only collide if you pick the same
+number). Prometheus reaches it one of two ways: a static scrape config pointing at the Jetson
+host:port (simplest for a fixed-IP Nano), or via EFM knowing the scrape target once the agent is
+enrolled.
 
-Two things have to be true or the scrape hangs — the same edge-networking check from the S2S
-chapters:
+Confirmed live on this Jetson after a restart:
 
-- The publisher must bind `0.0.0.0`, not `127.0.0.1`, or nothing but the Nano itself can reach it.
-- The path in from Prometheus must be open on `9092` — on the Windows-hosted EFM this is the
-  `netsh ... portproxy ... 9092` line documented earlier in this doc; on a LAN Jetson it's a host
-  firewall rule. Don't add the rule blind — confirm the scrape is actually wanted first.
+```text
+[...] [PrometheusExposerWrapper] [info] Started Prometheus metrics publisher on port 9936
+$ ss -tlnp | grep 9936
+LISTEN 0  200  0.0.0.0:9936  0.0.0.0:*  users:(("minifi",pid=203867,fd=18))
+$ curl -s http://127.0.0.1:9936/metrics | wc -l
+204
+```
 
-Once both layers land, the Grafana dashboard shows Jetson CPU/GPU/temp + model-inference latency +
-flow throughput alongside the datacenter NiFi/Kafka/Flink panels. **Still pending Nano field
-validation** — see the WIP callout above and `efm-metrics.md` for the canonical status.
+Binds `0.0.0.0` (confirmed via `ss`), so it's reachable from the LAN in principle, not just the
+device itself — the second half of the edge-networking check (a host firewall rule allowing
+`9936` in) was **not validated** on this pass; this device's `ufw` state needs a human with sudo to
+inspect, and the rule shouldn't be added reflexively before the CSO Prometheus side is ready to use
+it. That, plus the actual scrape-target wiring on the CSO Prometheus, is the remaining work — see
+"Status & next owner" below.
+
+**Restarting the agent to apply this config is not as forgiving as it looks.** Field-tested here:
+`sudo systemctl restart minifi` is the only reliable path, and it needs an interactive password —
+no `NOPASSWD` sudoers entry exists on this device. `minifi.sh restart`/`start`/`stop` are **not** a
+sudo-free alternative — the script's Linux path just calls `systemctl restart minifi.service`
+internally. And killing the process directly does **not** reliably bring it back: this build's
+`Restart=on-failure` only force-restarts on a specific C2-triggered exit code
+(`RestartForceExitStatus=3`), not on an externally sent `SIGTERM` — confirmed live, a `kill` left
+the agent `inactive` with no watchdog respawn until a human ran `systemctl start`. This supersedes
+the "Restarting MiNiFi on the Jetson" section above — treat Option 1 there as the only dependable
+one, and don't rely on Option 2 as an unattended fallback.
+
+Once both layers are wired into the actual CSO Prometheus scrape config, the Grafana dashboard
+shows Jetson CPU/GPU/temp + model-inference latency + flow throughput alongside the datacenter
+NiFi/Kafka/Flink panels. **Status:** the agent-side publisher itself is now confirmed working
+end-to-end on real hardware; getting a scrape target pointed at it and a Grafana panel built is the
+open item, handed to WindowsDesktop (see `efm-metrics.md` and the issue thread for #16).
 
 ### Resources
 
