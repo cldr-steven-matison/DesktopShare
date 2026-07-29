@@ -235,10 +235,41 @@ args:
 - `skills/nifi-and-ai/references/minifi-efm.md` — deployer + designer API contract
 - `files/efm/java-minifi-2.24.08.0-19-processors.txt` — full 114-processor list
 
+## Custom Python processor (py4j framework) — functional test result, 2026-07-29 (issue #4 item 3)
+
+The framework described above (`python/api/nifiapi/`, `python/framework/` incl. `py4j/`,
+`nifi-python-framework-api-*.jar`, the four `nifi.python.*` keys) was structurally confirmed but
+never functionally exercised until this session. **Result: partial/blocked.** Full result,
+diagnosis, and artifacts live in `minifi-python-processors.md`’s Java-leg result block — short
+version:
+
+- A fifth property, **`nifi.python.command`** (path to the python interpreter), is the actual
+  on/off switch — `FlowController` logs `"Python Extensions disabled because the nifi.python.command
+  property has not been configured in nifi.properties"` without it, and none of the other four keys
+  matter until it’s set. Not previously documented anywhere in this repo.
+- **Can’t be set durably on this agent.** A direct `minifi.properties` edit doesn’t survive a
+  restart (this EFM/C2-managed agent regenerates its properties file from EFM’s stored config on
+  every boot). Pushing it via EFM’s `UPDATE_PROPERTIES` C2 operation is explicitly rejected by the
+  agent: `"You can not update the {} property through C2 protocol"` — it’s on a server-side
+  denylist (reasonable: it’s an arbitrary-executable-path property).
+- **Known side effect, not yet cleaned up:** the rejected property push left EFM re-issuing the
+  same failed `UPDATE_PROPERTIES` operation to this agent on every heartbeat (~5s) indefinitely —
+  confirmed it’s an EFM in-memory cache, not the `property_updates` Postgres table (deleting that
+  row directly didn’t stop it). Doesn’t affect the agent’s actual running flow, but needs an EFM pod
+  restart (`kubectl rollout restart deployment/efm -n cld-streaming`) to clear — **not done this
+  session**, needs its own confirm-first (different live service than this task authorized
+  touching).
+- Authored processor: `files/windesktop-java-custom-processor-EdgeJavaTagger.py` — same skeleton
+  shape as the C++ leg’s `EdgeChromeLoader.py`, plus the `class Java: implements = [...]` stanza
+  the py4j framework requires (confirmed by reading `ProcessorInspection.py` on this exact install).
+
 ## Follow-ups
 
 - [x] Publish smoke flow on `KubernetesPodJava` (`a492562d-28db-4e76-ae7e-95e09e13e179`, flowVersion 1) — confirmed `hello-from-k8s-java` in pod logs
 - [x] Update `efm-binaries.md` layout table with the `java/windows` row
-- [x] Stage Kafka + scripting NARs into Java MiNiFi — **done 2026-07-27**, on both `KubernetesPodJava` and the real `WindowsDesktop` agent: built `nifi-kafka-nar`/`nifi-kafka-3-service-nar`/`nifi-scripting-nar` from the exact-matching source tarball, autoloaded live, `ExecuteScript` and `PublishKafka` both field-verified working on both agents (Groovy execution confirmed on each; `KubernetesPodJava`'s Kafka producer negotiated a full transaction coordinator in-cluster, `WindowsDesktop`'s hit the same hairpin-NAT timeout as the C++ agent — still a real connect attempt, not a processor-availability failure). Full recipe: `efm-binaries.md` → *Kafka + scripting NARs on the CEM Java agent — SOLVED*
+- [x] Stage Kafka + scripting NARs into Java MiNiFi — **done 2026-07-27**, on both `KubernetesPodJava` and the real `WindowsDesktop` agent: built `nifi-kafka-nar`/`nifi-kafka-3-service-nar`/`nifi-scripting-nar` from the exact-matching source tarball, autoloaded live, `ExecuteScript` and `PublishKafka` both field-verified working on both agents (Groovy execution confirmed on each; `KubernetesPodJava`’s Kafka producer negotiated a full transaction coordinator in-cluster, `WindowsDesktop`’s hit the same hairpin-NAT timeout as the C++ agent — still a real connect attempt, not a processor-availability failure). Full recipe: `efm-binaries.md` → *Kafka + scripting NARs on the CEM Java agent — SOLVED*
 - [x] Install C++ side-by-side with ExecuteScript/Python — **done 2026-07-27** as class `WindowsDesktopCpp` (process-mode MSI extract; smoke verified). See `efm-executescript.md` Path D / `efm-binaries-windows-python.md`
+- [x] Functionally test the py4j custom-Python-processor framework — **done 2026-07-29**, partial/blocked result, see section above and `minifi-python-processors.md`
+- [ ] Clear the stuck `UPDATE_PROPERTIES` retry loop on `WindowsDesktop` (needs an EFM pod restart, confirm first)
+- [ ] Find a supported channel to set `nifi.python.command` durably on an EFM/C2-managed Java agent (neither direct file edit nor C2 property push works)
 - [ ] Persist `java/windows` into the staging tree under `~/efm-binaries/staging/` so the next EFM PVC rebuild doesn’t forget it
