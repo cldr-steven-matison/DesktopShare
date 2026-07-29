@@ -430,9 +430,21 @@ Kafka Messages
 
 ### Add EFM to Your CSO Prometheus Observability
 
-[ not tested yet ]
+There are two metrics I want on the same Grafana that already watches NiFi/Kafka/Flink: **EFM's
+own health** (server-side, scraped from the EFM pod) and **the Jetson agent's system + processor +
+model-inference metrics** (edge-side, published by the agent itself). The full three-layer story —
+EFM server, MiNiFi C++ native publisher, and the heartbeat path for tiny agents — is written up
+canonically in `efm-metrics.md`. This section is the Jetson-specific slice; keep the two in sync.
 
-Create `efm-servicemonitor.yaml`:
+:warning: **Work in progress** — the wiring below is proven at the EFM-server layer on a CSO host
+(the `ServiceMonitor` scrape), but the Jetson edge-side publisher scrape is **not field-validated
+on the Nano yet**. That validation is a much-later step; until then treat the agent-side numbers as
+the intended path, not a confirmed one.
+{: .notice--warning}
+
+**Layer 1 — EFM server metrics (scraped from the EFM pod).** EFM exposes a Spring Boot actuator
+Prometheus endpoint at `/efm/actuator/prometheus` on its `metrics/9092` port. Wire it into the
+existing Prometheus Operator with a `ServiceMonitor` that selects the EFM service:
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -454,17 +466,40 @@ spec:
 kubectl apply -f efm-servicemonitor.yaml
 ```
 
-EFM metrics now flow straight into the same Prometheus/Grafana stack you already have for NiFi, Flink, Kafka, and Schema Registry.
+Curl the endpoint from inside the cluster before trusting the ServiceMonitor — if the `efm-config`
+ConfigMap that turns on `management.prometheus.metrics.export.enabled` isn't mounted, this 404s and
+the scrape silently collects nothing:
 
-**Metrics to Prometheus**:
-MiNiFi C++ has native Prometheus support. In `minifi.properties`:
+```bash
+kubectl exec -n cld-streaming deploy/efm -- curl -s localhost:9092/efm/actuator/prometheus | head
+```
+
+**Layer 2 — Jetson agent metrics (published on the edge device).** MiNiFi C++ has a native
+Prometheus publisher — no ExecuteScript, no sidecar. Turn it on in the agent's `minifi.properties`:
+
 ```properties
-# Enable Prometheus
+# Enable the native Prometheus metrics publisher
 nifi.c2.enable.metrics=true
 nifi.c2.metrics.publisher=prometheus
 nifi.c2.metrics.publisher.prometheus.port=9092
 ```
-The agent registers itself with EFM, EFM knows the Prometheus scrape target, or you add a static scrape in your CSO Prometheus config. My Grafana dashboard will now show Jetson CPU/GPU/temp + model inference latency + flow throughput.
+
+That stands up a Prometheus endpoint **on the Jetson itself** (the `9092` here is the agent's port
+on the Nano — unrelated to EFM's `9092` on the EFM pod; they collide only by default). Prometheus
+reaches it one of two ways: a static scrape config pointing at the Jetson host:port (simplest for a
+fixed-IP Nano), or via EFM knowing the scrape target once the agent is enrolled.
+
+Two things have to be true or the scrape hangs — the same edge-networking check from the S2S
+chapters:
+
+- The publisher must bind `0.0.0.0`, not `127.0.0.1`, or nothing but the Nano itself can reach it.
+- The path in from Prometheus must be open on `9092` — on the Windows-hosted EFM this is the
+  `netsh ... portproxy ... 9092` line documented earlier in this doc; on a LAN Jetson it's a host
+  firewall rule. Don't add the rule blind — confirm the scrape is actually wanted first.
+
+Once both layers land, the Grafana dashboard shows Jetson CPU/GPU/temp + model-inference latency +
+flow throughput alongside the datacenter NiFi/Kafka/Flink panels. **Still pending Nano field
+validation** — see the WIP callout above and `efm-metrics.md` for the canonical status.
 
 ### Resources
 
