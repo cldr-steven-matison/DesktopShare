@@ -8,6 +8,16 @@ A bare-minimum playbook for building **Apache NiFi 2.x + MiNiFi + EFM** flows pr
 
 It's the sanitized, external-friendly distillation of the hard-won lessons in this repo — with the device names, network topology, and internal file references stripped out.
 
+## `align`
+
+A **user-invoked** skill (`/align`) that grills for unstated assumptions, constraints, and
+success criteria *before* a plan or a diff exists — the cheapest point to catch a wrong
+assumption. It converges on **what / why / done** and then hands off to plan mode for the
+**how**; it is not a replacement for planning. Invoke it when a task's goal, scope, or
+done-condition is ambiguous, or when the user asks to "align" / "grill me" / pin down
+requirements. It leans on the repo's `CONTEXT.md` glossary so the questions use shared terms,
+and defers to `agent/incident-rules.md` for anything touching live state or credentials.
+
 ### Install — automatic on this repo's devices
 
 You don't hand-copy skills anymore. `skills/sync-skills.sh` installs every skill in
