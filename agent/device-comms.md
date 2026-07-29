@@ -95,7 +95,11 @@ upkeep rules:
 
 ## Working an issue
 
-1. Claim it — flip `status:todo` → `status:in-progress`:
+1. **Claim it the moment you start — flip `status:todo` → `status:in-progress` before you touch
+   anything, not after.** The label is how the fleet sees which issues are actively being worked;
+   an issue left in `status:todo` while you work looks unclaimed and another device may pick it up.
+   Never jump `status:todo` → `status:review` — the progression is `todo → in-progress → review`,
+   and `in-progress` must be set even for a task you finish in one sitting.
    ```bash
    gh issue edit <n> --remove-label status:todo --add-label status:in-progress
    ```
@@ -106,6 +110,12 @@ upkeep rules:
    be exact** — a device may grep the name straight out of the issue.
 3. Do the work; commit the artifacts (manifests, flow JSON, doc updates). Git is the data
    layer — issues never hold the source of truth.
+4. **If the issue maps to a guide chapter, update the Master Plan in the same pass.** When work on
+   an issue changes a chapter's state, edit `Complete Guide to Edge Flow Management.md`'s status
+   tracker — its **Status**, **Owner**, **Issues**, and **Next action** cells — so the tracker and
+   the issue mailbox never drift apart. Keep the **Issues** column linked (`#n` → the issue URL,
+   `✓` once closed). The tracker is the chapter↔issue correlation; a stale row is a stale spec for
+   the next session.
 
 ## Reporting back
 
