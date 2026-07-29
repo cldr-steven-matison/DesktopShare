@@ -163,7 +163,7 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 
 ## FTF3XR2065 (MacBook Pro, work laptop)
 
-- **Role**: Steven's Cloudera-issued daily driver — full local minikube (123 days old, docker driver, k8s v1.34.0) running the same CSO/CFM/CSA + monitoring stack WindowsDesktop does, plus the macOS build of the cso-operator-app RAG stack (`default` namespace: cso-operator-app + vLLM + Whisper + Qdrant + embedding-server, all `-cpu`). EFM/MiNiFi have been intentionally disabled here (not deployed today) but the rest is live. Also serves as docs/plans authoring host and DesktopShare golden source.
+- **Role**: Steven's Cloudera-issued daily driver — full local minikube (123 days old, docker driver, k8s v1.34.0) running the same CSO/CFM/CSA + monitoring stack WindowsDesktop does, plus the macOS build of the cso-operator-app RAG stack (`default` namespace: cso-operator-app + vLLM + Whisper + Qdrant + embedding-server, all `-cpu`). EFM + a C++ `KubernetesPod` MiNiFi agent are now deployed here as of 2026-07-29 (for the EFM-metrics field validation, issue #16 — previously intentionally disabled). Also serves as docs/plans authoring host and DesktopShare golden source.
 - **Checked in**: 2026-07-20
 - **Claude Code version**: 2.1.169
 
@@ -215,7 +215,7 @@ Active `kubectl port-forward` panes (all `--address 0.0.0.0` so LAN peers can re
 - `service/cso-operator-app 8090:8090`
 - `service/my-cluster-kafka-bootstrap 9092:9092 -n cld-streaming`
 - `deployment/prometheus-grafana 3000:3000 -n cld-streaming`
-- `service/efm 10090:10090 -n cld-streaming` — **NOTE**: pane is up but `svc/efm` does not currently exist in the cluster (EFM/MiNiFi are the intentionally-disabled bits); forward is failing quietly, remove or restore EFM when the flow is next needed
+- `service/efm 10090:10090 -n cld-streaming` — **live as of 2026-07-29**: EFM (`app=efm`) is deployed (`efm-deployment-persisted.yaml`), UI/API on `efm-ui/10090`, Prometheus actuator on `10090/efm/actuator/prometheus` (NOT `metrics/9092` — that port serves empty), scraped by ServiceMonitor `efm` → `up{job="efm"}=1`. C++ agent pod `minifi-agent-k8s` (`KubernetesPod` class) enrolled. Note: EFM image ships no `curl`, so health-check via host port-forward, not `kubectl exec`
 
 Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip` for the four forwarded ports above.
 
