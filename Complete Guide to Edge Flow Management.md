@@ -57,19 +57,24 @@ The tracker is narrow by design — cells **stack top-to-bottom**:
 | **21**<br>🟡✍️<br>[#12](https://github.com/cldr-steven-matison/DesktopShare/issues/12)✓, [#16](https://github.com/cldr-steven-matison/DesktopShare/issues/16), [#19](https://github.com/cldr-steven-matison/DesktopShare/issues/19), [#20](https://github.com/cldr-steven-matison/DesktopShare/issues/20) | **Metrics & Observability**<br>src `efm-metrics.md`<br>blog — | Layer 1 + 2 (agent-side) | FTF3XR2065 (Layer 1) + NvidiaNano (Layer 2) → WindowsDesktop next | Field-validated Layer 1 2026-07-29 (FTF3XR2065): EFM deployed, `ServiceMonitor` scrapes `efm-ui/10090` (NOT `metrics/9092` — empty), `up{job="efm"}=1`, agent enrolled (`KubernetesPod`). Field-validated Layer 2 agent-side publisher 2026-07-29 (NvidiaNano, real Jetson hardware): corrected the property namespace (`nifi.metrics.publisher.*`, not `nifi.c2.*`; default port `9936` not `9092`) and the restart mechanics (only `sudo systemctl restart` reliably works — killing the process does not force a systemd respawn on this build); publisher confirmed serving 204 lines of valid Prometheus text on `:9936`, bound `0.0.0.0`. Open: CSO-side scrape target + Grafana panel for the agent publisher (WindowsDesktop), `agentClass`-tagged EFM series, then the WindowsDesktop subtasks — Prometheus/Grafana runbook on CSO (#19) + java/c++ `WindowsDesktop`-class validation (#20) |
 
 **Open issues not yet mapped to a chapter:**
-[#9](https://github.com/cldr-steven-matison/DesktopShare/issues/9) — MicroFi (ESP32 MiNiFi C2
+[#9](https://github.com/cldr-steven-matison/DesktopShare/issues/9)✓ — MicroFi (ESP32 MiNiFi C2
 agent) on the XIAO field-validated against EFM (`efm-xiao-microfi.md`, `device:StarlinkAI`); an
-edge-device validation that may seed a future Part V/VII chapter. **2026-07-29: Tasks 1-6 of 8
-done.** Chip pinned (ESP32-S3 Sense — has a camera + microSD slot, not the base board),
-LAN-direct to WindowsDesktop (`192.168.1.121`, bypassing Tailscale/Starlink), build/flash/first
-heartbeat all succeeded (real EFM `200`, manifest exactly `GenerateFlowFile`+`LogAttribute`,
-`StarlinkAI`'s live agent confirmed unaffected). **Stopped before Task 7/8**: this unit's actual
-flash is 2MB, smaller than any of MicroFi's 3 shipped partition layouts — the 4MB env's `littlefs`
-partition extends ~2MB past the physical chip, and Task 7's flow push would write into that
-out-of-bounds range. Needs either a from-scratch 2MB partition table or (now that we know it's a
-Sense board) using the onboard microSD via `CONFIG_MICROFI_SD_OVERFLOW` instead. The doc's
-original load-bearing question (EFM 2.3.1.0-2's implicit-ack behavior) is still untested pending
-that.
+edge-device validation that may seed a future Part V/VII chapter — **all 8 field-validation tasks
+now complete (2026-07-29), the case for a real chapter is made, not yet drafted.** Chip: XIAO
+ESP32-S3 **Sense**, 2MB actual flash (not the 8MB the doc originally assumed) — a custom
+`esp32s3-2mb` PlatformIO env + `partitions_2mb.csv` was built to fit it, pushed to
+`steven-matison/MicroFi` (`xiao-s3-2mb-partition` branch, no PR yet). Build/flash/heartbeat/EFM
+registration/manifest all confirmed (Tasks 1-6), `StarlinkAI`'s live agent unaffected throughout.
+**The doc's original load-bearing question is answered**: EFM 2.3.1.0-2 accepts MicroFi's implicit
+ack (a heartbeat with a matching `flowInfo.flowId` is sufficient, no explicit
+`/acknowledge` POST) — confirmed by pushing a real `GenerateFlowFile → LogAttribute` flow via the
+EFM Designer's per-component API and watching the agent transition to `ONLINE` with the correct
+`flowId`. Persistence across power-cycle also confirmed (Task 8) — the flow definition survives in
+LittleFS on the corrected partition table. Full write-up in `efm-xiao-microfi.md`. **#9 closed done
+2026-07-29**; the follow-up
+[#26](https://github.com/cldr-steven-matison/DesktopShare/issues/26) (sub-issue, `device:FTF3XR2065`)
+picks up eval + dev of the processors needed for deeper testing beyond the synthetic
+`GenerateFlowFile → LogAttribute` round-trip — `PublishMQTT` (the P0 egress gap) first.
 [#4](https://github.com/cldr-steven-matison/DesktopShare/issues/4) — a Windows Python processor
 for the Streamers `TwitchChatListener` (`device:WindowsDesktop`); belongs to **cso-operator-app**,
 out of scope for this guide, tracked here only for correlation.

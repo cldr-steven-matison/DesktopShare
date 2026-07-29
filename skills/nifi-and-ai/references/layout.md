@@ -10,15 +10,24 @@ NiFi canvas and EFM Designer share one position model: each component has `posit
 
 ### Grounded constants
 
-These are read off real hand-tidied flows in `DesktopShare/files/`, not invented — re-derive with `jq '.. | objects | select(has("processors")) | .processors[] | {name, x:.position.x, y:.position.y}'` if in doubt:
+These are read off real hand-tidied flows in `DesktopShare/files/`, not invented — re-derive with `jq '.. | objects | select(has("processors")) | .processors[] | {name, x:.position.x, y:.position.y}'` if in doubt. **They were all read off NiFi-UI-tidied flows** (the Streamers app), so they're the right defaults for a NiFi REST API build. The EFM Designer canvas needs more — see the note after this list.
 
 - **Row pitch (one stage to the next): 200 default**, down to **150** for dense flows. `TwitchChatBot.json` steps 200 (y = 0, 200, 400, 600); `StreamersApp.json`'s live-check subchain steps 150 (600 → 750 → 900 → 1050 → 1200).
 - **Center column: x = 0.** The spine of a linear chain sits at x = 0.
 - **Branch column pitch: ~300 (dense) to ~480 (roomy).** `StreamersApp` Twitch-vs-Kick split sits at x = −300 / +300; `TwitchChatBot`'s three-way fan-out sits at −488 / 0 / 480.
 
+**EFM Designer builds are roomier in both axes — the NiFi defaults read as cramped.** The constants above are NiFi-UI-derived and read fine on the NiFi canvas — leave them alone for NiFi REST API builds. But the EFM Designer renders processor boxes such that the NiFi pitches stack components too close to read, **vertically and horizontally**. Grounded observation: `KubernetesPodPyTest` (built via the EFM Designer API 2026-07-29, `files/efm-python-processor-x86_64/KubernetesPodPyTest-flow-export.json`) is a clean linear chain at the 200 row pitch (y = 0, 200, 400, 600) — functionally correct, followed the NiFi default exactly, and came back from review as visibly cramped.
+
+Bump both, but **the horizontal needs to grow quite a bit more than the vertical** — EFM's processor boxes are far wider than they are tall, so columns run into each other long before rows do:
+
+- **Row pitch: 300**, not 200 (y = 0, 300, 600, 900); dense flows 225 rather than 150.
+- **Branch column pitch: ~600 (dense) to ~900 (roomy)**, not ~300/~480 — a two-way split lands at x = −600 / +600, a three-way fan-out around −900 / 0 / +900. This is ~2× the vertical pitch as the per-column offset (columns ~1200 apart for a two-way), deliberately wider than the ~1.5× the rows get.
+
+This is EFM-Designer-only — it does **not** change the NiFi defaults.
+
 ### Per-shape placement rules
 
-- **Linear chain** — same x, `y += 200` each step. (`TwitchChatListener` 0,0 → `RouteOnAttribute` 0,200 → …)
+- **Linear chain** — same x, `y += 200` each step (`TwitchChatListener` 0,0 → `RouteOnAttribute` 0,200 → …). **On an EFM Designer build use `y += 300`** per the pitch note in "Grounded constants" above.
 - **Branch / fan-out** (a `RouteOnAttribute`/`RouteOnContent` feeding N targets) — router stays at center; the N targets **share one row** (`y = router.y + 200`) and spread symmetric `x = center ± pitch`. Odd count keeps one target on center (−pitch, 0, +pitch); even count straddles (−pitch/2, +pitch/2 or ±pitch).
 - **Join / merge** (funnel, or several branches into one processor) — the merge target sits at center **x = 0**, one row below the lowest branch row.
 - **Self-loop** (e.g. `Retry` self-loop on `InvokeHTTP`, rule 7) — leave the processor where it is; the loop renders as a small bend, no new column needed. Route the terminal `Failure`/`No Retry` to a log processor one row down — exactly what `TwitchChatBot` does with `LogInvokeFailure` at (0, 600).
@@ -54,6 +63,8 @@ RouteOnAttribute   (0,   400)
 InvokeA  (-300, 600)      InvokeB  (300, 600)     ← branch row, symmetric ±300
 LogFailure         (0,   800)                     ← merge, back on center
 ```
+
+These are the NiFi pitches (row 200, branch ±300). For the same shape on an **EFM Designer** build, row 300 / branch ±600 (horizontal pushed out further than vertical): `ListenHTTP` (0,0), `EvaluateJsonPath` (0,300), `RouteOnAttribute` (0,600), `InvokeA` (−600,900) / `InvokeB` (600,900), `LogFailure` (0,1200).
 
 ## Other human-pass gaps
 
