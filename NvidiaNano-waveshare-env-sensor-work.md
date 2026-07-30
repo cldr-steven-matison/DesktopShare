@@ -1,6 +1,6 @@
 # Waveshare Environment Sensor (Jetson) — setup log
 
-## Status: PAUSED — this unit's OLED never acks on I2C at all; replacement unit inbound from China. Yahboom board restacked, this Waveshare board set aside until the new one arrives.
+## Status: CLOSED (2026-07-30) — both units being returned. See "Final outcome" section below before revisiting this product.
 
 ## Board identified
 
@@ -56,16 +56,66 @@ plain `curl`/WebFetch with a 403 — works fine with a browser `User-Agent` stri
    nothing built in software can produce an ACK from a chip that isn't listening on
    the bus.
 
-## Leading hypothesis: interface-mode-select (I2C vs SPI) resistor/jumper
+## RMA replacement unit (2026-07-30): identical symptom, chip-level causes ruled out
 
-SH1106 modules commonly ship with **solder-selectable I2C vs SPI mode** (the
-chip's IM0/IM1 pins are hard-strapped by a resistor placement on the board) and
-frequently *default to SPI* — requiring the customer to move a resistor pad to
-switch into I2C mode. If this unit's mode-select is wrong (factory default not
-matching the documented I2C-only product, or a defect), the chip would be 100%
-deaf on I2C exactly as observed, while every other sensor on the same PCB — which
-don't have this ambiguity — works fine. Not yet visually confirmed (would need a
-photo of the back of the board near the OLED to check for a jumper/pad).
+Second unit (different physical part, same SKU) shows the exact same permanent
+0x3C hard NACK, **and has been 100% black with zero flicker since first power-on**
+— no garbage pixels, no brief glow, nothing, ever. That last fact matters: it's
+the signature of the OLED never receiving power at all, not a display controller
+that's powered but broken.
+
+Tests run against this unit, all negative (i.e. all ruled out as the cause):
+
+1. **Bus assumption re-verified from scratch, not inherited.** Scanned *every*
+   I2C bus on the SoC (`i2cdetect -l` → buses 0,1,2,4,5,7), not just bus 7 — 0x3C
+   is absent everywhere, not just wrong-bus. Buses 0/1 show unrelated `UU`
+   (kernel-claimed) devices (PMIC/EEPROM/RTC), nothing OLED-related.
+2. **Reset-line hack**: the vendor driver's only GPIO is `self._rst` (BCM24 →
+   `PY.03` → gpiochip0 line 125, confirmed via source grep — no second/hidden
+   GPIO exists in `SH1106.py`). Found it sitting `unused, input` (floating).
+   Forced it HIGH for the duration of a scan via `gpioset --mode=time -s 15
+   gpiochip0 125=1` (confirmed actively driven via `gpioinfo` mid-test) — no
+   change, 0x3C still silent. Rules out a stuck/floating reset line.
+3. **Alternate addresses/probe methods**: 0x3D/0x3E/0x3F direct register reads
+   all fail identically to 0x3C. Non-`-r` scan mode (quick-write probe) is
+   unreliable on this controller (`Warning: Can't use SMBus Quick Write
+   command`) — a stray ACK appeared at 0x28 under `-r` mode but died on every
+   real register read (`i2cdump`/`i2cget` all `Read failed`) — bus-noise false
+   positive under the quick-read probe, not a real device.
+
+## Current leading theory: dead dedicated OLED power regulator (not the chip)
+
+Pulled the **actual schematic** (linked from the Waveshare wiki's Resources
+section, easy to miss — direct PDF:
+`https://files.waveshare.com/upload/2/27/Environment-Sensor-for-Jetson-Nano-Schematic.pdf`,
+same 403-blocks-plain-curl issue as the wiki, needs a spoofed browser
+User-Agent). Key finding: **the OLED (U1, SH1106) is fed by its own dedicated
+LDO, U2 (`RT9193-33`, 5V→3.3V), completely separate from the power domain every
+working sensor is on.** All 4 responding sensors (TSL25911FN/BME280/ICM20948/
+LTR390) prove nothing about the OLED's rail — they're not on it. A dead/disabled
+U2 (bad EN-pin joint, bad solder, missing/wrong component) would produce exactly
+what's observed — permanent hard NACK, zero backlight ever, board otherwise
+fully alive — with **no chip defect required**, and would reproduce identically
+across independently-manufactured units if it's a batch/assembly fault. This
+fits the "no way both dies are bad" instinct much better than a silicon defect
+does, and is now the leading theory, ahead of the interface-mode-select idea
+below.
+
+Confirmatory test (once tools are on hand): measure at **U2 pin 5 (VOUT)**
+relative to GND — should read 3.3V; **U2 pin 3 (EN)** should be pulled toward
+VIN (5V). U2 is a small SOT-23-5 part on the board near the OLED ribbon
+connector (schematic labels it right next to the "1.3inch OLED" block).
+
+### Demoted (but not dead) hypothesis: interface-mode-select (I2C vs SPI) resistor
+
+SH1106 modules commonly ship with **solder-selectable I2C vs SPI mode** (chip's
+IM0/IM1/IM2 pins hard-strapped by resistor placement) and frequently *default to
+SPI*. The schematic actually shows this network: **R2 = 0Ω, R3 = 1MΩ**, both
+populated near the OLED connector (P1 pins IM0/IM1/IM2) — presumably set for I2C
+mode by design, but a batch-wide placement error (wrong value/missing resistor)
+would be indistinguishable by eye and would explain the symptom too. Only worth
+chasing **if** the U2 regulator test above comes back clean (3.3V present) —
+power delivery is the more likely and more testable culprit first.
 
 ## Software fixes applied so far (kept for when the replacement unit arrives)
 
@@ -92,24 +142,43 @@ These fixes are real and needed regardless of the dead-OLED problem — keep the
 when testing the replacement board (same file paths, same bus number, same
 Python-3 patches will apply).
 
-## Current physical state
+## Current physical state (2026-07-30)
 
-Waveshare board set aside; Yahboom CubeNano board restacked back onto the header
-alone (power-cycled properly: `shutdown -h now` + physical unplug, since the case
-power button doesn't hold power off reliably — see `NvidiaNano-CubeNano-work.md`).
-`yahboom_oled.service` is enabled and should have come back on its own.
+RMA replacement Waveshare board stacked and powered, standalone (no Yahboom).
+Confirmed dead OLED as above. Yahboom CubeNano board's own status unchanged from
+before — see `NvidiaNano-CubeNano-work.md`. No multimeter or soldering iron on
+hand; ordered 2026-07-30.
 
-## Next steps (once the replacement Waveshare unit arrives)
+## Final outcome (2026-07-30): both units returned, unresolved
 
-1. Test the replacement **standalone first** (no Yahboom stacked) — the software
-   fixes above are already done, just re-point at wherever the new zip/folder
-   lands, or reuse `~/CubeNano/waveshare_env_sensor/.../rev5/`.
-2. Run `i2cdetect -y -r 7` and check whether 0x3C shows up at all before trying any
-   driver — that alone tells you in 5 seconds whether this new unit is healthy.
-3. If 0x3C responds this time: proceed to combine with Yahboom (re-stack), at which
-   point the *original* 0x3C collision concern becomes real again — will need the
-   D/C# address-jumper fix (0x3C→0x3D on one board) discussed earlier once there
-   are two genuinely-live OLEDs sharing the bus.
-4. If 0x3C is silent again on the new unit too: check the interface-mode-select
-   resistor pad on the back of the board near the OLED (see hypothesis above)
-   before assuming another DOA unit.
+Multimeter arrived and testing actually **disproved the leading theory**: U2
+(the OLED's dedicated regulator) tested healthy on the second unit — VIN 5V, EN
+5V (tied straight to VIN, always-on design), BP 0.6V, GND ~0V, and **VOUT
+3.31V, correctly regulating**. U5 (the IMU's regulator) also checked out fine
+(VIN 3.31V, VOUT ~1.7V), consistent with the lit `PWR` LED and the
+already-working IMU. So the OLED's power supply is not, and was never, the
+problem — that theory is dead.
+
+What was never confirmed: whether that healthy 3.3V actually reaches the OLED
+chip's own VCC pins, since the ribbon connector turned out to be on the
+underside of the board (opposite face from the visible components/screen),
+inaccessible for a live voltage probe once the board is stacked on the Jetson's
+40-pin header without full disassembly. A continuity check (board powered off,
+unstacked, meter in resistance/beep mode, one probe on C7 near U2 and the other
+on the ribbon's VCC pads) would have settled it without needing to keep the
+board powered — but the process (fine SMD pin identification by photo, unclear
+board access, multiple rounds of misread test points) ran out of patience
+before that check happened. **User is returning both units.** Root cause is
+genuinely unresolved: not a chip-collision, not confirmably a dead regulator,
+still open candidates are a broken trace/joint between U2 and the OLED's own
+VCC pins, the interface-mode-select resistors (R2/R3), or a genuinely dead
+SH1106 die on both independently-manufactured units (less likely given how well
+everything else on the board works, but never ruled out).
+
+**If this product line comes up again** (different order, different revision,
+etc.): the schematic PDF, the confirmed-good Python 3 + bus-7 driver patches,
+and the RT9193 datasheet pinout are all reusable groundwork — start from this
+file rather than re-deriving. But given two units failed identically and the
+investigation never reached a fix, this specific SKU may just not be worth a
+third attempt without a reflow-capable setup and better physical access to the
+ribbon side of the board from the outset.
