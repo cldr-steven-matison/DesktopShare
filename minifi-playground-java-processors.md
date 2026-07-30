@@ -1,5 +1,7 @@
 # MiNiFi Java on Kubernetes: Running the Full Processor Catalog in the Same Playground
 
+> **Folded into the guide:** condensed into the Complete Guide to Edge Flow Management → `guide/ch04-java-processor-catalog.md` (#31). This doc stays the full field log; the chapter is the operational reference.
+
 If MiNiFi C++ doesn't have the processor you need today, MiNiFi Java does. I run both in the same Minikube playground using the same Strimzi Kafka cluster and the same EFM server. The swap is a Dockerfile change, a memory bump in the K8s YAML, and a different `agentType` in the EFM deployer curl. This doc covers exactly that: what Java gives you that C++ doesn't, the footprint you're trading for it, and how to get a Java agent running through EFM.
 
 For the C++ stock image processor catalog and per-processor gotchas, see `minifi-playground-cpp-processors.md`.
@@ -124,7 +126,7 @@ EXPOSE 8080
 CMD ["${MINIFI_HOME}/bin/minifi.sh", "run"]
 ```
 
-**[Not yet field-verified: the `MINIFI_HOME` path for `minifi-java:latest`. The C++ image uses `/opt/minifi/nifi-minifi-cpp-1.26.02`; the Java image likely uses a different directory name reflecting the Java version string `2.24.08.0-19`. Run the `find` command above against the image to confirm before building.]**
+**[Not yet field-verified: the `MINIFI_HOME` path for `minifi-java:latest`. The C++ image uses `/opt/minifi/nifi-minifi-cpp-1.26.02`; the Java image likely uses a different directory name reflecting the Java version string `2.24.08.0-19`. Run the `find` command above against the image to confirm before building. Tracked as #35.]**
 
 ### minifi-java-test.yaml
 
@@ -280,4 +282,4 @@ Don't use Java for:
 
 - **Do not assume no `agentClass` flow is needed in EFM before running the Java deployer.** EFM must have an agent class defined and a flow published for the agent class before the deployer runs — otherwise the agent heartbeats with no flow to apply and nothing happens. Create the class and publish a minimal flow in EFM first.
 
-- **Do not treat the "200+ processors" count as exact.** The earlier C++-vs-Java comparison work and Cloudera's own comparison tables both say "200+" without a specific number from a running Java MiNiFi 2.24.08.0-19 instance manifest. The actual count has not been extracted from a running instance in this lab. [Not yet field-verified.]
+- **Do not treat the "200+ processors" count as exact.** The earlier C++-vs-Java comparison work and Cloudera's own comparison tables both say "200+" without a specific number from a running Java MiNiFi 2.24.08.0-19 instance manifest. The actual count has not been extracted from a running instance in this lab. [Not yet field-verified — tracked as #35.]

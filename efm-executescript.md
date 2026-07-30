@@ -2,6 +2,8 @@
 
 > **Status:** Living findings doc. Active spec, root tier (see [[desktopshare-promotion-flow]]). Consolidates the ExecuteScript threads from `minifi-playground-cpp-processors.md`, `minifi-playground-java-processors.md`, `efm-binaries.md`, `efm-binaries-windows-python.md`, and `efm-windows-java-minifi.md` into one place, plus the open work to actually land a running ExecuteScript flow on an agent in this lab.
 
+> **Folded into the guide:** condensed into the Complete Guide to Edge Flow Management → `guide/ch05-executescript-availability.md` (#31). This doc stays the living findings source (incl. the full Session-0 investigation and open project-tracking items); the chapter is the four-path reference.
+
 I keep hitting the same wall from a different direction. Every time a MiNiFi flow needs real transform logic that the stock processors can't express, I reach for `ExecuteScript` — and it isn't there. C++ stock image: not there. CEM Java tarball: not there either (that one surprised me — the old comparison tables all said Java had it out of the box). Windows MSI: bundled but not installed. This doc is the definitive map of which build has it, why the stock builds don't, and the four paths to add it — plus an honest list of what's actually proven versus staged-but-unverified.
 
 ## The short answer
@@ -15,7 +17,7 @@ Field-verified in this lab (WindowsDesktop + FTF3XR2065), not from vendor docs:
 | CEM Java tarball (EFM-staged), + NAR drop-in | 2.24.08.0-19 | ✅ — **122 processors, real Groovy ExecuteScript + real Kafka producer** — **SOLVED 2026-07-27**, re-confirmed live 2026-07-28 | Build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching source tarball, drop into the agent's autoload dir — see `efm-windows-java-minifi.md` |
 | C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — **✅ field-verified 2026-07-27** on WindowsDesktop: process-mode *and* Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
-| Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Pull and check — do not trust the "200+" marketing count |
+| Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Pull and check — do not trust the "200+" marketing count (tracked as #35) |
 
 The claim I now treat as dead in its original form: **"switch to Java and you get ExecuteScript for free."** The *stock* CEM `2.24.08.0-19` binary EFM deploys has no scripting NAR and no Kafka NAR out of the box — that part of the original correction still holds. What's changed since: it's no longer *unsolvable* in this lab — a same-version NAR drop-in gets it (Groovy, not Python; see `efm-windows-java-minifi.md`), so "Java has no ExecuteScript, period" is now the stale claim, not the corrected one.
 
@@ -125,7 +127,7 @@ The **stock** EFM-staged CEM Java binary `2.24.08.0-19` does **not** have `Execu
 **That was the whole story until 2026-07-27.** A same-version NAR drop-in — build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching `2.24.08.0-19` source tarball, drop into the agent's `nifi.nar.library.autoload.directory` — takes the manifest 114 → 122, and `ExecuteScript` runs real **Groovy** (no Python/Jython in this build) on both `KubernetesPodJava` and the real `WindowsDesktop` agent, field-verified twice. So "does Java have ExecuteScript" is now "not out of the box, but yes with one drop-in" — not a flat no. Full recipe and both field-verifications: `efm-windows-java-minifi.md`.
 
 One option remains open:
-- Pull Docker `container.repo.cloudera.com/cloudera/minifi-java:latest` and extract its manifest — it may differ from the CEM tarball (and may ship the NARs already, sidestepping the build-from-source step). Not yet done. Do not trust the old "200+ processors, ExecuteScript out of the box" language until a running manifest confirms it.
+- Pull Docker `container.repo.cloudera.com/cloudera/minifi-java:latest` and extract its manifest — it may differ from the CEM tarball (and may ship the NARs already, sidestepping the build-from-source step). Not yet done. Do not trust the old "200+ processors, ExecuteScript out of the box" language until a running manifest confirms it. Tracked as #35.
 
 ## Path D — Windows C++ MSI (field-verified 2026-07-27) ✅
 

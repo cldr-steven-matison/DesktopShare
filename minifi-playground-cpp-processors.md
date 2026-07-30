@@ -1,5 +1,7 @@
 # MiNiFi C++ on Kubernetes: The Complete Processor Reference for the Cloudera Stock Image
 
+> **Folded into the guide:** condensed into the Complete Guide to Edge Flow Management → `guide/ch03-cpp-processor-catalog.md` (#31). This doc stays the full catalog with evidence; the chapter is the operational reference.
+
 I was building flows with the [MiNiFi-Kubernetes-Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) repo when I hit the `ExecuteScript` wall — the processor simply isn't in the stock Cloudera image. I went looking for a definitive list of what *is* there and found nothing I could trust without cross-checking against a running instance. So I pulled the full catalog myself. This is that reference: what's in the stock image, what the extra-extensions tarball unlocks, what each platform actually ships, and the real gotchas I found while building live flows.
 
 ---
@@ -165,7 +167,7 @@ The stock `.so` files already in the image before injection handle Kafka (`libmi
 
 **The extra-extensions tarball is a separate Cloudera archive, not part of the stock Docker pull.** The injection recipe is in `efm-binaries.md` — unpack the tarball, `find -name "*.so" -exec cp {} extensions/`**, re-tar, and pipe into the EFM pod before the agent deploys.
 
-There is also an ARM64-specific extra-extensions tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. The `.so` filenames it contains have not been independently verified to be identical to the x86_64 list above. **[Not yet field-verified: ARM64 extra-extensions `.so` listing vs x86_64]**
+There is also an ARM64-specific extra-extensions tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. The `.so` filenames it contains have not been independently verified to be identical to the x86_64 list above. **[Not yet field-verified: ARM64 extra-extensions `.so` listing vs x86_64 — tracked as #34]**
 
 ---
 
