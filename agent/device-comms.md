@@ -145,6 +145,35 @@ session that closes its own issue removes the review gate, which is the whole po
 Blocked instead? Add `status:blocked` and comment what you're waiting on — that surfaces
 to whoever's watching without derailing your session.
 
+## Link every file you name in a comment
+
+When you write an issue or PR comment, the **first mention** of any referenced resource — a repo
+file, a `.md`, a source file in another repo, or an external URL — gets a proper `[text](url)`
+Markdown link, so Steven can click straight through to review it. Bare filenames like
+`efm-metrics.md` render as plain text on GitHub and force a manual hunt through the tree. Repeat
+mentions of the same thing within one comment can stay plain — link on first mention, don't
+re-link every occurrence.
+
+**Use full GitHub URLs — relative links do not work in comments.** GitHub rewrites relative links
+only when rendering a Markdown *file* in the repo; in an issue/PR *comment* it leaves the href
+literal, so `[x](efm-metrics.md)` resolves against the issue URL (`…/issues/efm-metrics.md`) and
+404s. (Verified with `gh api /markdown` mode=gfm: the relative and root-relative hrefs come back
+unrewritten.) The link forms:
+
+| Reference | Link form |
+|---|---|
+| Same-repo file (this repo, `main`) | `[efm-metrics.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/efm-metrics.md)` |
+| File in another GitHub repo | full blob URL to that repo/branch/path, e.g. `[streamers.py](https://github.com/cldr-steven-matison/cso-operator-app/blob/main/backend/services/streamers.py)` |
+| External web resource | normal `[title](url)` |
+
+Two caveats:
+
+- **Local-only / untracked repos have no URL.** `nifi-custom-processors` isn't git-tracked, so
+  there's no clickable blob link — name it plain and tag it `(local-only, not git-tracked)`.
+- **Link text stays the exact filename.** This is the same greppability the "Working an issue"
+  filenames rule protects — a device grepping the name out of the comment still finds it, and now
+  it's clickable too. Don't rename the file in the link text for prose flow.
+
 ## Filing work for another device
 
 Same shape you'd use for a guide "Next action [device]" hint, but as a ticket:
