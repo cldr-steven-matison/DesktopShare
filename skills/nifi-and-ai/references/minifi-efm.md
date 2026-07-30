@@ -95,7 +95,7 @@ grep -oE '"[A-Za-z]+Service\.[a-zA-Z]+"' /tmp/efm_main.js | sort -u            #
 Confirmed working contract:
 - `GET /efm/api/designer/client-identifier` → `{"clientId": "<uuid>"}` — required in every write's `revision.clientId`.
 - `GET /efm/api/designer/flows/summaries` → one entry per agent class with `identifier` / `rootProcessGroupIdentifier`; `GET .../flows/{id}` for the full live flow doc. **Read this before editing — it's ground truth over any doc or memory.**
-- `POST .../process-groups/{pgId}/processors` — create. Body: `{"revision":{"version":0,"clientId":...},"componentConfiguration":{"componentType":"PROCESSOR","type":"<fqcn>","bundle":{...},"name":...,"position":{...},"properties":{...},"autoTerminatedRelationships":[...]},"requestId":"<uuid>"}`. Properties can be set in this one call.
+- `POST .../process-groups/{pgId}/processors` — create. Body: `{"revision":{"version":0,"clientId":...},"componentConfiguration":{"componentType":"PROCESSOR","type":"<fqcn>","bundle":{...},"name":...,"position":{...},"properties":{...},"autoTerminatedRelationships":[...]},"requestId":"<uuid>"}`. Properties can be set in this one call. **Before you send the `position`:** on an EFM Designer build, row pitch is **300** (not the NiFi 200) and branch/column pitch **~600–900** (not ~300–480), and a linear chain is **vertical** (constant x, `y += 300`) — a `(0,0)→(400,0)` sideways pair is the flagged-bad shape that landed cramped twice ([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)). State your intended shape + pitch and match it against [`layout.md`](layout.md) §"Per-shape placement rules" first; the `guard.sh` PreToolUse hook will prompt you to do exactly this on the `POST`.
 - `POST .../connections` — same envelope, `componentConfiguration:{componentType:"CONNECTION",source:{id,type:"PROCESSOR",groupId},destination:{...},selectedRelationships:[...],bends:[]}`.
 - `PUT .../processors/{id}` — update, same shape; `revision.version` must match current.
 - `GET .../flows/{id}/validate` → `{"validationErrors":[]}` — confirm empty before publishing.
@@ -110,7 +110,9 @@ Confirmed working contract:
 
 ## 8. Canvas layout when building flows programmatically
 
-Canvas layout is not an EFM-specific concern — it's the same discipline for every programmatic build, whether through the EFM Designer API or the NiFi REST API, because both use the same `position:{x,y}` model. The full technique (coordinate model, grounded constants, per-shape placement rules, worked example) and the honest caveat that it still needs a manual tidy pass live in **`layout.md`**.
+Canvas layout is not an EFM-specific concern — it's the same discipline for every programmatic build, whether through the EFM Designer API or the NiFi REST API, because both use the same `position:{x,y}` model. The full technique (coordinate model, grounded constants, per-shape placement rules, worked example) and the honest caveat that it still needs a manual tidy pass live in **[`layout.md`](layout.md)**.
+
+**Read `layout.md` before the first `POST .../processors`, not after the build reads cramped.** This pointer existing as a section title wasn't enough — two fresh EFM builds (`PlaygroundCpp`, `PlaygroundJava`) skipped it and landed at the NiFi pitch anyway ([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)). The fix hardened the call site itself: the pitch numbers are now inlined on the processor-create bullet in §7 above, and the `guard.sh` PreToolUse hook (rule 5) prompts on any processor-create/update carrying a `position` to state shape + pitch and match `layout.md` before the call lands. Treat that prompt as the reminder to actually open `layout.md`, not a box to click through.
 
 ## 9. EFM Resource Manager API
 
