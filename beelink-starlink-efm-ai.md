@@ -470,6 +470,24 @@ size have all been tried and exhausted. Root-causing further needs StarlinkAI's 
 `minifi-app.log` on a live multipart request, which only a StarlinkAI-side session can read.
 Flow export refreshed in `files/StarlinkAI.json` to match (flow version 18).
 
+## Transcription drop root-caused to ListenHTTP itself, not a buffer-size question (2026-07-30, issue #25/#18)
+
+Picked up "root-causing further needs StarlinkAI's own `minifi-app.log`" from the section above, live from StarlinkAI. Confirmed `conf/config.yml` on this agent already carries the WindowsDesktop fix — `ListenHTTP-Transcription` and `ListenHTTP-Speech` both show `Batch Size: 2` / `Buffer Size: 2` (was `1`).
+
+Sent one fresh multipart POST straight to the live production endpoint: `curl.exe -X POST http://localhost:8084/transcriptions -H "request_id: diag-transcribe-001" -F "file=@C:\Users\tunas\test-audio.wav"`. Got `HTTP/1.1 100 Continue` then `HTTP/1.1 200 OK` — same two-phase send behavior as every prior test. Baselined the log line count first, then diffed after: **exactly one new line was written for this request, and nothing else**:
+
+```
+[2026-07-30 11:50:42.542] [org::apache::nifi::minifi::processors::ListenHTTP] [warning] ListenHTTP buffer is NOT full 1/2, 'POST' request for '/transcriptions' uri was dropped
+```
+
+No `InvokeHTTP-Transcription` line, no `PublishKafka` line, no error of any kind — the drop happens entirely inside `ListenHTTP` before a flowfile is ever created, confirming (not just repeating) the standing "drops with nothing further downstream" finding, this time against the *current* `Buffer Size: 2` config rather than the earlier `1`.
+
+**This is the concrete result the open theory needed**: `ListenHTTP-Speech` runs the identical `Batch Size: 2` / `Buffer Size: 2` config and passes a single, one-shot request through fine (per the section above — real Kokoro MP3 landed in Kafka). `ListenHTTP-Transcription`, same config, same single-request test pattern, still drops every time. Since the only property difference between the two processors is which port/path they're bound to — Batch/Buffer Size is now provably not the variable — the differentiator has to be the **multipart/two-phase send** itself (headers, `100 Continue`, then body), not a generic buffer-count issue. Bumping `Buffer Size` further (3, 4, ...) is not expected to help based on this evidence, since the failure isn't "buffer needs more room," it's that a lone multipart request never satisfies whatever internal check `ListenHTTP` runs before it'll treat the buffer as usable — this needs a `ListenHTTP`-multipart-parsing fix (or a different processor / ingress mechanism for this one pair), not a property tweak.
+
+**What this session did not do**: no config change, no flow republish, no service restart — this agent is the live production router for all 5 pairs, and the job here was root-cause confirmation, not a fix attempt. Consistent with the "don't root-cause blind" pattern used throughout this doc, this is offered as a confirmed differentiator, not a full explanation of *why* multipart trips the check — that would need reading `ListenHTTP`'s own buffer-fill logic in `nifi-minifi-cpp` source, which wasn't done here.
+
+**Suggested next step**: this now reads as a real code-level gap in `ListenHTTP`'s multipart handling (matching the `MINIFICPP-2243` shape flagged since 2026-07-17), not a config problem workable from either WindowsDesktop or StarlinkAI via the EFM Designer. Options worth considering: (a) check whether a newer `nifi-minifi-cpp` build available through the EFM binary deployer has a multipart fix, (b) front the transcription endpoint with a different ingress processor that doesn't hit this check, or (c) accept this as a known limitation and document it rather than keep spending buffer-size cycles on it.
+
 ## ExecuteScript Python proven on StarlinkAI (2026-07-28)
 
 Picked up `efm-beelink-cpp-python-action.md` from a StarlinkAI session (GitHub issue #2). Two things didn't match what the checklist assumed.
