@@ -13,3 +13,5 @@
 /files/tuna-test/Wav2Lip/
 /files/tuna-test/voices/
 /files/tuna-test/assets/
+/files/heygen-srm-poc/.env.local
+/files/heygen-srm-poc/output/
