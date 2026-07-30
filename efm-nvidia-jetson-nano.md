@@ -56,9 +56,14 @@ kubectl rollout restart deployment/efm -n cld-streaming
 kubectl wait --for=condition=ready pod -l app=efm -n cld-streaming --timeout=120s
 ```
 
-**Warning** it takes several minutes for EFM to re roll.  Be patient.  Use K9s or pod logs to confirm that EFM finishes startup and discloses its final hosted URLs.
+**Warning** it takes several minutes for EFM to re roll.  Be patient.  Use K9s or pod logs to confirm that EFM finishes startup and discloses its final hosted URLs:
 
-[ insert text here from startup log ]
+```bash
+kubectl logs -n cld-streaming -l app=efm --tail=50 | grep -Ei 'started|listen|efm/ui'
+```
+
+:hammer_and_wrench: **Field capture pending (WindowsDesktop).** The real startup banner — the hosted `…/efm/ui` URL EFM prints once it's up — gets captured on the device where EFM actually runs; the authoring Mac has no EFM pod. Routed as a `device:WindowsDesktop` follow-up.
+{: .notice--warning}
 
 ### Expose EFM for Easy Access
 
@@ -70,11 +75,12 @@ minikube tunnel
 
 Open that URL in your browser — you should land on the EFM login screen.
 
-Now create a class and you can get to the Deploy Agent CLI Command Screen to verify all of the binaries are there.
+Now create a class so you can reach the **Deploy Agent CLI** screen and confirm every binary you installed shows up in the version dropdowns.
 
-[ insert screen shot of binary drop downs ]
+:camera: **Screenshot pending (WindowsDesktop).** The Deploy-Agent screen with the Java/C++ binary version dropdowns — captured on the host running the EFM UI. Routed as a `device:WindowsDesktop` follow-up.
+{: .notice--info}
 
-[ I need to update this, we moved to the windows host IP for efm to be accessible to Jetson.  However the tunnel method is preferred since the url is consistent. Currently in windows the minikube sevice command the open port is random and you have to visit and append /efm/ui/ on end of the browser url  - better way would be appreciated ]
+**Two ways to reach EFM, and they are not interchangeable.** `minikube tunnel` gives a stable, consistent URL — `http://127.0.0.1:10090/efm/ui` never changes, so it's what I use from the host itself and in every command in this post. But the Jetson is a separate box on the LAN and can't reach the host's `127.0.0.1`. To enroll an agent *from the Jetson*, EFM has to be exposed on the host's LAN IP (`gaming-pc-lan-ip`) instead. On Windows the quick `minikube service` route works but hands you a **random** NodePort and drops you at the bare host, so you have to append `/efm/ui/` to the browser URL yourself. So: tunnel for the stable local URL, host LAN IP for the off-box Jetson. The agent-deployer curl commands below use whichever base URL matches where the agent runs — `127.0.0.1:10090` for the in-cluster pod, `gaming-pc-lan-ip:10090` for the Jetson.
 
 ### Windows Networking: Mirrored Mode vs NAT Mode (WSL2 + Jetson)
 
@@ -265,7 +271,8 @@ Apply the Agent Pod:
 
 ```bash
 kubectl apply -f minifi-agent-pod.yaml
-kubectl wait --for=condition=ready pod minifi-agent-k8s -n cld-streaming --timeout=60s\nkubectl logs minifi-agent-k8s -n cld-streaming
+kubectl wait --for=condition=ready pod minifi-agent-k8s -n cld-streaming --timeout=60s
+kubectl logs minifi-agent-k8s -n cld-streaming
 ```
 
 Be patient and watch the pod log and app logs:
@@ -275,11 +282,13 @@ kubectl logs minifi-agent-k8s -n cld-streaming -f
 kubectl exec -it minifi-agent-k8s -n cld-streaming -- tail -f /nifi-minifi-cpp-1.26.02/logs/minifi-app.log
 ```
 
-[ add expected output here ]
+:hammer_and_wrench: **Field capture pending (WindowsDesktop).** The expected `minifi-app.log` tail from the in-cluster agent — the C2 heartbeat lines showing it reached `efm.cld-streaming.svc:10090` and registered — goes here, captured where the minikube cluster runs. Routed as a `device:WindowsDesktop` follow-up.
+{: .notice--warning}
 
-Within a few minutes Minifi should be running in the pod and the agent should appear in the `KubernetesPod` Class in the EFM Dashboard.  Win!
+Within a few minutes MiNiFi should be running in the pod and the agent should appear in the `KubernetesPod` class in the EFM dashboard. Win!
 
-[ screen shot here ]
+:camera: **Screenshot pending (WindowsDesktop).** The `KubernetesPod` class row in EFM → Monitor → Agents with the enrolled agent.
+{: .notice--info}
 
 ### 3. Deploy the MiNiFi C++ Agent on the Jetson Orin Nano
 
@@ -317,7 +326,8 @@ tail -f minifi-1.26.02/logs/minifi-app.log
 
 The agent should appear almost immediately in the EFM UI → **Monitor** → **Agents** under class `NvidiaNano`.
 
-[ screen shot here ]
+:camera: **Screenshot pending (NvidiaNano).** The `NvidiaNano` class with the enrolled Jetson agent in EFM → Monitor → Agents. Routed as a `device:NvidiaNano` follow-up.
+{: .notice--info}
 
 ### 5. Deliver Resources to the Agent
 
@@ -421,11 +431,33 @@ Most important: TensorRT flow which is the one we want, but I also include the f
  
 ### 7. Testing Nvidia Jetson Flow
 
-Chmod Command
+With the flow published to the `NvidiaNano` class and the agent online, the Jetson is running `ListenHTTP → ExecuteScript → PublishKafka` (see [NvidiaNano-TensorRT.json](files/efm/NvidiaNano-TensorRT.json)). Three steps prove it end to end.
 
-Curl Command
+**1. Make the delivered script executable.** EFM drops assigned resources into the agent's `assets/` directory, but they arrive without the execute bit — `ExecuteScript` can't run `gpu_nifi_tensorRT-3.py` until you set it (this is the manual step flagged above; the exact assets path is under the agent install dir):
 
-Kafka Messages
+```bash
+chmod +x ~/minifi-1.26.02/assets/gpu_nifi_tensorRT-3.py
+```
+
+**2. POST a JSON payload to the agent's ListenHTTP.** The processor listens on port `8080`, base path `contentListener`. From the Jetson itself (or any LAN host that can reach it):
+
+```bash
+curl -X POST http://localhost:8080/contentListener \
+  -H "Content-Type: application/json" \
+  -d '{"sensor":"jetson-test","value":42}'
+```
+
+`ExecuteScript` runs the payload through TensorRT (`gpu_nifi_tensorRT-3.py`), which appends a `tensorrt` block (`version`, `status`) and sets the `python.tensorrt.execution=Success` attribute, then `PublishKafka` ships it to the CSO Kafka broker.
+
+**3. Confirm the enriched message landed in Kafka.** Consume the target topic from the CSO stack (bootstrap is the external NodePort address set up above):
+
+```bash
+kafka-console-consumer.sh --bootstrap-server gaming-pc-lan-ip:31623 \
+  --topic <your-topic> --from-beginning --max-messages 1
+```
+
+:hammer_and_wrench: **Field capture pending (NvidiaNano).** The real consumed message — the original JSON with the `tensorrt` block appended by the on-Jetson inference — goes here, captured from a live run on the board. Routed as a `device:NvidiaNano` follow-up.
+{: .notice--warning}
 
 
 ### Add EFM to Your CSO Prometheus Observability
@@ -532,4 +564,52 @@ open item, handed to WindowsDesktop (see `efm-metrics.md` and the issue thread f
 
 ### Resources
 
-### Appendix 
+- [efm-persistance.md](efm-persistance.md) — persisted EFM on Kubernetes, the base this chapter builds on
+- [efm-binaries.md](efm-binaries.md) — installing the MiNiFi Java & C++ binaries into EFM
+- [efm-metrics.md](efm-metrics.md) — the full three-layer EFM/agent Prometheus story; this chapter carries the Jetson slice
+- [MiNiFi Kubernetes Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) — the MiNiFi test harness
+- EFM agent flows: [NvidiaNano-TensorRT.json](files/efm/NvidiaNano-TensorRT.json), [WindowsDesktop-TensorRT.json](files/efm/WindowsDesktop-TensorRT.json), [KubernetesPod-TensorRT.json](files/efm/KubernetesPod-TensorRT.json), and the TailLog variants [NvidiaNano.json](files/efm/NvidiaNano.json) / [WindowsDesktop.json](files/efm/WindowsDesktop.json) / [KubernetesPod.json](files/efm/KubernetesPod.json)
+- Edge inference script: [gpu_nifi_tensorRT-3.py](files/gpu_nifi_tensorRT-3.py)
+
+### Appendix
+
+Reusable command forms lifted out of the walkthrough above. (A raw `### Terminal History` from a live end-to-end run gets added by the field devices when they capture the pending output/screenshots called out throughout this chapter.)
+
+#### 1. Restart EFM after installing binaries
+
+```bash
+kubectl rollout restart deployment/efm -n cld-streaming
+kubectl wait --for=condition=ready pod -l app=efm -n cld-streaming --timeout=120s
+```
+
+#### 2. Kafka external access for off-box agents (port-forwards, re-run after every WSL/Windows restart)
+
+```bash
+kubectl port-forward --address 0.0.0.0 svc/my-cluster-kafka-external-bootstrap 31623:9094 -n cld-streaming > /tmp/pf-kafka-bootstrap.log 2>&1 &
+kubectl port-forward --address 0.0.0.0 svc/my-cluster-combined-0 31850:9094 -n cld-streaming > /tmp/pf-kafka-0.log 2>&1 &
+kubectl port-forward --address 0.0.0.0 svc/my-cluster-combined-1 31935:9094 -n cld-streaming > /tmp/pf-kafka-1.log 2>&1 &
+kubectl port-forward --address 0.0.0.0 svc/my-cluster-combined-2 30336:9094 -n cld-streaming > /tmp/pf-kafka-2.log 2>&1 &
+ss -tlnp | grep -E "31623|31850|31935|30336"
+```
+
+#### 3. Enroll the Jetson agent (agent-deployer, linux-arm64)
+
+```bash
+curl -L \
+ -d agentClass=NvidiaNano \
+ -d agentIdentifier=$(cat /proc/sys/kernel/random/uuid) \
+ -d agentType=cpp \
+ -d agentVersion=1.26.02 \
+ -d osArch=linuxaarch64 \
+ -d serviceName=minifi \
+ -d serviceUser=minifi \
+ -d baseUrl=http%3A%2F%2Fgaming-pc-lan-ip%3A10090%2Fefm%2Fapi \
+ http://gaming-pc-lan-ip:10090/efm/api/agent-deployer/script | bash -
+```
+
+#### 4. Restart MiNiFi on the Jetson (systemd is the only dependable path — see the metrics section)
+
+```bash
+sudo systemctl restart minifi
+sudo systemctl status minifi
+``` 

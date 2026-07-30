@@ -465,3 +465,13 @@ as a variable (one non-repro doesn't rule out an intermittent race), but it does
 isn't 100%-deterministic under the bridge the way the original write-up could be read to imply.
 **Still requires Steven at a real interactive elevated PowerShell window to actually isolate the
 bridge as a variable** — not attempted further this session, flagged as a genuine hand-off.
+
+### Teardown (2026-07-30, EFM class cleanup)
+
+Both disposable test classes referenced throughout this doc are gone. `WindowsDesktopCppPyTest`
+(`C:\minifi-pytest\`): process stopped, install dir removed, EFM class + agent record deleted.
+`KubernetesPodPyTest`: pod `minifi-agent-k8s-pytest` deleted, EFM class + agent record deleted.
+Both had already failed Steven's visual layout QA in the EFM Designer UI (see
+`skills/nifi-and-ai/references/layout.md` and incident issue #47) — not just routine cleanup of
+already-unneeded classes. Every "left running"/"disposable, safe to tear down" note above is
+historical from when this doc was written, not current state.

@@ -53,6 +53,8 @@ Response:
 
 ## Gotchas learned the hard way
 
+- **`GET /v3/videos/{video_id}` (the documented v3 polling endpoint) can return a bare `500 internal_error` with no video data, even for a job that completed successfully.** Confirmed reproducible (consistent 500 across repeated calls) for a video whose actual status was `completed`. Workaround: fall back to the legacy `GET /v1/video_status.get?video_id=...` (still live, sunsets 2026-10-31 per its own deprecation warning) — it returned the same job correctly with `status`, `video_url`, etc. Don't build long-term automation on the v1 fallback; only reach for it if v3 polling is actively erroring.
+- **`GET /v2/avatars` (list all avatars) can hang indefinitely** even with a valid key — confirmed via repeated 45s-timeout curl calls, while `GET /v2/voices` on the same key/network returned 200 immediately. If you need a specific avatar/voice ID, get it from wherever it was created rather than relying on the list endpoint.
 - **The "transparent" background is not a real alpha channel.** Output is a standard mp4 — what looks like a transparent checkerboard is baked directly into the video's RGB pixels, not actual transparency. Any compositing step needs to crop or chroma-key it, not just alpha-composite it. Confirmed by extracting frames and looking at them directly, not by documentation.
 - **Cost scales with generated length.** A short (~1-2 second) clip cost about 3 credits. Stretching a script to cover a full 15-60+ second base clip is meaningfully more expensive than one short reaction line — factor this in before designing around "the avatar talks for the whole video."
 - **The old v1/v2 endpoints still exist** (supported through 2026-10-31 per HeyGen's migration notice) but v3 (`/v3/videos`) is the current, actively-documented API — this doc only covers v3.
@@ -61,3 +63,5 @@ Response:
 ## Working example
 
 `tuna_test.py` (built for the tuna-mascot prototype, since removed/repurposed) called this exact flow successfully: submit → poll → download → ffmpeg overlay. If reviving a HeyGen integration later, that call shape is the known-good starting point.
+
+`files/heygen-srm-poc/heygen_srm_poc.py` (issue #50) is a second working example, simpler than the tuna one since the whole video is the deliverable — no overlay/compositing step. Submit → poll → download, 16:9/1080p, with a separate `voice_id`. Used Steven's own "SRM" HeyGen avatar to narrate a short intro to installing Cloudera Streaming Operators.

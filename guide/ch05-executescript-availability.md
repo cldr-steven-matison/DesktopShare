@@ -15,9 +15,9 @@ Field-verified in this lab (WindowsDesktop + FTF3XR2065), not from vendor docs:
 | C++ image `apacheminificpp:latest` | 1.26.02 | ❌ — 74-processor production set, no scripting `.so` | Extra-extensions injection (Path A) or source build (Path B) |
 | CEM Java tarball (EFM-staged), stock | 2.24.08.0-19 | ❌ — 114 processors, no scripting NAR (verified 2026-07-25) | NAR drop-in (Path C) — see next row |
 | CEM Java tarball (EFM-staged), + NAR drop-in | 2.24.08.0-19 | ✅ — 122 processors, real Groovy ExecuteScript + real Kafka producer — SOLVED 2026-07-27, re-confirmed live 2026-07-28 | Build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching source tarball, drop into the agent's autoload dir |
-| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — ✅ field-verified 2026-07-27 on WindowsDesktop: process-mode and Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
+| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — ✅ field-verified 2026-07-27 on WindowsDesktop: process-mode and Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke. ❌ **StarlinkAI production agent re-checked 2026-07-30 (#36): not present** — missing `minifi-python-script-extension.dll`, 0-byte `minifi_native.pyd`; needs the `ADDLOCAL=ALL` reinstall + a service restart, not yet done |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
-| Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Docker `minifi-java:latest` manifest [Not yet field-verified — see #35] |
+| Docker `minifi-java:latest` | — | 🚫 n/a — image does not exist (verified 2026-07-30, #35) | No such image in the registry; run Java via the CEM tarball + NAR drop-in row above |
 
 The old claim — "switch to Java and you get ExecuteScript for free" — is dead. The stock CEM `2.24.08.0-19` binary EFM deploys has no scripting NAR. "Java has no ExecuteScript, period" is equally stale: the NAR drop-in solves it. The accurate statement is: **none of the four stock binaries include it; all four paths to add it are now field-verified in this lab.**
 
@@ -126,20 +126,21 @@ The stock EFM-staged CEM Java binary `2.24.08.0-19` has neither `ExecuteScript` 
 
 > **⚠️ Version match is mandatory.** The NAR must be built from the source tarball at exactly `2.24.08.0-19`. A version mismatch causes silent class-loading failure.
 
-One item remains open:
+One item is now closed:
 
-Docker `minifi-java:latest` manifest [Not yet field-verified — see #35] — pull the image and extract the running manifest before trusting any "200+ processors" marketing count. It may ship the scripting NARs already, sidestepping the build-from-source step.
+Docker `minifi-java:latest` — **resolved 2026-07-30 (#35): the image does not exist.** `docker manifest inspect container.repo.cloudera.com/cloudera/minifi-java:latest` returns `unknown: Not found` (as do ~12 name variants), while `apacheminificpp:latest` and `efm:latest` resolve on the same credentials — so it is the image being absent, not an auth problem. Cloudera containerizes only the C++ agent; MiNiFi Java is distributed as the tarball. There is no Docker manifest to check the "200+" count against or to shortcut the NAR build — the tarball + NAR drop-in (Path C above) is the only Java scripting path, and it stays field-verified at 122 processors.
 
 ---
 
 ## Path D — Windows MSI ADDLOCAL=ALL
 
-**Status: works.** Field-verified on WindowsDesktop 2026-07-27.
+**Status: works, but only where the recipe was actually followed.** Field-verified on WindowsDesktop 2026-07-27.
 
 | Mode | Result |
 |---|---|
 | Process-mode (`bin\minifi.exe`, no service) | ✅ ExecuteScript Python smoke |
 | Windows service (`Apache NiFi MiNiFi` + `ADDLOCAL=ALL`) | ✅ ExecuteScript Python smoke after C2 enable |
+| StarlinkAI production agent (re-checked 2026-07-30, #36) | ❌ Not present — this agent's install predates the `ADDLOCAL=ALL` recipe: only the generic `minifi-script-extension.dll` exists, no `minifi-python-script-extension.dll`, and `minifi_native.pyd` is a 0-byte stub. Confirmed read-only (extension dir listing + EFM API), no live-flow change or restart attempted — fixing it needs a production service restart with a drain plan for the live Lemonade routing flow |
 
 ### MSI facts (1.26.02-b30 x64)
 

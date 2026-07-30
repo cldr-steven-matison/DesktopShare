@@ -1,8 +1,10 @@
-# .claude/ is tracked (shared hooks + settings across devices). Two exceptions stay
-# local: settings.local.json (per-machine permission paths) and skills/ (a local
-# install copy — the canonical skill source is the top-level skills/ dir).
+# .claude/ is tracked (shared hooks + settings across devices). Exceptions stay
+# local: settings.local.json (per-machine permission paths), skills/ (a local
+# install copy — the canonical skill source is the top-level skills/ dir), and
+# .claim-pending (per-session claim-before-work marker written by guard.sh).
 /.claude/settings.local.json
 /.claude/skills/
+/.claude/.claim-pending
 /files/tuna-test/input/
 /files/tuna-test/output/
 /files/tuna-test/.env.local
@@ -11,3 +13,5 @@
 /files/tuna-test/Wav2Lip/
 /files/tuna-test/voices/
 /files/tuna-test/assets/
+/files/heygen-srm-poc/.env.local
+/files/heygen-srm-poc/output/

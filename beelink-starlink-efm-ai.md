@@ -441,6 +441,47 @@ flowfile content) requires StarlinkAI's own `minifi-app.log`, which only a Starl
 can read. This is StarlinkAI's next pickup, not WindowsDesktop's — the EFM/flow-side levers
 available from here (republish, restart) are now both exhausted without effect.
 
+### Buffer Size 2 test (2026-07-30, issue #25) — speech fixed, transcription conclusively isolated
+
+Picked up the deferred next step: bumped `Batch Size`/`Buffer Size` from `1`→`2` on both
+`ListenHTTP-Speech` and `ListenHTTP-Transcription` via the EFM Designer API (`PUT
+/designer/flows/{flowId}/processors/{id}`, revision/clientId contract reverse-engineered fresh
+from the EFM UI's own Angular bundle — the flow-summary GET doesn't carry per-processor
+`revision`, only `GET .../process-groups/{pgId}` does), validated (`validationErrors: []`), and
+published (flow version 17 → 18).
+
+**Verified via Kafka offset + key/content inspection, not HTTP 200 alone** — same standard as the
+2026-07-29 pass, but checking the message **key** too this time (`PublishKafka`'s `Kafka Key:
+${request_id}`), since a binary response payload doesn't carry `request_id` in its body:
+
+| Endpoint | HTTP | Landed in Kafka with real content |
+|---|---|---|
+| `/speech` (8083) | 200 | **Yes, now fixed** — offset 32/33, request echo + a real Kokoro MP3 response (valid `ID3`/`TSSE`/`TIT2` tags: "Generated Audio", "Synthesized Speech", genuine audio bytes, not garbage) |
+| `/transcriptions` (8084) | 200 | **No** — retested twice (fresh `request_id` each time, 15s wait), topic end-offset never moved past 34, no request-echo message even landed |
+
+**Conclusion: `Buffer Size: 2` genuinely fixes the previously-flaky JSON/binary-response pairs, but
+does not touch transcription.** This cleanly separates the two remaining theories from the
+"Property comparison + service restart" section above — it's not a generic Buffer Size 1 problem
+across the board (that's now fixed for speech), it's specifically the **multipart inbound request**
+that `ListenHTTP` still drops regardless of buffer size. 4 of 5 pairs (chat, embeddings, reranking,
+speech) are now confirmed working end-to-end. Transcription remains the sole outstanding case,
+narrowed as far as WindowsDesktop-side levers can take it — republish, service restart, and buffer
+size have all been tried and exhausted. Root-causing further needs StarlinkAI's own
+`minifi-app.log` on a live multipart request, which only a StarlinkAI-side session can read.
+Flow export refreshed in `files/StarlinkAI.json` to match (flow version 18).
+
+## Transcription drop test from StarlinkAI, live config (2026-07-30, issue #25/#18)
+
+`conf/config.yml` on this agent: `ListenHTTP-Transcription` and `ListenHTTP-Speech` both `Batch Size: 2` / `Buffer Size: 2`.
+
+Test: `curl.exe -X POST http://localhost:8084/transcriptions -H "request_id: diag-transcribe-001" -F "file=@C:\Users\tunas\test-audio.wav"` → `100 Continue` then `200 OK`. Log line count baselined before, diffed after — one new line, nothing else:
+
+```
+[2026-07-30 11:50:42.542] [org::apache::nifi::minifi::processors::ListenHTTP] [warning] ListenHTTP buffer is NOT full 1/2, 'POST' request for '/transcriptions' uri was dropped
+```
+
+No `InvokeHTTP-Transcription`, no `PublishKafka`, no other line. Analysis and next-step discussion in [issue #25](https://github.com/cldr-steven-matison/DesktopShare/issues/25).
+
 ## ExecuteScript Python proven on StarlinkAI (2026-07-28)
 
 Picked up `efm-beelink-cpp-python-action.md` from a StarlinkAI session (GitHub issue #2). Two things didn't match what the checklist assumed.

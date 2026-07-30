@@ -252,9 +252,9 @@
         "properties": {
           "Base Path": "speech",
           "SSL Verify Peer": "no",
-          "Batch Size": "1",
+          "Batch Size": "2",
           "SSL Minimum Version": "TLS1.2",
-          "Buffer Size": "1",
+          "Buffer Size": "2",
           "Listening Port": "8083",
           "SSL Certificate": null,
           "HTTP Headers to receive as Attributes (Regex)": null,
@@ -358,8 +358,8 @@
         "name": "InvokeHTTP-StreamScreen4",
         "comments": "",
         "position": {
-          "x": -650.0,
-          "y": 350.0
+          "x": 230.0,
+          "y": 441.0
         },
         "type": "org.apache.nifi.minifi.processors.InvokeHTTP",
         "bundle": {
@@ -691,7 +691,7 @@
         "comments": "",
         "position": {
           "x": -963.0,
-          "y": 350.0
+          "y": 441.0
         },
         "type": "org.apache.nifi.minifi.processors.ListenHTTP",
         "bundle": {
@@ -1109,7 +1109,7 @@
         "comments": "",
         "position": {
           "x": -963.0,
-          "y": 250.0
+          "y": 247.0
         },
         "type": "org.apache.nifi.minifi.processors.ListenHTTP",
         "bundle": {
@@ -1238,9 +1238,9 @@
         "properties": {
           "Base Path": "transcriptions",
           "SSL Verify Peer": "no",
-          "Batch Size": "1",
+          "Batch Size": "2",
           "SSL Minimum Version": "TLS1.2",
-          "Buffer Size": "1",
+          "Buffer Size": "2",
           "Listening Port": "8084",
           "SSL Certificate": null,
           "HTTP Headers to receive as Attributes (Regex)": "request_id",
@@ -2200,8 +2200,8 @@
         "name": "InvokeHTTP-StreamScreen3",
         "comments": "",
         "position": {
-          "x": -650.0,
-          "y": 250.0
+          "x": 230.0,
+          "y": 247.0
         },
         "type": "org.apache.nifi.minifi.processors.InvokeHTTP",
         "bundle": {
@@ -20418,23 +20418,8 @@
     },
     "supportedOperations": [
       {
-        "type": "RESTART",
+        "type": "HEARTBEAT",
         "properties": {}
-      },
-      {
-        "type": "SYNC",
-        "properties": {
-          "resource": {
-            "resolveAssetReferences": true
-          }
-        }
-      },
-      {
-        "type": "DESCRIBE",
-        "properties": {
-          "manifest": {},
-          "configuration": {}
-        }
       },
       {
         "type": "CLEAR",
@@ -20443,31 +20428,12 @@
         }
       },
       {
-        "type": "TRANSFER",
-        "properties": {
-          "debug": {}
-        }
-      },
-      {
-        "type": "STOP",
-        "properties": {}
-      },
-      {
         "type": "ACKNOWLEDGE",
-        "properties": {}
-      },
-      {
-        "type": "START",
-        "properties": {}
-      },
-      {
-        "type": "HEARTBEAT",
         "properties": {}
       },
       {
         "type": "UPDATE",
         "properties": {
-          "asset": {},
           "properties": {
             "availableProperties": [
               {
@@ -21015,7 +20981,41 @@
               }
             ]
           },
-          "configuration": {}
+          "configuration": {},
+          "asset": {}
+        }
+      },
+      {
+        "type": "DESCRIBE",
+        "properties": {
+          "configuration": {},
+          "manifest": {}
+        }
+      },
+      {
+        "type": "TRANSFER",
+        "properties": {
+          "debug": {}
+        }
+      },
+      {
+        "type": "STOP",
+        "properties": {}
+      },
+      {
+        "type": "START",
+        "properties": {}
+      },
+      {
+        "type": "RESTART",
+        "properties": {}
+      },
+      {
+        "type": "SYNC",
+        "properties": {
+          "resource": {
+            "resolveAssetReferences": true
+          }
         }
       }
     ]

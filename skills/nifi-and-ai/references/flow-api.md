@@ -60,7 +60,7 @@ curl -sk --cert client.crt --key client.key -X PUT \
   -d '{"id":"'$NEW_PG_ID'","state":"RUNNING"}'
 ```
 
-**Positioning:** the `positionX`/`positionY` above place the PG; the `position` on each processor inside the uploaded JSON places the components. Pick these deliberately — a build with careless positions is functionally correct but unreadable on the canvas. The layout technique (coordinate model, spacing constants, per-shape rules) is in `layout.md`.
+**Positioning:** the `positionX`/`positionY` above place the PG; the `position` on each processor inside the uploaded JSON places the components. Pick these deliberately — a build with careless positions is functionally correct but unreadable on the canvas. Before you commit the `position` values, state the flow shape + pitch and match them against the per-shape rules in [`layout.md`](layout.md) (NiFi REST builds use row pitch 200 / branch ±300; the EFM Designer numbers are larger — don't cross them up). This isn't optional politeness: skipping it landed two EFM builds cramped ([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)), and the `guard.sh` PreToolUse hook now prompts for this self-check on any processor-create/update carrying a `position`.
 
 ## 4. Downloading a flow definition (the reverse direction — keeping exports current)
 

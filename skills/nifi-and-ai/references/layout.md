@@ -2,7 +2,15 @@
 
 The canonical home for the layout technique — the NiFi REST API build path (`flow-api.md`) and the EFM Designer API build path (`minifi-efm.md`) both point here, because both produce the same problem: a functionally-correct flow that's visually rough. Processors land wherever the call's `position` said, connections cross, and it reads nothing like a hand-laid flow.
 
-**Read this first, because it sets the honesty bar:** the technique below gets a build *close* to hand-laid, but it does **not** eliminate the manual align/tidy pass in the Designer or NiFi UI. Even with role-matched columns and consistent rows, connections still cross and it won't look finished. Don't claim a build is visually done — say what it functionally does, and expect (or explicitly ask about) a cleanup pass. Good coordinates alone are not enough; a role-matched, consistently-spaced build still gets a human processor-sliding pass afterward.
+### Pre-flight self-check — run this before the first `POST .../processors`
+
+This doc existing wasn't enough on its own: two fresh EFM builds (`PlaygroundCpp`, `PlaygroundJava`, 2026-07-30, [#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)) skipped it and placed processors at `(0,0)`/`(400,0)` — the exact flagged-bad shape below. Before you send a single processor-create/update call, answer these out loud (the `guard.sh` PreToolUse hook will prompt you to):
+
+1. **Which build path?** EFM Designer API → use the roomier EFM pitches. NiFi REST API → use the NiFi pitches. Crossing them is the most common miss.
+2. **Which shape?** Linear chain / branch-fanout / join / parallel-independent-lanes. Default a linear chain to **vertical** (constant x, `y +=` pitch), not sideways.
+3. **Which pitch numbers?** State them. EFM linear: row **300**. EFM branch/column: **~600–900**. NiFi linear: row **200**, branch **±300**. If your numbers don't match the per-shape rule below, fix them before the call, not after review flags it.
+
+**Read the rest, because it sets the honesty bar:** the technique below gets a build *close* to hand-laid, but it does **not** eliminate the manual align/tidy pass in the Designer or NiFi UI. Even with role-matched columns and consistent rows, connections still cross and it won't look finished. Don't claim a build is visually done — say what it functionally does, and expect (or explicitly ask about) a cleanup pass. Good coordinates alone are not enough; a role-matched, consistently-spaced build still gets a human processor-sliding pass afterward.
 
 ### Coordinate model (same for both build paths)
 
@@ -29,7 +37,7 @@ This is EFM-Designer-only — it does **not** change the NiFi defaults.
 
 ### Per-shape placement rules
 
-Confirm the axis before tuning the pitch — a bigger row/column number only helps if the chain is already stepping the right one. `MicroFi`'s two processors sit at `(0,0)` → `(400,0)`: x-incrementing with constant y, a sideways linear chain, not a cramped vertical one. Default every linear chain to vertical (constant x, `y +=` pitch) unless deliberately building the row-based shape below.
+Confirm the axis before tuning the pitch — a bigger row/column number only helps if the chain is already stepping the right one. `MicroFi`'s two processors sit at `(0,0)` → `(400,0)`: x-incrementing with constant y, a sideways linear chain, not a cramped vertical one. Default every linear chain to vertical (constant x, `y +=` pitch) unless deliberately building the row-based shape below. `PlaygroundCpp` and `PlaygroundJava` (2026-07-30, [#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)) repeated this exact `(0,0)` → `(400,0)` mistake on a fresh EFM Designer build and both failed visual review — the shape is flagged-bad specifically because it keeps getting re-attempted; a two-processor `GenerateFlowFile → LogAttribute` should be vertical (`(0,0)` → `(0,300)` on EFM).
 
 - **Linear chain** — same x, `y += 200` each step (`TwitchChatListener` 0,0 → `RouteOnAttribute` 0,200 → …). **On an EFM Designer build use `y += 300`** per the pitch note in "Grounded constants" above.
 - **Branch / fan-out** (a `RouteOnAttribute`/`RouteOnContent` feeding N targets) — router stays at center; the N targets **share one row** (`y = router.y + 200`) and spread symmetric `x = center ± pitch`. Odd count keeps one target on center (−pitch, 0, +pitch); even count straddles (−pitch/2, +pitch/2 or ±pitch).

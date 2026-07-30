@@ -1,0 +1,7 @@
+Hey, I'm Steven, and today I want to walk you through getting started with Cloudera Streaming Operators.
+
+Cloudera Streaming Operators bring NiFi, Kafka, & Flink together as native Kubernetes operators.  You can run a full streaming stack right on your own laptop and the concepts work on any Kubernetes platform.
+
+To get started, you'll need three things installed first: Minikube, Helm, and kube-cuddle. Once those are in place, the setup begins. First we create dedicated namespaces to keep our streaming components isolated from the rest of your cluster.
+
+

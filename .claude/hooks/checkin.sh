@@ -20,6 +20,15 @@
 proj="${CLAUDE_PROJECT_DIR:-.}"
 cd "$proj" 2>/dev/null || exit 0
 
+# Shared hostname->label map and marker path (also used by guard.sh).
+. "$proj/.claude/hooks/lib-device.sh" 2>/dev/null || true
+
+# Clear any stale claim-pending marker from a prior session, so a leftover line
+# can't make this session's first edit prompt spuriously (see guard.sh Trigger B).
+if command -v ds_claim_marker >/dev/null 2>&1; then
+  rm -f "$(ds_claim_marker)" 2>/dev/null || true
+fi
+
 out=""
 
 # 1. Pull first (device-comms.md rule 1).
@@ -39,16 +48,9 @@ fi
 
 # 2. Map this host -> the device label(s) it is responsible for
 #    (device-comms.md "Responsibility map"; some agents are reached by proxy).
+#    The map lives in lib-device.sh so checkin.sh and guard.sh can't drift.
 host="$(hostname -s 2>/dev/null || hostname)"
-case "$host" in
-  FTF3XR2065*)     labels="FTF3XR2065" ;;                 # Cloudera work Mac (arm64, golden-source)
-  Stevens-MacBook-Pro*) labels="macbook" ;;               # personal Mac (x86_64, authoring only)
-  MINI-Gaming-G1*) labels="WindowsDesktop NvidiaNano" ;;  # device WindowsDesktop (+ Jetson NvidiaNano by SSH proxy)
-  TunaStarlink*)   labels="StarlinkAI" ;;                 # device StarlinkAI (Beelink)
-  tunastreet*)     labels="NvidiaNano" ;;                 # device NvidiaNano (Jetson Orin Nano, own session; hostname doesn't say "jetson")
-  *[Jj]etson*)     labels="NvidiaNano" ;;                 # fallback for any other Jetson host
-  *)               labels="" ;;
-esac
+labels="$(ds_device_labels 2>/dev/null)"
 
 if [ -z "$labels" ]; then
   out+="No device:* label mapped for host '$host'. Add a block to CLAUDE-CHECKIN.md and a case to .claude/hooks/checkin.sh before working."$'\n'

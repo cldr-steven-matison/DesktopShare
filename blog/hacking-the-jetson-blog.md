@@ -267,6 +267,148 @@ The build isn't done. The direction it's going:
 - **Don't force fullscreen with `wmctrl` and expect Esc to undo it** — use `wmctrl ... -b remove,fullscreen`.
 - **Don't stack two `0x3C` OLEDs** without moving one to `0x3D` first.
 
+## Terminal History
+
+The recipe above is the clean path. Here's the real trail off the device — the actual commands, in roughly the order I ran them, wrong turns and all. Every path, port, and bus number is live.
+
+```terminal
+# --- CubeNano OLED: is the panel even there? ---
+i2cdetect -y -r 7                                 # 0x3c ack = SSD1306 present on bus 7
+python3 ~/CubeNano/oled.py debug                  # init prints for the stats loop
+python3 ~/CubeNano/oled.py clear                  # blank it
+
+# --- the CORDY strobe, and why it kept vanishing on reboot ---
+python3 oled_strobe.py &                          # <- the mistake: bare & dies with the shell on reboot
+# after a glibc-upgrade reboot the stats screen came back, not the strobe. ruled out hardware first:
+i2cdetect -y -r 7                                 # 0x3c still acks -> panel/bus fine, it was the process
+pkill -f "python3 /home/tunastreet/CubeNano/oled.py"
+cd ~/CubeNano
+setsid nohup python3 -u oled_strobe.py > /tmp/oled_strobe.log 2>&1 < /dev/null &   # setsid = survives the shell
+# real fix: give the strobe its own unit, retire the stats one (sudo scripted - no TTY for the password)
+bash ~/CubeNano/install_cordy_oled_service.sh
+systemctl is-active cordy_oled.service ; systemctl is-enabled cordy_oled.service
+
+# --- Matrix screensaver (systemd USER service, not root) ---
+systemctl --user status lofi-idle-watcher.service
+systemctl --user restart lofi-idle-watcher.service    # after editing the html or IDLE_THRESHOLD_MS
+
+# --- MiNiFi C++ agent health ---
+systemctl status minifi --no-pager
+tail -f /home/tunastreet/nifi-minifi-cpp-1.26.02/logs/minifi-app.log | grep -i "heartbeat\|kafka"
+# EFM + Kafka live on the Windows desktop across the LAN - check the ports, no nc needed:
+timeout 3 bash -c "cat < /dev/null > /dev/tcp/192.168.1.121/10090" && echo open || echo closed   # EFM
+timeout 3 bash -c "cat < /dev/null > /dev/tcp/192.168.1.121/31623" && echo open || echo closed   # Kafka bootstrap
+# note: a burst of Kafka "Connection refused" right after a remote restart is NOT an auth problem - it settles in ~15-20 min
+
+# --- native Prometheus publisher on the edge (port 9936 on the Nano itself) ---
+ss -tlnp | grep 9936
+curl -s http://127.0.0.1:9936/metrics | wc -l     # 204 lines = publisher up
+sudo systemctl restart minifi                     # only reliable apply path - needs the interactive sudo password
+
+# --- streamChat: HTTP -> Chromium -> Twitch on the physical display ---
+sudo apt-get install -y xdotool                   # only wmctrl was installed; the fullscreen fix needs both
+curl -X POST http://localhost:8081/streamChatListener -d '{"streamer":"xqc"}'
+ps -ef | grep chromium                            # confirm it launched as tunastreet, not root
+wmctrl -l                                          # find the "<name> - Twitch - Chromium" window
+wmctrl -r "xQc - Twitch - Chromium" -b add,fullscreen
+wmctrl -r "xQc - Twitch - Chromium" -b remove,fullscreen   # <- ESCAPE HATCH: Esc/F11 won't undo a wmctrl fullscreen
+
+# --- Waveshare env sensor: diagnosing the dead OLED ---
+i2cdetect -y -r 7                                  # 0x29/0x53/0x68/0x76 answer; 0x3c NACKs every time
+sudo shutdown -h now                               # pull the Yahboom board to test the Waveshare OLED alone
+pip3 install --user --break-system-packages luma.oled   # 2nd independent driver - fails identically (Errno 121)
+gpioinfo | grep -i PY.03                            # confirm BCM24/OLED_RST line is free, not held in reset
+# conclusion: hard I2C NACK before any driver runs = DOA unit, not software. RMA it.
+```
+
+## Appendix
+
+The reusable operational pieces, grouped by purpose. These are the "your exact command" forms — copy-paste ready.
+
+#### 1. Install the CORDY strobe as a service, retire the stats display
+
+```bash
+sudo systemctl disable --now yahboom_oled.service
+pkill -f oled_strobe.py
+sudo cp /home/tunastreet/CubeNano/cordy_oled.service /etc/systemd/system/cordy_oled.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now cordy_oled.service
+```
+
+Flip back to the stats display:
+
+```bash
+sudo systemctl disable --now cordy_oled.service
+sudo systemctl enable --now yahboom_oled.service
+```
+
+#### 2. MiNiFi agent service control
+
+```bash
+# minifi.sh (preferred) — both the script and systemctl work
+sudo /home/tunastreet/nifi-minifi-cpp-1.26.02/bin/minifi.sh start
+sudo /home/tunastreet/nifi-minifi-cpp-1.26.02/bin/minifi.sh stop
+sudo /home/tunastreet/nifi-minifi-cpp-1.26.02/bin/minifi.sh restart
+sudo /home/tunastreet/nifi-minifi-cpp-1.26.02/bin/minifi.sh status
+
+sudo systemctl restart minifi        # the only reliable apply-a-config-change path
+systemctl status minifi --no-pager
+```
+
+#### 3. Full clean reinstall of the MiNiFi agent
+
+```bash
+# remove completely
+sudo pkill -9 minifi
+sudo systemctl stop minifi 2>/dev/null
+sudo systemctl disable minifi 2>/dev/null
+sudo rm -f /usr/local/lib/systemd/system/minifi.service
+sudo systemctl daemon-reload
+sudo rm -rf /home/tunastreet/nifi-minifi-cpp-1.26.02
+rm -rf ~/.cache/minifi ~/.config/minifi ~/.local/share/minifi
+sudo rm -rf /var/lib/minifi 2>/dev/null
+
+# reinstall (after re-extracting the tarball to the same path)
+sudo /home/tunastreet/nifi-minifi-cpp-1.26.02/bin/minifi.sh install
+
+# run as the desktop user (uid 1000), not root — add `User=tunastreet` to the unit, then fix ownership
+sudo chown -R tunastreet:tunastreet /home/tunastreet/nifi-minifi-cpp-1.26.02
+sudo systemctl daemon-reload
+sudo systemctl restart minifi
+```
+
+#### 4. Native Prometheus publisher on the edge agent
+
+`conf/minifi.properties.d/95-metrics.properties` (drop-in — don't edit `minifi.properties` directly):
+
+```properties
+nifi.metrics.publisher.agent.identifier=4ca82a0d-8e04-4ede-b59d-379de1495f2b
+nifi.metrics.publisher.class=PrometheusMetricsPublisher
+nifi.metrics.publisher.PrometheusMetricsPublisher.port=9936
+nifi.metrics.publisher.metrics=QueueMetrics,RepositoryMetrics,DeviceInfoNode,FlowInformation
+```
+
+```bash
+sudo systemctl restart minifi
+ss -tlnp | grep 9936
+curl -s http://127.0.0.1:9936/metrics | wc -l
+```
+
+#### 5. Trigger streamChat manually, and the fullscreen escape hatch
+
+```bash
+curl -X POST http://localhost:8081/streamChatListener -d '{"streamer":"xqc"}'
+wmctrl -l                                                     # find the window title
+wmctrl -r "xQc - Twitch - Chromium" -b add,fullscreen         # force it fullscreen
+wmctrl -r "xQc - Twitch - Chromium" -b remove,fullscreen      # undo — Esc/F11 will NOT
+```
+
+#### 6. Env-sensor bring-up check (for the replacement unit)
+
+```bash
+i2cdetect -y -r 7        # does 0x3c show up at all? that alone tells you in 5s if the OLED is healthy
+```
+
 ## NVIDIA Jetson developer resources
 
 - [NVIDIA Jetson Orin family](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) — the Orin Nano Super Developer Kit specs live here

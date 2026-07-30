@@ -80,10 +80,19 @@ that runs `.claude/hooks/checkin.sh` on every session start:
    exact `gh issue edit … status:in-progress` command per issue. Sessions kept starting
    work without flipping the label; prose here alone didn't stop it, so the
    guaranteed-seen session-start context now spells out the claim command. This is
-   backed by a deterministic backstop in the `PreToolUse` Bash guard
-   (`.claude/hooks/guard.sh`): marking an issue `status:review`/`status:done` while it
-   still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
-   can land.
+   backed by deterministic guards in the `PreToolUse` hook (`.claude/hooks/guard.sh`),
+   which now enforce the claim at **three** points rather than only at report-back:
+   - **Trigger A (work-start):** opening a still-`todo` issue for this device via
+     `gh issue view <n>` prompts to claim it first, and records `<n>` in a
+     `.claude/.claim-pending` marker.
+   - **Trigger B (mutation):** an `Edit`/`Write` while that marker is non-empty prompts
+     again — you opened an issue but never flipped it. The claim command clears the
+     marker; `checkin.sh` clears stale markers at session start.
+   - **Review-skip backstop:** marking an issue `status:review`/`status:done` while it
+     still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
+     can land.
+   Residual gap: a session that works straight from this inbox text without ever running
+   `gh issue view <n>` gives the guard no signal — the claim-first norm still applies.
 
 The result is injected into the session as context, so the open issues for this
 host are visible before any work starts. The hook **fails open** (a missing
@@ -111,9 +120,10 @@ upkeep rules:
    ```bash
    gh issue edit <n> --remove-label status:todo --add-label status:in-progress
    ```
-   This is now enforced two ways (see "Automated check-in" above): the SessionStart hook
-   surfaces a claim command for every `status:todo` issue, and the Bash guard prompts if you
-   try to mark an issue `review`/`done` that was never claimed.
+   This is now enforced by the SessionStart hook (surfaces a claim command for every
+   `status:todo` issue) plus three `PreToolUse` guard triggers — claim-on-view (A),
+   edit-while-pending (B), and the review-skip backstop — detailed under "Automated
+   check-in" above.
 2. **The body is a pointer, not the spec.** It names a golden-source doc (e.g.
    `efm-validation-agent.md`); the doc holds the exact commands and the report-back template.
    This is the *cross-reference, don't cross-link* rule applied to issues — the detail lives in
@@ -144,6 +154,35 @@ session that closes its own issue removes the review gate, which is the whole po
 
 Blocked instead? Add `status:blocked` and comment what you're waiting on — that surfaces
 to whoever's watching without derailing your session.
+
+## Link every file you name in a comment
+
+When you write an issue or PR comment, the **first mention** of any referenced resource — a repo
+file, a `.md`, a source file in another repo, or an external URL — gets a proper `[text](url)`
+Markdown link, so Steven can click straight through to review it. Bare filenames like
+`efm-metrics.md` render as plain text on GitHub and force a manual hunt through the tree. Repeat
+mentions of the same thing within one comment can stay plain — link on first mention, don't
+re-link every occurrence.
+
+**Use full GitHub URLs — relative links do not work in comments.** GitHub rewrites relative links
+only when rendering a Markdown *file* in the repo; in an issue/PR *comment* it leaves the href
+literal, so `[x](efm-metrics.md)` resolves against the issue URL (`…/issues/efm-metrics.md`) and
+404s. (Verified with `gh api /markdown` mode=gfm: the relative and root-relative hrefs come back
+unrewritten.) The link forms:
+
+| Reference | Link form |
+|---|---|
+| Same-repo file (this repo, `main`) | `[efm-metrics.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/efm-metrics.md)` |
+| File in another GitHub repo | full blob URL to that repo/branch/path, e.g. `[streamers.py](https://github.com/cldr-steven-matison/cso-operator-app/blob/main/backend/services/streamers.py)` |
+| External web resource | normal `[title](url)` |
+
+Two caveats:
+
+- **Local-only / untracked repos have no URL.** `nifi-custom-processors` isn't git-tracked, so
+  there's no clickable blob link — name it plain and tag it `(local-only, not git-tracked)`.
+- **Link text stays the exact filename.** This is the same greppability the "Working an issue"
+  filenames rule protects — a device grepping the name out of the comment still finds it, and now
+  it's clickable too. Don't rename the file in the link text for prose flow.
 
 ## Filing work for another device
 

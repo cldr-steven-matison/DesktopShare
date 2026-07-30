@@ -8,7 +8,7 @@ I run MiNiFi C++ and MiNiFi Java side-by-side in the same Minikube playground, s
 
 Source: `minifi-playground-java-processors.md`
 
-| Capability | MiNiFi C++ (`apacheminificpp:latest`) | MiNiFi Java (`minifi-java:latest`) |
+| Capability | MiNiFi C++ (`apacheminificpp:latest`) | MiNiFi Java (CEM `2.24.08.0-19` tarball) |
 |---|---|---|
 | **ExecuteScript** | Not in stock image; requires extra-extensions or source build | Missing from the stock `2.24.08.0-19` tarball, but NAR drop-in fix field-verified 2026-07-27 — Groovy execution confirmed working |
 | **ExecuteProcess** | Not in stock image; only via extra-extensions | **[Cloudera stock]** — shell command execution |
@@ -22,7 +22,7 @@ Source: `minifi-playground-java-processors.md`
 | **JVM startup** | None | ~30–60s cold start |
 | **Kubernetes sidecar use** | Production-ready | Not recommended — footprint too large |
 
-> **⚠️ Heads up:** The "200+ processors" figure that appears in Cloudera comparison tables has not been extracted from a running `minifi-java:latest` Docker image. The `2.24.08.0-19` CEM tarball count of 114 is field-verified. The Docker image processor count is [Not yet field-verified — see #35].
+> **⚠️ Heads up:** There is no `minifi-java` Docker image to check the "200+ processors" figure against. Field-verified 2026-07-30 (#35): `container.repo.cloudera.com/cloudera/minifi-java:latest` does not exist in the registry (nor ~12 name variants), while `apacheminificpp:latest` resolves — Cloudera containerizes only the C++ agent; MiNiFi Java ships as the tarball. The authoritative count is the tarball's field-verified **114 processors / 45 controller services** (2026-07-25); "200+" has no running Java manifest behind it.
 
 ---
 
@@ -36,8 +36,8 @@ Real numbers from the playground, not marketing estimates.
 - Startup: near-instant — agent is ready before Kubernetes' `initialDelaySeconds: 5` readiness probe fires
 - No JVM, no warm-up phase
 
-**Java (`minifi-java:latest`):**
-- Image: ~300–400 MB compressed pull
+**Java (CEM `2.24.08.0-19` tarball):**
+- Image: ~300–400 MB is an estimate, **not a measured playground number** — there is no published `minifi-java` image; you build one `FROM` a JRE base + the tarball (#35, verified 2026-07-30)
 - Memory request: `512Mi` minimum; `1Gi` is safer for flows with `ExecuteScript` or Record processing
 - Startup: ~30–60 seconds for JVM + agent bootstrap before EFM can push a flow
 - Readiness probe `initialDelaySeconds` must match this window (see YAML reference below)
@@ -87,13 +87,9 @@ For staging the tarball from source: see `efm-binaries.md` — copy local `minif
 
 For the Dockerfile and K8s YAML that wire this together, see `Dockerfile.java` and `minifi-java-test.yaml` in the playground repo. Key differences from the C++ YAML: `resources.requests.memory: 512Mi`, `readinessProbe.initialDelaySeconds: 60`, and `nodePort: 30081` to avoid conflict with the C++ deployment on 30080.
 
-> **⚠️ Docker image path not confirmed.** The `MINIFI_HOME` path in `Dockerfile.java` is set to `/opt/minifi/minifi-2.24.08.0-19`. The Docker `minifi-java:latest` MINIFI_HOME path and true processor count are [Not yet field-verified — see #35]. Run this to confirm before building:
+> **⚠️ The `minifi-java` base image does not exist — `Dockerfile.java` will not build as written.** Field-verified 2026-07-30 (#35, FTF3XR2065, registry-authenticated): `container.repo.cloudera.com/cloudera/minifi-java:latest` returns `unknown: Not found` from `docker manifest inspect` (as do ~12 name variants), while `apacheminificpp:latest` and `efm:latest` resolve on the same credentials. Cloudera publishes only the C++ agent image; MiNiFi Java is the tarball. So there is no image to read a `MINIFI_HOME` or processor count from — the `Dockerfile.java` `FROM` needs replacing (build `FROM` a JRE base + unpack the tarball, or deploy via the EFM binary path). The `MINIFI_HOME` value `/opt/minifi/minifi-2.24.08.0-19` is an unverified placeholder until that new base is chosen.
 
-```bash
-docker run --rm container.repo.cloudera.com/cloudera/minifi-java:latest find /opt -name "config.yml" 2>/dev/null
-```
-
-The CEM tarball deployer path (`binaries/java/linux/2.24.08.0-19/minifi.tar.gz`) is fully verified and unaffected by this flag.
+The CEM tarball deployer path (`binaries/java/linux/2.24.08.0-19/minifi.tar.gz`) is fully verified and unaffected by this flag — it is the correct way to run Java MiNiFi on this stack.
 
 ---
 

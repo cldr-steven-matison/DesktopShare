@@ -28,7 +28,7 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | EFM scrape wired into CSO Prometheus via `ServiceMonitor` (port `efm-ui`) | Field-verified 2026-07-29 — `ServiceMonitor` applied, target `http://10.244.x.x:10090/efm/actuator/prometheus` green, `up{job="efm"}=1` in Prometheus | ✅ |
 | CSO Prometheus/Grafana stack exists on WindowsDesktop's `cld-streaming` cluster | Field-verified 2026-07-29 (issue #19) — `kube-prometheus-stack` installed via Helm into `cld-streaming` (matches the field-tested blog pattern, not the generic plan's `monitoring` namespace). All 6 pods `Running`, 10 Prometheus Operator CRDs present. EFM and NiFi (CFM) ServiceMonitors both confirmed `up=1`; Kafka (CSM) and Flink (CSA) deliberately not wired this pass — see `efm-windowsdesktop-prometheus-grafana.md` §4. | ✅ |
 | MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. On **WindowsDesktopCpp**, the config drop-in was UAC-blocked earlier the same day; **enabled and confirmed live later the same session** with a human at the console approving the one elevation prompt — `95-metrics.properties` written, service restarted, `curl http://127.0.0.1:9936/metrics` returns real `minifi_*` text with `agent_identifier=40eb2f92-94c5-4478-beed-7060e41c9d7f`. Wired into the CSO Prometheus stack as an external target the same session — `up=1`, real per-connection series queryable. | ✅ |
-| MiNiFi Java (`WindowsDesktop` class) metrics | Field-validated 2026-07-29 (WindowsDesktop, issue #20) — **no drop-in equivalent of the C++ publisher exists**. No `nifi.metrics.publisher.*`-style properties, no Prometheus reporting-task NAR shipped, embedded web API (`nifi.web.http.port`) disabled (fully headless). `nifi.web.http.port=8998` staged in `minifi.properties` was tried live the same session: agent restarted, and the setting **did not survive** — EFM regenerated `minifi.properties` from its own C2-stored config on boot and wiped the edit back to empty, confirmed by re-reading the file post-restart. This is a real, confirmed C2-authority blocker, not a config mistake — same class of behavior already seen on the disposable pytest agent in issue #4. Getting this agent's metrics out needs the change pushed *through* EFM's own config management (if it isn't denylisted the way `nifi.python.command` is) rather than a direct file edit. See Layer 2 below. | 🔲 |
+| MiNiFi Java (`WindowsDesktop` class) metrics | **Conclusively blocked, both real paths exhausted — issue #41, 2026-07-30.** No drop-in equivalent of the C++ publisher exists, and no standalone Prometheus reporting-task NAR exists anywhere in the exact-matching `2.24.08.0-19` source tree (confirmed by search — Prometheus code lives only inside `nifi-web-api`). Pushing `nifi.web.http.host`/`nifi.web.http.port` through EFM's own C2 `UPDATE_PROPERTIES` (the only remaining channel, since a direct file edit reverts on restart) is denylisted server-side — confirmed live, `operation.state=FAILED` every ~5s for both keys, same denylist behavior as `nifi.python.command` (issue #38). No supported channel exists on this platform combination to expose Java Layer 2 metrics. See Layer 2 below for full detail. | 🚫 |
 | XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
 
 ## Layer 0 — get EFM running (prerequisites + deploy)
@@ -429,22 +429,50 @@ regression. Also independently reconfirmed live during this same restart: the is
 log, matching Track A's "cleared briefly, then resumed" finding — the EFM pod restart did not
 durably fix it.
 
-**Status: C++ done and field-validated live; Java confirmed blocked by C2 config authority, not
-an oversight.** C++'s only blocker was a one-time interactive UAC prompt — resolved with a human at
-the console, now fully wired: service running, `9936` listening, real metrics flowing, ready for a
-Grafana scrape target. Java's direct-file-edit approach is now conclusively ruled out — the only
-remaining paths are (a) getting `nifi.web.http.port` pushed *through* EFM's own C2
-`UPDATE_PROPERTIES` mechanism instead of around it (unverified whether that key is denylisted the
-way `nifi.python.command` is — untested this session), or (b) revisit option (b) from above
-(sourcing/building a Prometheus reporting-task NAR). Neither attempted further this pass. Layer 1
+**Status: C++ done and field-validated live; Java Layer 2 is a confirmed platform blocker for this
+scenario — both real paths exhausted, not abandoned early.** C++'s only blocker was a one-time
+interactive UAC prompt — resolved with a human at the console, now fully wired: service running,
+`9936` listening, real metrics flowing, ready for a Grafana scrape target. Layer 1
 and the Prometheus/Grafana stack are done (issue #19, 2026-07-29). **2026-07-29, later same
 session: the C++ target is now wired in and confirmed live** — a headless `Service`+`Endpoints`
 (external-target pattern, since the agent runs on the Windows host, not as a pod) plus a
 `ServiceMonitor` at `192.168.1.121:9936`, job `windowsdesktopcpp-minifi-metrics`. Confirmed via
 Prometheus's own `/api/v1/targets` (`health: "up"`) and a live PromQL query returning real
 per-connection series from the running flow. Exact manifest and verification steps:
-`efm-windowsdesktop-prometheus-grafana.md` §5. This closes out C++ Layer 2 end to end; Java Layer 2
-remains blocked as described above.
+`efm-windowsdesktop-prometheus-grafana.md` §5. This closes out C++ Layer 2 end to end.
+
+**2026-07-30 (issue #41) — Java Layer 2 conclusively blocked, both remaining paths tried and
+exhausted:**
+
+- **Path (b), a standalone Prometheus reporting-task NAR, does not exist.** Searched the exact
+  matching `2.24.08.0-19` source tarball (`~/efm-binaries/nifi-minifi-java-2.0.0.2.24.08.0-19-source.tar.gz`
+  — the same tree the Kafka/scripting NARs were built from, see `efm-binaries.md`) end to end. The
+  only Prometheus code anywhere in the tree — `org.apache.nifi.prometheusutil.*`,
+  `PrometheusMetricsWriter` — lives inside `nifi-web-api` itself, wired directly to the embedded
+  Jetty server. There is no separate `nifi-prometheus-nar` module. `/nifi-api/flow/metrics/prometheus`
+  is only reachable by enabling the embedded web API — i.e. this "second path" collapses into path (a),
+  it was never independent.
+- **Path (a), pushing `nifi.web.http.host`/`nifi.web.http.port` through EFM's own C2
+  `UPDATE_PROPERTIES` mechanism, is denylisted server-side — confirmed live, not inferred.** Both
+  keys were inserted into `property_updates` (agent class `WindowsDesktop`) directly in EFM's
+  Postgres — required because `PUT /efm/api/agent-classes/WindowsDesktop` returns `200` but **does
+  not persist** (confirmed via direct DB read immediately after; a separate EFM bug from the C2
+  denylist itself). After an EFM pod restart to force the reconciliation cache to reload from
+  Postgres, both properties were pushed to the live agent every ~5s and rejected every time —
+  `operation.state = FAILED` for both `nifi.web.http.host` and `nifi.web.http.port`, same
+  server-side denylist behavior already confirmed for `nifi.python.command` in
+  [#38](https://github.com/cldr-steven-matison/DesktopShare/issues/38). `property_updates` cleaned
+  up and EFM restarted again to quiet the resulting re-issue loop, same fix pattern as #38.
+- **Conclusion: on this specific platform combination — an EFM/C2-managed, headless MiNiFi Java
+  `2.24.08.0-19` agent — there is no supported channel to get NiFi 2.x's built-in Prometheus
+  endpoint live.** Not a config mistake, not an oversight: direct file edit reverts on restart
+  (2026-07-29 finding), the C2 protocol itself blocks the properties needed to turn the embedded
+  web API on, and no alternative NAR-based metrics path ships in this build. A different
+  architecture (e.g. `SiteToSiteMetricsReportingTask`, which does exist in this source tree,
+  relaying metrics to `mynifi`'s already-open web API instead of opening one on this agent) is the
+  only remaining avenue, and is out of scope for this issue. C++ Layer 2 is the reference pattern
+  for what a working MiNiFi Prometheus target looks like on this stack; Java Layer 2 is blocked by
+  platform, not effort.
 
 ## Layer 3 — embedded / heartbeat metrics (XIAO/microfi)
 
