@@ -26,8 +26,9 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | EFM deploys clean on a CSO host (Postgres + PVCs + ConfigMap prereqs) | Field-verified 2026-07-29 on FTF3XR2065 — `kubectl apply -f efm-deployment-persisted.yaml`, pod `Running`, `/efm/actuator/health` → `200` | ✅ |
 | EFM Prometheus endpoint serves on **`efm-ui`/10090**, not `metrics`/9092 | Field-verified 2026-07-29 — `10090/efm/actuator/prometheus` returns 1429 lines of `efm_*` metrics; `9092` accepts a TCP connection but returns an **empty reply** (no `management.server.port=9092` set). The old "metrics port is 9092" claim was a Service-definition artifact, not a live scrape. | ✅ |
 | EFM scrape wired into CSO Prometheus via `ServiceMonitor` (port `efm-ui`) | Field-verified 2026-07-29 — `ServiceMonitor` applied, target `http://10.244.x.x:10090/efm/actuator/prometheus` green, `up{job="efm"}=1` in Prometheus | ✅ |
-| MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. Wiring the endpoint into the CSO Prometheus as a scrape target (WindowsDesktop) is still open. | 🟡 |
-| MiNiFi Java (`WindowsDesktop` class) metrics | Field-validated 2026-07-29 (WindowsDesktop, issue #20) — **no drop-in equivalent of the C++ publisher exists**. No `nifi.metrics.publisher.*`-style properties, no Prometheus reporting-task NAR shipped, embedded web API (`nifi.web.http.port`) disabled (fully headless). Needs a real design decision (enable the web API vs. source/build a reporting-task NAR), not a config toggle. See Layer 2 below. | 🔲 |
+| CSO Prometheus/Grafana stack exists on WindowsDesktop's `cld-streaming` cluster | Field-verified 2026-07-29 (issue #19) — `kube-prometheus-stack` installed via Helm into `cld-streaming` (matches the field-tested blog pattern, not the generic plan's `monitoring` namespace). All 6 pods `Running`, 10 Prometheus Operator CRDs present. EFM and NiFi (CFM) ServiceMonitors both confirmed `up=1`; Kafka (CSM) and Flink (CSA) deliberately not wired this pass — see `efm-windowsdesktop-prometheus-grafana.md` §4. | ✅ |
+| MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. On **WindowsDesktopCpp**, the config drop-in is blocked by a confirmed UAC/elevation wall (not a C2 wall) — see the WindowsDesktop-class section below. | 🟡 |
+| MiNiFi Java (`WindowsDesktop` class) metrics | Field-validated 2026-07-29 (WindowsDesktop, issue #20) — **no drop-in equivalent of the C++ publisher exists**. No `nifi.metrics.publisher.*`-style properties, no Prometheus reporting-task NAR shipped, embedded web API (`nifi.web.http.port`) disabled (fully headless). `nifi.web.http.port=8998` / `nifi.web.http.host=127.0.0.1` staged in `minifi.properties` this session (2026-07-29) but **not yet activated** — needs an agent process restart that wasn't pre-approved this session. See Layer 2 below. | 🔲 |
 | XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
 
 ## Layer 0 — get EFM running (prerequisites + deploy)
@@ -342,18 +343,43 @@ via `cso-operator-app`'s `/api/efm/agents`, which reads EFM's Postgres registry 
 **Layer 1 (EFM server metrics) confirmed on this host's own `cld-streaming` cluster** — same
 result as FTF3XR2065's: `http://192.168.1.121:10090/efm/actuator/prometheus` returns 1965 lines of
 real `efm_*` text; `:9092` doesn't even accept a TCP connection locally (worse than FTF3XR2065's
-"empty reply" case, same underlying trap — no `management.server.port=9092` configured). No
-`ServiceMonitor` CRD exists on this cluster (confirmed: `kubectl get crd | grep servicemonitor`
-empty, no `prometheus`/`grafana` pods anywhere) — there is no Prometheus/Grafana stack here yet.
-That's issue #19, not done; wiring a scrape target is blocked on it for both Layer 1 and Layer 2
-on this host.
+"empty reply" case, same underlying trap — no `management.server.port=9092` configured). Issue #19
+landed the same session (2026-07-29): `kube-prometheus-stack` is now installed, and the EFM
+`ServiceMonitor` is applied and confirmed `up{job="efm"}=1` — see
+`efm-windowsdesktop-prometheus-grafana.md`. Layer 1 is now fully wired end to end on this host.
 
-**Layer 2, C++ (`WindowsDesktopCpp`) — same drop-in pattern as NvidiaNano, not yet enabled.**
-`extensions\minifi-prometheus.dll` is present. `conf\minifi.properties` carries the same
-`nifi.metrics.publisher.*` block as NvidiaNano's corrected template, shipped commented out.
-`conf\minifi.properties.d\` already exists (holds EFM's `90_c2.properties`). Turning this on is a
-config-file addition (a new `95-metrics.properties` under `minifi.properties.d\`) plus a service
-restart — not yet done this session, restart needs a fresh go-ahead per `agent/incident-rules.md`.
+**Layer 2, C++ (`WindowsDesktopCpp`) — config drop-in attempted 2026-07-29, blocked by a confirmed
+UAC/elevation wall, not by C2.** The real agent identifier was read from the live
+`c2.agent.identifier` in `minifi.properties` (`40eb2f92-94c5-4478-beed-7060e41c9d7f` — the
+`90_c2.properties.bak`/`.properties` fallback identifier `ea11f1bb-...` is only used if the primary
+isn't set, and is not the active one). The exact field-validated block was ready to drop in as
+`conf\minifi.properties.d\95-metrics.properties`:
+
+```properties
+nifi.metrics.publisher.agent.identifier=40eb2f92-94c5-4478-beed-7060e41c9d7f
+nifi.metrics.publisher.class=PrometheusMetricsPublisher
+nifi.metrics.publisher.PrometheusMetricsPublisher.port=9936
+nifi.metrics.publisher.metrics=QueueMetrics,RepositoryMetrics,DeviceInfoNode,FlowInformation
+```
+
+Writing it failed — both a direct WSL2-mount write and a `powershell.exe Set-Content` from the
+real interactive Windows account (`tunas`) hit `Access to the path ... is denied` on
+`C:\WINDOWS\system32\nifi-minifi-cpp\conf\minifi.properties.d\`. Confirmed this is UAC Admin
+Approval Mode, not a plain permissions gap: `tunas` **is** in `BUILTIN\Administrators`
+(`Get-LocalGroupMember -Group Administrators` lists it), but the live process token returns
+`IsInRole(Administrator) = False` — the filtered standard token, not the elevated one. `Get-Acl`
+on the target directory confirms `BUILTIN\Administrators` has `FullControl` but `BUILTIN\Users`
+(the filtered-token effective group) only has `ReadAndExecute` — matches the denial exactly. This
+is the same class of wall issue #4 already exhausted three elevation techniques against
+(`Stop-Service`, `sc.exe stop`, a highest-run-level Scheduled Task, all UAC-token-filtered) for a
+different reason (killing/restarting the service); it wasn't worth re-attempting those same three
+paths for a plain file write, since the root cause (no non-interactive path to an elevated token
+on this box) is identical either way. **Nothing was restarted — there's no config change for the
+service to pick up.** This needs either a human at the physical console approving one UAC prompt
+(one-time — after that the file exists and future edits are the only-partially-elevated write
+question again), or a delivery mechanism that doesn't require writing into `system32` at all (the
+EFM-Resources/asset-directory path used for custom processors doesn't apply here — that targets
+`nifi.python.processor.dir`, not `minifi.properties.d\`).
 
 **Layer 2, Java (`WindowsDesktop`) — genuinely different and harder than C++, no drop-in property.**
 This is the real finding of this pass. MiNiFi Java has no equivalent of the C++ publisher:
@@ -376,13 +402,29 @@ config toggle**: (a) set `nifi.web.http.port` to stand up the embedded web API j
 REST surface — a real security/footprint decision, not just a metrics one), or (b) find/build a
 Prometheus reporting-task NAR and add it via an EFM Designer flow edit (same live-flow-edit
 category as issue #25's fix, and no such NAR is confirmed to exist for MiNiFi Java as shipped).
-Neither was attempted this session — this needs a decision from Steven, not a default pick (this
-repo's `agent/incident-rules.md` "no module-flag defaults" rule applies squarely here: this is
-exactly the kind of "pick a better default" call that needs an explicit ask).
 
-**Status: field-validated, not yet enabled.** C++ is a known, low-risk config-and-restart away.
-Java needs a real design decision first. Both restarts need a fresh go-ahead regardless. The
-Grafana-panel step is out of scope until #19 lands a Prometheus/Grafana stack on this host.
+**2026-07-29 update (issue #20): option (a) staged, not yet tested live.** `nifi.web.http.host=
+127.0.0.1` / `nifi.web.http.port=8998` were set directly in the real `WindowsDesktop` agent's
+`minifi.properties` — this file lives under `C:\Users\tunas\minifi-java\minifi-2.24.08.0-19\conf`
+(the user's own home directory, not `system32`), and is writable by the same non-elevated account
+that's UAC-blocked from the C++ agent's `system32` install. Before editing, checked EFM's
+Postgres `property_updates` table (the same table backing the rejected-push spam this session's
+issue #4 cleanup targets) for anything that would suggest EFM regenerates `nifi.web.*` on this
+agent class: the only row for `WindowsDesktop` is `nifi.python.command` — nothing about
+`nifi.web.http.port`/`.host` has ever been pushed to this agent via C2. That's suggestive (EFM's
+push mechanism looks like it only touches keys it's been told to manage, not a full-file
+regeneration on every boot) but **not conclusive** — the only real test is a restart, and this
+session's two pre-approved restarts didn't include the `WindowsDesktop` Java agent process, so it
+wasn't restarted. `/nifi-api/flow/metrics/prometheus` was **not** confirmed reachable this session
+— that's the next step, gated on a fresh restart ask.
+
+**Status: field-validated, C++ genuinely blocked (UAC, not C2), Java staged but unverified.**
+C++'s blocker is a Windows elevation wall (see the WindowsDesktop-class section above), not a
+design decision — the config is correct and ready, it just can't be written from this session.
+Java's config is staged and (by indirect evidence) unlikely to be wiped by C2, but needs a live
+restart to prove either way. Both remaining restarts need a fresh go-ahead. Layer 1 and the
+Prometheus/Grafana stack itself are done (issue #19, 2026-07-29) — the Grafana-panel step for
+Layer 2 is unblocked infrastructure-wise, just waiting on the two agent-side restarts.
 
 ## Layer 3 — embedded / heartbeat metrics (XIAO/microfi)
 
@@ -403,6 +445,11 @@ Operator + Grafana that already scrape CFM (NiFi), CSA (Flink), and CSM (Kafka/S
 in `completed/cso-minikube-prometheus.md` and written up in the *Observability with Cloudera
 Streaming Operators* blog. EFM and the edge agents become three more scrape targets on that same
 stack — the point of the chapter is that the edge doesn't need its own monitoring silo.
+
+**On WindowsDesktop, this stack didn't exist until 2026-07-29 (issue #19)** — see
+`efm-windowsdesktop-prometheus-grafana.md` for the exact commands that stood it up on this host's
+`cld-streaming` cluster and confirmed the EFM + NiFi (CFM) targets live. Kafka (CSM) and Flink
+(CSA) are deliberately not wired there yet.
 
 For contrast: on the NiFi (CFM) side, the old `PrometheusReportingTask` is gone in NiFi 2.x and
 metrics now come from the built-in `/nifi-api/flow/metrics/prometheus` REST endpoint. EFM and
