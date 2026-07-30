@@ -189,7 +189,9 @@ can't currently be set on this EFM-managed agent through any channel tried this 
   impact — but it will keep happening until EFM itself is restarted (`kubectl rollout restart
   deployment/efm -n cld-streaming`) to clear its cache. **Not done this session** — that's an EFM
   restart, a different live service than the one this task authorized touching, and needs its own
-  confirm-first per `agent/incident-rules.md`.
+  confirm-first per `agent/incident-rules.md`. **Update 2026-07-29 (issue #4 cleanup):** the restart
+  was done — cleared for ~6 minutes, then resumed at the same ~5s cadence. Not a real fix; tracked
+  as [#38](https://github.com/cldr-steven-matison/DesktopShare/issues/38).
 - **Live restart discipline followed:** captured the agent's pre-change command line and manifest
   (122 processors, no Python types) before touching anything; restarted exactly twice — once to
   discover the `nifi.python.command` gate (clean before/after, flow unaffected), once more after
