@@ -71,6 +71,28 @@ sudo systemctl enable --now yahboom_oled.service
 - Don't start a display process you want to persist with a bare `&` in an interactive terminal. It looks alive right up until the next reboot or logout, then it's gone with no error anywhere to point at.
 - Don't assume a blanked OLED is a hardware fault before checking whether the *right process* is even running. `i2cdetect` and a live `begin()` call are 30 seconds of checking that rules out the panel and bus before you go pull the board off the header.
 
+## The baseline stats display it replaces
+
+Before the strobe, the panel ran Yahboom's stats loop — this is what `yahboom_oled.service`
+brings back on boot, and what the CORDY strobe service disables. Setup facts worth keeping:
+
+- `~/CubeNano/oled.py` — the display driver + main loop (uses `Adafruit_SSD1306`). It
+  **auto-probes I2C buses `[1, 0, 7, 8]`** until it finds the panel (unless a specific bus is
+  passed), then writes 4 lines — CPU%, time, RAM, disk, IP — refreshing ~10×/sec. Run
+  `python3 oled.py debug` for init prints, or `python3 oled.py clear` to blank and exit. This
+  board exposes `/dev/i2c-{0,1,2,4,5,7}`; the OLED answers at `0x3c` on bus 7.
+- `~/CubeNano/kill_oled.sh` — stops the service, kills any stray `oled.py`, then runs
+  `oled.py clear` to blank the panel.
+- `~/CubeNano/yahboom_oled.service` — the systemd unit (`Type=idle`, `User=tunastreet`,
+  `WantedBy=multi-user.target`). Installed copy at `/etc/systemd/system/`. Note it has **no
+  restart policy** — the CORDY unit's `Restart=on-failure` is the one improvement to carry back
+  if this ever gets reinstated as its own unit.
+- `~/CubeNano/install_oled_service.sh` — copies the unit in, `daemon-reload`s, `enable --now`s
+  it, prints status. It exists because `sudo` needs an interactive TTY for the password (the
+  automation can't type it), so the `sudo` steps get committed into a script and run as a
+  `bash ~/CubeNano/install_oled_service.sh` one-liner. Same pattern as `install_cordy_oled_service.sh`
+  above — it's how every `sudo` step on this device gets run.
+
 ## Other display scripts made along the way
 
 All in `~/CubeNano/`:
