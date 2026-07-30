@@ -1,4 +1,4 @@
-**PhD-Level Research & Engineering Plan**  
+**HeyGen Build Instructor Plan**  
 **Title:** A Hierarchical, LLM-Orchestrated Pipeline for Automated Synthesis of High-Fidelity Pedagogical Product Tutorial Videos via Neural Digital Twin Avatars: From Technical Specification Ingestion to Controllable 3–5 Minute Asynchronous Video Generation, with Explicit Pathways to Real-Time Conversational Streaming and Live Platform Integration
 
 **Principal Investigator / Architect Perspective**  
@@ -171,5 +171,3 @@ Recommended implementation: Python FastAPI or Node.js service (or Grok Build its
 4. Architecture diagram and this plan as the living specification.
 
 This architecture provides a clean separation between high-level instructional design intelligence (Grok) and high-fidelity neural rendering (HeyGen), while remaining fully extensible to the interactive LiveAvatar + Twitch future you described. Once the offline pipeline produces reliable demonstration videos, the same Grok brain and avatar identity can be reused almost unchanged for real-time sessions.
-
-Would you like the concrete starter code (Python), the exact Grok system prompt tailored to a sample product description, or prioritization of multi-scene Studio vs. single long-take Direct Video for the first demos?
