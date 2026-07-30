@@ -354,6 +354,24 @@ beelink-starlink-efm-ai.md updated: Y
 
 ---
 
+## Filled report (2026-07-30, issue #36 — read-only re-check, production agent)
+
+```
+Date: 2026-07-30
+StarlinkAI agent id: 6e6707f3-89ce-4e86-9f3e-b09e301e81e7 (real production agent, untouched)
+Class used: StarlinkAI (production, not an eval class)
+Install mode: pre-existing Windows service, install root C:\Users\tunas\efm-agent\nifi-minifi-cpp
+Python path/version: C:\Users\tunas\AppData\Local\Programs\Python\Python312\python.exe (3.12.10)
+DLL/PYD present: N — extensions\ has only the generic minifi-script-extension.dll (580,608 bytes); no minifi-python-script-extension.dll at all; minifi_native.pyd exists but is 0 bytes (broken stub, not a link to a real DLL)
+ONLINE in EFM: Y — confirmed via EFM API, heartbeating normally, nifi.c2.* all set correctly (agent.class=StarlinkAI, rest.path.base=http://100.68.113.126:10090/efm/api). C2/connectivity is fine; this is purely a missing build feature, not a network issue
+Smoke POST 18080: not attempted — decided not to push a temporary ListenHTTP->ExecuteScript->LogAttribute flow onto the live production canvas or restart the service, since this agent is currently routing all 5 Lemonade pairs and issue #25 (buffer-drop across those same 5 pairs) is open in-progress. Given the DLL is provably absent, the smoke would only reproduce the known "Could not instantiate: PythonScriptExecutor" failure — confirmed via static inspection instead of a live-flow test
+Log proof line: n/a (no ExecuteScript ever added to this agent's flow; log shows only the existing ListenHTTP-Transcription traffic, no script-extension load/failure lines because the processor was never scheduled)
+Issues / log snippets: This install long predates the ADDLOCAL=ALL recipe in this doc and was never touched by the 2026-07-28 session (which tested a disposable StarlinkAICpp class instead and never got it ONLINE). To actually enable Python here: admin-extract the MSI (or reinstall with ADDLOCAL=ALL) to get a real minifi-python-script-extension.dll, copy/link it to minifi_native.pyd, then restart the "Apache NiFi MiNiFi" service — which needs a drain plan for the live routing flow and explicit go-ahead before restarting, per this repo's live-service rules. Deferred to a dedicated follow-up pass.
+beelink-starlink-efm-ai.md updated: N (no architecture change, no fix applied)
+```
+
+---
+
 ## WindowsDesktop artifacts (reference only)
 
 Left on WindowsDesktop under `C:\minifi\`:
