@@ -115,6 +115,26 @@ End every post with the standard reach-out slug — the theme substitutes `{{ pa
 If you would like a deeper dive, hands on experience, demos, or are interested in speaking with me further about {{ page.title }} please reach out to schedule a discussion.
 ```
 
+## Terminal history and appendix — expose the operational trail (blog output)
+
+The recipe in the body is the polished path. But I share the *real* operational trail too, on purpose — a reader who's actually rebuilding this wants the exact commands I ran, in the order I ran them, including the wrong turns. So a blog post closes with one or both of these, after the recipe and before (or alongside) Resources and the closer slug:
+
+### `### Terminal History`
+
+A raw dump of the actual shell history, in a ```` ```terminal ```` fenced block, **unedited**. This is deliberately not cleaned up:
+
+- Leave the messy real sequence in — apply, then delete, then re-apply, the `helm rollback` after the upgrade that failed. The path I took *is* the content.
+- Keep inline `#` notes where I flagged something mid-session ("`# a :lightbulb: moment. when helm upgrade failed rollback worked to revert`"). Those are the hard-won bits.
+- Don't fix typos or reorder for tidiness — this is a transcript, not a script. Its value is that it's real.
+
+### `### Appendix`
+
+The same operational commands, but **organized by purpose** for someone who wants to reuse them cleanly — numbered subsections (`#### 1. Full Delete + Rebuild`, `#### 2. Source of Kafka Metrics`, `#### 5. Force Prometheus to pick up changes`), each a copy-paste-ready ```` ```bash ```` block. This is where the multi-line, backslash-continued "your exact command" forms live.
+
+Use Terminal History when the *journey* is instructive (iteration, rollbacks, dead ends), the Appendix when there's a clean set of reusable operations worth lifting out of the prose. Longer posts carry both.
+
+**The one thing to scrub:** paste commands freely, but never paste secret *values* or command *output* that contains them. A `kubectl get secret ... | base64 --decode` command in the history is fine — the decoded password it prints is not. Same rule as everywhere else in this repo (see `agent/incident-rules.md`).
+
 ## What to strip
 
 - LLM tells: "delve," "leverage," "in the fast-paced world of," "certainly!" openings, em-dashes used for emphasis where a period would do, sentence-endings that summarize what you just said.
