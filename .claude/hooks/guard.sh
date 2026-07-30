@@ -14,6 +14,10 @@
 #      a duplicate on the same target silently orphans or hangs (2026-07-29, issue #11).
 #   4. Never mark an issue status:review/done while it still carries status:todo
 #      — the forbidden todo->review jump proves it was never claimed as in-progress.
+#   5. Before a processor-create/update call (a POST/PUT to a /processors endpoint
+#      carrying a `position`), state the flow shape + pitch and match it against
+#      layout.md. Prose in layout.md alone failed to stop two fresh EFM builds from
+#      landing at the cramped NiFi pitch (2026-07-30, issue #47).
 #
 # Claim-before-work rules (A+B) — enforce the claim at the moment work STARTS.
 # Rule #4 only caught the skip at report-back time (todo->review) and was blind to
@@ -119,6 +123,21 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
       emit_ask "Issue #$n is being marked review/done but still carries status:todo — it was never claimed as status:in-progress. device-comms.md forbids the todo->review jump (todo -> in-progress -> review). Claim it first: gh issue edit $n --remove-label status:todo --add-label status:in-progress"
     fi
   fi
+fi
+
+# 5. Processor create/update carrying a position — the layout self-check gate.
+# layout.md is the canonical spacing reference, cross-linked from minifi-efm.md §8
+# and flow-api.md, yet two fresh EFM builds still landed cramped at the NiFi pitch
+# (2026-07-30, issue #47) because the doc was a section title, not a gate at the
+# call site. Fire when a curl-style write (POST/PUT or a request body) hits a
+# /processors endpoint AND carries a `position` — prompt to state shape + pitch and
+# match layout.md before the call lands. A read (`GET .../processors | jq .position`)
+# can trip this; if so, it's a one-key approval, so kept broad rather than missing a
+# build. Placed after rules 1-4 (none of which a processor-create curl matches).
+if printf '%s' "$cmd" | grep -Eq '/processors\b' \
+   && printf '%s' "$cmd" | grep -Eq 'position' \
+   && printf '%s' "$cmd" | grep -Eq -- '-X *(POST|PUT)|--data|--data-binary|(^|[[:space:]])-d[[:space:]]|componentConfiguration|requestId'; then
+  emit_ask "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. BEFORE approving, state out loud: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If this is a read (GET) or the numbers already match layout.md, approve."
 fi
 
 # A. Opening a still-todo issue that belongs to THIS device. `gh issue view N` is
