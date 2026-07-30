@@ -34,9 +34,25 @@ bundle for issue #25 (`POST /designer/flows/{flowId}/process-groups/{pgId}/proce
 `kubectl apply` (39MB C++ tarball, 204MB Java tarball download+install), both flows published with
 `validationErrors: []`, and both agents' own `minifi-app.log` show real, repeating
 `hello-from-playground-cpp` / `hello-from-playground-java` `LogAttribute` output on the expected
-10-second schedule — not just "pod Running," an actual live flow doing real work.
+10-second schedule — functionally correct and confirmed running.
 
-Flow exports committed: `files/efm/PlaygroundCpp.json`, `files/efm/PlaygroundJava.json`.
+**Rolled back the same day (incident, see below).** Functionally correct was not the same as done:
+Steven's visual QA in the EFM Designer UI failed both flow layouts on spacing. Both EFM classes,
+agent records, and pods were deleted. `minifi-test-efm-cpp.yaml`/`minifi-test-efm-java.yaml` stay
+in the playground repo (the C2 bootstrap itself was fine — only the flow layout built afterward
+was the defect); the flow exports have been removed from DesktopShare since they capture the bad
+layout and shouldn't be copied as a reference. A future rebuild needs to actually apply
+`skills/nifi-and-ai/references/layout.md`'s EFM-Designer-specific pitch rules (row 300 not 200,
+branch ±600–900 not ±300–480) — not just re-run the same API calls with different coordinates.
+
+## Incident — layout.md was never consulted
+
+Both processors were placed at `(0,0)`/`(400,0)` without reading `layout.md` first, despite
+`minifi-efm.md` §8 pointing directly at it for any programmatic EFM Designer build. That shape is
+`layout.md`'s own documented example of a *known-cramped* pattern (`MicroFi`), and the doc already
+exists specifically because an earlier build (`KubernetesPodPyTest`, 2026-07-29) made the same
+class of mistake for a different reason (200 row pitch instead of EFM Designer's required 300).
+Full incident writeup and the ask for a process fix: issue #47.
 
 ## Reused patterns, not reinvented
 
