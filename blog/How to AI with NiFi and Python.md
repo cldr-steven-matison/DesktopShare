@@ -13,6 +13,8 @@ tags:
   - best-practices
 ---
 
+<!-- Folded into the Complete Guide to Edge Flow Management → guide/ch15-how-to-ai-with-nifi-and-python.md (#31). This post stays the full narrative; the chapter is the distilled reference. -->
+
 We are all using AI to write code, but when it comes to Apache NiFi, the current landscape often resembles the Wild West. Whether you are generating synthetic data scripts or translating complex machine learning models, Large Language Models (LLMs) are incredible accelerators. However, if you ask an AI to write a native Apache NiFi 2.0 Python processor from scratch, there is a very high probability it will confidently hand you code that instantly breaks your canvas.
 
 NiFi 2.0’s Python API is relatively new, and most AI training data is heavily saturated with legacy NiFi 1.x `ExecuteScript` solutions (using Jython or Groovy). Even when an AI correctly identifies the 2.0 API, it frequently misconfigures the underlying Java-to-Python bridge, resulting in "ghost" processors with dashed lines and missing routing relationships.

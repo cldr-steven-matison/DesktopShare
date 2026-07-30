@@ -1,5 +1,7 @@
 # EFM Persistence on Minikube
 
+<!-- Folded into the Complete Guide to Edge Flow Management → guide/ch01-efm-on-kubernetes.md (#31). This doc stays the full recipe; the chapter is the synthesized overview. -->
+
 Full recipe for running Cloudera Edge Flow Manager (EFM) 2.3.1.0-2 on minikube with **all** state surviving pod restarts:
 
 - **Metadata** (agent classes, flows, agents, manifests) → PostgreSQL (`ssb-postgresql`)
