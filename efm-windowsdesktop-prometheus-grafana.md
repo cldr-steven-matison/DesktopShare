@@ -203,6 +203,72 @@ Checked both before deciding, no config applied:
 Both are real follow-up items, not failures — they need either a fresh restart ask (Kafka) or an
 active Flink/SSB job to exist first (CSA).
 
+## 5. WindowsDesktopCpp MiNiFi Layer 2 metrics — external (non-cluster) target, wired and confirmed live
+
+The C++ agent's native Prometheus publisher (`efm-metrics.md` Layer 2, issue #20) runs on the
+Windows host itself, not as a Kubernetes pod — `ServiceMonitor`'s normal pod-label discovery
+doesn't apply. The standard Prometheus Operator pattern for an external target is a headless
+`Service` + hand-written `Endpoints` pointing at the real IP:port, with a `ServiceMonitor` selecting
+that `Service` like any other:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: windowsdesktopcpp-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: windowsdesktopcpp-minifi-metrics
+spec:
+  ports:
+    - name: prometheus
+      port: 9936
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: windowsdesktopcpp-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: windowsdesktopcpp-minifi-metrics
+subsets:
+  - addresses:
+      - ip: 192.168.1.121   # this host's LAN IP, same one the zellij port-forward panes use
+    ports:
+      - name: prometheus
+        port: 9936
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: windowsdesktopcpp-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus   # required — matches this install's serviceMonitorSelector
+spec:
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+  selector:
+    matchLabels:
+      app: windowsdesktopcpp-minifi-metrics
+```
+
+Before applying: confirmed the cluster's pod network can actually reach the Windows host's LAN IP
+(`docker` driver — a throwaway `curlimages/curl` pod hit `192.168.1.121:9936/metrics` and got `200`
+before wiring anything). After applying: queried Prometheus's own `/api/v1/targets` from inside the
+cluster (Prometheus's container has no shell, so this used a throwaway `python:3.12-slim` pod
+parsing the JSON properly rather than grep) — `health: "up"`, `lastError: ""`. Confirmed further
+with an actual PromQL query,
+`minifi_queue_data_size{agent_identifier="40eb2f92-94c5-4478-beed-7060e41c9d7f"}` — real per-connection
+series come back, labeled with the actual flow's connection names (`ExecuteScript-PythonSmoke/...`,
+`ListenHTTP-LoadWindows/...`), not just a bare scrape confirmation. This is the same Prometheus
+instance Grafana's datasource already points at, so no separate Grafana-side wiring was needed —
+any panel built against this Prometheus can already query `job="windowsdesktopcpp-minifi-metrics"`.
+
 ## Scope note vs. the issue text
 
 Issue #19 said "install into a `monitoring` namespace"; the actual field-tested reference (the
@@ -219,6 +285,7 @@ convention, and is what "model it on the reference docs" meant in practice.
 | NiFi (CFM, `mynifi-0`) | `cfm-streaming` | `mynifi-web` | ✅ `up=1` |
 | Kafka (CSM, Strimzi) | `cld-streaming` | — | 🔲 not wired — needs broker restart, fresh ask |
 | Flink (CSA/SSB) | `cld-streaming` | — | N/A — no active job to scrape |
+| MiNiFi C++ (`WindowsDesktopCpp`, issue #20) | `cld-streaming` (external target) | `windowsdesktopcpp-minifi-metrics` | ✅ `up=1`, real `minifi_*` series confirmed queryable |
 
 Grafana reachable at `kubectl get svc prometheus-grafana -n cld-streaming` (ClusterIP by default
 on this install — no LoadBalancer/NodePort was requested, so it's `kubectl port-forward` or

@@ -27,7 +27,7 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | EFM Prometheus endpoint serves on **`efm-ui`/10090**, not `metrics`/9092 | Field-verified 2026-07-29 — `10090/efm/actuator/prometheus` returns 1429 lines of `efm_*` metrics; `9092` accepts a TCP connection but returns an **empty reply** (no `management.server.port=9092` set). The old "metrics port is 9092" claim was a Service-definition artifact, not a live scrape. | ✅ |
 | EFM scrape wired into CSO Prometheus via `ServiceMonitor` (port `efm-ui`) | Field-verified 2026-07-29 — `ServiceMonitor` applied, target `http://10.244.x.x:10090/efm/actuator/prometheus` green, `up{job="efm"}=1` in Prometheus | ✅ |
 | CSO Prometheus/Grafana stack exists on WindowsDesktop's `cld-streaming` cluster | Field-verified 2026-07-29 (issue #19) — `kube-prometheus-stack` installed via Helm into `cld-streaming` (matches the field-tested blog pattern, not the generic plan's `monitoring` namespace). All 6 pods `Running`, 10 Prometheus Operator CRDs present. EFM and NiFi (CFM) ServiceMonitors both confirmed `up=1`; Kafka (CSM) and Flink (CSA) deliberately not wired this pass — see `efm-windowsdesktop-prometheus-grafana.md` §4. | ✅ |
-| MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. On **WindowsDesktopCpp**, the config drop-in was UAC-blocked earlier the same day; **enabled and confirmed live later the same session** with a human at the console approving the one elevation prompt — `95-metrics.properties` written, service restarted, `curl http://127.0.0.1:9936/metrics` returns real `minifi_*` text with `agent_identifier=40eb2f92-94c5-4478-beed-7060e41c9d7f`. | ✅ |
+| MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. On **WindowsDesktopCpp**, the config drop-in was UAC-blocked earlier the same day; **enabled and confirmed live later the same session** with a human at the console approving the one elevation prompt — `95-metrics.properties` written, service restarted, `curl http://127.0.0.1:9936/metrics` returns real `minifi_*` text with `agent_identifier=40eb2f92-94c5-4478-beed-7060e41c9d7f`. Wired into the CSO Prometheus stack as an external target the same session — `up=1`, real per-connection series queryable. | ✅ |
 | MiNiFi Java (`WindowsDesktop` class) metrics | Field-validated 2026-07-29 (WindowsDesktop, issue #20) — **no drop-in equivalent of the C++ publisher exists**. No `nifi.metrics.publisher.*`-style properties, no Prometheus reporting-task NAR shipped, embedded web API (`nifi.web.http.port`) disabled (fully headless). `nifi.web.http.port=8998` staged in `minifi.properties` was tried live the same session: agent restarted, and the setting **did not survive** — EFM regenerated `minifi.properties` from its own C2-stored config on boot and wiped the edit back to empty, confirmed by re-reading the file post-restart. This is a real, confirmed C2-authority blocker, not a config mistake — same class of behavior already seen on the disposable pytest agent in issue #4. Getting this agent's metrics out needs the change pushed *through* EFM's own config management (if it isn't denylisted the way `nifi.python.command` is) rather than a direct file edit. See Layer 2 below. | 🔲 |
 | XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
 
@@ -437,9 +437,14 @@ remaining paths are (a) getting `nifi.web.http.port` pushed *through* EFM's own 
 `UPDATE_PROPERTIES` mechanism instead of around it (unverified whether that key is denylisted the
 way `nifi.python.command` is — untested this session), or (b) revisit option (b) from above
 (sourcing/building a Prometheus reporting-task NAR). Neither attempted further this pass. Layer 1
-and the Prometheus/Grafana stack are done (issue #19, 2026-07-29). Adding the now-live C++ target
-(`:9936`) to the Grafana stack as a static scrape config is the one remaining mechanical step for
-this layer.
+and the Prometheus/Grafana stack are done (issue #19, 2026-07-29). **2026-07-29, later same
+session: the C++ target is now wired in and confirmed live** — a headless `Service`+`Endpoints`
+(external-target pattern, since the agent runs on the Windows host, not as a pod) plus a
+`ServiceMonitor` at `192.168.1.121:9936`, job `windowsdesktopcpp-minifi-metrics`. Confirmed via
+Prometheus's own `/api/v1/targets` (`health: "up"`) and a live PromQL query returning real
+per-connection series from the running flow. Exact manifest and verification steps:
+`efm-windowsdesktop-prometheus-grafana.md` §5. This closes out C++ Layer 2 end to end; Java Layer 2
+remains blocked as described above.
 
 ## Layer 3 — embedded / heartbeat metrics (XIAO/microfi)
 
