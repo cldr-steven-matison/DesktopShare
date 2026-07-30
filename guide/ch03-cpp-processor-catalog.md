@@ -171,7 +171,7 @@ After injecting `extra-extensions-linux.tar.gz` into the agent's `extensions/` d
 
 The injection is: unpack the tarball, `find -name "*.so" -exec cp {} extensions/`, re-tar, and pipe into the EFM pod before the agent deploys. Full recipe in `efm-binaries.md`.
 
-There is also an ARM64-specific tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. [Not yet field-verified: ARM64 extra-extensions .so listing vs x86_64 — see #34]
+There is also an ARM64-specific tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. Field-verified 2026-07-29 on `NvidiaNano`: 26 `.so` files present (18 stock + 8 extra-extensions), identical basenames to the x86_64 list — no ARM64-only or missing filenames.
 
 On Windows, the equivalent is the MSI with `ADDLOCAL=ALL` — `.dll` files compiled with MSVC, not the Linux `.so` files. Do not copy `.so` files onto a Windows agent.
 

@@ -167,7 +167,7 @@ The stock `.so` files already in the image before injection handle Kafka (`libmi
 
 **The extra-extensions tarball is a separate Cloudera archive, not part of the stock Docker pull.** The injection recipe is in `efm-binaries.md` — unpack the tarball, `find -name "*.so" -exec cp {} extensions/`**, re-tar, and pipe into the EFM pod before the agent deploys.
 
-There is also an ARM64-specific extra-extensions tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. The `.so` filenames it contains have not been independently verified to be identical to the x86_64 list above. **[Not yet field-verified: ARM64 extra-extensions `.so` listing vs x86_64 — tracked as #34]**
+There is also an ARM64-specific extra-extensions tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. **Field-verified 2026-07-29** via `ls /home/tunastreet/nifi-minifi-cpp-1.26.02/extensions/*.so` on `NvidiaNano` — 26 `.so` files present (18 stock + 8 extra-extensions), identical basenames to the x86_64 lists above. No ARM64-only or missing filenames found.
 
 ---
 
