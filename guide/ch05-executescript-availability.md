@@ -15,7 +15,7 @@ Field-verified in this lab (WindowsDesktop + FTF3XR2065), not from vendor docs:
 | C++ image `apacheminificpp:latest` | 1.26.02 | ❌ — 74-processor production set, no scripting `.so` | Extra-extensions injection (Path A) or source build (Path B) |
 | CEM Java tarball (EFM-staged), stock | 2.24.08.0-19 | ❌ — 114 processors, no scripting NAR (verified 2026-07-25) | NAR drop-in (Path C) — see next row |
 | CEM Java tarball (EFM-staged), + NAR drop-in | 2.24.08.0-19 | ✅ — 122 processors, real Groovy ExecuteScript + real Kafka producer — SOLVED 2026-07-27, re-confirmed live 2026-07-28 | Build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching source tarball, drop into the agent's autoload dir |
-| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — ✅ field-verified 2026-07-27 on WindowsDesktop: process-mode and Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
+| C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — ✅ field-verified 2026-07-27 on WindowsDesktop: process-mode and Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke. ❌ **StarlinkAI production agent re-checked 2026-07-30 (#36): not present** — missing `minifi-python-script-extension.dll`, 0-byte `minifi_native.pyd`; needs the `ADDLOCAL=ALL` reinstall + a service restart, not yet done |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
 | Docker `minifi-java:latest` | — | 🚫 n/a — image does not exist (verified 2026-07-30, #35) | No such image in the registry; run Java via the CEM tarball + NAR drop-in row above |
 
@@ -134,12 +134,13 @@ Docker `minifi-java:latest` — **resolved 2026-07-30 (#35): the image does not 
 
 ## Path D — Windows MSI ADDLOCAL=ALL
 
-**Status: works.** Field-verified on WindowsDesktop 2026-07-27.
+**Status: works, but only where the recipe was actually followed.** Field-verified on WindowsDesktop 2026-07-27.
 
 | Mode | Result |
 |---|---|
 | Process-mode (`bin\minifi.exe`, no service) | ✅ ExecuteScript Python smoke |
 | Windows service (`Apache NiFi MiNiFi` + `ADDLOCAL=ALL`) | ✅ ExecuteScript Python smoke after C2 enable |
+| StarlinkAI production agent (re-checked 2026-07-30, #36) | ❌ Not present — this agent's install predates the `ADDLOCAL=ALL` recipe: only the generic `minifi-script-extension.dll` exists, no `minifi-python-script-extension.dll`, and `minifi_native.pyd` is a 0-byte stub. Confirmed read-only (extension dir listing + EFM API), no live-flow change or restart attempted — fixing it needs a production service restart with a drain plan for the live Lemonade routing flow |
 
 ### MSI facts (1.26.02-b30 x64)
 
