@@ -303,7 +303,7 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ## NvidiaNano (NVIDIA Jetson Orin Nano Developer Kit, hostname tunastreet)
 
-- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from WindowsDesktop, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects (matrix screensaver, streamChat launcher, CubeNano OLED status display, Waveshare env sensor) — see this device's own project memory for details, not tracked in this repo.
+- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from WindowsDesktop, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects (matrix screensaver, streamChat launcher, CubeNano OLED status display, Waveshare env sensor) — see this device's own project memory for details. The CubeNano OLED's CORDY CEPT strobe hack is now tracked here: [`nvidianano-oled-cordy-strobe.md`](nvidianano-oled-cordy-strobe.md); the rest are still local-only.
 - **Checked in**: 2026-07-28
 - **Claude Code version**: 2.1.220
 
