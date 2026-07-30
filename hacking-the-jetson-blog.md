@@ -1,6 +1,6 @@
 ---
 layout: single
-title: "Customize Your NVIDIA Jetson Orin Nano and Turn It Up To the Max With AI"
+title: "Hacking The Jetson - Customize Your NVIDIA Jetson Orin Nano and Turn It Up To the Max With AI"
 date: 2026-07-29
 classes: wide
 categories:
