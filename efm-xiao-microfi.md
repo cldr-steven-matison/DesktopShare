@@ -368,6 +368,71 @@ definition written against MiNiFi C++ resolves unchanged. Any dev branches go on
 `steven-matison/MicroFi` fork, not upstream — `Christopheraburns/MicroFi` stays read-only unless
 Steven says otherwise.
 
+## Processor design specs (eval — 2026-07-30, FTF3XR2065)
+
+Desk eval of the shortlist against the compile-time registry — no clone on this Mac, so this is a
+spec to build against on the fork, not code. The built-ins set the naming pattern to copy:
+`generate_flowfile.cpp` → `File Size` / `Batch Size` / `Data Format`; `log_attribute.cpp` →
+`Log Level` / `Log Payload` / `Log prefix` / `Attributes to Log`. Every property below is Title
+Case to match. **Confirm the exact strings against the pinned `nifi-minifi-cpp` version at build
+time** — property sets drift between releases.
+
+### 1. `PublishMQTT` — P0, the egress gap
+
+MiNiFi C++ `PublishMQTT` declares (upstream `PROCESSORS.md`, `main`): **Broker URI**, **Client ID**,
+**MQTT Version**, **Topic**, **Quality of Service**, **Connection Timeout**, **Keep Alive
+Interval**, **Last Will Topic**, **Last Will Message**, **Last Will QoS**, **Last Will Retain**,
+**Last Will Content Type**, **Username**, **Password**, **Security Protocol**, **Security CA**,
+**Security Cert**, **Security Private Key**, **Security Pass Phrase**. Relationship: **success**.
+
+Minimal ESP32 subset to embed first: **Broker URI**, **Client ID**, **Topic**, **Quality of
+Service**, plus **Username**/**Password** for an auth'd Mosquitto. Defer the `Security *` (TLS) props
+— the `SparkPlug` PG's Mosquitto is plaintext on the LAN, and ESP32 TLS is heavier weight for a first
+cut. This is the piece that turns the XIAO from a loopback into a real publisher: XIAO → Mosquitto →
+`ConsumeMQTT` → Kafka.
+
+### 2. Real ingress source — MicroFi-original
+
+No MiNiFi C++ equivalent to mirror, so there's no upstream property schema to match — follow the
+convention instead (Title Case, GenerateFlowFile-shaped so flows stay familiar). The XIAO ESP32-S3
+**Sense** has onboard sensors (mic, IMU on some carriers) + camera. Design as a scheduled source:
+properties like **Read Interval** / **Batch Size**, emitting one FlowFile per read with the sensor
+value as content (and/or a Title-Case attribute). Relationship: **success**. Simplest proof-of-life:
+a periodic read of one onboard value, published via `PublishMQTT` — that's the real ingress + real
+egress test the round-trip has been missing.
+
+### 3. `UpdateAttribute` — cheap, do it with #2
+
+MiNiFi C++ model: **no fixed properties** — it takes **dynamic properties** (`attribute name` →
+`value`, Expression-Language-capable) and writes each as a FlowFile attribute. Relationships:
+**success**, **failure**. MicroFi needs to accept user-defined dynamic properties from the flow def
+and set them as attributes. If there's no EL engine (see #4), support **literal values first** — that
+covers nearly all branch-logic test cases without an evaluator.
+
+### 4. `RouteOnAttribute` — defer; it hides an EL dependency
+
+MiNiFi C++ model: property **Routing Strategy** (`Route to Property name` / matched-if-all /
+matched-if-any) + **dynamic properties** (`relationship name` → an EL predicate); relationships:
+**unmatched**, **failure**, and one per dynamic property. **The eval finding: RouteOnAttribute is
+fundamentally an Expression-Language evaluator** — evaluating predicates against attributes is its
+entire job. MicroFi's tiny runtime almost certainly has no EL engine, making this the most expensive
+of the four to embed. Recommendation: **defer** until a minimal predicate evaluator (equals / exists
+/ contains on a named attribute) is separately scoped. #1–#3 already deliver the "real ingress +
+egress + attribute mutation" goal without EL.
+
+### Build & verify order
+
+1. **`PublishMQTT`** (minimal subset) — unblocks egress.
+2. **Real ingress source** — makes it a true edge-data test.
+3. **`UpdateAttribute`** (literal values) — attribute mutation.
+4. **`RouteOnAttribute`** — deferred, pending a predicate-evaluator scope.
+
+Per processor: add to the static registry (compile-time), keep the Title-Case MiNiFi-C++ property
+names so an EFM flow def resolves unchanged, rebuild + reflash on the `steven-matison/MicroFi` fork,
+then hand to **StarlinkAI** (where the board lives) for on-hardware verify — register in EFM, push a
+flow exercising the processor, confirm the implicit ack and real data movement. That StarlinkAI
+verification is a `device:StarlinkAI` follow-up (to file).
+
 ## What NOT to do
 
 - **Don't push to `Christopheraburns/MicroFi`.** The token allows it. The task doesn't.
