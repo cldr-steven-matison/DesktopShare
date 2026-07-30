@@ -303,12 +303,11 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ## NvidiaNano (NVIDIA Jetson Orin Nano Developer Kit, hostname tunastreet)
 
-- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from WindowsDesktop, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects. All of it is now documented in the repo (the build story is [`hacking-the-jetson-blog.md`](hacking-the-jetson-blog.md)):
-  - **MiNiFi agent ops** (connection facts, health checks, service control, clean reinstall): [`nvidianano-minifi-ops.md`](nvidianano-minifi-ops.md); enterprise EFM-on-k8s side in [`efm-nvidia-jetson-nano.md`](efm-nvidia-jetson-nano.md).
+- **Role**: Physical Jetson desktop (GNOME/X11) — previously only reached via SSH proxy from WindowsDesktop, now also running its own Claude Code sessions directly. Also hosts an EFM/MiNiFi agent reporting to the array's EFM+Kafka, plus local kiosk/desktop projects. All of it is now documented in the repo (the build story is published live as `_posts/2026-07-30-Hacking The Jetson.md` in the `cldr-steven-matison.github.io` repo):
+  - **MiNiFi agent ops** (connection facts, health checks, service control, clean reinstall): [`completed/nvidianano-minifi-ops.md`](completed/nvidianano-minifi-ops.md); enterprise EFM-on-k8s side in [`efm-nvidia-jetson-nano.md`](efm-nvidia-jetson-nano.md).
   - **Matrix screensaver** (Jetson + Windows devices): [`claude-screen.md`](claude-screen.md).
-  - **CubeNano OLED** (CORDY CEPT strobe + the baseline stats display it replaces): [`nvidianano-oled-cordy-strobe.md`](nvidianano-oled-cordy-strobe.md).
+  - **CubeNano OLED** (CORDY CEPT strobe + the baseline stats display it replaces): [`completed/nvidianano-oled-cordy-strobe.md`](completed/nvidianano-oled-cordy-strobe.md).
   - **streamChat launcher** (HTTP → Chromium → Twitch on the display, done): [`completed/nvidianano-streamchat-launcher.md`](completed/nvidianano-streamchat-launcher.md).
-  - **Waveshare env sensor** (paused on RMA): [`nvidianano-waveshare-env-sensor.md`](nvidianano-waveshare-env-sensor.md).
 - **Checked in**: 2026-07-28
 - **Claude Code version**: 2.1.220
 
