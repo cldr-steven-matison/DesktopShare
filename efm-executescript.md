@@ -17,7 +17,7 @@ Field-verified in this lab (WindowsDesktop + FTF3XR2065), not from vendor docs:
 | CEM Java tarball (EFM-staged), + NAR drop-in | 2.24.08.0-19 | ✅ — **122 processors, real Groovy ExecuteScript + real Kafka producer** — **SOLVED 2026-07-27**, re-confirmed live 2026-07-28 | Build `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` from the exact-matching source tarball, drop into the agent's autoload dir — see `efm-windows-java-minifi.md` |
 | C++ Windows MSI | 1.26.02 | ⚠️ feature level=2 (optional) | Path D — **✅ field-verified 2026-07-27** on WindowsDesktop: process-mode *and* Windows service + `ADDLOCAL=ALL` + ExecuteScript Python smoke |
 | C++ source build | 1.26.02 tag | ✅ if compiled with the flags | `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` (Path B) |
-| Docker `minifi-java:latest` | — | ❓ unverified against a running manifest | Pull and check — do not trust the "200+" marketing count (tracked as #35) |
+| Docker `minifi-java:latest` | — | 🚫 n/a — image does not exist (verified 2026-07-30, #35) | No such image in the registry (`apacheminificpp` exists; Java is the tarball) — run Java via the CEM tarball + NAR drop-in rows above |
 
 The claim I now treat as dead in its original form: **"switch to Java and you get ExecuteScript for free."** The *stock* CEM `2.24.08.0-19` binary EFM deploys has no scripting NAR and no Kafka NAR out of the box — that part of the original correction still holds. What's changed since: it's no longer *unsolvable* in this lab — a same-version NAR drop-in gets it (Groovy, not Python; see `efm-windows-java-minifi.md`), so "Java has no ExecuteScript, period" is now the stale claim, not the corrected one.
 

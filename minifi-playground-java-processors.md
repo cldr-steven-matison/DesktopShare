@@ -114,9 +114,8 @@ Staging recipe from source: in `efm-binaries.md`, the local file is `minifi-2.24
 FROM container.repo.cloudera.com/cloudera/minifi-java:latest
 USER root
 
-# Java MiNiFi config path — [Not yet field-verified: exact MINIFI_HOME path for minifi-java:latest]
-# C++ uses /opt/minifi/nifi-minifi-cpp-1.26.02; Java path may differ — verify with:
-# docker run --rm container.repo.cloudera.com/cloudera/minifi-java:latest find /opt -name "config.yml" 2>/dev/null
+# WARNING: this base image does NOT exist — see the field-note below (#35). This Dockerfile
+# will not build as written. MINIFI_HOME below is a placeholder, not a verified image path.
 ENV MINIFI_HOME=/opt/minifi/minifi-2.24.08.0-19
 
 COPY config.yml ${MINIFI_HOME}/conf/config.yml
@@ -126,7 +125,7 @@ EXPOSE 8080
 CMD ["${MINIFI_HOME}/bin/minifi.sh", "run"]
 ```
 
-**[Not yet field-verified: the `MINIFI_HOME` path for `minifi-java:latest`. The C++ image uses `/opt/minifi/nifi-minifi-cpp-1.26.02`; the Java image likely uses a different directory name reflecting the Java version string `2.24.08.0-19`. Run the `find` command above against the image to confirm before building. Tracked as #35.]**
+**Field-verified 2026-07-30 (FTF3XR2065, registry-authenticated): the base image `container.repo.cloudera.com/cloudera/minifi-java:latest` does not exist.** `docker manifest inspect` returns `unknown: Not found` for it, for `minifi-java:2.24.08.0-19`, and for ~12 other plausible names (`minifi-java-agent`, `apacheminifijava`, `cdf-minifi-java`, `cem-minifi-java`, …), while the known-good `apacheminificpp:latest` and `efm:latest` resolve on the same credentials — so this is the image being absent, not an auth failure. Cloudera containerizes only the C++ agent (`apacheminificpp`); MiNiFi **Java** is distributed as the tarball the EFM deployer serves at `binaries/java/linux/2.24.08.0-19/minifi.tar.gz`, not as a published image. There is therefore no Docker image to read a `MINIFI_HOME` or processor count from. The tarball's field-verified **114 processors / 45 controller services** (2026-07-25) is the authoritative count; the "200+" marketing figure has no Docker manifest to validate against. **This Dockerfile needs a new base** — build `FROM` a JRE image and unpack the Java tarball, or deploy via the EFM binary path — a design change beyond this verification, flagged for follow-up. (Caveat: the `ecr-proxy-prod` registry rejects catalog/tag listing, so absence is shown by probing known names, not by enumerating the repo.)
 
 ### minifi-java-test.yaml
 
@@ -282,4 +281,4 @@ Don't use Java for:
 
 - **Do not assume no `agentClass` flow is needed in EFM before running the Java deployer.** EFM must have an agent class defined and a flow published for the agent class before the deployer runs — otherwise the agent heartbeats with no flow to apply and nothing happens. Create the class and publish a minimal flow in EFM first.
 
-- **Do not treat the "200+ processors" count as exact.** The earlier C++-vs-Java comparison work and Cloudera's own comparison tables both say "200+" without a specific number from a running Java MiNiFi 2.24.08.0-19 instance manifest. The actual count has not been extracted from a running instance in this lab. [Not yet field-verified — tracked as #35.]
+- **Do not treat the "200+ processors" count as exact, and do not expect a Docker image to settle it.** The earlier C++-vs-Java comparison work and Cloudera's own comparison tables both say "200+" without a specific number from a running Java MiNiFi 2.24.08.0-19 instance manifest. The authoritative count is the **114 processors / 45 controller services** field-verified from the CEM `2.24.08.0-19` tarball manifest (2026-07-25). There is no `minifi-java` Docker image to check the "200+" figure against — verified absent from the registry 2026-07-30 (#35, see the Dockerfile note above).
