@@ -32,6 +32,22 @@ Why Vulkan, not ROCm/vLLM: this chip has no NPU, and AMD's ROCm does not support
 
 ~~Why EFM does no Python: WindowsDesktop's MiNiFi install hit a known-broken `ExecuteScript` Python extension (DLL present but wouldn't load). Routing-only via `ListenHTTP`/`InvokeHTTP` avoids that entirely.~~ **Obsolete as of 2026-07-28** — `ExecuteScript` Python is proven working on Windows C++ MiNiFi (Path D, see `efm-beelink-cpp-python-action.md`). See "ExecuteScript Python proven on StarlinkAI" below.
 
+## The live class and flow (EFM UI)
+
+What the sections below build up to, seen in EFM. The full story — five debugged bugs, the endpoint expansion, and the still-open transcription drop — is the chronological log that follows.
+
+![The StarlinkAI agent class in EFM Monitor → Agents, Good Health, one enrolled agent](/images/efm-StarlinkAI-Class.jpg)
+
+The `StarlinkAI` agent class in **EFM → Monitor → Agents** — Good Health, one enrolled agent (the Windows-native MiNiFi router), heartbeating to the EFM server over Tailscale.
+
+![The StarlinkAI router flow in the EFM Flow Designer, monitoring off](/images/efm-StarlinkAI-Flow-1.jpg)
+
+The deployed router flow in the **EFM Flow Designer** (monitoring off) — the full five-pair build: one `ListenHTTP → [EvaluateJsonPath →] InvokeHTTP` chain per Lemonade service (chat, embeddings, reranking, speech, transcription), all fanning into a shared `PublishKafka`. 16 processors, 19 connections (flow version 18).
+
+![The same StarlinkAI flow with live monitoring active, showing per-processor throughput](/images/efm-StarlinkAI-Flow-2.jpg)
+
+The same flow with **monitoring active** — real per-processor throughput (In / Read-Write / Out / Tasks), `PublishKafka` showing bytes out. Four of the five pairs (chat, embeddings, reranking, speech) are confirmed moving data end-to-end; transcription's multipart intake is the sole outstanding drop (see "Buffer Size 2 test" below).
+
 ## Setup
 
 ### 1. Tailscale (Windows host)
