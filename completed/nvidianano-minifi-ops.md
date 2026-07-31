@@ -1,7 +1,7 @@
 # NvidiaNano MiNiFi agent — operations runbook
 
 The living ops reference for the MiNiFi C++ agent on the Jetson Orin Nano (`tunastreet`,
-`192.168.1.195`). Connection facts, health checks, service control, and a full clean
+`192.168.1.197`). Connection facts, health checks, service control, and a full clean
 reinstall — the stuff you need when the agent is misbehaving and you don't want to re-derive
 the paths off the device. The build/story version of all this is the blog
 (`hacking-the-jetson-blog.md`); the enterprise EFM-on-Kubernetes side is

@@ -455,8 +455,10 @@ With the flow published to the `NvidiaNano` class and the agent online, the Jets
 **1. Make the delivered script executable.** EFM drops assigned resources into the agent's `assets/` directory, but they arrive without the execute bit — `ExecuteScript` can't run `gpu_nifi_tensorRT-3.py` until you set it (this is the manual step flagged above; the exact assets path is under the agent install dir):
 
 ```bash
-chmod +x ~/minifi-1.26.02/assets/gpu_nifi_tensorRT-3.py
+chmod +x ~/nifi-minifi-cpp-1.26.02/asset/gpu_nifi_tensorRT-3.py
 ```
+
+(Corrected path — field-verified 2026-07-31: the install dir is `nifi-minifi-cpp-1.26.02` and the assets folder is singular `asset/`, not `minifi-1.26.02/assets/`.)
 
 **2. POST a JSON payload to the agent's ListenHTTP.** The processor listens on port `8080`, base path `contentListener`. From the Jetson itself (or any LAN host that can reach it):
 
@@ -472,10 +474,16 @@ curl -X POST http://localhost:8080/contentListener \
 
 ```bash
 kafka-console-consumer.sh --bootstrap-server gaming-pc-lan-ip:31623 \
-  --topic <your-topic> --from-beginning --max-messages 1
+  --topic agent-nvidia-tensorRT --from-beginning --max-messages 1
 ```
 
-:hammer_and_wrench: **Field capture pending (NvidiaNano).** The real consumed message — the original JSON with the `tensorrt` block appended by the on-Jetson inference — goes here, captured from a live run on the board. Routed as a `device:NvidiaNano` follow-up.
+**Field-captured 2026-07-31** — real end-to-end run: POSTed to the Jetson's `ListenHTTP`, consumed from `agent-nvidia-tensorRT`:
+
+```json
+{"sensor": "jetson-test", "value": 42, "tensorrt": {"version": "10.16.2.10", "status": "Active"}}
+```
+
+The `tensorrt` block was appended live on the Jetson's GPU by `gpu_nifi_tensorRT-3.py` — confirms the full `ListenHTTP → ExecuteScript → PublishKafka` chain end to end.
 {: .notice--warning}
 
 
