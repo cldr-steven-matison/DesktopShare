@@ -2,6 +2,8 @@
 
 *by Steven Matison*
 
+![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](/images/efm-cloudera-edge-management.png)
+
 This is a living document. Today it is the master plan and index for a body of work that
 spans four repos and will take a considerable effort to finish and field-validate. As each
 chapter lands — built, run, and proven on real hardware — its content folds in here and
