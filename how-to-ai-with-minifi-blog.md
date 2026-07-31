@@ -74,6 +74,8 @@ def onTrigger(context, session):
 
 POST a payload and the attribute lands on `LogAttribute` — proof the extension didn't just load, it executed. The property that makes `ExecuteScript` pleasant to work with: a running C++ agent **re-reads its Script File from disk on every trigger**. Edit the script, POST again, the new logic runs — no restart, no republish. In EFM Designer flows the C++ FQCN is `org.apache.nifi.minifi.processors.ExecuteScript` (note the `minifi` in the path — it is *not* the Java NiFi `org.apache.nifi.processors.standard.ExecuteScript`).
 
+![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](/images/efm-nifi-and-ai-skill-spacing.jpg)
+
 Two things bite here, both covered in depth in the companion posts:
 
 - **`ExecuteScript` is not in any stock Cloudera binary** — not the C++ image, not the CEM Java tarball, not the default Windows MSI feature set. The tell is `Could not instantiate: PythonScriptExecutor` repeating every 30s in `minifi-app.log`, or an EFM designer "not a valid Processor type" rejection. Getting the engine onto the agent is an *install* problem — the four paths (C++ extra-extensions injection, source build, Java NAR drop-in, Windows `ADDLOCAL=ALL`) are in "Working with EFM Binaries." One caveat that matters for *this* post: only three of those four give you the **Python** engine — the Java NAR drop-in gets you `ExecuteScript` with **Groovy/Clojure only, no Python**, in the CEM `2.24.08.0-19` build. Python `ExecuteScript` at the edge means a C++ agent (or the Windows C++ MSI), not the Java agent. In this lab the engine is settled and running on the C++ K8s pods and on the Jetson via extra-extensions injection.
@@ -104,6 +106,8 @@ class EdgeTagger(FlowFileTransform):
 ```
 
 Drop that `.py` into the agent's configured processor directory (`nifi.python.processor.dir`, which ships pointing at `${MINIFI_HOME}/minifi-python/`, with authored processors going in the sibling `nifi_python_processors/` package) and restart. The agent's `PythonCreator` scans the directory once at boot and registers the type under its own FQCN — I've watched `EdgeChromeLoader` come up as `org.apache.nifi.minifi.processors.nifi_python_processors.EdgeChromeLoader` in `GET /efm/api/agent-manifests/{id}`, with the `typeDescription` field carrying the exact text from my class's `ProcessorDetails.description`. That's proof the authored `describe()` really ran, not a placeholder. From there it wires into an EFM Designer flow (`ListenHTTP → EdgeTagger → LogAttribute`) exactly like a stock processor — no special-casing to reference a custom type — and publishes with zero validation errors.
+
+![The custom `EdgeTagger` Python processor live in a flow — `ListenHTTP-EdgeTagger → EdgeTagger → LogAttribute-EdgeTagger`, the middle node showing under its own name, not `ExecuteScript`](/images/efm-custome-python-edge-tagger.jpg)
 
 :warning: **A custom processor is not a hot patch.** Because `PythonCreator` scans at boot, a `.py` dropped in (or edited) after the agent is running is not picked up until the agent restarts. This is the sharp difference from `ExecuteScript`, which re-reads every trigger. If your iteration loop is "tweak and re-POST," use `ExecuteScript`; if you're shipping a stable capability, author a processor and accept the restart.
 {: .notice--warning}
