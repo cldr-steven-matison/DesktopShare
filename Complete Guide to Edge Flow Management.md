@@ -124,6 +124,9 @@ different concepts — kept in separate chapters on purpose.
 Install and use plain MiNiFi (the existing C++ scenario adding Java too), then introduces the user to EFM as a proper solution used to
 manage the agents and resources.
 
+![PlaygroundCpp and PlaygroundJava agent classes enrolled in EFM Monitor — both Good Health, one agent each, the EFM-managed Level 2 Playground variant (Ch9)](/images/efm-PlaygroundCpp-Class.jpg)
+![PlaygroundJava](/images/efm-PlaygroundJava-Class.jpg)
+
 **Part IV — Site-to-Site** (Ch10–14)
 The full transport matrix, local and cloud. Reference: apache `SITE_TO_SITE.md`.
 

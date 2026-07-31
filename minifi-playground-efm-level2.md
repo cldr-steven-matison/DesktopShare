@@ -80,6 +80,10 @@ shorthand; worth a follow-up doc fix, not done as part of this issue.
   after publish — `GenerateFlowFile {x:0,y:0}`, `LogAttribute {x:0,y:300}` on both flavors,
   confirmed via API, not just assumed from the create-call payload.
 
+![PlaygroundCpp agent class in EFM → Monitor → Agents — Good Health, one agent enrolled](/images/efm-PlaygroundCpp-Class.jpg)
+
+![PlaygroundJava agent class in EFM → Monitor → Agents — Good Health, one agent enrolled](/images/efm-PlaygroundJava-Class.jpg)
+
 Flow JSON re-exported (via `GET /efm/api/designer/flows/{id}`, no separate "download" endpoint
 exists for EFM Designer flows — that's the NiFi REST API's pattern, not this one's) to
 [`files/efm/PlaygroundCpp.json`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/efm/PlaygroundCpp.json)
