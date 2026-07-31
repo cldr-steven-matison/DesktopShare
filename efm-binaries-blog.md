@@ -12,6 +12,8 @@ tags:
   - kubernetes
   - edge
   - cem
+header:
+  image: /images/efm-binaries.png
 ---
 
 Edge Flow Manager will happily show you a "Deploy Agent" button in its UI, generate you a tidy install command, and then hand your edge device a `400 BAD_REQUEST` the moment you run it. Every time I hit that wall it came down to the same thing: EFM is a binary vending machine, and the vending machine only dispenses what you have physically stocked in the exact slot it expects. This post is the staging layout that actually works — five agent binaries across C++ and Java, x86_64 and ARM64 and Windows — plus the Windows traps (the MSI Python black hole, the missing Java processors) that cost me the most time. Everything here is field-verified on a live EFM `2.3.1.0-2` running in minikube.
@@ -161,6 +163,10 @@ Output must be exactly the five leaves:
 
 Refresh the EFM UI and the deploy dropdown now cleanly offers `v1.26.02 - linux`, `v1.26.02 - windows`, and `v2.24.08.0-19 - linux`. Clicking any of them generates a script that passes both UI and backend validation.
 
+![Deploy Agent CLI Command — C++ binary version dropdown showing the linux, linuxaarch64, and windows leaves all present](/images/efm-Deploy-Agent-CLI-2.jpg)
+
+![Deploy Agent CLI Command — Java binary version dropdown showing the linux and windows leaves](/images/efm-Deploy-Agent-CLI-1.jpg)
+
 ## Deploy an agent
 
 The deployer is a single POST to `/efm/api/agent-deployer/script` that returns a shell (or PowerShell) script you pipe straight into your shell. The parameters are the coordinate plus the agent's identity. Linux C++, x86_64:
@@ -254,6 +260,8 @@ Invoke-RestMethod -Uri "http://127.0.0.1:18080/contentListener" -Method Post `
 ```
 
 I ran this with a trivial `onTrigger` that stamps `python.smoke=windows-cpp-executescript-ok`, and it showed up on `LogAttribute` — proof the extension didn't just load, it executed. Python 3.14.4 x64 worked; the ABI mismatch I feared never fired for this smoke.
+
+![Windows `extensions\` listing after the full-feature install — both `minifi-python-script-extension.dll` and `minifi_native.pyd` are present](/images/efm-binaries-windows.jpg)
 
 ## Windows Java: it installs clean, then you find out what's missing
 
