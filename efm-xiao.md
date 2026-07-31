@@ -6,7 +6,7 @@ I plugged a Seeed XIAO into TunaStarlink (StarlinkAI) over front-facing USB and 
 
 I didn't need to build anything from scratch for the broker or the NiFi side — both already exist:
 
-- **Mosquitto** already runs in the `mqtt` namespace of `MINI-Gaming-G1`'s minikube cluster (`cld-streaming`), set up in `sparkplug-iott.md`.
+- **Mosquitto** runs in the `mqtt` namespace of `MINI-Gaming-G1`'s minikube cluster (`cld-streaming`), per `sparkplug-iott.md` Phase 1. Correction: when this doc was first written (2026-07-27) that wasn't actually true yet — the live cluster had no `mqtt` namespace at all, and the only Mosquitto in the fleet was on FTF3XR2065 (Mac). Deployed here for real 2026-07-31 ([#53](https://github.com/cldr-steven-matison/DesktopShare/issues/53)).
 - A NiFi Process Group called **`SparkPlug`** (exported at `files/SparkPlug.json`) already has `ConsumeMQTT` live, `Topic Filter: test/sensor/data`, plain JSON. There's also a `ConsumeMQTTIIoT` processor on `spBv1.0/#` for Sparkplug B, but I'm not touching that one.
 - The existing test publisher (`mqtt_test_publisher.py` in `sparkplug-iott.md`) sends this shape, and `ConsumeMQTT` is already filtering exactly this topic:
   ```json
