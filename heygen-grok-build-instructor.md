@@ -111,9 +111,10 @@ Recommended implementation: Python FastAPI or Node.js service (or Grok Build its
 ### 4. Implementation Phases & Milestones
 
 **Phase 0 – Prerequisites (1–2 days)**  
-- Confirm existing HeyGen avatar_id and suitable voice_id (via `GET /v3/avatars` and `GET /v3/voices`).  
+- Confirm existing HeyGen avatar_id and suitable voice_id (from Studio / known IDs — list endpoints are unreliable; see `heygen-avatar-api.md`).  
 - Obtain xAI and HeyGen API keys.  
-- Set up secure secret management and basic logging.
+- Set up secure secret management and basic logging.  
+- **Know the two wallets:** plan credits (Studio UI) vs API USD wallet (`GET /v3/users/me`). Scripted `POST /v3/videos` only spends the API wallet. Field notes + rates: `heygen-avatar-api.md` and `files/heygen-srm-poc/LEARNINGS.md` (2026-07-31 X-intro session).
 
 **Phase 1 – MVP Demo Pipeline (3–7 days)**  
 - Implement Grok script generator with the structured prompt above.  
