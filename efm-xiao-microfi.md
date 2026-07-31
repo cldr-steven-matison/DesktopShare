@@ -433,6 +433,59 @@ then hand to **StarlinkAI** (where the board lives) for on-hardware verify — r
 flow exercising the processor, confirm the implicit ack and real data movement. That StarlinkAI
 verification is a `device:StarlinkAI` follow-up (to file).
 
+## Can the XIAO run custom Python processors? (eval — 2026-07-31, FTF3XR2065)
+
+Short answer: **not the way NiFi and MiNiFi C++ do it. Custom processors on the XIAO are C++,
+compiled into the static registry — the "Python" part is the piece that doesn't port.** Three
+layers to it:
+
+**1. The MiNiFi C++ Python extension can't run on an ESP32.** MiNiFi C++ supports Python
+processors (and `ExecuteScript` with Python) by embedding a full CPython interpreter — it
+dynamically links `libpython` at runtime, needs a system Python install (`libpython3-dev` /
+`python3-libs`), and loads `libminifi-python-script-extension.so` through the same `.so` extension
+mechanism (confirmed against apache `extensions/python/PYTHON.md`, `main`). None of that exists on
+an ESP32: there is no libpython build for ESP-IDF, no `.so`/dlopen loader, and no room — CPython +
+stdlib is many MB, and this XIAO unit's *entire* flash is 2 MB with firmware already at ~1.04 MB.
+It doesn't fit and there's no port that would make it fit.
+
+**2. MicroFi's architecture rules out the delivery model, not just the size.** MicroFi resolves
+processors by name against a **compile-time static registry** — "no `dlopen`, no runtime plugin
+load," the design bet this doc opened with. The entire point of a NiFi/MiNiFi Python processor is
+*ship a script in the flow definition, no rebuild*. MicroFi is the opposite: adding a processor is
+a firmware rebuild + reflash. So even if CPython fit, the "push Python without reflashing" property
+— the reason you'd reach for a Python processor — is exactly what MicroFi's model doesn't offer.
+And MicroFi exists *because* MiNiFi C++'s heavier machinery (heap-centric, RocksDB, dlopen) doesn't
+shrink to a microcontroller (`docs/MICROFI_ASSESSMENT.md`); embedding CPython is strictly heavier
+than any of that.
+
+**3. What IS possible.**
+
+- **Custom processors: yes — in C++, compile-time.** That's exactly the #26 processor-dev track
+  (`PublishMQTT`, a real ingress source, `UpdateAttribute`). If the goal behind the question is
+  "extend the XIAO with our own logic," the answer is yes — just not in Python.
+- **An embedded MicroPython scripting processor: buildable in principle, but it's not "MiNiFi
+  Python."** MicroPython *does* run on ESP32 (it's a common standalone firmware). One could build a
+  C++ MicroFi processor — say `ExecuteMicroPython` — that embeds a MicroPython VM and runs a script
+  string carried in the flow def, which *would* restore the "push logic without reflashing"
+  property. Three caveats make it a distinct feature, not a port: (a) it's a from-scratch MicroFi
+  processor, real work; (b) MicroPython ≠ CPython — reduced stdlib, different C API, so existing
+  NiFi/MiNiFi Python processors don't run unchanged; (c) its property/script contract wouldn't match
+  MiNiFi C++'s `ExecuteScript`, which **breaks MicroFi's compatibility bet** — an EFM flow def
+  written for MiNiFi C++ would no longer resolve unchanged. Worth scoping on its own if wanted, but
+  it's a MicroFi-specific scripting capability, not "MiNiFi Python on the XIAO."
+
+This is the same shape as the `RouteOnAttribute` deferral above: the tiny runtime has no embedded
+interpreter — whether that's a NiFi Expression-Language evaluator or a Python VM — and every
+"just run a script/predicate" feature hits that same wall. Ingress + egress + attribute mutation
+(#1–#3 on the shortlist) clear it because they're native C++; anything script-driven doesn't, until
+an interpreter is deliberately embedded.
+
+*Verification note:* couldn't re-read the MicroFi repo this session — the `gh` login here is the
+work account (`cldr-steven-matison`), which lacks access to the private `Christopheraburns/MicroFi`;
+the earlier eval read it as `steven-matison`. The architectural facts above are this doc's prior
+captures; the CPython/libpython requirement is freshly confirmed against apache
+`extensions/python/PYTHON.md`.
+
 ## What NOT to do
 
 - **Don't push to `Christopheraburns/MicroFi`.** The token allows it. The task doesn't.
