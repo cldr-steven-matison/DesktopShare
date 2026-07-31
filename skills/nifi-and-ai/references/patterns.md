@@ -9,6 +9,14 @@
 
 This is the standard way to expose a NiFi flow as a synchronous REST endpoint.
 
+**Early-ack variant — don't make the caller wait on the whole pipeline.** `HandleHttpResponse` transfers the flowfile to `success` after the response is flushed, so it doesn't have to be the last processor. Put it immediately after `HandleHttpRequest` and continue the flow from its `success`:
+
+```
+HandleHttpRequest → HandleHttpResponse (200, immediate ack) → …rest of the flow
+```
+
+That gives fire-and-forget latency for the caller while the real work continues behind it — the same profile as the MiNiFi C++ router below, but by choice rather than by limitation, and reversible per flow when you *do* want to hold the connection and return a real payload. Verify the response actually flushes before the downstream work runs on the agent/version you're targeting (tracked in issue #55).
+
 ## MiNiFi C++ fire-and-forget router
 
 MiNiFi C++ has no request/response pair, so a flow that "answers" an HTTP call has to answer out-of-band:
@@ -23,7 +31,7 @@ ListenHTTP (:8080, /contentListener)
 The HTTP caller gets an empty 200 immediately; the real reply lands on a response Kafka topic keyed by `request_id`, which the caller consumes separately.
 
 **Real bugs this pattern hides:**
-- **`ListenHTTP` `Batch Size`/`Buffer Size` default to `5/5`.** A single request never fires the buffer-full path and is silently dropped (`buffer is NOT full 1/5` in the log). Set both to `1`. If you still see `1/1 buffer is NOT full` dropping, that's `MINIFICPP-2243`, fixed on MiNiFi C++ main in late 2024 — check your agent version.
+- **`ListenHTTP` `Batch Size`/`Buffer Size` default to `5/5`.** A single request never fires the buffer-full path and is silently dropped (`buffer is NOT full 1/5` in the log). Set both to `1`. If you still see `1/1 buffer is NOT full` dropping, that's `MINIFICPP-2243`, fixed on MiNiFi C++ main in late 2024. **Checking the agent version is not enough to rule it out** — the Jetson runs CEM Agents 1.26.02 (`bin/minifi` dated Mar 2026, well after that fix) and still drops ~4 POSTs/day at `1/1`, across three separate listeners. Either the fix isn't in Cloudera's build or it's incomplete. Grep the agent's own log for `was dropped` rather than trusting the version, and see issue #54.
 - **`InvokeHTTP`'s `HTTP Method` persists as `GET`** even when you meant `POST`, unless you explicitly set the field. Verify the persisted value, not your intent.
 - **`PublishKafka`'s `Known Brokers` must be the external broker port** when the agent is outside the cluster, not the in-cluster `9092`.
 - **`EvaluateJsonPath` for a field on a JSON object is `$.request_id`**, not `$[0]` (that's array-index for a top-level array).
