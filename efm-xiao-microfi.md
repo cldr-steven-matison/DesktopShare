@@ -533,6 +533,43 @@ calls out).
   this again until `transfer()` is patched to keep scanning `bindings_` instead of returning on
   the first match, followed by a rebuild + reflash.
 
+## Deeper-testing processors, wrap-up — 2026-07-31 (`StarlinkAI`, issues #45/#26)
+
+Status against the original build order (`PublishMQTT` → real ingress source → `UpdateAttribute`):
+
+**Shipped and verified on hardware:**
+- `PublishMQTT` — see the two sections above. XIAO → Mosquitto → independent subscriber confirmed end-to-end.
+- `UpdateAttribute` (`feature/update-attribute`, fork commit `ad53dcf`) — literal-value attribute writes
+  via 4 declared `Attribute N Name`/`Attribute N Value` property slots (not true dynamic properties —
+  EFM's flow validation rejects any property not in the processor's declared list, confirmed on
+  hardware, so upstream's arbitrary-key-per-flow shape isn't reachable through the Designer API today).
+  Verified via `GenerateFlowFile → UpdateAttribute → LogAttribute`: `verify_key = verify_value` appeared
+  in serial output as expected. **This is the build currently flashed on the unit.**
+
+**Attempted, not shipped:**
+- `GetGPIO` (real ingress source, reads the onboard BOOT button/GPIO0) — code is correct in isolation and
+  compiles clean, but linking the ESP-IDF `driver` component regressed the *whole binary's* stability:
+  `PublishMQTT`, which ran error-free for many consecutive minutes everywhere else in this session, started
+  throwing MQTT transport errors once `driver` was linked in, and `GetGPIO`'s own state exhibited what looks
+  like memory corruption (a `bool` reverting without any code path that should touch it). Root cause not
+  found — no debugger or heap-corruption instrumentation available in this session to go further safely.
+  Code is on `feature/get-gpio` (fork commit `553688b`), pushed but **not flashed** — the device was
+  reverted to the last known-stable build (`feature/update-attribute`) and confirmed clean (236 error-free
+  publishes over 60s) before stopping. Don't flash `feature/get-gpio` as-is.
+
+**Two real engine/infra bugs found and documented along the way** (both still open, low urgency —
+worked around, not blocking anything currently running):
+- `Session::transfer()` only delivers to the first relationship binding that matches by name (fan-out
+  silently drops every connection after the first) — see the PublishMQTT section above.
+- EFM's manifest store doesn't refresh a processor's property descriptors when its name is already known
+  to the agent class, even on a genuine new manifest hash — only a fresh processor *name* reliably gets a
+  new manifest record. Bit the `UpdateAttribute` property redesign; workaround (temporarily rename, verify,
+  rename back) is documented in the fork commit history.
+
+**Net for #26's original 3-item list: 2 of 3 done** (`PublishMQTT`, `UpdateAttribute`), real ingress
+source blocked on the `driver`-component regression. `RouteOnAttribute` remains deferred per the original
+design spec (needs an Expression-Language evaluator this runtime doesn't have).
+
 ## Can the XIAO run custom Python processors? (eval — 2026-07-31, FTF3XR2065)
 
 Short answer: **not the way NiFi and MiNiFi C++ do it. Custom processors on the XIAO are C++,
