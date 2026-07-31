@@ -329,6 +329,7 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 - gh: 2.96.0, logged in as TunaStreetTest
 - Tailscale: not installed
 - MiNiFi C++ agent: `1.26.02` (`nifi-minifi-cpp-1.26.02`, matches x86_64 build revision), agent class `NvidiaNano`, agent id `4ca82a0d-8e04-4ede-b59d-379de1495f2b`, managed by systemd (`minifi.service`, enabled, running since 2026-07-24). Extra-extensions already staged (`libminifi-execute-process`, `-lua-script-extension`, `-python-script-extension`, `-opc-extensions`, `-llamacpp`) — this build carries 79 processors vs. the stock 74, see `files/efm/NvidiaNano-manifest.json`.
+- MiNiFi Java agent: `2.24.08.0-19`, agent class `NvidiaNanoJava` (separate from the C++ class), agent id `3843d4bf-fb13-45eb-b84f-01b97bd4e20d`, deployed 2026-07-31 (issue #28) — no root, running as a plain background process (`~/minifi-java-nano/minifi-2.24.08.0-19`, `bin/minifi.sh start`/`stop`), Eclipse Temurin 21.0.12 aarch64 JRE staged at `~/jdk21/`. Confirmed ONLINE, ~454MB combined RSS, ~577MB disk. Full recipe: `efm-windows-java-minifi.md` → *Java MiNiFi on the Jetson*.
 
 ### Network
 - Connection: LAN, `192.168.1.197`

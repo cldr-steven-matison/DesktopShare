@@ -284,6 +284,18 @@ version:
   shape as the C++ leg’s `EdgeChromeLoader.py`, plus the `class Java: implements = [...]` stanza
   the py4j framework requires (confirmed by reading `ProcessorInspection.py` on this exact install).
 
+## Java MiNiFi on the Jetson (NvidiaNano) — done 2026-07-31, issue #28
+
+Staged and deployed via SSH from WindowsDesktop, no admin/root anywhere in the chain:
+
+- **JRE**: Eclipse Temurin 21.0.12+8 aarch64, portable tarball extracted to `~/jdk21/` (no `apt`/`sudo` — the box's `apt-cache` shows `openjdk-21-jre-headless` is available but wasn't needed).
+- **Agent**: EFM deployer curl against a new class `NvidiaNanoJava` (kept separate from the C++ `NvidiaNano`/`NvidiaNanoAI` classes, same split pattern as `WindowsDesktop`/`WindowsDesktopCpp`), `agentVersion=2.24.08.0-19`, `osArch=linux` — the same platform-agnostic Java tarball already staged for `KubernetesPodJava`.
+- **The deployer script's systemd/service install step needs root and was going to hard-fail** (`set -eu`, and the default `MINIFI_USER=minifi` triggers a bare `useradd` with no existing-user guard) — fixed by passing `serviceUser=tunastreet` (the real SSH user, already exists, skips `useradd` entirely) via the deployer form params. With that, the script's own fallback path handles the rest gracefully: it warns it can't install as a service without root, then runs MiNiFi as a plain background process (`bin/minifi.sh start`) instead — no manual intervention needed.
+- **Confirmed ONLINE**: EFM's own server log shows a clean `Registering new agent` with `state=ONLINE`, `agentType=minifi-java`, real heartbeat traffic every 5s.
+- **Real footprint, measured** (not the array's prior estimate): **454MB combined RSS** (main JVM 378MB + bootstrap-watcher JVM 86MB) / **577MB installed on disk** (419MB agent + 158MB JRE), on the Jetson's 7.3GB RAM / 57GB disk (17GB free after install). Consistent with the ~500MB/~500MB figure #55 measured on a different box.
+- **Side by side with the existing C++ `NvidiaNano` agent confirmed** — both running concurrently, no conflict, matching the pattern already proven elsewhere in this array.
+- **Not done in this pass**: no flow published on `NvidiaNanoJava` yet (class + online agent only); the actual router-flow switch to `HandleHttpRequest`/`HandleHttpResponse` for the XIAO/MicroFi synchronous round-trip is still #28's design decision to make, not done here.
+
 ## Follow-ups
 
 - [x] Publish smoke flow on `KubernetesPodJava` (`a492562d-28db-4e76-ae7e-95e09e13e179`, flowVersion 1) — confirmed `hello-from-k8s-java` in pod logs
@@ -295,4 +307,4 @@ version:
 - [ ] Find a supported channel to set `nifi.python.command` durably on an EFM/C2-managed Java agent (neither direct file edit nor C2 property push works)
 - [ ] Persist `java/windows` into the staging tree under `~/efm-binaries/staging/` so the next EFM PVC rebuild doesn’t forget it
 - [x] Evaluate MiNiFi Java’s `HandleHttpRequest`/`HandleHttpResponse` early-ack wiring + footprint — **done 2026-07-31**, [#55](https://github.com/cldr-steven-matison/DesktopShare/issues/55). See *Early-ack round-trip test* section above. `SKILL.md` rule 6 and `references/patterns.md` updated with the confirmed findings.
-- [ ] Stage an aarch64 JRE + Java MiNiFi agent on the actual Jetson (`NvidiaNano`), if #28 decides the real round-trip is worth the JVM footprint — not started
+- [x] Stage an aarch64 JRE + Java MiNiFi agent on the actual Jetson (`NvidiaNano`) — **done 2026-07-31**, class `NvidiaNanoJava`, confirmed ONLINE. See *Java MiNiFi on the Jetson* section above.
