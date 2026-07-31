@@ -76,23 +76,32 @@ that runs `.claude/hooks/checkin.sh` on every session start:
    lose to a stale local copy). Prints one line per skill updated; silent when current.
 3. Maps the host to its `device:*` label(s) via the case block in the script and
    lists that inbox with `gh issue list --state open`.
-4. For any issue still labelled `status:todo`, emits a **CLAIM-FIRST banner** with the
-   exact `gh issue edit … status:in-progress` command per issue. Sessions kept starting
-   work without flipping the label; prose here alone didn't stop it, so the
-   guaranteed-seen session-start context now spells out the claim command. This is
-   backed by deterministic guards in the `PreToolUse` hook (`.claude/hooks/guard.sh`),
-   which now enforce the claim at **three** points rather than only at report-back:
-   - **Trigger A (work-start):** opening a still-`todo` issue for this device via
-     `gh issue view <n>` prompts to claim it first, and records `<n>` in a
-     `.claude/.claim-pending` marker.
-   - **Trigger B (mutation):** an `Edit`/`Write` while that marker is non-empty prompts
-     again — you opened an issue but never flipped it. The claim command clears the
-     marker; `checkin.sh` clears stale markers at session start.
+
+Claiming itself is no longer nagged at session start — it is done **mechanically** by
+the `PreToolUse` hook (`.claude/hooks/guard.sh`). The old **CLAIM-FIRST banner** was
+removed 2026-07-31 (issue #51): six-plus repetitions plus two "ask"-style guard triggers
+still didn't stop a 7th claim-skip, because a banner (a) is ignorable and (b) is never
+seen by subagents — `SessionStart` doesn't fire for subagents, and the WindowsDesktop
+skip happened inside a `/plan` that farmed issue-reading out. The guard now does three
+things, the first of which needs **no model cooperation at all**:
+
+   - **Rule A — auto-claim on view.** Opening a still-`todo` issue for this device via
+     `gh issue view <n>` makes the hook run `gh issue edit … status:in-progress`
+     **itself** and inject an `additionalContext` line telling the model it was claimed.
+     No prompt, no model decision — so no device can ignore it. It fires in plan mode and
+     in subagents (both fire `PreToolUse`). It loops **every** issue number in the command
+     (the old code used `head -1` and only ever saw the first issue in a chained command —
+     the #51 root cause). If the `gh edit` fails (offline/perms) it falls back to recording
+     `<n>` in the `.claude/.claim-pending` marker and asking — Rule B then backstops it.
+   - **Rule B — edit-while-pending backstop.** An `Edit`/`Write` while that marker is
+     non-empty (i.e. auto-claim couldn't reach `gh`) prompts to claim manually.
+     `checkin.sh` clears stale markers at session start.
    - **Review-skip backstop:** marking an issue `status:review`/`status:done` while it
      still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
      can land.
-   Residual gap: a session that works straight from this inbox text without ever running
-   `gh issue view <n>` gives the guard no signal — the claim-first norm still applies.
+   Residual gap: a session that works an issue **without ever running `gh issue view <n>`**
+   (straight from the inbox listing) gives Rule A no trigger — the claim-first norm in
+   "Working an issue" below still applies there.
 
 The result is injected into the session as context, so the open issues for this
 host are visible before any work starts. The hook **fails open** (a missing
@@ -112,18 +121,20 @@ upkeep rules:
 
 ## Working an issue
 
-1. **Claim it the moment you start — flip `status:todo` → `status:in-progress` before you touch
-   anything, not after.** The label is how the fleet sees which issues are actively being worked;
-   an issue left in `status:todo` while you work looks unclaimed and another device may pick it up.
-   Never jump `status:todo` → `status:review` — the progression is `todo → in-progress → review`,
-   and `in-progress` must be set even for a task you finish in one sitting.
+1. **Claiming is automatic when you open the issue.** Running `gh issue view <n>` on a
+   still-`status:todo` issue for this device makes the guard hook flip it to
+   `status:in-progress` for you (see "Automated check-in" above) — you do **not** need to
+   run the claim command by hand, and you'll get an `additionalContext` line confirming it.
+   The label is how the fleet sees which issues are actively being worked; the auto-claim
+   exists so an issue is never left looking unclaimed while a device works it. Never jump
+   `status:todo` → `status:review` — the progression is `todo → in-progress → review`, and
+   `in-progress` must be set even for a task you finish in one sitting (a guard backstop
+   blocks that jump). The only time you run the claim manually is the residual gap — working
+   an issue without ever `gh issue view`-ing it, or when auto-claim reported it couldn't
+   reach `gh`:
    ```bash
    gh issue edit <n> --remove-label status:todo --add-label status:in-progress
    ```
-   This is now enforced by the SessionStart hook (surfaces a claim command for every
-   `status:todo` issue) plus three `PreToolUse` guard triggers — claim-on-view (A),
-   edit-while-pending (B), and the review-skip backstop — detailed under "Automated
-   check-in" above.
 2. **The body is a pointer, not the spec.** It names a golden-source doc (e.g.
    `efm-validation-agent.md`); the doc holds the exact commands and the report-back template.
    This is the *cross-reference, don't cross-link* rule applied to issues — the detail lives in

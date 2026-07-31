@@ -6,12 +6,14 @@
 #      many devices; acting on stale state is how two machines overwrite each
 #      other). --ff-only refuses a non-fast-forward instead of merging, so a
 #      diverged tree surfaces as a note rather than a silent merge.
-#   2. List this host's device:* issue inbox — the async mailbox between devices,
-#      and for any issue still labelled status:todo, emit a CLAIM-FIRST banner with
-#      the exact claim command. Sessions have repeatedly started work without first
-#      flipping status:todo -> status:in-progress (Steven has had to interrupt 3-4x);
-#      prose in device-comms.md alone didn't stop it, so the guaranteed-seen
-#      session-start context now carries the imperative + copy-paste command per issue.
+#   2. List this host's device:* issue inbox — the async mailbox between devices.
+#      (The old CLAIM-FIRST banner was removed 2026-07-31, issue #51: 6+ repetitions
+#      plus two guard triggers still didn't stop a 7th claim-skip, because a banner in
+#      SessionStart context is (a) ignorable and (b) never seen by subagents at all —
+#      SessionStart doesn't fire for subagents. Claiming is now handled mechanically by
+#      guard.sh rule A, which AUTO-claims a still-todo issue for this device the moment
+#      it's opened with `gh issue view`, needing no model cooperation. The inbox listing
+#      stays — it's how a session sees what's waiting.)
 # Output is injected as SessionStart additionalContext. Fails OPEN throughout
 # (always exit 0): a missing gh/jq, an offline network, or a non-ff pull must
 # never block the session from starting. The hostname->label map is kept in
@@ -55,35 +57,10 @@ labels="$(ds_device_labels 2>/dev/null)"
 if [ -z "$labels" ]; then
   out+="No device:* label mapped for host '$host'. Add a block to CLAUDE-CHECKIN.md and a case to .claude/hooks/checkin.sh before working."$'\n'
 elif command -v gh >/dev/null 2>&1; then
-  todo_cmds=""
   for l in $labels; do
     inbox="$(gh issue list --state open --label "device:$l" 2>&1)"
     out+="== inbox: device:$l =="$'\n'"$inbox"$'\n\n'
-    # Collect the still-unclaimed (status:todo) issues for the CLAIM-FIRST banner
-    # below. gh ANDs multiple --label filters, so this is exactly "this device's
-    # todo issues". A per-issue claim line is prebuilt so it's copy-paste ready.
-    todos="$(gh issue list --state open --label "device:$l" --label "status:todo" \
-              --json number,title -q '.[] | "#\(.number) \(.title)"' 2>/dev/null)"
-    while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      num="${line%% *}"; num="${num#\#}"
-      todo_cmds+="  gh issue edit $num --remove-label status:todo --add-label status:in-progress   # $line"$'\n'
-    done <<EOF
-$todos
-EOF
   done
-  if [ -n "$todo_cmds" ]; then
-    out+="################  CLAIM BEFORE YOU WORK  ################"$'\n'
-    out+="The issue(s) below are still status:todo (UNCLAIMED). The MOMENT you begin any"$'\n'
-    out+="work on one — before reading its body in depth, before any Edit/Write/Bash toward"$'\n'
-    out+="it — flip it to status:in-progress. An issue left in status:todo while you work"$'\n'
-    out+="looks unclaimed and another device may pick it up. This is device-comms.md"$'\n'
-    out+="\"Working an issue\" step 1; the progression is todo -> in-progress -> review,"$'\n'
-    out+="and in-progress must be set even for a task you finish in one sitting. Run the"$'\n'
-    out+="matching line FIRST:"$'\n'
-    out+="$todo_cmds"
-    out+="########################################################"$'\n\n'
-  fi
 else
   out+="gh not on PATH — check the inbox manually: gh issue list --state open --label device:<label>"$'\n'
 fi

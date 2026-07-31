@@ -19,18 +19,30 @@
 #      layout.md. Prose in layout.md alone failed to stop two fresh EFM builds from
 #      landing at the cramped NiFi pitch (2026-07-30, issue #47).
 #
-# Claim-before-work rules (A+B) — enforce the claim at the moment work STARTS.
-# Rule #4 only caught the skip at report-back time (todo->review) and was blind to
-# planning sessions that never mark review; Steven has ESC'd this 6+ times.
-#   A. Opening a still-todo issue for THIS device (`gh issue view N`) asks you to
-#      claim it first and records N in a claim-pending marker file.
-#      The claim command (`gh issue edit N ... status:in-progress`) clears N.
+# Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
+# Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
+# failed 7x to make a session claim before working, because every one of them
+# ultimately asked the MODEL to run the claim, and:
+#   - a PreToolUse "ask" reason is shown only in the human prompt, never injected
+#     into the model's context (so the model was never actually told), and
+#   - under a low-friction permission mode the "ask" is auto-resolved with no human,
+#     and `gh issue *` is allow-listed, so the ask was silently swallowed anyway.
+# The fix removes the model from the loop:
+#   A. Opening a still-todo issue for THIS device (`gh issue view N`) — the hook
+#      AUTO-CLAIMS it: it runs `gh issue edit N ... status:in-progress` ITSELF and
+#      injects `additionalContext` telling the model it was claimed. No model
+#      cooperation required, so no device can ignore it. Fires in plan mode and in
+#      subagents (both fire PreToolUse), which is where the 7th skip happened.
+#      If the auto-claim gh call fails (offline/perms), it falls back to recording N
+#      in the claim-pending marker and asking — the old behavior as a backstop only.
 #   B. An Edit/Write while the marker is non-empty asks you to claim the issue(s)
-#      you opened but never flipped. checkin.sh clears stale markers at session start.
+#      you opened but auto-claim couldn't flip. checkin.sh clears stale markers at start.
+# All issue-number extraction goes through ds_issue_numbers (lib-device.sh) so the
+# `head -1` truncation (only the first issue in a chained command was seen) can't recur.
 #
-# On a match it returns permissionDecision "ask" so the user is prompted with the
-# reason. Non-matching calls pass through. Fails open (exit 0) throughout so a
-# missing jq/gh never blocks all tool use.
+# On a match it returns permissionDecision "ask" (hazard rules) or injects
+# additionalContext (auto-claim). Non-matching calls pass through. Fails open
+# (exit 0) throughout so a missing jq/gh never blocks all tool use.
 
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -46,22 +58,32 @@ marker=""
 command -v ds_claim_marker >/dev/null 2>&1 && marker="$(ds_claim_marker)"
 
 emit_ask() {
-  # $1 = reason string
+  # $1 = reason string. Shown in the permission prompt; blocks pending a decision.
   jq -nc --arg r "$1" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0
 }
 
+emit_ctx() {
+  # $1 = message. Allow the call (no prompt) but inject the message into the model's
+  # context via additionalContext — the one field guaranteed to reach the model
+  # regardless of permission mode or allow-list (unlike an "ask" reason). Used by
+  # auto-claim so the model learns the label was flipped for it.
+  jq -nc --arg r "$1" \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r,additionalContext:$r}}'
+  exit 0
+}
+
 # ---- Rule B: edit/write while a claim is still pending ----
 # Edit-family tools carry no .command, so the Bash rules below never apply to them;
-# handle them here and exit. The marker is only ever non-empty after rule A saw an
-# unclaimed issue being opened this session, so this cannot false-positive on an
+# handle them here and exit. The marker is only ever non-empty after auto-claim (rule
+# A) FAILED to flip an issue this session, so this cannot false-positive on an
 # unrelated session (checkin.sh clears stale markers at start).
 case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
     if [ -n "$marker" ] && [ -s "$marker" ]; then
       nums="$(paste -sd, "$marker" 2>/dev/null | sed 's/,/, #/g')"
-      emit_ask "You opened issue #$nums earlier but never claimed it, and you're now editing files toward the work. device-comms.md: claim BEFORE working (ESC'd 6+ times). Flip it first: gh issue edit <n> --remove-label status:todo --add-label status:in-progress"
+      emit_ask "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Flip it manually: gh issue edit <n> --remove-label status:todo --add-label status:in-progress"
     fi
     exit 0
     ;;
@@ -71,20 +93,21 @@ esac
 [ "$tool" = "Bash" ] || exit 0
 [ -z "$cmd" ] && exit 0
 
-# ---- Rule A / claim-clear: running the claim command clears the issue from the
-#      marker. Handle first so the claim itself is never second-guessed. It cannot
-#      trip rules 1-4 (it's a gh issue edit to in-progress, not review/done). ----
+# ---- claim-clear: a manual claim command clears those issues from the marker.
+#      Handle first so a manual claim is never second-guessed. It cannot trip rules
+#      1-4 (it's a gh issue edit to in-progress, not review/done). Loops ALL issue
+#      numbers via the shared helper (no head -1 truncation). ----
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
    && printf '%s' "$cmd" | grep -Eq 'status:in-progress'; then
-  n="$(printf '%s' "$cmd" | grep -oE 'gh +issue +edit +[0-9]+' | grep -oE '[0-9]+' | head -1)"
-  if [ -n "$n" ] && [ -n "$marker" ] && [ -f "$marker" ]; then
-    if grep -vxF "$n" "$marker" > "$marker.tmp" 2>/dev/null; then
-      mv "$marker.tmp" "$marker" 2>/dev/null || rm -f "$marker.tmp" 2>/dev/null
-    else
-      # grep -v matched nothing left (file becomes empty) or errored; normalize.
-      rm -f "$marker.tmp" 2>/dev/null
-      : > "$marker" 2>/dev/null || true
-    fi
+  if [ -n "$marker" ] && [ -f "$marker" ]; then
+    for n in $(ds_issue_numbers "$cmd" edit); do
+      if grep -vxF "$n" "$marker" > "$marker.tmp" 2>/dev/null; then
+        mv "$marker.tmp" "$marker" 2>/dev/null || rm -f "$marker.tmp" 2>/dev/null
+      else
+        rm -f "$marker.tmp" 2>/dev/null
+        : > "$marker" 2>/dev/null || true
+      fi
+    done
   fi
   exit 0
 fi
@@ -111,17 +134,18 @@ fi
 # the todo->review jump (the progression is todo -> in-progress -> review, and
 # in-progress must be set even for a one-sitting task). If a `gh issue edit` adds
 # status:review or status:done to an issue that STILL carries status:todo, the claim
-# step was skipped — ask. The gh label lookup only runs on this rare transition and
-# fails open (no gh / offline -> empty -> passes through).
+# step was skipped — ask. Loops ALL issue numbers (no head -1 truncation). The gh
+# label lookup only runs on this rare transition and fails open (no gh / offline).
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
    && printf '%s' "$cmd" | grep -Eq -- '--add-label' \
    && printf '%s' "$cmd" | grep -Eq 'status:(review|done)'; then
-  n="$(printf '%s' "$cmd" | grep -oE 'gh +issue +edit +[0-9]+' | grep -oE '[0-9]+' | head -1)"
-  if [ -n "$n" ] && command -v gh >/dev/null 2>&1; then
-    cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
-    if printf '%s' "$cur" | grep -q 'status:todo'; then
-      emit_ask "Issue #$n is being marked review/done but still carries status:todo — it was never claimed as status:in-progress. device-comms.md forbids the todo->review jump (todo -> in-progress -> review). Claim it first: gh issue edit $n --remove-label status:todo --add-label status:in-progress"
-    fi
+  if command -v gh >/dev/null 2>&1; then
+    for n in $(ds_issue_numbers "$cmd" edit); do
+      cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
+      if printf '%s' "$cur" | grep -q 'status:todo'; then
+        emit_ask "Issue #$n is being marked review/done but still carries status:todo — it was never claimed as status:in-progress. device-comms.md forbids the todo->review jump (todo -> in-progress -> review). Claim it first: gh issue edit $n --remove-label status:todo --add-label status:in-progress"
+      fi
+    done
   fi
 fi
 
@@ -140,27 +164,36 @@ if printf '%s' "$cmd" | grep -Eq '/processors\b' \
   emit_ask "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. BEFORE approving, state out loud: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If this is a read (GET) or the numbers already match layout.md, approve."
 fi
 
-# A. Opening a still-todo issue that belongs to THIS device. `gh issue view N` is
-# the tell that the model is engaging a specific issue; if it's still status:todo
-# for one of this host's device labels, claim it first. The gh lookup only runs on
-# this rare match (never on `gh issue list`), so the common Bash path pays nothing.
-if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+'; then
-  n="$(printf '%s' "$cmd" | grep -oE 'gh +issue +view +[0-9]+' | grep -oE '[0-9]+' | head -1)"
-  if [ -n "$n" ] && command -v gh >/dev/null 2>&1; then
+# A. Auto-claim on view. `gh issue view N` is the tell that the model is engaging a
+# specific issue; if it's still status:todo for one of this host's device labels, the
+# hook claims it ITSELF (runs gh issue edit) rather than asking the model to. Loops
+# ALL issue numbers in the command. The gh lookups only run on this rare match (never
+# on `gh issue list`), so the common Bash path pays nothing. Fails open.
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/dev/null 2>&1; then
+  claimed=""; failed=""
+  for n in $(ds_issue_numbers "$cmd" view); do
     lbls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
-    if printf '%s' "$lbls" | grep -q 'status:todo'; then
-      mine=""
-      for l in $(ds_device_labels 2>/dev/null); do
-        [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && mine=1
-      done
-      if [ -n "$mine" ]; then
-        if [ -n "$marker" ]; then
-          mkdir -p "$(dirname "$marker")" 2>/dev/null || true
-          grep -qxF "$n" "$marker" 2>/dev/null || echo "$n" >> "$marker"
-        fi
-        emit_ask "Issue #$n is still status:todo for this device and you're opening it — claim it BEFORE working it (device-comms.md 'Working an issue' step 1; ESC'd 6+ times). Run this FIRST: gh issue edit $n --remove-label status:todo --add-label status:in-progress"
+    printf '%s' "$lbls" | grep -q 'status:todo' || continue   # only unclaimed issues
+    mine=""
+    for l in $(ds_device_labels 2>/dev/null); do
+      [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && mine=1
+    done
+    [ -n "$mine" ] || continue                                # only this device's issues
+    if gh issue edit "$n" --remove-label status:todo --add-label status:in-progress >/dev/null 2>&1; then
+      claimed="$claimed #$n"
+    else
+      failed="$failed #$n"
+      if [ -n "$marker" ]; then
+        mkdir -p "$(dirname "$marker")" 2>/dev/null || true
+        grep -qxF "$n" "$marker" 2>/dev/null || echo "$n" >> "$marker"
       fi
     fi
+  done
+  if [ -n "$claimed" ] || [ -n "$failed" ]; then
+    msg="Auto-claim guard (device-comms.md 'Working an issue' step 1):"
+    [ -n "$claimed" ] && msg="$msg flipped$claimed to status:in-progress for this device on open — claiming is now AUTOMATIC, you do NOT need to run gh issue edit to claim these."
+    [ -n "$failed" ] && msg="$msg could NOT auto-claim$failed (gh edit failed — offline or perms); claim manually before any Edit/Write: gh issue edit <n> --remove-label status:todo --add-label status:in-progress."
+    emit_ctx "$msg"
   fi
 fi
 

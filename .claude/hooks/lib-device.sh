@@ -29,3 +29,16 @@ ds_device_labels() {
 ds_claim_marker() {
   echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.claim-pending"
 }
+
+# Echo EVERY issue number in a command string that follows `gh issue <verb>`,
+# one per line, deduped in first-seen order. $1 = command string, $2 = verb regex
+# (e.g. 'view' or 'edit'). Single source of truth so guard.sh never re-implements
+# the extraction per site — the `head -1` bug (issue #51: only the first issue in a
+# chained command was ever seen) came from three copy-pasted extractions that each
+# truncated. Loop over this instead.
+ds_issue_numbers() {
+  printf '%s' "$1" \
+    | grep -oE "gh +issue +${2} +[0-9]+" \
+    | grep -oE '[0-9]+' \
+    | awk '!seen[$0]++'
+}

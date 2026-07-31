@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh\"",
-            "timeout": 10,
+            "timeout": 20,
             "statusMessage": "Checking deploy/commit/claim guard"
           }
         ]
