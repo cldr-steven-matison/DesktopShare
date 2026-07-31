@@ -13,6 +13,8 @@ tags:
   - cloudera
   - kubernetes
   - python
+header:
+  image: /images/how_to_ai_and_minifi_python.png
 ---
 
 The companion post to this one, "How to AI with NiFi and Python," runs Python inference *inside* NiFi on a Kubernetes cluster with room to spare. This post is the opposite end of the wire: a MiNiFi agent on a small edge box — a Beelink mini PC, a Windows desktop, a Jetson, a bare Kubernetes pod — that has no business hosting a model but still needs to do AI work. The trick is that the agent almost never runs the model itself. It routes, it transforms, it enrolls, and it ships results back over Kafka. Everything below is the *using* side of Edge Flow Manager: how you drive AI flows onto agents you've already stood up. Every flow, port, and processor name here is field-verified against a live EFM `2.3.1.0-2` and MiNiFi C++ `1.26.02` agents.
