@@ -269,6 +269,72 @@ series come back, labeled with the actual flow's connection names (`ExecuteScrip
 instance Grafana's datasource already points at, so no separate Grafana-side wiring was needed —
 any panel built against this Prometheus can already query `job="windowsdesktopcpp-minifi-metrics"`.
 
+## 6. NvidiaNano MiNiFi Layer 2 metrics — same external-target pattern, wired and confirmed live (2026-07-31, issue #49)
+
+Same shape as §5, targeting the Jetson's own C++ agent publisher instead of the Windows one:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nvidianano-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidianano-minifi-metrics
+spec:
+  ports:
+    - name: prometheus
+      port: 9936
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nvidianano-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidianano-minifi-metrics
+subsets:
+  - addresses:
+      - ip: 192.168.1.197   # Jetson LAN IP per CLAUDE-CHECKIN.md
+    ports:
+      - name: prometheus
+        port: 9936
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidianano-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+  selector:
+    matchLabels:
+      app: nvidianano-minifi-metrics
+```
+
+Before applying: confirmed reachability with a throwaway `curlimages/curl` pod (`kubectl run curltest-nvidianano --rm -i --restart=Never -n cld-streaming --image=curlimages/curl -- curl -sv --max-time 8 http://192.168.1.197:9936/metrics`) — got real `minifi_*` Prometheus text back (`minifi_physical_mem`, `minifi_cpu_utilization`, per-processor `minifi_processing_nanos` for the Jetson's `ExecuteScript`/`ListenHTTP`/`PublishKafka` processors, etc.), so no firewall block on this port from WindowsDesktop's side — the `.197` IP is confirmed correct (`.195` in [nvidianano-minifi-ops.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/completed/nvidianano-minifi-ops.md) is stale, cross-ref [issue #46](https://github.com/cldr-steven-matison/DesktopShare/issues/46) which owns that correction, not fixed here).
+
+After applying: confirmed via the Prometheus API (temporary port-forward to `svc/prometheus-kube-prometheus-prometheus`, torn down after verification):
+
+```
+$ curl -s --data-urlencode 'query=up{job="nvidianano-minifi-metrics"}' http://localhost:9490/api/v1/query
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{
+  "__name__":"up","endpoint":"prometheus","instance":"192.168.1.197:9936",
+  "job":"nvidianano-minifi-metrics","namespace":"cld-streaming",
+  "service":"nvidianano-minifi-metrics"},"value":[...,"1"]}]}}
+```
+
+`up{job="nvidianano-minifi-metrics"}=1`. Same scope as §5 — no saved Grafana dashboard/panel built this pass, just confirmed Prometheus-queryable (matches the WindowsDesktopCpp precedent). No new port-forward pane added to `kube-service-ports-efm.kdl`.
+
+Java Layer 2 remains explicitly out of scope — conclusively platform-blocked, closed in issue #41.
+
 ## Scope note vs. the issue text
 
 Issue #19 said "install into a `monitoring` namespace"; the actual field-tested reference (the
@@ -286,6 +352,7 @@ convention, and is what "model it on the reference docs" meant in practice.
 | Kafka (CSM, Strimzi) | `cld-streaming` | — | 🔲 not wired — needs broker restart, fresh ask |
 | Flink (CSA/SSB) | `cld-streaming` | — | N/A — no active job to scrape |
 | MiNiFi C++ (`WindowsDesktopCpp`, issue #20) | `cld-streaming` (external target) | `windowsdesktopcpp-minifi-metrics` | ✅ `up=1`, real `minifi_*` series confirmed queryable |
+| MiNiFi C++ (`NvidiaNano`, issue #49) | `cld-streaming` (external target) | `nvidianano-minifi-metrics` | ✅ `up=1`, real `minifi_*` series confirmed queryable (2026-07-31) |
 
 Grafana reachable at `kubectl get svc prometheus-grafana -n cld-streaming` (ClusterIP by default
 on this install — no LoadBalancer/NodePort was requested, so it's `kubectl port-forward` or

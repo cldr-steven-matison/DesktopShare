@@ -54,6 +54,43 @@ exists specifically because an earlier build (`KubernetesPodPyTest`, 2026-07-29)
 class of mistake for a different reason (200 row pitch instead of EFM Designer's required 300).
 Full incident writeup and the ask for a process fix: issue #47.
 
+## Rebuilt 2026-07-31 (issue #48) — correct pitch this time
+
+The rollback deleted everything (classes, agent records, pods) — this was a full redeploy, not a
+lighter flow-only edit. Both `minifi-test-efm-cpp.yaml` / `minifi-test-efm-java.yaml` were
+reapplied as-is (only the flow layout was ever the defect), both agents came back `ONLINE` in EFM
+(`PlaygroundCpp` / `PlaygroundJava` classes re-registered automatically on the agent-deployer's
+first heartbeat), and the same `GenerateFlowFile (10 sec, Custom Text) → LogAttribute` shape was
+rebuilt on each — this time at the EFM-Designer-correct pitch: `GenerateFlowFile` at `(0, 0)`,
+`LogAttribute` at `(0, 300)` (row pitch 300, vertical chain, per `layout.md`'s own worked example
+for this exact 2-processor case).
+
+**Real API route found this pass, corrected from the doc's shorthand:** the actual working
+endpoint is `POST /efm/api/designer/flows/{flowId}/process-groups/{pgId}/processors` — both the
+`flowId` *and* the `pgId` are required in the path (a `pgId`-only path 404s with a generic "No
+static resource" Spring fallback, which looks like an auth/routing problem rather than a wrong
+URL). Same pattern for `/connections`. `minifi-efm.md` §7 was written with the `pgId`-only
+shorthand; worth a follow-up doc fix, not done as part of this issue.
+
+**Verified both ways, not just one:**
+- **Functional:** both pods' `minifi-app.log` show real, repeating `LogAttribute` output on the
+  ~10s schedule (`PlaygroundCpp Level 2 heartbeat` / `PlaygroundJava Level 2 heartbeat` in the
+  flowfile content), `validationErrors: []` on both publishes.
+- **Layout (the actual point of the rebuild):** queried each flow's live processor positions
+  after publish — `GenerateFlowFile {x:0,y:0}`, `LogAttribute {x:0,y:300}` on both flavors,
+  confirmed via API, not just assumed from the create-call payload.
+
+Flow JSON re-exported (via `GET /efm/api/designer/flows/{id}`, no separate "download" endpoint
+exists for EFM Designer flows — that's the NiFi REST API's pattern, not this one's) to
+[`files/efm/PlaygroundCpp.json`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/efm/PlaygroundCpp.json)
+and
+[`files/efm/PlaygroundJava.json`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/efm/PlaygroundJava.json),
+checked for credential leakage before committing (none found).
+
+This clears the functional + pitch-correctness bar. A human visual tidy pass in the Designer UI
+may still improve it further — not claiming "visually polished," only that the specific defect
+from #47 (the sideways `(0,0)→(400,0)` shape) is fixed and verified.
+
 ## Reused patterns, not reinvented
 
 - Bare-pod agent-deployer bootstrap (apt-get prerequisites + curl `agent-deployer/script` + `tail -f

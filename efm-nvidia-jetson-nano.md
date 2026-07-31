@@ -62,8 +62,19 @@ kubectl wait --for=condition=ready pod -l app=efm -n cld-streaming --timeout=120
 kubectl logs -n cld-streaming -l app=efm --tail=50 | grep -Ei 'started|listen|efm/ui'
 ```
 
-:hammer_and_wrench: **Field capture pending (WindowsDesktop).** The real startup banner — the hosted `…/efm/ui` URL EFM prints once it's up — gets captured on the device where EFM actually runs; the authoring Mac has no EFM pod. Routed as a `device:WindowsDesktop` follow-up.
-{: .notice--warning}
+**Field-captured on WindowsDesktop** (the host running the live EFM pod) — the real startup banner, `grep`'d for the boot milestones and the hosted URL line:
+
+```
+2026-07-30T14:11:49.749Z  INFO ... com.cloudera.cem.efm.C2Application       : Starting C2Application v2.3.1.0-2 using Java 21.0.4 with PID 25 (/opt/efm/efm-2.3.1.0-2/lib/efm.jar started by root in /opt/efm/efm-2.3.1.0-2)
+2026-07-30T14:12:42.842Z  INFO ... o.e.jetty.server.handler.ContextHandler  : Started osbwej.JettyEmbeddedWebAppContext@62371858{efm,/efm,...,a=AVAILABLE,...}
+2026-07-30T14:14:25.920Z  INFO ... o.e.jetty.server.AbstractConnector       : Started ServerConnector@1651130b{HTTP/1.1, (http/1.1)}{0.0.0.0:10090}
+2026-07-30T14:14:25.922Z  INFO ... o.s.b.web.embedded.jetty.JettyWebServer  : Jetty started on port 10090 (http/1.1) with context path '/efm'
+2026-07-30T14:14:26.523Z  INFO ... com.cloudera.cem.efm.C2Application       : Started C2Application in 165.571 seconds (process running for 171.454)
+2026-07-30T14:14:26.825Z  INFO ... com.cloudera.cem.efm.C2Application       : The Edge Flow Manager has started. Services available at the following URLs:
+2026-07-30T14:14:26.826Z  INFO ... com.cloudera.cem.efm.C2Application       : >>> Access User Interface: http://0.0.0.0:10090/efm/ui
+```
+
+(Note: on a long-lived EFM pod, `--tail=50` stops reaching this far back — widen it, e.g. `--tail=1000`, rather than restarting EFM just to refresh the banner.)
 
 ### Expose EFM for Easy Access
 
@@ -77,8 +88,8 @@ Open that URL in your browser — you should land on the EFM login screen.
 
 Now create a class so you can reach the **Deploy Agent CLI** screen and confirm every binary you installed shows up in the version dropdowns.
 
-:camera: **Screenshot pending (WindowsDesktop).** The Deploy-Agent screen with the Java/C++ binary version dropdowns — captured on the host running the EFM UI. Routed as a `device:WindowsDesktop` follow-up.
-{: .notice--info}
+:camera: **Screenshot still needed — manual capture, no GUI/browser automation available in this session.** The Deploy-Agent CLI screen with the Java/C++ binary version dropdowns expanded, at `http://127.0.0.1:10090/efm/ui`. Needs a human at the console.
+{: .notice--warning}
 
 **Two ways to reach EFM, and they are not interchangeable.** `minikube tunnel` gives a stable, consistent URL — `http://127.0.0.1:10090/efm/ui` never changes, so it's what I use from the host itself and in every command in this post. But the Jetson is a separate box on the LAN and can't reach the host's `127.0.0.1`. To enroll an agent *from the Jetson*, EFM has to be exposed on the host's LAN IP (`gaming-pc-lan-ip`) instead. On Windows the quick `minikube service` route works but hands you a **random** NodePort and drops you at the bare host, so you have to append `/efm/ui/` to the browser URL yourself. So: tunnel for the stable local URL, host LAN IP for the off-box Jetson. The agent-deployer curl commands below use whichever base URL matches where the agent runs — `127.0.0.1:10090` for the in-cluster pod, `gaming-pc-lan-ip:10090` for the Jetson.
 
@@ -282,13 +293,21 @@ kubectl logs minifi-agent-k8s -n cld-streaming -f
 kubectl exec -it minifi-agent-k8s -n cld-streaming -- tail -f /nifi-minifi-cpp-1.26.02/logs/minifi-app.log
 ```
 
-:hammer_and_wrench: **Field capture pending (WindowsDesktop).** The expected `minifi-app.log` tail from the in-cluster agent — the C2 heartbeat lines showing it reached `efm.cld-streaming.svc:10090` and registered — goes here, captured where the minikube cluster runs. Routed as a `device:WindowsDesktop` follow-up.
-{: .notice--warning}
+**Field-captured on WindowsDesktop**, from the live `minifi-agent-k8s-gaming` pod (`kubectl exec -n cld-streaming minifi-agent-k8s-gaming -- tail /nifi-minifi-cpp-1.26.02/logs/minifi-app.log`):
+
+```
+[2026-07-30 14:13:11.483] [...HTTPClient] [error] curl_easy_perform() failed Could not connect to server on http://efm.cld-streaming.svc:10090/efm/api/c2-protocol/heartbeat, error code 7
+... (repeats every ~5s until EFM finishes its own startup, see the banner above)
+[2026-07-30 14:14:21.510] [...HTTPClient] [error] curl_easy_perform() failed ... error code 7
+[2026-07-30 19:14:53.249] [org::apache::nifi::minifi::processors::ListenHTTP] [warning] ListenHTTP buffer is NOT full 1/1, 'POST' request for '/streamChatListener' uri was dropped
+```
+
+Honest caveat: this build only logs *failed* C2 heartbeats at this level — a successful heartbeat isn't logged, so there's no "registered!" line to paste here even though the agent is in fact connected. What the log does prove: the agent retried against EFM every 5s while EFM was mid-startup (matches the startup banner's timestamps above), then went quiet once EFM came up — consistent with the heartbeat succeeding silently from then on. The actual live-connection proof is the EFM dashboard screenshot below, which is what actually reports current C2 status.
 
 Within a few minutes MiNiFi should be running in the pod and the agent should appear in the `KubernetesPod` class in the EFM dashboard. Win!
 
-:camera: **Screenshot pending (WindowsDesktop).** The `KubernetesPod` class row in EFM → Monitor → Agents with the enrolled agent.
-{: .notice--info}
+:camera: **Screenshot still needed — manual capture, no GUI/browser automation available in this session.** The `KubernetesPod` class row in EFM → Monitor → Agents (`http://127.0.0.1:10090/efm/ui`), showing the enrolled `minifi-agent-k8s-gaming` agent Online. This session has no screenshot/browser-automation tooling (checked: no `scrot`/`gnome-screenshot`, no `playwright`, no repo convention for automated capture) — needs a human at the console.
+{: .notice--warning}
 
 ### 3. Deploy the MiNiFi C++ Agent on the Jetson Orin Nano
 

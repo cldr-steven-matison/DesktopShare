@@ -1,0 +1,282 @@
+{
+  "flowMetadata": {
+    "identifier": "639f437a-c15b-4035-b6b5-6acc6c508eb2",
+    "agentClass": "PlaygroundCpp",
+    "rootProcessGroupIdentifier": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e",
+    "created": 1785501959469,
+    "updated": 1785502648356,
+    "undoEnabled": false,
+    "redoEnabled": false
+  },
+  "flowContent": {
+    "identifier": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e",
+    "instanceIdentifier": "20799835-aca5-49fc-8565-c30def84800e",
+    "name": "root",
+    "comments": null,
+    "position": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "processGroups": [],
+    "remoteProcessGroups": [],
+    "processors": [
+      {
+        "identifier": "3bb65f31-f1f4-4a97-9592-e41c29ec910c",
+        "instanceIdentifier": "de1c2974-ae2a-4ed9-87ff-3e3f5c3ae864",
+        "name": "GenerateFlowFile",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "type": "org.apache.nifi.minifi.processors.GenerateFlowFile",
+        "bundle": {
+          "group": "org.apache.nifi.minifi",
+          "artifact": "minifi-standard-processors",
+          "version": "1.26.02"
+        },
+        "properties": {
+          "File Size": "0B",
+          "Batch Size": "1",
+          "Unique FlowFiles": "false",
+          "Custom Text": "PlaygroundCpp Level 2 heartbeat",
+          "Data Format": "Text"
+        },
+        "propertyDescriptors": {
+          "File Size": {
+            "name": "File Size",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Batch Size": {
+            "name": "Batch Size",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Unique FlowFiles": {
+            "name": "Unique FlowFiles",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Custom Text": {
+            "name": "Custom Text",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Data Format": {
+            "name": "Data Format",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "10 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e"
+      },
+      {
+        "identifier": "d71b3103-6769-4855-88e6-ce1eac5e9322",
+        "instanceIdentifier": "f5c840a8-ab40-41c4-a4f9-2a9e0f9c833a",
+        "name": "LogAttribute",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 300.0
+        },
+        "type": "org.apache.nifi.minifi.processors.LogAttribute",
+        "bundle": {
+          "group": "org.apache.nifi.minifi",
+          "artifact": "minifi-standard-processors",
+          "version": "1.26.02"
+        },
+        "properties": {
+          "FlowFiles To Log": "1",
+          "Log Level": null,
+          "Attributes to Ignore": null,
+          "Attributes to Log": null,
+          "Log Payload": "false",
+          "Log Prefix": null,
+          "Hexencode Payload": "false",
+          "Maximum Payload Line Length": "0"
+        },
+        "propertyDescriptors": {
+          "FlowFiles To Log": {
+            "name": "FlowFiles To Log",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Log Level": {
+            "name": "Log Level",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Attributes to Ignore": {
+            "name": "Attributes to Ignore",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Attributes to Log": {
+            "name": "Attributes to Log",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Log Payload": {
+            "name": "Log Payload",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Log Prefix": {
+            "name": "Log Prefix",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Hexencode Payload": {
+            "name": "Hexencode Payload",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Maximum Payload Line Length": {
+            "name": "Maximum Payload Line Length",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "1000 ms",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e"
+      }
+    ],
+    "inputPorts": [],
+    "outputPorts": [],
+    "connections": [
+      {
+        "identifier": "ac9f639b-6f40-47e0-990d-509dfb04809c",
+        "instanceIdentifier": "087bace8-d780-4940-a175-0158fe2f7f6a",
+        "name": "GenerateFlowFile/success/LogAttribute",
+        "comments": null,
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "source": {
+          "id": "3bb65f31-f1f4-4a97-9592-e41c29ec910c",
+          "type": "PROCESSOR",
+          "groupId": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e",
+          "name": "GenerateFlowFile",
+          "comments": null,
+          "instanceIdentifier": "de1c2974-ae2a-4ed9-87ff-3e3f5c3ae864"
+        },
+        "destination": {
+          "id": "d71b3103-6769-4855-88e6-ce1eac5e9322",
+          "type": "PROCESSOR",
+          "groupId": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e",
+          "name": "LogAttribute",
+          "comments": null,
+          "instanceIdentifier": "f5c840a8-ab40-41c4-a4f9-2a9e0f9c833a"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 2000,
+        "backPressureDataSizeThreshold": "100 MB",
+        "flowFileExpiration": "0 seconds",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": null,
+        "partitioningAttribute": null,
+        "loadBalanceCompression": null,
+        "componentType": "CONNECTION",
+        "groupIdentifier": "0115adc8-6b62-40c4-89a7-a8c68a9ec19e"
+      }
+    ],
+    "labels": [],
+    "funnels": [],
+    "controllerServices": [],
+    "versionedFlowCoordinates": null,
+    "variables": {},
+    "parameterContextName": "f0fa529b-7d23-41e0-84a0-1830d01fba0d",
+    "defaultFlowFileExpiration": null,
+    "defaultBackPressureObjectThreshold": null,
+    "defaultBackPressureDataSizeThreshold": null,
+    "logFileSuffix": null,
+    "flowFileConcurrency": null,
+    "flowFileOutboundPolicy": null,
+    "componentType": "PROCESS_GROUP",
+    "groupIdentifier": null
+  },
+  "parameterContexts": [
+    {
+      "id": "f0fa529b-7d23-41e0-84a0-1830d01fba0d",
+      "name": "f0fa529b-7d23-41e0-84a0-1830d01fba0d",
+      "parameters": [],
+      "usage": null
+    }
+  ],
+  "versionInfo": {
+    "flowVersion": 1,
+    "lastPublished": 1785502647756,
+    "lastPublishedBy": "anonymous",
+    "dirty": false,
+    "localChanges": false
+  },
+  "localFlowRevision": 4
+}
