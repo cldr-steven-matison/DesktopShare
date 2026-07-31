@@ -88,8 +88,11 @@ Open that URL in your browser — you should land on the EFM login screen.
 
 Now create a class so you can reach the **Deploy Agent CLI** screen and confirm every binary you installed shows up in the version dropdowns.
 
-:camera: **Screenshot still needed — manual capture, no GUI/browser automation available in this session.** The Deploy-Agent CLI screen with the Java/C++ binary version dropdowns expanded, at `http://127.0.0.1:10090/efm/ui`. Needs a human at the console.
-{: .notice--warning}
+The **Deploy Agent CLI Command** screen reads its binaries from `agent-deployer/binaries` with the expected folder structure `{agentType}/{osArch}/{agentVersion}` — so every binary you dropped in shows up in the **Agent Version and OS** dropdown. Java offers `v2.24.08.0-19` (linux / windows); C++ offers `v1.26.02` (linux / linuxaarch64 / windows) — the `linuxaarch64` build is the one the Jetson enrolls against.
+
+![Deploy Agent CLI Command — Java binary version dropdown](/images/efm-Deploy-Agent-CLI-1.jpg)
+
+![Deploy Agent CLI Command — C++ binary version dropdown, including the linuxaarch64 build for the Jetson](/images/efm-Deploy-Agent-CLI-2.jpg)
 
 **Two ways to reach EFM, and they are not interchangeable.** `minikube tunnel` gives a stable, consistent URL — `http://127.0.0.1:10090/efm/ui` never changes, so it's what I use from the host itself and in every command in this post. But the Jetson is a separate box on the LAN and can't reach the host's `127.0.0.1`. To enroll an agent *from the Jetson*, EFM has to be exposed on the host's LAN IP (`gaming-pc-lan-ip`) instead. On Windows the quick `minikube service` route works but hands you a **random** NodePort and drops you at the bare host, so you have to append `/efm/ui/` to the browser URL yourself. So: tunnel for the stable local URL, host LAN IP for the off-box Jetson. The agent-deployer curl commands below use whichever base URL matches where the agent runs — `127.0.0.1:10090` for the in-cluster pod, `gaming-pc-lan-ip:10090` for the Jetson.
 
@@ -306,8 +309,9 @@ Honest caveat: this build only logs *failed* C2 heartbeats at this level — a s
 
 Within a few minutes MiNiFi should be running in the pod and the agent should appear in the `KubernetesPod` class in the EFM dashboard. Win!
 
-:camera: **Screenshot still needed — manual capture, no GUI/browser automation available in this session.** The `KubernetesPod` class row in EFM → Monitor → Agents (`http://127.0.0.1:10090/efm/ui`), showing the enrolled `minifi-agent-k8s-gaming` agent Online. This session has no screenshot/browser-automation tooling (checked: no `scrot`/`gnome-screenshot`, no `playwright`, no repo convention for automated capture) — needs a human at the console.
-{: .notice--warning}
+![KubernetesPod class in EFM → Monitor → Agents — Good Health, one agent enrolled](/images/efm-KubernetesPod-Class.jpg)
+
+The `KubernetesPod` class shows **Good Health** with its one in-cluster agent (`minifi-agent-k8s-gaming`) enrolled and reporting.
 
 ### 3. Deploy the MiNiFi C++ Agent on the Jetson Orin Nano
 
@@ -345,8 +349,9 @@ tail -f minifi-1.26.02/logs/minifi-app.log
 
 The agent should appear almost immediately in the EFM UI → **Monitor** → **Agents** under class `NvidiaNano`.
 
-:camera: **Screenshot pending (NvidiaNano).** The `NvidiaNano` class with the enrolled Jetson agent in EFM → Monitor → Agents. Routed as a `device:NvidiaNano` follow-up.
-{: .notice--info}
+![NvidiaNano class in EFM → Monitor → Agents — Good Health, Jetson agent enrolled](/images/efm-NvidiaNano-Class.jpg)
+
+The `NvidiaNano` class shows **Good Health** with the Jetson Orin Nano's C++ agent enrolled and reporting.
 
 ### 5. Deliver Resources to the Agent
 
