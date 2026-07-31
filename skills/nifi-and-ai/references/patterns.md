@@ -15,7 +15,7 @@ This is the standard way to expose a NiFi flow as a synchronous REST endpoint.
 HandleHttpRequest → HandleHttpResponse (200, immediate ack) → …rest of the flow
 ```
 
-That gives fire-and-forget latency for the caller while the real work continues behind it — the same profile as the MiNiFi C++ router below, but by choice rather than by limitation, and reversible per flow when you *do* want to hold the connection and return a real payload. Verify the response actually flushes before the downstream work runs on the agent/version you're targeting (tracked in issue #55).
+That gives fire-and-forget latency for the caller while the real work continues behind it — the same profile as the MiNiFi C++ router below, but by choice rather than by limitation, and reversible per flow when you *do* want to hold the connection and return a real payload. Confirmed on the MiNiFi Java agent (issue #55): a POST returned a real 200 in ~84ms and the FlowFile independently reached the next processor afterward — the response genuinely flushes before downstream work has to finish, not just before it starts.
 
 ## MiNiFi C++ fire-and-forget router
 
