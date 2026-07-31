@@ -433,6 +433,64 @@ then hand to **StarlinkAI** (where the board lives) for on-hardware verify — r
 flow exercising the processor, confirm the implicit ack and real data movement. That StarlinkAI
 verification is a `device:StarlinkAI` follow-up (to file).
 
+## PublishMQTT built + on-hardware registered, 2026-07-31 (`StarlinkAI`, issue #45)
+
+Picked up via [#45](https://github.com/cldr-steven-matison/DesktopShare/issues/45). #26's Mac-side
+pass was eval-only (no clone, no code, per its own report), so the actual implementation happened
+here instead of a hand-off — checked with Steven first, who confirmed writing it on `StarlinkAI`
+directly was fine for this one.
+
+**Built**: `src/processors/publish_mqtt.cpp` on a new `feature/publish-mqtt` branch off
+`xiao-s3-2mb-partition`, pushed to `steven-matison/MicroFi` (not upstream). Minimal ESP32 subset per
+the design spec above — Broker URI, Client ID, Topic, Quality of Service, Username, Password,
+`success` relationship — using ESP-IDF's `esp_mqtt_client_*` API. The client starts lazily on the
+first `on_trigger` call (once Broker URI/Topic are known from `on_configure`); a FlowFile that
+arrives before the broker's `CONNECTED` event lands is logged and dropped rather than retried —
+MicroFi's engine has no session commit/rollback, so a sink that doesn't explicitly transfer a
+FlowFile out loses it regardless. Acceptable for a periodic ingress source (next tick just
+republishes); flagged in the file's own header comment as worth revisiting before production.
+
+**Toolchain surprise**: the PlatformIO `espressif32` platform now resolves to ESP-IDF **6.0.1**,
+which no longer bundles `mqtt` in-tree (`components/mqtt` exists but is an empty stub — component
+manager territory now). Fixed by adding `espressif/mqtt: "*"` to `src/idf_component.yml` (the
+correct registry name — `espressif/esp-mqtt` from the GitHub repo name doesn't exist as a package;
+confirmed via the component registry). Worth remembering if the next processor needs another
+component that used to ship in-tree.
+
+**Build**: `esp32s3-2mb` (this specific XIAO's confirmed-correct env, see the 2026-07-29 field
+validation above) — **Flash 91.1% (1,074,733 / 1,179,648 bytes)**, up from 88.6% pre-MQTT. Still
+fits, but the margin is thin; a future processor may need TLS/OTA trimmed or a bigger partition.
+RAM 36.1%, unchanged.
+
+**Flashed and confirmed on real hardware** (COM5, same unit as the 2026-07-29 validation): boots
+into the previously-persisted `GenerateFlowFile → LogAttribute` flow (LittleFS untouched by a
+reflash, as expected), heartbeats clean (`heartbeat #0 -> 200`), and **the manifest now advertises
+three processors** — `GenerateFlowFile`, `LogAttribute`, `PublishMQTT` — with `PublishMQTT`'s
+property descriptors matching the design spec exactly (`Broker URI`/`Topic` required, `Quality of
+Service` allowable values `0`/`1`/`2`, `Username`/`Password` optional). Confirmed via EFM's API
+(`GET /efm/api/agents/microfi_1`): `state: ONLINE`, `agentManifestHash` matches the new build.
+**Existing `StarlinkAI`-class agent confirmed unaffected**: `GET
+/efm/api/agent-classes/StarlinkAI` unchanged, its agent (`6e6707f3-...`) still `state: ONLINE` in
+EFM, and the Windows `Apache NiFi MiNiFi` service is `Running` — untouched by any of this session's
+changes (a stale `lastSeen` on that agent is a pre-existing condition already tracked by #11/#25,
+not something this session caused).
+
+**Blocked on real data movement**: haven't yet pushed a flow that actually exercises
+`PublishMQTT` (e.g. `GenerateFlowFile → PublishMQTT`), because the XIAO's WiFi join
+(`ATTyjuHfEi`, same LAN as `WindowsDesktop` at `192.168.1.121` — see the 2026-07-29 LAN-direct
+note above) currently has no path to the `SparkPlug` PG's Mosquitto. `CLAUDE-CHECKIN.md` records
+Mosquitto as a plain NodePort (`mqtt` namespace, `1883:32478`) on `WindowsDesktop`'s
+`cld-streaming` cluster (confirmed via `efm-xiao.md`, not the same-named service on `FTF3XR2065`'s
+own local minikube) — unlike EFM/Kafka, it has no `kube-service-ports-efm.kdl` pane exposing it to
+either the LAN IP or Tailscale, and adding one is a `WindowsDesktop`-side change per
+`agent/incident-rules.md`'s port-forward rule. Filed as
+[#52](https://github.com/cldr-steven-matison/DesktopShare/issues/52) (`device:WindowsDesktop`) —
+Steven asked for both the LAN and Tailscale exposure, matching the EFM/Kafka paired-pane pattern.
+Once that lands, resume here: push `GenerateFlowFile → PublishMQTT`, point `Broker URI` at
+whichever address the new pane exposes, and confirm the message actually lands (independent
+`mosquitto_sub` check, not just the firmware's own serial log — same rule `efm-xiao.md` already
+calls out).
+
 ## Can the XIAO run custom Python processors? (eval — 2026-07-31, FTF3XR2065)
 
 Short answer: **not the way NiFi and MiNiFi C++ do it. Custom processors on the XIAO are C++,
