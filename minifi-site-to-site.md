@@ -1,6 +1,6 @@
 # MiNiFi Site-to-Site: the full transport matrix
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 scoped — Ch10 build plan detailed 2026-07-30; live build deferred (blockers below).**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 scoped — Ch10 build plan detailed 2026-07-30; prep advanced 2026-07-31 (apache `SITE_TO_SITE.md` fetched, blocker #6 cleared); live build still deferred (5 blockers remain below).**
 
 Site-to-Site (S2S) is how flow files move between MiNiFi, NiFi, and Cloudera's cloud
 products. Five paths, built local-first then cloud. CDP DataFlow + Data Hub access is
@@ -8,7 +8,22 @@ confirmed, so all five are field-validatable.
 
 ## Reference
 
-- Apache `nifi-minifi-cpp` `SITE_TO_SITE.md` — **not yet fetched into this repo; pull it in as prep.**
+- Apache `nifi-minifi-cpp` `SITE_TO_SITE.md` — **fetched 2026-07-31 into [`files/site-to-site/SITE_TO_SITE.md`](files/site-to-site/SITE_TO_SITE.md)** (verbatim upstream snapshot; source
+  `https://raw.githubusercontent.com/apache/nifi-minifi-cpp/main/SITE_TO_SITE.md`, latest commit
+  touching it `97011df` 2025-10-15 — kept pristine so it can be re-diffed against upstream). What it
+  adds to the Ch10 plan:
+  - **NiFi side:** create input/output ports on the canvas; the MiNiFi RPG references a port by its
+    **instance id** (the port's `instanceIdentifier`, copied from the operation panel or the NiFi
+    `conf` flow JSON) — this is the concrete form of Ch10 build step 1.
+  - **Transports:** confirms S2S supports **RAW TCP and HTTP** — matches this leg's HTTP-over-8443
+    decision; RAW needs its own exposed socket (the reason it's ruled out here).
+  - **Trap, carry to Ch11 (C++):** the two YAML examples spell the RPG key *differently* —
+    `Remote Process Groups` (RAW example) vs `Remote Processing Groups` (HTTP example). The C++
+    strict-YAML parser is picky about this; pin the exact key against the pinned agent version at
+    build time. Output-port→processor connections use the `undefined` source relationship.
+  - Note this upstream doc is the **MiNiFi C++** side of S2S (Ch11); the NiFi-side port/instance-id
+    mechanics apply to Ch10 too, but Ch10's source agent is MiNiFi **Java** (`minifi.properties` +
+    flow definition, not this C++ strict-YAML `Remote Process Groups` block).
 - Apache `nifi-minifi-cpp` `extensions/python/PYTHON.md` (where a path carries Python logic)
 
 ## The five paths
@@ -91,7 +106,7 @@ NiFi web URL; the SSL context handles the secured connection.
 3. **No MiNiFi Java agent exists on FTF3XR2065 yet** — install via the EFM deployer.
 4. **No `minifi-java` image** — blocks option 2 (in-cluster pod) only.
 5. **The NiFi input port + access policy must be created first** — the secured-NiFi identity/policy is the real unknown.
-6. **Apache `SITE_TO_SITE.md` hasn't been fetched into the repo** — pull it in as prep.
+6. ~~**Apache `SITE_TO_SITE.md` hasn't been fetched into the repo** — pull it in as prep.~~ **Resolved 2026-07-31** — fetched verbatim to [`files/site-to-site/SITE_TO_SITE.md`](files/site-to-site/SITE_TO_SITE.md) (see Reference above).
 
 These are why this pass **scopes** Ch10 rather than building it: the live build (and the EFM scale-up /
 any NiFi restart it implies) is a deliberate next step under this parent, not part of this planning pass.
