@@ -491,6 +491,48 @@ whichever address the new pane exposes, and confirm the message actually lands (
 `mosquitto_sub` check, not just the firmware's own serial log — same rule `efm-xiao.md` already
 calls out).
 
+## PublishMQTT real data movement confirmed, 2026-07-31 (`StarlinkAI`, issue #45)
+
+- **EFM Designer never had `PublishMQTT` available to place.** `agent-classes/MicroFi` had no
+  `agent-class-manifest-config` mapping, so the Designer kept resolving the class to its original
+  manifest (`GenerateFlowFile` + `LogAttribute` only) even though the live agent had already
+  registered the newer manifest with `PublishMQTT` — confirmed via `GET
+  /efm/api/agent-classes/MicroFi/manifest-diff` (`newManifestAvailable: true`). Fixed with `POST
+  /efm/api/agent-class-manifest-config` pinning `MicroFi` to the manifest that includes
+  `PublishMQTT`.
+- Built `GenerateFlowFile → PublishMQTT` in the Designer (`Broker URI: mqtt://192.168.1.121:1883`,
+  `Topic: test/sensor/data`, `QoS 0`) and published. Confirmed via live serial (COM5, `usbipd
+  attach --wsl` into the StarlinkAI WSL2 session) that the agent fetched and applied it —
+  **EFM's own `/efm/api/agents/{id}` REST view is unreliable for this**: it froze on a stale
+  snapshot across real heartbeats and a real reboot; live serial is what actually confirmed
+  delivery, consistent with the existing "query Postgres, not the REST heuristics" caution in
+  `references/minifi-efm.md`.
+- **Found a real engine bug in `steven-matison/MicroFi`.** `Session::transfer()`
+  (`src/session.cpp`) matches a relationship name against `bindings_` and returns on the *first*
+  match. A one-relationship, multi-connection fan-out (the pre-existing `GenerateFlowFile →
+  LogAttribute` connection plus the new `→ PublishMQTT` one, both on `success`) silently starves
+  every connection registered after the first — `PublishMQTT` never received a FlowFile as long as
+  `LogAttribute` stayed on the same relationship. Confirmed by inspecting the source directly, not
+  just inferring from logs.
+- **Quick fix applied (not the engine fix):** deleted the `GenerateFlowFile → LogAttribute`
+  connection and the now-orphaned `LogAttribute` node, leaving `GenerateFlowFile → PublishMQTT` as
+  the flow's only connection. Republished; `PublishMQTT` now receives every FlowFile.
+- First retest after that still failed at the transport layer (`transport_base: Failed to open a
+  new connection`, repeated disconnects) even though EFM's own LAN pane (port `10090`) was working
+  fine — isolating the gap to Mosquitto's LAN pane (`192.168.1.121:1883`, added in `#52`)
+  specifically, not general LAN reachability. Steven opened the WindowsDesktop firewall for port
+  `1883`; confirmed working on the next retest.
+- **Real data movement confirmed end-to-end.** Live serial shows `published 32 bytes to
+  'test/sensor/data'` every ~1s; an independent subscriber (Node `mqtt` client against
+  `mqtt://100.68.113.126:1883`, run from `StarlinkAI`, not reading the firmware's own log)
+  received 60 consecutive `MicroFi GenerateFlowFile payload` messages on `test/sensor/data`. XIAO
+  → Mosquitto is proven.
+- **Still outstanding:** `Session::transfer()`'s single-binding-per-relationship limitation is
+  unfixed — only worked around by removing the fan-out. Any flow needing two consumers on one
+  relationship (e.g. bringing `LogAttribute` back alongside `PublishMQTT` for debugging) will hit
+  this again until `transfer()` is patched to keep scanning `bindings_` instead of returning on
+  the first match, followed by a rebuild + reflash.
+
 ## Can the XIAO run custom Python processors? (eval — 2026-07-31, FTF3XR2065)
 
 Short answer: **not the way NiFi and MiNiFi C++ do it. Custom processors on the XIAO are C++,
