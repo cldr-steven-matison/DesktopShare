@@ -148,6 +148,7 @@ Everything below runs in the `cld-streaming` minikube cluster, exposed via `kube
   efm-host-ip  my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc
   ```
   Ports: bootstrap `31623`, broker-0 `31850`, broker-1 `31935`, broker-2 `30336` (external NodePort listener, port 9094 in-cluster).
+- **Mosquitto** (SparkPlug MQTT broker): `mqtt` ns, `svc/mosquitto` — deployed 2026-07-31 ([#53](https://github.com/cldr-steven-matison/DesktopShare/issues/53)), paired LAN+Tailscale panes added to `kube-service-ports-efm.kdl` same day ([#52](https://github.com/cldr-steven-matison/DesktopShare/issues/52)): `tcp://efm-host-ip:1883` / `tcp://gaming-pc-lan-ip:1883`. In-cluster NodePort is also still `1883:32075` if a device needs to hit it directly instead.
 
 **Not yet Tailscale-exposed (LAN/loopback-only today):**
 - vLLM: `http://gaming-pc-lan-ip:8000` — Qwen/Qwen2.5-3B-Instruct (loopback-only port-forward, no `--address` set)
