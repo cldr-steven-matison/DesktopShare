@@ -1,6 +1,6 @@
 # MiNiFi Custom Python Processors
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows direct-placement leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10); Windows MSI EFM-Resources leg proven end-to-end for function-style processors, with two real Windows-specific delivery gotchas found and worked around (2026-07-29, issue #4 item 2). Java py4j framework confirmed structurally present AND loads authored code, but functionally blocked on this agent by a required `nifi.python.command` property that can't currently be set through any live channel (2026-07-29, issue #4 item 3). Remaining: Jetson aarch64 real HW.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows direct-placement leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10); Windows MSI EFM-Resources leg proven end-to-end for function-style processors, with two real Windows-specific delivery gotchas found and worked around (2026-07-29, issue #4 item 2). Java py4j framework confirmed structurally present AND loads authored code, but functionally blocked on this agent by a required `nifi.python.command` property that can't currently be set through any live channel (2026-07-29, issue #4 item 3). Jetson aarch64 real-hardware leg proven end-to-end via the full EFM-managed path (2026-08-01, issue #65). Remaining: Java CEM property-gate workaround, and step 5's Playground packaging.**
 
 Authoring **custom processors in Python** and loading them into a MiNiFi C++ agent at the
 edge — the MiNiFi counterpart to the NiFi 2.x custom Python processors we already run in
@@ -265,15 +265,57 @@ running config off the pod, don't assume the install layout.
 | C++ | Linux arm64 (this k8s test) | FTF3XR2065 local minikube (`device:FTF3XR2065`) — **✅ done, issue #6** |
 | C++ | Linux x86_64 | WindowsDesktop minikube (`device:WindowsDesktop`) — **✅ done, issue #10** |
 | C++ | Windows (MSI, Path D box) | WindowsDesktop (`device:WindowsDesktop`) — **✅ done, issue #4 item 2** |
-| C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via WindowsDesktop SSH) — high-confidence if the arm64 k8s leg passes |
+| C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via WindowsDesktop SSH) — **✅ done, issue #65** |
 | Java | CEM Java agent | WindowsDesktop or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) — **🟡 partial, issue #4 item 3** |
 
-The k8s (arm64 C++) leg (issue #6), k8s (x86_64 C++) leg (issue #10), and Windows MSI C++ leg
-(issue #4 item 2) are all done. Issue #10 additionally closed the gap #6 left open — the full EFM
-Designer build-and-publish path, not a hand-authored local `config.yml`. Issue #4 item 2 repeated
-that same managed-path rigor on the real Windows MSI agent — see the result blocks below. Remaining
-legs: Jetson aarch64 real HW, and Java CEM (structurally confirmed, functionally blocked — see the
-Java-leg section below).
+The k8s (arm64 C++) leg (issue #6), k8s (x86_64 C++) leg (issue #10), Windows MSI C++ leg
+(issue #4 item 2), and the Jetson aarch64 real-HW leg (issue #65) are all done. Issue #10
+additionally closed the gap #6 left open — the full EFM Designer build-and-publish path, not a
+hand-authored local `config.yml`. Issue #4 item 2 repeated that same managed-path rigor on the real
+Windows MSI agent; issue #65 repeated it again on real Jetson hardware — see the result blocks
+below. Remaining: Java CEM (structurally confirmed, functionally blocked — see the Java-leg section
+below).
+
+#### Result — Jetson aarch64 real HW leg (issue #65, 2026-08-01, via WindowsDesktop SSH proxy)
+
+Ran against a **new, disposable throwaway agent** (`NvidiaNanoPyTest`) — a second `nifi-minifi-cpp
+1.26.02` linuxaarch64 install in a user-writable directory (`~/minifi-pytest/`, process-mode, no
+systemd/sudo), fresh `nifi.c2.agent.identifier`, run as `tunastreet` (uid 1000) — never touched the
+live production `NvidiaNano` agent (79-processor manifest, drives real desktop automation: matrix
+screensaver, streamChat launcher, TensorRT `ExecuteScript`).
+
+- **Prereqs confirmed live:** `nifi.asset.directory` (default, TGZ install path);
+  `AssetInformation` already in the stock `nifi.c2.root.classes` (no override needed);
+  `libminifi-python-script-extension.so` + `minifi_native.so` present (this build already carries
+  the extra-extensions staged 2026-06-09, per `efm-binaries.md`); `nifi.python.processor.dir`
+  overridden to the asset dir for the crux test — identical mechanism to every other leg.
+- **New gotcha found — `nifi.c2.rest.path.base` is required, not just `nifi.c2.rest.url`/`.ack`.**
+  The EFM deployer script sets all five `nifi.c2.rest.*` keys together; hand-rolling just the two
+  full heartbeat/ack URLs (matching what earlier legs' quick-reference commands imply) left asset
+  fetches resolving against `http://<host>:10090/c2-protocol/resource/...` — missing the `/efm/api`
+  prefix — because the agent derives the asset-download base from `nifi.c2.rest.path.base`
+  specifically, not by trimming the heartbeat URL. Fixed by adding
+  `nifi.c2.rest.path.base=http://<efm-host>:10090/efm/api` (+ the matching `.path.heartbeat`/
+  `.path.acknowledge` suffixes) explicitly.
+- **Gotcha 2 reproduced on a non-Windows platform, confirming it's not Windows-specific.** The
+  first (failed, wrong-URL) asset-sync attempt permanently stalled the agent's resource channel —
+  identical to the Windows MSI leg's finding. Same fix: `DELETE /efm/api/agents/{id}` + rotate
+  `nifi.c2.agent.identifier`, which cleared it immediately on the very next heartbeat.
+- **Type discovery:** processor-dir-into-asset-dir, same mechanism as every C++ leg —
+  `PythonCreator` log: "Adding .../asset/EdgeTagger.py to paths" → "Registering MiNiFi python
+  processor: EdgeTagger". Confirmed **not a hot-patch**: the asset landed via C2 sync while the
+  agent was already running, and `PythonCreator` did not pick it up until the next full restart
+  (consistent with every other leg's "scan happens once, at boot" finding).
+- **EFM Designer build + publish:** built `ListenHTTP → EdgeTagger → LogAttribute` via the real
+  Designer API. Hit the same class-manifest trap as #10: `PUT /agent-classes/{name}` to point at
+  the refreshed manifest id wasn't sufficient by itself — the already-created `EdgeTagger`
+  processor component's cached `propertyDescriptors` still resolved against the old manifest;
+  delete + recreate the processor component (same fix as #10) cleared it. Zero validation errors
+  after that. Published; agent hot-reloaded on the next heartbeat (`"Starting to reload Flow
+  Controller"`), `ListenHTTP` rebound to port 9095. **3 real POSTs → 3/3** `LogAttribute` entries
+  showing `key:edge.tag value:jetson-aarch64-realHW-field-test`. No drops.
+- **Left running:** `NvidiaNanoPyTest` (`~/minifi-pytest/` on the Jetson), disposable, safe to tear
+  down or leave for review; current agent identifier `223c830f-be64-42cb-8b45-14a82b9e746b`.
 
 #### Result — Windows MSI C++ leg (issue #4 item 2, 2026-07-29, WindowsDesktop)
 
@@ -439,15 +481,15 @@ gets the authored-processor count/mechanics folded in, not left to drift). If th
 AI work, it also becomes one of the capabilities the "How to AI with MiNiFi" post covers —
 as one option among several, not the whole post.
 
-**Not there yet as of 2026-07-29** — four legs are now fully proven end-to-end: Windows C++ direct
+**Not there yet as of 2026-08-01** — five legs are now fully proven end-to-end: Windows C++ direct
 placement (`WindowsDesktopCpp`, issue #4), k8s arm64 C++ (`KubernetesPod`/FTF3XR2065, issue #6),
 k8s x86_64 C++ (`KubernetesPodPyTest`/WindowsDesktop, issue #10, the first leg to also prove the
-full EFM Designer build-and-publish path rather than a local `config.yml`), and Windows MSI C++ via
-EFM Resources (`WindowsDesktopCppPyTest`/WindowsDesktop, issue #4 item 2). Still open: Jetson
-aarch64 on real hardware, the Java CEM agent (structurally proven, functionally blocked on a
-property-configuration gap — see the Java-leg result block above), and step 5's Playground
-packaging (not done on any leg yet). Ship criteria: all legs proven AND packaged, not just four
-of them.
+full EFM Designer build-and-publish path rather than a local `config.yml`), Windows MSI C++ via
+EFM Resources (`WindowsDesktopCppPyTest`/WindowsDesktop, issue #4 item 2), and Jetson aarch64 real
+hardware (`NvidiaNanoPyTest`/NvidiaNano via WindowsDesktop SSH, issue #65). Still open: the Java CEM
+agent (structurally proven, functionally blocked on a property-configuration gap — see the
+Java-leg result block above), and step 5's Playground packaging (not done on any leg yet). Ship
+criteria: all legs proven AND packaged, not just five of them.
 
 ### Venv-bootstrap bug — item 4 sanity re-check (2026-07-29, issue #4)
 

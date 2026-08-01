@@ -50,12 +50,41 @@ Fold `sparkplug-iott.md` into the guide in this order, reconciling the duplicate
 6. **Edge intelligence (stretch)** — MiNiFi + TensorRT/ONNX on the Jetson (Phase 5/5.5), marked designed-not-run.
 7. **What NOT to do / traps**, **Resources**, **Appendix** (Session-1 terminal history).
 
-## Hardware pass — TBD, route to the owning device
+## Hardware pass — sensor device is the XIAO, not the Jetson
 
-The simulator path is Mac-reproducible. The real-sensor + edge-intelligence pass needs the board:
-currently the Jetson (`device:NvidiaNano`), but **watch for the incoming `SensorClass` device**
-(see the Master Plan "Incoming" note + `CLAUDE-CHECKIN.md`) — it may take over the IIoT sensor role.
-File the hardware-capture work as a follow-up to whichever device owns the sensor when it lands.
+**Updated 2026-08-01.** The simulator path is Mac-reproducible. For the real-sensor leg, use the
+**Seeed XIAO ESP32-S3** already plugged into StarlinkAI's front USB (`device:StarlinkAI`) —
+not the Jetson, and not a wait on the not-yet-arrived `SensorClass` device (see Master Plan
+"Incoming" note + `CLAUDE-CHECKIN.md`; that's a separate, still-unshipped device).
+
+Why the XIAO is the better fit right now:
+- **[`efm-xiao.md`](efm-xiao.md)** already has a v1 plan whose target endpoint *is* this chapter's
+  `SparkPlug` PG: XIAO firmware publishes JSON to Mosquitto on `test/sensor/data`, exactly the
+  topic/shape `ConsumeMQTT` already filters on. Zero NiFi-side reconfiguration needed to consume it.
+- **Zero new hardware to source.** v1's starting metric is the ESP32's own internal temperature
+  sensor (or free-heap/RSSI as a fallback) — a real signal moving end-to-end with nothing extra to
+  buy or wire. A real I2C/GPIO sensor (BME280 or otherwise) is an explicit follow-up once that path
+  is proven, not a blocker to a first working link.
+- **The BME280-on-Jetson path stays genuinely blocked** ([#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70)):
+  confirmed 2026-08-01 via a full I2C bus scan on the Jetson — nothing physically wired on any bus.
+  Also a library mismatch: the doc's own BME280 recipe (`adafruit-circuitpython-bme280`/`board`/
+  `busio`) doesn't match what's actually installed on the box (`RPi.bme280`, and `board` isn't even
+  importable). Parking that leg rather than chasing it further; the XIAO path doesn't depend on it.
+
+**What's still open before this closes the chapter's hardware pass, independent of which sensor
+path is used:** the `SparkPlug` PG's `ConsumeMQTT` still dead-ends at an `EOL` output port — no
+`PublishKafka` wired in yet. `efm-xiao.md`'s "Handoff spec" section scopes that NiFi-side fix
+(topic `xiao_telemetry`, keyed `${device_id}`) to `MINI-Gaming-G1`/WindowsDesktop, where the live
+NiFi instance actually runs — independent of which device does the firmware/sensor side.
+
+**Correction (2026-08-01) to `efm-xiao.md`'s scope-out of `ConsumeMQTTIIoT`:** that doc's v1 plan
+said "leave `ConsumeMQTTIIoT`/Sparkplug B alone" and wire only the plain-JSON `ConsumeMQTT` path.
+Steven's call: don't leave it alone — this is the *SparkPlug* demo, so the real Sparkplug B path
+(`ConsumeMQTTIIoT` on `spBv1.0/#`) should get wired to Kafka too, not just the simpler JSON
+shortcut. Both `ConsumeMQTT` and `ConsumeMQTTIIoT` need their own `PublishKafka` (or a shared one
+downstream of a merge) when the NiFi-side work actually happens — not scoped down to whichever is
+easiest. **Not done yet — this is a note for whenever the NiFi wiring work is picked up, no live
+flow touched by recording it here.**
 
 ## When this ships
 
