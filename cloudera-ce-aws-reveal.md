@@ -14,7 +14,7 @@ tags:
   - cdp
 ---
 
-**Status: 🟢 cluster UP 2026-08-01 on FTF3XR2065 — clean deploy (`failed=0` across 11 nodes), `ozone-base-cluster` `GOOD_HEALTH`, all 14 services GOOD. CM + hosts screenshots captured. Draft ready for review; publish by Monday 2026-08-03.**
+**Status: 🟢 field-verified 2026-08-01 on FTF3XR2065 — clean deploy (`failed=0` across 11 nodes), `ozone-base-cluster` `GOOD_HEALTH`, all 14 services GOOD; CM + hosts screenshots captured, then cluster torn down clean (0 instances, no ongoing cost). Draft ready for review; publish by Monday 2026-08-03.**
 
 Cloudera has a lot of ways to get a cluster. Almost none of them are "one command on your laptop." [`cloudera-labs/cloudera-ce-aws`](https://github.com/cloudera-labs/cloudera-ce-aws) is the exception: a Terraform + Ansible bundle that stands up a full **Cloudera Private Cloud Community Edition** cluster on AWS — Cloudera Manager, Kerberos, Auto-TLS, a real storage/compute topology — from a single `ansible-navigator run`. This post is me taking my freshly-released fork from zero to a running Ozone cluster, and the handful of real snags between the README and a green Cloudera Manager.
 
@@ -211,15 +211,36 @@ A `GOOD_HEALTH` `ozone-base-cluster` on **Cloudera Runtime 7.3.2**, reachable th
 
 ---
 
-## Cost control after the reveal
+## Cost control — pause, resume, tear down
+
+The cluster bills ~$2/hr while it runs, so know the exits up front. All three are the same one-command shape:
 
 ```bash
-# Stop the EC2 instances but keep the cluster's disks/state (cheapest way to keep it)
+# Pause — stop the EC2 instances, keep the EBS volumes + cluster state (cheapest way to keep it around)
 ansible-navigator run playbooks/pause.yml -e @config.yml -m stdout
-# Bring it back
+
+# Resume — start the instances back up
 ansible-navigator run playbooks/resume.yml -e @config.yml -m stdout
-# Tear it all down
+
+# Tear down — Terraform destroys everything: instances, volumes, VPC
 ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml -m stdout
+```
+
+Teardown is a `terraform destroy` under the hood and finishes in a few minutes with a clean recap:
+
+```text
+PLAY RECAP
+localhost : ok=3 changed=1 unreachable=0 failed=0
+```
+
+Then confirm nothing is left billing before you walk away — Terraform state should be empty and AWS should report zero instances:
+
+```bash
+aws ec2 describe-instances --profile <your-profile> --region us-east-2 \
+  --filters "Name=tag:deployment,Values=<name_prefix>" \
+            "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+  --query 'length(Reservations[].Instances[])' --output text
+# -> 0
 ```
 
 ---
