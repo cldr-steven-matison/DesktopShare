@@ -95,6 +95,16 @@ This clears the functional + pitch-correctness bar. A human visual tidy pass in 
 may still improve it further — not claiming "visually polished," only that the specific defect
 from #47 (the sideways `(0,0)→(400,0)` shape) is fixed and verified.
 
+**Flow Designer canvas, confirmed pitch and live metrics (2026-07-31 publish):**
+
+![PlaygroundCpp Flow Designer — vertical GenerateFlowFile → LogAttribute at row pitch 300, Published, Monitoring Active](/images/efm-PlaygroundCpp-Class-efm-ui.jpg)
+
+![PlaygroundCpp flow canvas close-up — correct (0,0)/(0,300) placement](/images/efm-PlaygroundCpp-Class-efm-ui-flow.jpg)
+
+![PlaygroundJava Flow Designer — same vertical shape, Published, Monitoring Active](/images/efm-PlaygroundJava-Class-efm-ui.jpg)
+
+![PlaygroundJava flow canvas close-up — correct (0,0)/(0,300) placement](/images/efm-PlaygroundJava-Class-efm-ui-flow.jpg)
+
 ## Reused patterns, not reinvented
 
 - Bare-pod agent-deployer bootstrap (apt-get prerequisites + curl `agent-deployer/script` + `tail -f
@@ -114,3 +124,25 @@ from #47 (the sideways `(0,0)→(400,0)` shape) is fixed and verified.
 - Only a smoke flow, not a real router to another service yet — this issue's own scope was "get
   the router setup," and the minimal flow proves the EFM wiring works end-to-end. A real routing
   target (what these agents should actually route requests to) wasn't specified as part of #29.
+
+## Decommissioned 2026-08-01
+
+Both Level 2 instances had served their purpose (functional + layout proof, screenshots and flow
+exports captured above) and were running needlessly. Torn down in the standard order — pods first
+to stop heartbeats, then the EFM-side records:
+
+1. `kubectl delete pod minifi-test-efm-cpp minifi-test-efm-java -n default` (both bare pods, no
+   owner reference, so no controller recreated them).
+2. `DELETE /efm/api/agents/{id}` for both enrolled agent records (`PlaygroundCpp` agent
+   `c7aae80c-5d37-4e9b-bfa8-0877e0355f64`, `PlaygroundJava` agent
+   `a08533e6-c8da-408e-8412-34a999375463`).
+3. `DELETE /efm/api/agent-classes/PlaygroundCpp` and `.../PlaygroundJava` — confirmed gone from
+   `GET /efm/api/agent-classes` afterward, no orphaned entries in `/efm/api/designer/flows/summaries`.
+
+`minifi-test-efm-cpp.yaml` / `minifi-test-efm-java.yaml` stay in the playground repo (unaffected —
+they're the bootstrap manifests, reusable for a future rebuild). `files/efm/PlaygroundCpp.json` /
+`PlaygroundJava.json` were refreshed with a fuller export (via EFM's own Designer **Export**
+feature — `flowContent` + `agentManifest` + `parameterContexts`, checked for credential leakage:
+parameter contexts have zero actual parameters, the only `sensitive`/`password` hits are property
+*descriptor* metadata from the processor catalog, not live values) before the teardown, so the
+last-known-good flow definition survives the class deletion.
