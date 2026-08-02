@@ -116,7 +116,9 @@ The 10-minute read/write timeout is load-bearing, not cosmetic: it's the differe
 
 Wired: `HandleHttpRequest[success] → InvokeHTTP[success] → HandleHttpResponse[Response]`.
 
-**Known gap, not yet fixed:** `InvokeHTTP`'s `Failure`/`Retry`/`No Retry`/`Original` relationships (which catch a non-2xx response from Lemonade, or a real network failure) are routed to a `LogAttribute-Error` processor for visibility, but **not** back to `HandleHttpResponse` — so a legitimate upstream error (bad request, model not loaded) currently leaves the caller hanging until the 60s context-map timeout instead of getting the real error status forwarded.
+**Fixed 2026-08-02 (flowVersion 23):** `InvokeHTTP`'s `Retry`, `No Retry`, and `Failure` relationships now *also* connect to `HandleHttpResponse-Lemonade` (fan-out alongside the existing `LogAttribute-Error` connections, which stay for visibility). `HandleHttpResponse-Lemonade`'s `HTTP Status Code` property changed from the hardcoded literal `"200"` to `${invokehttp.status.code:replaceEmpty('502')}` — it now reflects the real upstream status on every outcome (2xx via `Response`, the real 4xx/5xx via `Retry`/`No Retry`, or `502` via `Failure` when no response came back at all — that relationship carries no `invokehttp.status.code` attribute). `Original` (the pass-through duplicate of the incoming request, which always fires alongside whichever real outcome relationship also fires) deliberately stays unconnected to `HandleHttpResponse` — wiring it in too would deliver a second FlowFile to the same HTTP context and double-respond.
+
+Verified live: a GET-turned-POST health probe through the router (`curl http://localhost:8090/api/v1/health`) now returns a real `404` in well under a second, instead of hanging for the 60s `StandardHttpContextMap` expiration.
 
 ## Endpoints
 
@@ -125,10 +127,12 @@ All 5 Lemonade services, one port, one flow — the path the client POSTs to is 
 | Service | Path | Confirmed |
 |---|---|---|
 | Chat | `/api/v1/chat/completions` | **Yes** — real client, real content, real synchronous answer returned (`200`, ~12-37s depending on response length) |
-| Embeddings | `/api/v1/embeddings` | Same design, not yet retested end-to-end with real data on this flow |
-| Reranking | `/api/v1/reranking` | Same design, not yet retested end-to-end with real data on this flow |
-| Speech (TTS) | `/api/v1/audio/speech` | Same design, not yet retested end-to-end with real data on this flow |
-| Transcription | `/api/v1/audio/transcriptions` | Multipart intake confirmed clean (no drops, the historical `ListenHTTP` failure mode) — full round trip not yet retested with a real (non-fake) audio file |
+| Embeddings | `/api/v1/embeddings` | **Yes** — real 200, real embedding vector (`Qwen3-Embedding-0.6B-GGUF`), ~0.2s |
+| Reranking | `/api/v1/reranking` | **Yes** — real 200, real relevance scores (`jina-reranker-v1-tiny-en-GGUF`), correctly ranked the on-topic document highest, ~2.5s |
+| Speech (TTS) | `/api/v1/audio/speech` | **Yes** — real 200, real Kokoro MP3 (valid ID3/MPEG, 78KB), ~7s |
+| Transcription | `/api/v1/audio/transcriptions` | **No — new bug found, see below.** Intake at `HandleHttpRequest` is clean (no drops), but the full round trip through `InvokeHTTP` fails with a real `400` every time |
+
+**New bug found 2026-08-02 — multipart fragments never get reassembled before forwarding.** `HandleHttpRequest` splits a multipart request into one FlowFile per form field (confirmed via `minifi-app.log`: `http.multipart.fragments.total.number: 2`, one fragment for `model`, one for `file`). Each fragment is then forwarded to `InvokeHTTP-Lemonade` **independently**, as its own request, with `Content-Type` still set to the *original* multipart header (`multipart/form-data; boundary=...`) but a body that's only that one fragment's raw bytes — never valid multipart. Lemonade correctly rejects it: `invokehttp.response.body: {"error":{"message":"Bad request","type":"bad_request"}}`. Confirmed the request itself is well-formed by sending the identical multipart POST straight to Lemonade on `:13305` — real `200`, real transcript text back. The pure `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pass-through design (no reassembly step) works for single-part bodies (JSON, raw binary) but cannot proxy a true multi-field multipart request as-is; fixing it needs the fragments recombined (e.g. a `MergeContent` keyed on `http.multipart.fragments.*`) before `InvokeHTTP`. Filed as a new issue rather than folded into this fix, since it's a materially different problem from the error-routing gap above.
 
 Test command:
 ```powershell
@@ -147,8 +151,9 @@ Use `--data @file.json` for the body, not an inline `-d '{...}'` string — Powe
 - [x] Root-caused and fixed the timeout bug (`Socket Read Timeout` 15s default → 10 min)
 - [x] Chat confirmed working end-to-end with real content, real synchronous answer
 - [x] Transcription's multipart intake confirmed clean under `HandleHttpRequest` (the failure mode that blocked the old `ListenHTTP`-based design is gone)
+- [x] Full end-to-end retest of embeddings/reranking/speech with real data — all 3 confirmed working
+- [x] Forward `InvokeHTTP`'s non-2xx responses back to the caller instead of leaving them stuck on `LogAttribute-Error` only (flowVersion 23)
 
 **Open:**
-- [ ] Full end-to-end retest of embeddings/reranking/speech/transcription with real data on this exact flow (transcription needs a real WAV file — the fake one used in testing correctly gets rejected by Lemonade with a real `400`, not a bug)
-- [ ] Forward `InvokeHTTP`'s non-2xx responses back to the caller instead of leaving them stuck on `LogAttribute-Error` only
+- [ ] Fix multipart fragment reassembly so transcription's real round trip works (new bug, see "Endpoints" above)
 - [ ] Cross-Tailscale test from a second array machine (only local curl tested so far)
