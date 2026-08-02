@@ -98,8 +98,8 @@ and want it live before committing? Run `bash skills/sync-skills.sh` by hand.)
 - Git: 2.53.0
 - Python: 3.14.4
 - Tailscale: 1.98.9, installed and logged in
-- Lemonade Server: 11.0.0, installed (Windows host, via winget) — Qwen3-4B-GGUF (LLM), jina-reranker-v1-tiny (reranking), Whisper-Large-v3-Turbo (transcription), kokoro-v1 (TTS) loaded and ready; Vulkan GPU offload confirmed active. Embedding slot still empty — Qwen3-Embedding-0.6B is downloaded but not loaded, pending a decision on nomic-embed-text-v1-GGUF instead (would keep the existing Qdrant vector space compatible vs. re-indexing)
-- EFM/MiNiFi agent: installed on Windows (`StarlinkAI` class), confirmed Online in EFM UI, heartbeating to efm-host-ip:10090 — flow (ListenHTTP → InvokeHTTP → Lemonade) not yet built
+- Lemonade Server: 11.0.0, installed (Windows host, via winget) — Qwen3-4B-GGUF (LLM), Qwen3-Embedding-0.6B-GGUF (embeddings), jina-reranker-v1-tiny (reranking), Whisper-Large-v3-Turbo (transcription), kokoro-v1 (TTS) all loaded and ready; Vulkan GPU offload confirmed active
+- EFM/MiNiFi agents: two classes on this box. `StarlinkAI` (C++) — the original agent, still running the Twitch stream-screen control pairs (`ListenHTTP-StreamScreen3`/`4`, unrelated to Lemonade). `StarlinkAIJava` (Java, added 2026-08-02, see `beelink-starlink-efm-ai.md`) — the Lemonade AI router: single `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pass-through, port 8090, all 5 Lemonade endpoints, no Kafka, real synchronous answers
 
 ### Network
 - Connection: Starlink

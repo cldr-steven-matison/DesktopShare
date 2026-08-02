@@ -24,23 +24,22 @@ The companion post to this one, "How to AI with NiFi and Python," runs Python in
 
 ## The edge agent doesn't run the model — it routes to one
 
-The single most useful shape at the edge is a MiNiFi agent that fronts a nearby inference server. The agent is tiny; the GPU box next to it holds the model. My working example is the StarlinkAI router: a MiNiFi C++ agent on a Beelink SER9 that takes HTTP requests, forwards them to a local Lemonade Server (AMD's OpenAI-compatible inference server, `llamacpp:vulkan` backend on a Radeon 780M iGPU), and publishes the answer to Kafka. The whole flow is four stock processors:
+The single most useful shape at the edge is a MiNiFi agent that fronts a nearby inference server. The agent is tiny; the GPU box next to it holds the model. My working example is the StarlinkAI router: a MiNiFi **Java** agent on a Beelink SER9 that takes HTTP requests and forwards them to a local Lemonade Server (AMD's OpenAI-compatible inference server, `llamacpp:vulkan` backend on a Radeon 780M iGPU). The whole flow is three stock processors, one port, no Kafka:
 
 ```text
-ListenHTTP (:8080, /contentListener)
-  → EvaluateJsonPath  ($.request_id → attribute request_id)
-  → InvokeHTTP        (POST http://localhost:13305/api/v1/chat/completions)
-  → PublishKafka      (bootstrap ...svc:31623, Kafka Key = ${request_id})
+HandleHttpRequest (:8090, any path)
+  → InvokeHTTP        (POST http://localhost:13305${http.request.uri})
+  → HandleHttpResponse (returns Lemonade's real answer synchronously)
 ```
 
-No custom code. The agent doesn't know what a model is — it knows how to accept a POST, pull one attribute out of the JSON, forward the body, and key the response onto Kafka. The value is the flow, the enrollment, and the transport, not the inference.
+No custom code, no per-endpoint branching. The `InvokeHTTP` URL is a pure pass-through — whatever path the client hits, that's the path forwarded to Lemonade — so one flow fronts all five Lemonade services (chat, embeddings, reranking, TTS, transcription) instead of one `ListenHTTP`/`InvokeHTTP` pair per service. The agent doesn't know what a model is; it accepts a POST, forwards it, and hands the real response straight back. The value is the flow, the enrollment, and the transport, not the inference.
 
-The same agent fronts more than chat. Pointing new `ListenHTTP`/`InvokeHTTP` pairs at the other Lemonade endpoints exposes embeddings (`Qwen3-Embedding-0.6B`), reranking (`jina-reranker-v1-tiny-en`), text-to-speech (`kokoro-v1`), and transcription (`Whisper-Large-v3-Turbo`). Chat, embeddings, and reranking are confirmed end-to-end through MiNiFi to Kafka, each returning real output on the wire; text-to-speech and transcription still drop at `ListenHTTP` (see the open item below). The transport in this case is Tailscale: the agent reaches EFM at `efm-host-ip:10090` and Kafka at the same host's `:31623` NodePort over the tailnet, so the Beelink can sit anywhere with a network and still enroll.
+:information_source: **This replaces an earlier MiNiFi C++ design.** MiNiFi C++'s `ListenHTTP` has no synchronous request/response pair — the caller always got an empty `200` ack, with the real answer shipped out-of-band over Kafka keyed on a client-supplied `request_id`. `ListenHTTP` also silently dropped multipart POSTs (transcription) at its buffer-full check, a `MINIFICPP-2243`-shaped bug I never fully root-caused on the C++ side. MiNiFi **Java** ships `HandleHttpRequest`/`HandleHttpResponse` — a real synchronous response, no Kafka detour, and the multipart drop doesn't reproduce.
+{: .notice--info}
 
-:warning: **`ListenHTTP` on MiNiFi C++ is fire-and-forget.** MiNiFi C++ has no `HandleHttpRequest`/`HandleHttpResponse` pair — that only exists in full Java NiFi. The caller gets an empty `200` the instant the request lands, *before* inference runs. The real answer comes back out-of-band on Kafka, which is why every request carries a `request_id` that becomes the Kafka key. Design for async from the start; don't wait on the HTTP response for the model output, because there isn't one.
-{: .notice--warning}
+Chat is confirmed end-to-end with a real client and real content: real synchronous answer back, `200`, no drop. The other four endpoints share the identical pass-through design (same three processors, same code path — only the URL path differs), and transcription's multipart intake specifically was retested clean under `HandleHttpRequest` (the exact case that used to drop). Full end-to-end retests of embeddings/reranking/speech/transcription with real payloads on this flow are still open, tracked as a follow-up, not a doubt about the design.
 
-Two endpoints are not done: text-to-speech (`kokoro-v1`, `:8083`) and transcription (`Whisper-Large-v3-Turbo`, `:8084`) both drop 100% of their POSTs at `ListenHTTP` before they ever reach `InvokeHTTP`. A re-test narrowed it: the three JSON-in/JSON-out pairs (chat, embeddings, reranking) flow fine, while the two that aren't single-write JSON in both directions — speech returns a binary MP3, transcription takes a multipart upload — are exactly the two that drop. A property diff across all five `ListenHTTP` processors and a full agent restart both came back clean, so it's neither config nor stuck runtime state; it points at a payload-shape interaction with `ListenHTTP`'s buffer-full check (`MINIFICPP-2243`) I'm still chasing from the agent's own log. I'd rather say that plainly than ship a post claiming five working endpoints. The three above are real end-to-end; speech and transcription are known open items.
+One real gotcha this design introduced: `InvokeHTTP`'s `Socket Read Timeout` defaults to `15 secs`, and LLM inference routinely takes 10-25s+. Every request failed silently on that default — a `SocketTimeoutException` auto-terminating on `Failure` with nothing routed back, so the caller just sat until the HTTP context map's own 60s expiration gave up with a generic 503. Set it to match your slowest endpoint (`10 mins` here), not the framework default.
 
 ## When the agent *does* need to compute: two Python paths, and they are not the same
 
