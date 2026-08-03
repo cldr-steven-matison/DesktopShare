@@ -136,9 +136,70 @@ The contract that keeps you out of trouble: `session.get()` can return `null` (r
 
 ## A worked example
 
-The archetype ships `onTrigger` doing nothing but a `transfer`. Replace it with something real and small enough to read in one sitting — a **JSON field-tagger** that stamps a configurable `tag` into the body and onto an attribute, deliberately mirroring the Python `EdgeTagger`/`FraudModel` shape so a reader can compare the two frameworks doing the same job. The `insertTag(...)` helper parses the body as JSON (Jackson, already on the NiFi classpath), adds the field, and re-serializes; on non-JSON input it routes to `failure` rather than corrupting the content. Full annotated source will live in this section, building directly on the anatomy skeleton above.
+The archetype ships `onTrigger` doing nothing but a `transfer`. Replace it with something real and small enough to read in one sitting — a **JSON field-tagger** that stamps a configurable `tag` into the body and onto an attribute, deliberately mirroring the Python `EdgeTagger`/`FraudModel` shape so a reader can compare the two frameworks doing the same job. The `insertTag(...)` helper parses the body as a JSON **object** (Jackson), adds the field, and re-serializes; anything that isn't a JSON object — malformed input, or a top-level array/scalar — routes to `failure` rather than corrupting the content.
 
-*(Execution note: the concrete `insertTag` implementation + build is the first field task under "When this ships" — the source is authored against `NiFi2 Processor Playground/my-custom-nifi-bundle`, replacing the `// TODO implement`.)*
+**One POM change first.** Don't rely on Jackson leaking in from NiFi's parent classpath — NAR classloader isolation makes that fragile. Add the dependency explicitly to `nifi-mycustom-processors/pom.xml` (NiFi 2.4.0 ships Jackson 2.x, so pin to match and keep it `provided` so it isn't double-bundled):
+
+```xml
+<dependency>
+    <groupId>com.fasterxml.jackson.core</groupId>
+    <artifactId>jackson-databind</artifactId>
+    <version>2.18.2</version>
+    <scope>provided</scope>
+</dependency>
+```
+
+Then the complete class — the anatomy skeleton above with the two Jackson imports and a concrete `insertTag` filling the `// TODO implement`:
+
+```java
+package com.example.processors.mycustom;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+// ... plus the nifi-api imports from the anatomy skeleton
+
+@Tags({"example", "json", "tag"})
+@CapabilityDescription("Adds a tag attribute to each FlowFile's JSON body.")
+public class MyProcessor extends AbstractProcessor {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();   // thread-safe once configured
+
+    // TAG_VALUE, REL_SUCCESS, REL_FAILURE, init(), getters, onScheduled()
+    // exactly as in the anatomy skeleton above.
+
+    @Override
+    public void onTrigger(final ProcessContext context, final ProcessSession session) {
+        FlowFile flowFile = session.get();
+        if (flowFile == null) return;
+        try {
+            final String tag = context.getProperty(TAG_VALUE)
+                                      .evaluateAttributeExpressions(flowFile).getValue();
+            flowFile = session.write(flowFile, (in, out) ->
+                    out.write(insertTag(in.readAllBytes(), tag)));
+            flowFile = session.putAttribute(flowFile, "tag", tag);
+            session.transfer(flowFile, REL_SUCCESS);
+        } catch (final Exception e) {
+            getLogger().error("Tagging failed for {}", new Object[]{flowFile}, e);
+            session.transfer(flowFile, REL_FAILURE);   // don't corrupt content on bad input
+        }
+    }
+
+    /** Parse the body as a JSON object, add the tag field, re-serialize.
+     *  Throws (→ failure) on anything that isn't a JSON object. */
+    private static byte[] insertTag(final byte[] body, final String tag) throws Exception {
+        final var root = MAPPER.readTree(body);
+        if (!(root instanceof ObjectNode obj)) {
+            throw new IllegalArgumentException("body is not a JSON object");
+        }
+        obj.put("tag", tag);
+        return MAPPER.writeValueAsBytes(obj);   // {"a":1,"tag":"edge-ok"} — insertion order preserved
+    }
+}
+```
+
+The whole processor is ~40 lines of real logic. Note the shape that makes it robust: the `MAPPER` is a static singleton (Jackson's `ObjectMapper` is thread-safe after configuration, and `onTrigger` runs concurrently across threads); the transform happens entirely inside the `session.write` callback so a mid-stream failure rolls the FlowFile back rather than emitting a half-written body; and the "not a JSON object" case throws into the same `catch` that routes to `failure`. Jackson's `ObjectNode.put` appends in insertion order, so the output is `{"a":1,"tag":"edge-ok"}` — which is exactly what the `TestRunner` test below asserts, byte for byte.
+
+*(Execution note: this source is authored against `NiFi2 Processor Playground/my-custom-nifi-bundle`; committing it into the bundle + the clean build is the first field task under "When this ships.")*
 
 ---
 
@@ -280,6 +341,33 @@ Contrast with Python: a `.py` edit reloads in 30–60 s with no restart. A NAR c
 - **Don't hand-edit the NAR inside the pod.** It's overwritten on reconcile and lost on restart — the PVC is the source of truth.
 - **Don't cross-build against a mismatched `nifi-api`.** Match the archetype's `nifiVersion` to the NiFi the operator runs, or the processor throws on schedule.
 - **Don't put two conflicting bundle versions on the classpath** expecting the new one to win — repoint instances explicitly.
+
+---
+
+## Contribute the processor upstream to Apache NiFi
+
+Everything above ships the processor as *your* NAR — the right home for anything org-specific, proprietary, or narrow. Contributing it into Apache NiFi itself is a different, higher bar: the project takes processors that are **generic and broadly useful**, and reviewers reject ones that are niche, duplicate an existing processor, or wrap a proprietary system. Decide that first — a JSON field-tagger like the worked example almost certainly stays a private NAR; a well-abstracted connector to a widely-used open system is a candidate. When it *is* a candidate, the scaffold you already have is most of the way there, because the archetype emits exactly what upstream expects.
+
+**What the scaffold already gets right.** The archetype's `MyProcessor.java` opens with the Apache 2.0 license header (the ASF requires it on every source file — don't strip it), and the `@CapabilityDescription` / `@Tags` annotations plus `TestRunner` tests are the same artifacts a reviewer looks for. Add an `additionalDetails.md` under `src/main/resources/docs/<fully-qualified-class>/` for the rendered usage docs.
+
+The process, in order:
+
+1. **Discuss on the dev list first.** Subscribe to `dev@nifi.apache.org` and float the idea before writing much. NiFi runs on lazy consensus — pitching early is how you avoid building something that gets rejected on review for reasons you could have heard up front.
+2. **File a JIRA, not a GitHub issue.** NiFi tracks work in the [ASF JIRA `NIFI` project](https://issues.apache.org/jira/projects/NIFI) (e.g. `NIFI-12345`), *not* GitHub Issues. Request contributor access via the dev list, then file the ticket describing the processor.
+3. **Branch off `main`, named for the ticket.** `git checkout -b nifi-12345 main` on your fork of [apache/nifi](https://github.com/apache/nifi). The processor lands inside an existing bundle under `nifi-extension-bundles` — core processors live in shared bundles, so it does **not** keep the standalone `my-custom-nifi-bundle` layout from this guide.
+4. **Pass contrib-check.** `mvn -Pcontrib-check clean install` runs the full suite plus the checkstyle profile the project enforces — a PR that fails it won't be reviewed. Your `TestRunner` tests must be part of the module.
+5. **Fix up licensing.** Every dependency must be compatible for inclusion under Apache 2.0 (no category-X licenses like GPL). If you add or change a dependency, update the `LICENSE` and `NOTICE` files in **both** the module and `nifi-assembly`.
+6. **Open the PR against `apache/nifi`.** A GitHub pull request is preferred over patch files; put the JIRA id (`NIFI-12345`) in the commit message and PR title so the ticket and commit link.
+7. **Review-Then-Commit.** A committer reviews under RTC — you never merge your own PR. Iterate on their feedback; a committer merges once it builds, passes standards, and preserves backward compatibility. It then ships in the next NiFi release, which the PMC approves by a formal vote (the release-voting mechanics are the subject of [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76)).
+
+Full detail: the [Apache NiFi Contributor Guide](https://cwiki.apache.org/confluence/display/NIFI/Contributor+Guide).
+
+**What NOT to do here:**
+
+- **Don't PR the archetype's example processor.** A `success`-only pass-through or the toy tagger gets closed — contribute something generic and genuinely new.
+- **Don't add a category-X dependency** (GPL/LGPL and similar). It's an automatic block; there's no waiver.
+- **Don't skip the dev-list discussion and JIRA.** A cold PR with no ticket and no prior thread is the slowest path to a merge, if it merges at all.
+- **Don't expect your bundle layout to carry over.** Upstream processors slot into existing shared bundles; the one-processor bundle structure is for your own NAR, not the apache/nifi tree.
 
 ---
 
