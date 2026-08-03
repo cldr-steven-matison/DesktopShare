@@ -21,7 +21,7 @@ multipart request into one FlowFile per form field and forwards each fragment in
 reassembly step (`MergeContent` keyed on `http.multipart.fragments.*`) needed to recombine them
 before `InvokeHTTP` is partially built but not yet published. Root cause is confirmed from live
 `minifi-app.log` and tracked under
-[issue #25](https://github.com/cldr-steven-matison/DesktopShare/issues/25). This chapter documents
+[issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88). This chapter documents
 exactly what is proven and what is still open — it does not claim full coverage.
 
 ---
@@ -137,9 +137,9 @@ InvokeHTTP[Original]       → LogAttribute-Error only
 | Embeddings | `/api/v1/embeddings` | Yes — real 200, real embedding vector (`Qwen3-Embedding-0.6B-GGUF`), ~0.2s |
 | Reranking | `/api/v1/reranking` | Yes — real 200, real relevance scores, correctly ranked on-topic document highest, ~2.5s |
 | Speech (TTS) | `/api/v1/audio/speech` | Yes — real 200, real Kokoro MP3 (valid ID3/MPEG, 78KB), ~7s |
-| Transcription | `/api/v1/audio/transcriptions` | **No — open as issue #25 (see below)** |
+| Transcription | `/api/v1/audio/transcriptions` | **No — open as issue #88 (see below)** |
 
-### Known gap: transcription multipart reassembly (issue #25)
+### Known gap: transcription multipart reassembly (issue #88)
 
 `HandleHttpRequest` splits a multipart request into one FlowFile per form field and forwards each
 fragment independently to `InvokeHTTP`. Each fragment carries the *original* multipart
@@ -163,7 +163,7 @@ presence), two `ReplaceText` processors (prepend MIME part headers with and with
 line), `MergeContent` (Defragment strategy, `fragment.index` **0-indexed** — `sequence.number`
 minus 1), `UpdateAttribute` (set reassembled `Content-Type`), then `InvokeHTTP`. The isolated build
 on test port `:8095` is partially wired; 6 connections and final validation remain. Tracked under
-[issue #25](https://github.com/cldr-steven-matison/DesktopShare/issues/25). Full detail and the
+[issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88). Full detail and the
 in-progress processor UUIDs are in `beelink-starlink-efm-ai.md` §"Proposed fix — transcription
 multipart reassembly."
 
@@ -172,7 +172,7 @@ real transcript text — the request itself is well-formed and the model works; 
 pass-through leg is broken.
 
 **Summary: 4 of 5 Lemonade endpoints confirmed working end-to-end through the MiNiFi router. The
-5th (transcription) is confirmed broken, root-caused, and tracked under issue #25.**
+5th (transcription) is confirmed broken, root-caused, and tracked under issue #88.**
 
 ### Setting up the StarlinkAI router from scratch
 
@@ -199,7 +199,7 @@ Pull and confirm models:
 lemonade pull Qwen3-4B-GGUF              # chat
 lemonade pull Qwen3-Embedding-0.6B-GGUF  # embeddings
 lemonade pull jina-reranker-v1-tiny-en-GGUF  # reranking
-lemonade pull Whisper-Large-v3-Turbo     # transcription (needed for #25)
+lemonade pull Whisper-Large-v3-Turbo     # transcription (needed for #88)
 lemonade pull kokoro-v1                  # TTS (install as kokoro:cpu if no discrete GPU)
 ```
 
@@ -503,5 +503,5 @@ These are the ones that drop data silently rather than erroring:
 - Ch5 ([ExecuteScript Availability](ch05-executescript-availability.md)) — the full build-by-build
   breakdown of which runtimes ship the Python engine.
 - Ch17 (Edge-AI router case study, issue #67) — the dedicated deep-dive on the StarlinkAI router
-  architecture, Tailscale integration, and the transcription fix once issue #25 is resolved.
+  architecture, Tailscale integration, and the transcription fix once issue #88 is resolved.
 - Ch19 (EFM + NVIDIA Jetson, issue #69) — on-device model execution via TensorRT/llama.cpp.
