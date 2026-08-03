@@ -30,7 +30,7 @@ I'd had when I first installed [EFM on Kubernetes](https://cldr-steven-matison.g
 Get EFM running and persisted, and fed with agent binaries. The infrastructure everything else rides on.
 
 - **Ch1** — [EFM on Kubernetes (incl. persistence)](ch01-efm-on-kubernetes.md)
-- **Ch2** — EFM Binaries & staging tree *(pending — [#60](https://github.com/cldr-steven-matison/DesktopShare/issues/60))*
+- **Ch2** — [EFM Binaries & staging tree](ch02-efm-binaries.md)
 
 ### Part II — Processors (C++ & Java)
 Which processors actually exist in each build, how `ExecuteScript` availability differs across builds, and how to author custom Python processors as their own types at the edge.
@@ -44,8 +44,8 @@ Which processors actually exist in each build, how `ExecuteScript` availability 
 Install and use plain MiNiFi (C++ and Java), then bring EFM in to manage the agents and resources.
 
 - **Ch7** — [Standalone MiNiFi C++ on Kubernetes (no EFM)](ch07-standalone-minifi-cpp-on-k8s.md)
-- **Ch8** — MiNiFi Java setup *(pending — [#62](https://github.com/cldr-steven-matison/DesktopShare/issues/62))*
-- **Ch9** — Introduce EFM into the Playground *(pending — [#63](https://github.com/cldr-steven-matison/DesktopShare/issues/63))*
+- **Ch8** — [MiNiFi Java setup](ch08-minifi-java-setup.md)
+- **Ch9** — [Introduce EFM into the Playground](ch09-efm-in-the-playground.md)
 
 ### Part IV — Site-to-Site
 The two local k8s transport legs (MiNiFi → NiFi). The three cloud CDP legs (DataFlow, Data Hub) were descoped 2026-08-03. Reference: apache `SITE_TO_SITE.md`.
@@ -57,24 +57,24 @@ The two local k8s transport legs (MiNiFi → NiFi). The three cloud CDP legs (Da
 NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.
 
 - **Ch15** — [How to AI with NiFi and Python](ch15-how-to-ai-with-nifi-and-python.md)
-- **Ch16** — How to AI with MiNiFi *(pending — [#61](https://github.com/cldr-steven-matison/DesktopShare/issues/61))*
+- **Ch16** — [How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md)
 - **Ch17** — Edge-AI router case study *(pending — [#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67))*
 
 ### Part VI — Sample Gallery
 Curated, runnable flows accumulated as the guide is built.
 
-- **Ch18** — Sample gallery of MiNiFi flows *(pending — [#68](https://github.com/cldr-steven-matison/DesktopShare/issues/68))*
+- **Ch18** — [Sample gallery of MiNiFi flows](ch18-sample-gallery.md)
 
 ### Part VII — Real-World Demos
 EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos — the final output and story (NvidiaNano, StarlinkAI, SparkPlug).
 
-- **Ch19** — EFM + NVIDIA Jetson use case *(pending — [#69](https://github.com/cldr-steven-matison/DesktopShare/issues/69))*
+- **Ch19** — [EFM + NVIDIA Jetson use case](ch19-efm-and-nvidia-jetson.md)
 - **Ch20** — SparkPlug demo *(pending — [#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70))*
 
 ### Part VIII — Observability
 The layer that watches all of the above — EFM's own metrics, the C++ agent's Prometheus publisher, and the smallest agents' heartbeat metrics, all into one CSO Prometheus/Grafana stack.
 
-- **Ch21** — Metrics & Observability *(pending — [#64](https://github.com/cldr-steven-matison/DesktopShare/issues/64))*
+- **Ch21** — [Metrics & Observability](ch21-metrics-and-observability.md)
 
 ---
 
