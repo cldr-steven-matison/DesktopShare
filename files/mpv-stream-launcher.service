@@ -1,0 +1,38 @@
+# systemd *user* unit for NvidiaNano's screen1 mpv stream launcher.
+#
+# User-level (not system-level) deliberately: this device already runs its user
+# manager with Linger=yes, and the existing lofi-idle-watcher/zellij units set
+# the convention. It also avoids needing root to install or restart it.
+#
+# Install:
+#   cp files/mpv-stream-launcher.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now mpv-stream-launcher
+#
+# WantedBy=default.target rather than graphical-session.target: with lingering
+# enabled the user manager comes up at boot, and the service itself does not
+# touch the display until a /load arrives (it sets DISPLAY/XAUTHORITY itself,
+# see display_env() in the launcher), so it does not need to wait for a
+# graphical session to exist.
+
+[Unit]
+Description=mpv stream launcher for screen1 (Twitch/Kick via yt-dlp)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/DesktopShare/files/mpv_stream_launcher_linux.py
+Restart=always
+RestartSec=5
+# Kill only the Python listener on stop/restart, never its children.
+# Confirmed live (2026-08-02): with the default KillMode=control-group, a
+# `systemctl --user restart` of this unit also killed the running mpv — the
+# launcher's start_new_session=True detaches the process group but NOT the
+# systemd cgroup. That made every restart, including systemd's own
+# Restart=always after a crash, black out a live stream. mpv is meant to be the
+# persistent part and outlive this service; the launcher re-adopts a surviving
+# mpv on the next /load via its socket probe (mpv_alive).
+KillMode=process
+
+[Install]
+WantedBy=default.target

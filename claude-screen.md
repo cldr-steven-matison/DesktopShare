@@ -14,6 +14,26 @@ on one side applies to the other without checking.
 
 ## Jetson implementation
 
+**Update 2026-08-02 — the stream↔matrix handoff changed here.** `screen1`'s
+stream player is now mpv (`mpv_stream_launcher_linux.py` on `127.0.0.1:5902`),
+not Chromium — see `streamers-twitch-bot-mpv-plan.md`. Two consequences for this
+device's matrix path:
+
+- `agent-NvidiaNano-launch_matrix.py` now POSTs `/stop/screen1` before launching
+  the matrix page. Its `pkill` alone no longer tears a stream down, because the
+  stream is no longer a Chromium process.
+- That `pkill` is scoped to `user-data-dir=/tmp/chromium-matrix-display` instead
+  of a bare `chromium`. The broad pattern matched any process with "chromium"
+  anywhere in its argv and SIGKILLed an unrelated shell twice during testing.
+  **Leave the leading `--` off the pattern** — `pkill` reads a pattern starting
+  with dashes as an option and silently kills nothing, which showed up as matrix
+  windows accumulating one per `!matrix`.
+
+The idle-watcher path below (`lofi-idle-watcher.sh`, its own
+`snap/chromium/common/lofi-screensaver-profile` profile dir) is untouched and was
+`inactive` at the time of the migration. If it's ever enabled, note it will paint
+over a running stream after 2 minutes idle — it has no handoff to the launcher.
+
 ### What it is
 
 A Chromium-kiosk "screensaver" driven by a standalone idle-watcher instead of

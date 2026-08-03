@@ -2,6 +2,86 @@
 
 This replaces the current kill-Chrome/relaunch-Chrome cycle used by both screens with a persistent `mpv` player controlled over its IPC socket. Written up before starting so there's a clear reference when it gets picked up.
 
+## Status as of 2026-08-02: NvidiaNano (`screen1`) migrated — all four screens now on mpv, and this is what fixed `!load kick:<slug> screen1`
+
+`!load kick:<slug> screen1` never worked. Twitch on the same screen was fine.
+
+**Diagnosis:** `screen1` was the last screen still building its own URL.
+`agent-NvidiaNano-launch_stream.py` hardcoded
+`url = f"https://www.twitch.tv/{streamer}"`, so a `kick:hstikkytokky` token
+became `https://www.twitch.tv/kick:hstikkytokky` — a Twitch 404. Chromium
+launched fine, the FlowFile went to `REL_SUCCESS`, and chat got a success
+confirmation. Nothing errored; the Jetson just showed a 404 page. Every other
+screen already handled Kick because they'd been migrated off URL-building —
+this doc's step 2 for the Jetson (below) had stayed open since 2026-07-24.
+
+**Fix:** did the migration rather than patching the URL string. On this device:
+
+- `mpv` 0.37.0 from apt; `yt-dlp` 2026.07.04 as the standalone `yt-dlp_linux_aarch64`
+  binary at `~/bin/yt-dlp` (apt's is too stale for Twitch/Kick).
+- `files/mpv_stream_launcher_linux.py` — new Linux/X11 port of
+  `mpv_stream_launcher.py`, port `5902`, screen key `screen1`.
+- `files/mpv-stream-launcher.service` — systemd **user** unit (this device already
+  runs its user manager with `Linger=yes` alongside `lofi-idle-watcher`/`zellij`,
+  so no root needed to install or restart it).
+- `agent-NvidiaNano-launch_stream.py` — now a thin forwarder to
+  `127.0.0.1:5902/load/screen1`, same shape as `gaming-pc-launch_stream.py`.
+- `agent-NvidiaNano-launch_matrix.py` — POSTs `/stop/screen1` before launching
+  matrix. Its old `pkill -9 -f chromium` no longer tore a stream down, because
+  the stream isn't Chromium any more.
+
+**No agent restart was needed.** MiNiFi C++'s `ExecuteScript` re-reads its
+`Script File` from disk on every trigger (`minifi-efm.md` §9), so copying the
+scripts into `nifi-minifi-cpp-1.26.02/asset/` took effect on the next chat
+command. Verified live, not assumed.
+
+**Kick's `yt-dlp` extractor is confirmed working on aarch64** — the open question
+from the 2026-07-24 notes. `kick.com/xqc` resolves to a real Amazon IVS playlist;
+an offline channel gives a clean `The channel is not currently live`.
+
+Playback measured on the Orin Nano: 1080p60 H.264, **zero dropped frames**, ~103%
+of one core out of six, software decode (`hwdec-current: no`). Hardware decode
+isn't worth chasing. Live-edge latency ~6s, normal for HLS.
+
+**Four real bugs, all found by testing rather than review:**
+
+1. **`fullscreen` over IPC does not un-minimize.** After `/stop` minimizes the
+   window, the next `/load` re-added `_NET_WM_STATE_FULLSCREEN` but left
+   `_NET_WM_STATE_HIDDEN` — the stream played invisibly behind everything.
+   Mutter doesn't un-iconify on a fullscreen request. Fixed with an explicit
+   `xdotool ... windowactivate`. Same class of bug the Windows port hit from the
+   other direction (mpv's own `window-minimized` property didn't iconify there).
+2. **A launcher restart killed the stream.** systemd's default
+   `KillMode=control-group` tears down every process in the unit's cgroup;
+   `start_new_session=True` detaches the process group but *not* the cgroup. So
+   every restart — including systemd's own `Restart=always` after a crash —
+   blacked out a live stream. Fixed with `KillMode=process`.
+3. **The launcher reported success for an offline channel.** `loadfile` returns
+   success the moment mpv accepts the command; it says nothing about whether
+   yt-dlp could resolve anything. An offline Kick channel returned `ok: true`
+   while mpv sat at `No file - mpv` — the same over-reporting that let the
+   original bug hide. Now `confirm_playing()` waits for `playback-time` to
+   advance and returns `502` if mpv falls back to idle. The chat bot's live-check
+   normally prevents this, but it fails open.
+4. **`pkill -9 -f chromium` is far too broad.** It matches any process with
+   "chromium" anywhere in its argv — during testing it SIGKILLed an unrelated
+   shell twice. Scoped to `user-data-dir=/tmp/chromium-matrix-display`, the same
+   whole-tree-matching trick `lofi-idle-watcher.sh` already uses. **Leave the
+   leading `--` off the pattern**: `pkill` parses a pattern starting with dashes
+   as an option and silently kills nothing, which showed up as matrix windows
+   piling up one per `!matrix`.
+
+**Verified end-to-end through the real MiNiFi `ListenHTTP` endpoints** (not just
+the launcher): `!load xqc screen1` → Twitch, `!load kick:xqc screen1` → Kick
+(warm switch, same mpv PID, no relaunch), `!matrix screen1` → mpv minimized under
+the matrix page, `!load` again → matrix cleared and stream restored. Repeated
+`!matrix` no longer accumulates windows.
+
+**Still open:** the EFM-side assets for the `NvidiaNano` class still hold the old
+Chromium scripts. The local files win until EFM next pushes assets to this class,
+at which point the fix would silently revert. EFM has no in-place asset update
+(`minifi-efm.md` §9) — it's unassign → delete → re-upload → reassign.
+
 ## Status as of 2026-07-25: WindowsDesktop (`screen2`) done too — both mpv screens now built, real chat test still the one open item on both
 
 Session on WindowsDesktop itself (not StarlinkAI) replaced `!load screen2`'s Chrome/`browser_launcher.py` path with the same mpv approach below — `mpv_stream_launcher.py` ported directly (`SetWindowPos` positioning, `--force-window=immediate`, single `screen2` entry, port `5902`), verified end-to-end via direct pod-internal `curl` calls (WSL2 can't route to raw pod IPs, so central-NiFi-path testing from a dev shell isn't possible — same limitation hit on both devices' work). `browser_launcher.py`'s `BrowserLauncherListener` task stopped (not deleted). Same session also built `!matrix screen2` (Windows implementation ported from StarlinkAI, port `5903`) — see `claude-screen.md`'s "Windows implementation (WindowsDesktop / MINI-Gaming-G1)" section for the full writeup, including a real gotcha: `minifi-agent-k8s-gaming`'s EFM heartbeat had been dead 6 days, needed a pod restart to fix, which also changed the pod's IP (bare pod, no stable Service) and broke both `InvokeGamingPCScreen2` and the new `InvokeGamingPCMatrixScreen2` in central NiFi until caught and fixed same-session.

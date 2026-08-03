@@ -42,7 +42,7 @@ See the mermaid diagram at the bottom for the full real topology (Kafka, EFM, op
 
 | Logical target | Device (EFM agent class) | Mechanism |
 |---|---|---|
-| `screen1` | `NvidiaNano` (Jetson Orin Nano) | `ListenHTTP` (`streamChatListener`, :8081) → `ExecuteScript` (`agent-NvidiaNano-launch_stream.py`) |
+| `screen1` | `NvidiaNano` (Jetson Orin Nano) | `ListenHTTP` (`streamChatListener`, :8081) → `ExecuteScript` (`agent-NvidiaNano-launch_stream.py`) → POSTs to `mpv_stream_launcher_linux.py` (`127.0.0.1:5902`), a native host listener that owns the real mpv playback. **Migrated off Chromium 2026-08-02** — the script no longer builds a URL, which is what fixed `!load kick:<slug> screen1`; see `streamers-twitch-bot-mpv-plan.md`. |
 | `screen2` | `KubernetesPod` (WindowsDesktop, pod has no GUI socket access) | `ListenHTTP` (:8082 on the pod) → `ExecuteScript` POSTs to `browser_launcher.py`, a native Windows listener (`host.docker.internal:5901`) that owns the real Chrome launch |
 | `matrix-screen1` | `NvidiaNano` | second `ListenHTTP` (`matrixListener`, :8082) → `ExecuteScript` (`agent-NvidiaNano-launch_matrix.py`) |
 
@@ -66,7 +66,7 @@ Kill/relaunch Chromium per command (`pkill -9` + dedicated `--user-data-dir` to 
 
 The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedicated embed URL, `player.twitch.tv`, was tried and rejected the live channel as "offline" — an embed-parent validation failure, not a real live-status check). To hide Twitch's own sidebar/chat/nav on the real page, both scripts simulate a real viewer action after the page renders: click the player center, then send Twitch's own fullscreen hotkey (`f`).
 
-**Considered, not built:** replacing kill/relaunch Chromium with `mpv`+`yt-dlp` (built-in JSON IPC socket allows instant stream-switching with no relaunch flash and no fighting the WM for fullscreen) or a persistent browser + Chrome DevTools Protocol `Page.navigate`. `mpv` is the more likely future direction if this gets revisited — see TODO.
+~~**Considered, not built:** replacing kill/relaunch Chromium with `mpv`+`yt-dlp`...~~ **Built.** All four screens now run `mpv`+`yt-dlp` over the JSON IPC socket — `screen2`/`screen3`/`screen4` from 2026-07-24/25, `screen1` (NvidiaNano) on 2026-08-02. The two sections above describe the superseded Chromium path; nothing on any screen builds a page URL or fights the WM for fullscreen any more, and a stream switch is a single `loadfile` IPC command to an already-running player rather than a process relaunch. See `streamers-twitch-bot-mpv-plan.md`.
 
 ## 7. Implementation Phases
 

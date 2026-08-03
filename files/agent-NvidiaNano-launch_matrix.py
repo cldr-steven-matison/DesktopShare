@@ -1,6 +1,24 @@
 import subprocess
 import os
 import time
+import urllib.request
+
+# The stream launcher's /stop endpoint (mpv_stream_launcher_linux.py).
+# screen1's stream player is mpv now, not Chromium, so the pkill below no
+# longer tears a live stream down on its own — without this call the mpv
+# window would stay fullscreen on top of the matrix page.
+STREAM_LAUNCHER_STOP = "http://127.0.0.1:5902/stop/screen1"
+
+
+def stop_stream_best_effort():
+    """Nothing playing, or launcher not up? Either is fine — still show matrix."""
+    try:
+        req = urllib.request.Request(STREAM_LAUNCHER_STOP, data=b"{}", method="POST",
+                                      headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
+
 
 # This is the exact entrypoint MiNiFi C++ calls on every loop execution
 def onTrigger(context, session):
@@ -20,12 +38,30 @@ def onTrigger(context, session):
             env["XDG_RUNTIME_DIR"] = "/run/user/1000"
             env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
 
-            # Same kill-then-relaunch discipline as agent-NvidiaNano-launch_stream.py:
+            # Get a live stream out of the way first — mpv, via the launcher's
+            # /stop (which stops playback and minimizes the window rather than
+            # killing the process, so the next !load is still a warm start).
+            stop_stream_best_effort()
+
             # SIGKILL + a real wait, because a surviving process holding its
             # profile lock makes the new launch silently proxy into it and
-            # ignore --kiosk. This also correctly tears down a live Twitch
-            # stream if !matrix is typed while one is showing.
-            subprocess.run(["pkill", "-9", "-f", "chromium"], check=False)
+            # ignore --kiosk. This now only clears a *previous matrix* Chromium
+            # — the stream is mpv, handled above.
+            #
+            # Scoped to the profile dir rather than a bare "chromium": every
+            # process in Chromium's tree carries --user-data-dir in its own
+            # argv, so this still catches the whole tree (the same reasoning
+            # lofi-idle-watcher.sh documents), while a bare "chromium" match
+            # also hits unrelated processes that merely mention the word.
+            # Confirmed live 2026-08-02: the broad pattern SIGKILLed an
+            # unrelated shell whose command line happened to contain it.
+            #
+            # The leading "--" of the flag is deliberately omitted: pkill parses
+            # a pattern starting with dashes as an option and silently kills
+            # nothing (also confirmed live — matrix windows piled up, one per
+            # !matrix, because every kill was a no-op).
+            subprocess.run(["pkill", "-9", "-f", "user-data-dir=/tmp/chromium-matrix-display"],
+                           check=False)
             time.sleep(1.5)
 
             # Separate profile dir from the stream loader's
