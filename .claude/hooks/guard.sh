@@ -18,6 +18,10 @@
 #      carrying a `position`), state the flow shape + pitch and match it against
 #      layout.md. Prose in layout.md alone failed to stop two fresh EFM builds from
 #      landing at the cramped NiFi pitch (2026-07-30, issue #47).
+#   6. Never `gh issue close` an issue that isn't status:done yet — set the label
+#      FIRST, then close (device-comms.md "Closing an issue"). A close while the
+#      issue still carries todo/in-progress/review strands the label; six issues
+#      drifted this way on 2026-08-03. An inline done-flip in the same command passes.
 #
 # Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
 # Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
@@ -146,6 +150,29 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
         emit_ask "Issue #$n is being marked review/done but still carries status:todo — it was never claimed as status:in-progress. device-comms.md forbids the todo->review jump (todo -> in-progress -> review). Claim it first: gh issue edit $n --remove-label status:todo --add-label status:in-progress"
       fi
     done
+  fi
+fi
+
+# 6. Closing an issue that isn't status:done yet. device-comms.md "Closing an issue":
+# the close is a two-step move — set status:done FIRST, then `gh issue close`. A close
+# while the issue still carries todo/in-progress/review strands the label (the
+# 2026-08-03 batch: six issues closed, labels never flipped, so `gh issue list`
+# filters lied). If the SAME command also flips the label to status:done inline
+# (the documented `gh issue edit ... --add-label status:done && gh issue close`
+# one-liner), it's compliant — pass. Otherwise look up each issue's current labels
+# and ask if status:done is absent. Loops ALL issue numbers; fails open (no gh).
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+'; then
+  # Inline done-flip in the same command satisfies the rule — don't second-guess it.
+  if ! { printf '%s' "$cmd" | grep -Eq -- '--add-label' \
+         && printf '%s' "$cmd" | grep -Eq 'status:done'; }; then
+    if command -v gh >/dev/null 2>&1; then
+      for n in $(ds_issue_numbers "$cmd" close); do
+        cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
+        if [ -n "$cur" ] && ! printf '%s' "$cur" | grep -q 'status:done'; then
+          emit_ask "Issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)). device-comms.md 'Closing an issue': set status:done FIRST, then close — closing while it still reads todo/in-progress/review strands the label and makes gh issue list filters lie (the 2026-08-03 drift). Do it in one move: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'"
+        fi
+      done
+    fi
   fi
 fi
 
