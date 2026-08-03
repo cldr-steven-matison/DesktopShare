@@ -16,7 +16,7 @@ done; what remains is mostly authoring and folding validated research into publi
 | **Field/build validation** (proving flows on real hardware) | "Yes" for ~15 of 21 chapters | **~75%** |
 | **Published prose** (chapters folded into `guide/`) | 6 of 21 folded (Ch9 done, unfolded) | **~29%** |
 | **Blended, status-weighted** | 13.25 / 21 | **~60%** |
-| **Issue mailbox** | 61 of 92 closed | **66%** |
+| **Issue mailbox** | 62 of 92 closed | **67%** |
 
 ## Metric counts
 
@@ -25,6 +25,7 @@ done; what remains is mostly authoring and folding validated research into publi
 | Chapters (8 parts) | 21 |
 | ✅ Done / 🟡 In-progress / 🔲 Not started | 7 / 10 / 4 |
 | Folded guide chapters (`guide/`) | 6 files, ~10,800 words |
+| Guide index / TOC (`guide/index.md`) | 1 file, ~750 words |
 | Source + subplan docs | 24 files, ~66,000 words |
 | Blog drafts (Ch2, Ch16) | ~5,500 words |
 | Built & validated flow exports (JSON) | 53 |

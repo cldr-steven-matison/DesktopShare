@@ -2,6 +2,10 @@
 
 *by Steven Matison*
 
+> **Reader entry point → [`guide/index.md`](guide/index.md).** That is the navigable guide (intro +
+> table of contents + folded chapters). This document is the **tracker of record** — per-chapter
+> status, sources, field-validation notes, and open issues.
+
 ![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](/images/efm-cloudera-edge-management.png)
 
 This is a living document. Today it is the master plan and index for a body of work that
@@ -107,8 +111,18 @@ response mechanism is still an open design question — now being worked as
 [#55](https://github.com/cldr-steven-matison/DesktopShare/issues/55) (evaluate a MiNiFi Java agent's
 `HandleHttpRequest`/`HandleHttpResponse` for early-ack + a real round-trip, feeds #28,
 `device:WindowsDesktop`, `status:in-progress`). Watch these against the "Incoming SensorClass
-device" note below. **Whether either cluster becomes a chapter (and in which Part) is the explicit
-call in close-plan child [#74](https://github.com/cldr-steven-matison/DesktopShare/issues/74).**
+device" note below. **[#74](https://github.com/cldr-steven-matison/DesktopShare/issues/74) resolved
+2026-08-03: neither cluster becomes a new chapter — the guide stays 21 chapters + demos.** The
+MicroFi/XIAO and NvidiaNano/StarlinkAI material distributes across existing chapters rather than
+growing the guide: MicroFi is the **SparkPlug demo (Ch20)**; NvidiaNano's TensorRT inference detail
+lands in **Ch19**; the StarlinkAI + NvidiaNano edge-AI **router** detail stays in **Ch17**; and
+**Ch16 "How to AI with MiNiFi"** (blog [#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92)
+/ publish [#61](https://github.com/cldr-steven-matison/DesktopShare/issues/61)) is the high-level
+narrative that ties all three together — the `nifi-and-ai` skill, `ListenHTTP` vs
+`HandleHttpRequest`/`HandleHttpResponse`, and the StarlinkAI + NvidiaNano before/after architecture.
+The **Part VII demos** carry the final output/story (NvidiaNano, StarlinkAI, SparkPlug). **SensorClass
+stays deferred** until the device checks in (see below) — it may then extend Ch19–20 rather than add
+a chapter of its own.
 
 ## The 8 parts
 
@@ -199,4 +213,5 @@ Promotion flow for each piece of content:
 - Commit only when explicitly asked.
 - **Cross-reference, don't cross-link.** A guide chapter's content comes from its source doc(s) (the "Source doc(s)" column above) — write the real content into the chapter itself, and name the source it came from, rather than just linking out to it. The source doc stays the detailed, maintained original; the guide chapter is not a substitute for it. Whenever a chapter is built or updated, its source doc must be written/updated alongside it in the same pass — the source is never left to drift once its content has been folded into the guide.
 - **Device assignment in "Next action" is a routing hint, not a lock.** Each open item names the `CLAUDE-CHECKIN.md` device best positioned to do it (by access, hardware, or existing context) so whichever session picks up this plan next knows where the work belongs. Re-check against the live roster before starting — devices get added/retired.
+- **Keep `efm-guide-summary.md` in sync.** Whenever this status tracker changes (a chapter flips status, folds in, or its next-action closes), update `efm-guide-summary.md` in the same pass. That file is the high-level completion snapshot only — the overall %, the metric-count table, and the chapter status list. The per-chapter record of truth and next-step actions stay here and in the issues; don't duplicate detail into the summary.
 
