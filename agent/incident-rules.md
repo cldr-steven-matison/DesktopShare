@@ -46,3 +46,7 @@ The single home for these is **`live-queues.md`** — read it before touching th
 
 - **Commit / branch / push discipline lives in `workflow.md`.** The short version: commit and push only when explicitly asked; working-tree changes stay uncommitted by default.
 - **Don't build a permanent API endpoint to clean up a one-time mess.** This is local infra, not a shipping product. Run the cleanup directly and delete the code path.
+
+## Issue hygiene
+
+- **Set `status:done` *before* you `gh issue close` — never close while the issue still carries `todo`/`in-progress`/`review`.** A closed issue with a stale status label makes `gh issue list` label filters lie: the board reads "in review" or "not started" while the issue is actually shut. (2026-08-03: a batch of six issues — #91, #51, #65, #79, #81, #25 — were closed in one pass with their labels never flipped, so a status review had to reconcile them by hand.) The full protocol is in `device-comms.md` "Closing an issue"; it's mechanically enforced by `guard.sh` rule 6, which asks on a `gh issue close` unless `status:done` is already set (an inline `--add-label status:done && gh issue close` in the same command passes).
