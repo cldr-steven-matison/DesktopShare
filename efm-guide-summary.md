@@ -1,6 +1,6 @@
 # EFM Guide — Completion Summary
 
-*High-level metrics snapshot for `Complete Guide to Edge Flow Management.md`. Last updated 2026-08-03 (7-chapter fold batch: Ch2, Ch8, Ch9, Ch16, Ch18, Ch19, Ch21; then +Ch14 NiFi & AI Skill EFM Portion added and Ch7/8/9/17/20 titles expanded; then Ch14 authored and folded into `guide/`).*
+*High-level metrics snapshot for `Complete Guide to Edge Flow Management.md`. Last updated 2026-08-03 (7-chapter fold batch: Ch2, Ch8, Ch9, Ch16, Ch18, Ch19, Ch21; then +Ch14 NiFi & AI Skill EFM Portion added and Ch7/8/9/17/20 titles expanded; then Ch14 authored and folded into `guide/`; then #72 ratified the published form — the `guide/` chapter set read through `guide/index.md`, in this repo, with a reader closer written into the index).*
 
 > **Keep in sync:** update this file in the same pass as any change to the main guide's status
 > tracker (`Complete Guide to Edge Flow Management.md`). Only high-level metrics live here —

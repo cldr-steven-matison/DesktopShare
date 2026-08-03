@@ -16,7 +16,7 @@ processors actually exist in which build, managing custom processors and resourc
 flow from a designer canvas onto a device that keeps changing its IP. This guide is the map I wish
 I'd had when I first installed [EFM on Kubernetes](https://cldr-steven-matison.github.io/blog/cloudera-edge-flow-manager-on-kubernetes/).
 
-> **Status.** The guide is 18 chapters across 8 parts, plus a real-world demos section. Chapters
+> **Status.** The guide is 19 chapters across 8 parts, plus a real-world demos section. Chapters
 > already folded are linked below; the rest are being built and folded under close-plan epic
 > [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59). The per-chapter status of
 > record — sources, field-validation notes, and open issues — lives in the tracker,
@@ -79,11 +79,25 @@ The layer that watches all of the above — EFM's own metrics, the C++ agent's P
 
 ---
 
-## Where the guide is headed
+## What you have here — and what's still in flight
 
-The distance to "finished" is folding the remaining chapters into this directory, field-validating
-each (or honestly documenting the gap), publishing the two ready blogs (Ch2, Ch16), and building the
-first Site-to-Site leg to prove that pattern. Progress is tracked chapter-by-chapter in the
+Read this end to end and you have the map I wish I'd had the first time I tried to run a real flow
+at the edge: EFM stood up and persisted on Kubernetes, the actual processor catalogs for the C++ and
+Java builds (not the docs' idea of them, the ones I counted on real agents), the four ways
+`ExecuteScript` does and doesn't exist, how to author custom Python processors as first-class edge
+types, the Site-to-Site legs, the AI-at-the-edge patterns, a gallery of runnable flows, two
+real-world demos, and the observability layer that watches all of it. Every ✅ chapter points at a
+flow I actually ran on real hardware and a source doc I can hand you.
+
+**This is the published guide** — the chapter files in this directory, read through this index on
+GitHub. It lives in the DesktopShare repo; there is no separate document to assemble and no other
+site to go to. When you want a chapter's deeper source material or its field-validation trail, follow
+the cross-reference at the top of that chapter.
+
+It is not finished, and I won't pretend it is. What's left is folding the remaining chapters into
+this directory, field-validating each (or honestly documenting the gap), publishing the two ready
+blogs (Ch2, Ch16), and building the first Site-to-Site leg to prove that pattern. That work is
+tracked chapter-by-chapter in the
 [tracker](../Complete%20Guide%20to%20Edge%20Flow%20Management.md) and coordinated under epic
 [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59). When you hit a chapter that
 isn't linked yet, its source doc and current state are in that tracker — the work is in flight, not

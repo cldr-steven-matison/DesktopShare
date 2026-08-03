@@ -5,13 +5,20 @@
 > **Reader entry point → [`guide/index.md`](guide/index.md).** That is the navigable guide (intro +
 > table of contents + folded chapters). This document is the **tracker of record** — per-chapter
 > status, sources, field-validation notes, and open issues.
+>
+> **Published form (decided [#72](https://github.com/cldr-steven-matison/DesktopShare/issues/72), 2026-08-03).**
+> The guide's published form is the `guide/` chapter set read through `guide/index.md`, in this repo —
+> not a single assembled document, and not a separate published site. This tracker's "living document /
+> master plan" framing retires once the last chapter folds; until then it stays the status-of-record and
+> `guide/index.md` is the reader artifact.
 
 ![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](/images/efm-cloudera-edge-management.png)
 
-This is a living document. Today it is the master plan and index for a body of work that
+This is a living document. Today it is the master plan and status tracker for a body of work that
 spans four repos and will take a considerable effort to finish and field-validate. As each
-chapter lands — built, run, and proven on real hardware — its content folds in here and
-this becomes the published guide. Nothing below is aspirational hand-waving: every chapter
+chapter lands — built, run, and proven on real hardware — its content folds into `guide/` and the
+navigable guide at [`guide/index.md`](guide/index.md) becomes the published artifact; this document
+stays the tracker of record. Nothing below is aspirational hand-waving: every chapter
 marked ✅ points at a source doc I can hand you and a flow I have actually run.
 
 Edge Flow Management is core to the entirety of all of this work as it is the central manager for organizing agent Classes, Resources, and developing Edge Flows. NiFi in the
