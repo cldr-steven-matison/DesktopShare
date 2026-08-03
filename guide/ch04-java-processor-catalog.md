@@ -1,6 +1,6 @@
 # Chapter 4: MiNiFi Java Processor Catalog
 
-I run MiNiFi C++ and MiNiFi Java side-by-side in the same Minikube playground, same Strimzi Kafka cluster, same EFM server. The swap is a Dockerfile change, a memory bump in the K8s YAML, and a different `agentType` in the EFM deployer curl. What you get from Java is a processor set that C++ can't match out of the box: `HandleHttpRequest`/`HandleHttpResponse` (synchronous request/reply HTTP — absent in C++), a scripting engine once the right NARs are present, and a Record Reader/Writer framework. The field-verified count from a live `minifi-java` agent manifest (`2.24.08.0-19` on WindowsDesktop, 2026-07-25): **114 processors, 45 controller services**.
+I run MiNiFi C++ and MiNiFi Java side-by-side in the same minikube playground, same Strimzi Kafka cluster, same EFM server. The swap is a Dockerfile change, a memory bump in the K8s YAML, and a different `agentType` in the EFM deployer curl. What you get from Java is a processor set that C++ can't match out of the box: `HandleHttpRequest`/`HandleHttpResponse` (synchronous request/reply HTTP — absent in C++), a scripting engine once the right NARs are present, and a Record Reader/Writer framework. The field-verified count from a live `minifi-java` agent manifest (`2.24.08.0-19` on WindowsDesktop, 2026-07-25): **114 processors, 45 controller services**.
 
 ---
 

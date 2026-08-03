@@ -19,21 +19,21 @@ kubectl delete deployment minifi-test --force --grace-period=0
 kubectl delete service minifi-test-service --ignore-not-found
 
 # --- 2. ENVIRONMENT SYNC ---
-# Point your terminal's Docker client to the engine INSIDE Minikube.
+# Point your terminal's Docker client to the engine INSIDE minikube.
 # Without this, docker build targets the host daemon and kubectl never sees the image.
 eval $(minikube docker-env)
 
 # --- 3. CACHE PURGE ---
-# Remove the local image and wipe the build cache within Minikube
+# Remove the local image and wipe the build cache within minikube
 docker rmi -f minifi-test:latest || true
 docker builder prune -a -f
 
 # --- 4. AUTHENTICATION ---
-# Login to the registry from within the Minikube Docker context
+# Login to the registry from within the minikube Docker context
 docker login container.repo.cloudera.com
 
 # --- 5. NATIVE BUILD ---
-# Build the image directly on the Minikube node (bypasses 'minikube image load')
+# Build the image directly on the minikube node (bypasses 'minikube image load')
 docker build --no-cache --platform linux/amd64 -t minifi-test:latest .
 
 # --- 6. DEPLOY & INITIALIZE ---
@@ -44,7 +44,7 @@ kubectl apply -f minifi-test.yaml
 kubectl get pods -w
 ```
 
-Step 2 — `eval $(minikube docker-env)` — is mandatory. It is the single most common failure point. Skip it and the image builds on your Mac's Docker daemon, the Minikube node never sees it, and the pod stays in `ImagePullBackOff` or `ErrImageNeverPull` indefinitely.
+Step 2 — `eval $(minikube docker-env)` — is mandatory. It is the single most common failure point. Skip it and the image builds on your Mac's Docker daemon, the minikube node never sees it, and the pod stays in `ImagePullBackOff` or `ErrImageNeverPull` indefinitely.
 
 ## config.yml — the three requirements
 
@@ -168,11 +168,11 @@ spec:
           periodSeconds: 5
 ```
 
-`serviceAccountName: minifi-controller` is required for the pod to reach other cluster services. `imagePullPolicy: IfNotPresent` is correct here because the image was built directly into Minikube's daemon — there is no registry to pull from.
+`serviceAccountName: minifi-controller` is required for the pod to reach other cluster services. `imagePullPolicy: IfNotPresent` is correct here because the image was built directly into minikube's daemon — there is no registry to pull from.
 
 ## Verifying Kafka delivery and PutFile
 
-**Step 1 — Open the network tunnel.** On macOS, Minikube NodePorts are not directly reachable from `localhost`. Run this in a dedicated terminal and leave it open:
+**Step 1 — Open the network tunnel.** On macOS, minikube NodePorts are not directly reachable from `localhost`. Run this in a dedicated terminal and leave it open:
 
 ```bash
 minikube service minifi-test-service --url
@@ -215,7 +215,7 @@ The same payload appears here. Both sinks receiving the same message confirms th
 
 ## What NOT to do
 
-**Skip `eval $(minikube docker-env)` and you build on the wrong daemon.** The image lands in your Mac's Docker cache. Minikube's node has no copy. The pod goes `ErrImageNeverPull` immediately. Run `eval $(minikube docker-env)` before every `docker build` in this workflow — it does not persist across terminal sessions.
+**Skip `eval $(minikube docker-env)` and you build on the wrong daemon.** The image lands in your Mac's Docker cache. The minikube node has no copy. The pod goes `ErrImageNeverPull` immediately. Run `eval $(minikube docker-env)` before every `docker build` in this workflow — it does not persist across terminal sessions.
 
 **Omit UUID `id` fields and the agent silently rejects the config.** There is no parse error, no crash, no log line that says "missing id." The agent either fails to start or starts with an empty flow. Every processor and every connection needs its own UUID.
 
