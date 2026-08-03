@@ -184,7 +184,7 @@ fi
 # /processors endpoint AND carries a `position` — prompt to state shape + pitch and
 # match layout.md before the call lands. A read (`GET .../processors | jq .position`)
 # can trip this; if so, it's a one-key approval, so kept broad rather than missing a
-# build. Placed after rules 1-4 (none of which a processor-create curl matches).
+# build. Placed after rules 1-4 and 6 (none of which a processor-create curl matches).
 if printf '%s' "$cmd" | grep -Eq '/processors\b' \
    && printf '%s' "$cmd" | grep -Eq 'position' \
    && printf '%s' "$cmd" | grep -Eq -- '-X *(POST|PUT)|--data|--data-binary|(^|[[:space:]])-d[[:space:]]|componentConfiguration|requestId'; then
