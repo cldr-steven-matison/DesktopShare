@@ -16,7 +16,7 @@ done; what remains is mostly authoring and folding validated research into publi
 | **Field/build validation** (proving flows on real hardware) | "Yes" for ~15 of 18 chapters | **~83%** |
 | **Published prose** (chapters folded into `guide/`) | 13 of 18 folded | **~72%** |
 | **Blended, status-weighted** | ~15.3 / 18 | **~85%** |
-| **Issue mailbox** | 62 of 92 closed (7 folds now awaiting review) | **67%** |
+| **Issue mailbox** | 62 of 94 closed (7 fold issues still open: 5 in review, 2 pending blog-publish; the 2 newest opens #93/#94 are non-guide device work) | **66%** |
 
 ## Metric counts
 
