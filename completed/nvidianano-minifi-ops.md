@@ -169,12 +169,21 @@ to **79 processors vs. the stock 74**. The manifest is `files/efm/NvidiaNano-man
 `python-script` and `llamacpp` extensions are what make edge inference real: Python inside the
 agent, or a local model.
 
+**Inference no longer lives in the agent, though.** As of 2026-08-02 the TensorRT leg runs against
+a resident daemon on `127.0.0.1:5910` (`trt-infer.service`, a systemd *user* unit) rather than
+loading an engine inside `ExecuteScript` — which can't work, because `ExecuteScript` re-reads its
+script on every trigger. Restarting the model is `systemctl --user restart trt-infer` and does
+**not** touch this agent. See `efm-nvidia-nano-inference.md`.
+
 ## Related
 
 - `efm-nvidia-jetson-nano.md` — persisted EFM on Kubernetes, binary staging, Kafka NodePort +
   port-forward exposure, WSL2 mirrored-vs-NAT networking.
 - `efm-metrics.md` / `efm-nvidia-jetson-nano.md` §metrics — the native Prometheus publisher
   (`nifi.metrics.publisher.*`, port `9936` on this device), field-validated on this Jetson.
+- `efm-nvidia-nano-inference.md` — real TensorRT inference on this agent: the resident daemon,
+  the three front doors (C++ `ExecuteScript`, custom Python processor, Java synchronous
+  round-trip), and measured latency.
 - `hacking-the-jetson-blog.md` — the build story (screensaver, OLED, streamChat, sensors).
 - `completed/nvidianano-streamchat-launcher.md` — the `:8081/streamChatListener` HTTP-to-display
   feature that runs through this agent.
