@@ -44,7 +44,7 @@ Pick the `device:*` value from the responsibility map below.
 | `status:in-progress` | A device session is working it |
 | `status:blocked` | Waiting on something (device offline, dependency, a decision) |
 | `status:review` | Work delivered, awaiting Steven's review before it counts as done. **The issue stays open — a device sets this and stops; it never closes its own issue.** |
-| `status:done` | Completed; closing comment carries the commit sha |
+| `status:done` | Completed. **Set this label *before* closing** — the issue is never closed while still carrying `todo`/`in-progress`/`review`. Closing comment carries the commit sha. |
 
 Add a new `device:*` label when a device joins the roster — keep it in lockstep with
 `../CLAUDE-CHECKIN.md`.
@@ -165,6 +165,26 @@ session that closes its own issue removes the review gate, which is the whole po
 
 Blocked instead? Add `status:blocked` and comment what you're waiting on — that surfaces
 to whoever's watching without derailing your session.
+
+## Closing an issue
+
+By default a device does **not** close its own issue — it stops at `status:review` and Steven
+closes after reviewing (that's the whole point of the review gate). But when a device *is*
+explicitly asked to close one — Steven says "close it", or hands a device a batch to close — the
+close is a **two-step move, never one**:
+
+```bash
+gh issue edit <n> --remove-label status:review --add-label status:done   # 1. mark done FIRST
+gh issue close <n> --comment "<result + commit sha>"                       # 2. then close
+```
+
+**Set `status:done` before you close, always.** Whatever the issue carried
+(`todo`/`in-progress`/`review`), strip it and add `status:done` in the same edit, *then* close.
+A closed issue whose label still reads `review`/`in-progress`/`todo` makes `gh issue list` label
+filters lie — the board says "in review" or "not started" while the issue is actually done and
+shut. This is exactly the drift that stranded six issues on 2026-08-03 (closed in a batch, labels
+never flipped); the rule exists so it can't recur. The closing comment still carries the commit
+sha, same as a review hand-off.
 
 ## Link every file you name in a comment
 
