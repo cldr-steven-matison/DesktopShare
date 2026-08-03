@@ -54,8 +54,9 @@ The two local k8s transport legs (MiNiFi → NiFi). The three cloud CDP legs (Da
 - **Ch11** — S2S: MiNiFi C++ → NiFi K8s *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
 
 ### Part V — AI at the Edge
-NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.
+The `nifi-and-ai` skill and its EFM machinery as the grounding lead-in, then NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.
 
+- **Ch14** — [The NiFi and AI Skill — EFM Portion](ch14-nifi-and-ai-skill-efm-portion.md)
 - **Ch15** — [How to AI with NiFi and Python](ch15-how-to-ai-with-nifi-and-python.md)
 - **Ch16** — [How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md)
 - **Ch17** — Edge-AI router case study *(pending — [#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67))*
