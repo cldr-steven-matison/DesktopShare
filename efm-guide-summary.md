@@ -6,24 +6,24 @@
 > tracker (`Complete Guide to Edge Flow Management.md`). Only high-level metrics live here —
 > the per-chapter record of truth and the next-step actions stay in the main guide and its issues.
 
-## Overall: ~60% complete
+## Overall: ~74% complete
 
 Lopsided by design — the expensive, risky part (proving every flow on real edge hardware) is largely
 done; what remains is mostly authoring and folding validated research into published chapters.
 
 | Axis | State | % |
 |---|---|---|
-| **Field/build validation** (proving flows on real hardware) | "Yes" for ~15 of 21 chapters | **~75%** |
-| **Published prose** (chapters folded into `guide/`) | 6 of 21 folded (Ch9 done, unfolded) | **~29%** |
-| **Blended, status-weighted** | 13.25 / 21 | **~60%** |
+| **Field/build validation** (proving flows on real hardware) | "Yes" for ~15 of 18 chapters | **~83%** |
+| **Published prose** (chapters folded into `guide/`) | 6 of 18 folded (Ch9 done, unfolded) | **~33%** |
+| **Blended, status-weighted** | 13.25 / 18 | **~74%** |
 | **Issue mailbox** | 62 of 92 closed | **67%** |
 
 ## Metric counts
 
 | Metric | Count |
 |---|---|
-| Chapters (8 parts) | 21 |
-| ✅ Done / 🟡 In-progress / 🔲 Not started | 7 / 10 / 4 |
+| Chapters (8 parts) | 18 (cloud S2S Ch12–14 descoped 2026-08-03) |
+| ✅ Done / 🟡 In-progress / 🔲 Not started | 7 / 10 / 1 |
 | Folded guide chapters (`guide/`) | 6 files, ~10,800 words |
 | Guide index / TOC (`guide/index.md`) | 1 file, ~750 words |
 | Source + subplan docs | 24 files, ~66,000 words |
@@ -47,9 +47,6 @@ done; what remains is mostly authoring and folding validated research into publi
 - ✅ Ch9 — Introduce EFM into the Playground
 - 🟡 Ch10 — S2S: MiNiFi Java → NiFi K8s
 - 🔲 Ch11 — S2S: MiNiFi C++ → NiFi K8s
-- 🔲 Ch12 — S2S: NiFi K8s → Cloudera DataFlow
-- 🔲 Ch13 — S2S: NiFi K8s → Cloudera Data Hub
-- 🔲 Ch14 — S2S: Cloudera DataFlow → Data Hub
 - ✅📝 Ch15 — How to AI with NiFi and Python
 - 🟡✍️ Ch16 — How to AI with MiNiFi
 - 🟡 Ch17 — Edge-AI router case study

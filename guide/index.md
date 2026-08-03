@@ -16,7 +16,7 @@ processors actually exist in which build, managing custom processors and resourc
 flow from a designer canvas onto a device that keeps changing its IP. This guide is the map I wish
 I'd had when I first installed [EFM on Kubernetes](https://cldr-steven-matison.github.io/blog/cloudera-edge-flow-manager-on-kubernetes/).
 
-> **Status.** The guide is 21 chapters across 8 parts, plus a real-world demos section. Chapters
+> **Status.** The guide is 18 chapters across 8 parts, plus a real-world demos section. Chapters
 > already folded are linked below; the rest are being built and folded under close-plan epic
 > [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59). The per-chapter status of
 > record — sources, field-validation notes, and open issues — lives in the tracker,
@@ -48,13 +48,10 @@ Install and use plain MiNiFi (C++ and Java), then bring EFM in to manage the age
 - **Ch9** — Introduce EFM into the Playground *(pending — [#63](https://github.com/cldr-steven-matison/DesktopShare/issues/63))*
 
 ### Part IV — Site-to-Site
-The full transport matrix, local and cloud. Reference: apache `SITE_TO_SITE.md`.
+The two local k8s transport legs (MiNiFi → NiFi). The three cloud CDP legs (DataFlow, Data Hub) were descoped 2026-08-03. Reference: apache `SITE_TO_SITE.md`.
 
 - **Ch10** — S2S: MiNiFi Java → NiFi K8s *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
 - **Ch11** — S2S: MiNiFi C++ → NiFi K8s *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
-- **Ch12** — S2S: NiFi K8s → Cloudera DataFlow *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
-- **Ch13** — S2S: NiFi K8s → Cloudera Data Hub *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
-- **Ch14** — S2S: Cloudera DataFlow → Data Hub *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
 
 ### Part V — AI at the Edge
 NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.

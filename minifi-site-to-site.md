@@ -2,9 +2,12 @@
 
 **Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 scoped — Ch10 build plan detailed 2026-07-30; prep advanced 2026-07-31 (apache `SITE_TO_SITE.md` fetched, blocker #6 cleared); live build still deferred (5 blockers remain below).**
 
-Site-to-Site (S2S) is how flow files move between MiNiFi, NiFi, and Cloudera's cloud
-products. Five paths, built local-first then cloud. CDP DataFlow + Data Hub access is
-confirmed, so all five are field-validatable.
+Site-to-Site (S2S) is how flow files move between MiNiFi and NiFi. **Scope: the two local
+k8s legs only** (MiNiFi → NiFi in minikube).
+
+> **Descoped 2026-08-03:** the three cloud CDP legs — NiFi K8s → DataFlow, NiFi K8s → Data Hub,
+> and DataFlow → Data Hub (former paths 3–5 / chapters 12–14) — were removed from this matrix, the
+> guide, and the tracker. S2S here is proven locally; the CDP cloud transports are out of scope.
 
 ## Reference
 
@@ -26,21 +29,17 @@ confirmed, so all five are field-validatable.
     flow definition, not this C++ strict-YAML `Remote Process Groups` block).
 - Apache `nifi-minifi-cpp` `extensions/python/PYTHON.md` (where a path carries Python logic)
 
-## The five paths
+## The two paths (local k8s)
 
 | # | Path | Environment | Prereqs |
 |----|------|-------------|---------|
 | 1 | MiNiFi Java → NiFi K8s | local minikube | Java MiNiFi agent, NiFi Remote Process Group + input port |
 | 2 | MiNiFi C++ → NiFi K8s | local minikube | C++ MiNiFi agent, same RPG/input port |
-| 3 | NiFi K8s → Cloudera DataFlow | local → CDP cloud | CDF endpoint, S2S over HTTPS, cloud creds |
-| 4 | NiFi K8s → Cloudera Data Hub | local → CDP cloud | Data Hub NiFi, remote input port, cloud creds |
-| 5 | Cloudera DataFlow → Cloudera Data Hub | CDP → CDP | both provisioned, network path between them |
 
 ## Build order
 
-Local first (paths 1, 2) to nail the RPG/input-port mechanics and the transport protocol
-(RAW vs HTTP) with no cloud variables. Then the cloud paths (3, 4) which add HTTPS, auth,
-and network reachability. Finish with CDF→Data Hub (path 5).
+Path 1 then path 2 — nail the RPG/input-port mechanics and the transport protocol
+(RAW vs HTTP) with no cloud variables. (The three cloud CDP legs were descoped 2026-08-03; see above.)
 
 ## Per-path deliverable
 
@@ -51,7 +50,7 @@ copy-paste verification (send a flow file, confirm arrival on the target).
 ## Ch10 — MiNiFi Java → NiFi K8s (first leg): detailed build plan
 
 **Scoped this pass (2026-07-30, FTF3XR2065); the live build is deferred — see blockers below.** This
-is the one leg #30 builds and field-tests; Ch11–14 stay scoped-but-untested until it proves the pattern.
+is the one leg #30 builds and field-tests; Ch11 stays scoped-but-untested until it proves the pattern.
 
 ### The environment on this device (confirmed)
 
@@ -114,7 +113,7 @@ any NiFi restart it implies) is a deliberate next step under this parent, not pa
 ## Traps to watch (carry forward from prior work)
 
 - MiNiFi C++ strict YAML: every component needs an explicit UUID `id`; `Remote Processing Groups: []` must be present even when empty.
-- Cloud paths: S2S over HTTPS needs the transport protocol set correctly and the remote URL reachable — expect the same "unexpected end of stream" class of failure if a target restarts mid-transfer.
+- S2S over HTTPS: a target NiFi restart mid-transfer yields the same "unexpected end of stream" drop class — drain in-flight transfers before any redeploy.
 
 ## When this ships
 
