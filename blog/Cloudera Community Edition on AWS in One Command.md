@@ -14,8 +14,6 @@ tags:
   - cdp
 ---
 
-**Status: 🟢 field-verified 2026-08-01 on FTF3XR2065 — clean deploy (`failed=0` across 11 nodes), `ozone-base-cluster` `GOOD_HEALTH`, all 14 services GOOD; CM + hosts screenshots captured, then cluster torn down clean (0 instances, no ongoing cost). Draft ready for review; publish by Monday 2026-08-03.**
-
 Cloudera has a lot of ways to get a cluster. Almost none of them are "one command on your laptop." [`cloudera-labs/cloudera-ce-aws`](https://github.com/cloudera-labs/cloudera-ce-aws) is the exception: a Terraform + Ansible bundle that stands up a full **Cloudera Private Cloud Community Edition** cluster on AWS — Cloudera Manager, Kerberos, Auto-TLS, a real storage/compute topology — from a single `ansible-navigator run`. This post is me taking my freshly-released fork from zero to a running Ozone cluster, and the handful of real snags between the README and a green Cloudera Manager.
 
 Everything here is field-run against `cloudera-ce-aws` **v1.0.0**, deploying **Cloudera Manager 7.13.2 / Runtime 7.3.2**, from an Apple-Silicon Mac into AWS account `AWS SE` in `us-east-2`.
@@ -205,9 +203,9 @@ A `GOOD_HEALTH` `ozone-base-cluster` on **Cloudera Runtime 7.3.2**, reachable th
 - **Cluster health (straight from the CM API):** cluster `GOOD_HEALTH`; **all 14 services GOOD** — HDFS, Ozone, Kafka, YARN, Hive, Hive-on-Tez, HBase, Ranger, Knox, Atlas, Solr, ZooKeeper, Tez, Core Settings.
 - Only the gateway node has a public IP; every other node is private and reached through the proxy — the ring-fenced design the README promises.
 
-![Cloudera Manager home — ozone-base-cluster healthy on Cloudera Runtime 7.3.2 (Parcels), 8 hosts, every service green, with live cluster CPU / disk / network / HDFS charts](/images/cloudera-ce-cm-home.png)
+![Cloudera Manager home — ozone-base-cluster healthy on Cloudera Runtime 7.3.2 (Parcels), 8 hosts, every service green, with live cluster CPU / disk / network / HDFS charts](/assets/images/cloudera-ce-cm-home.png)
 
-![Cloudera Manager → All Hosts — the cluster's nodes all Good Health and Commissioned](/images/cloudera-ce-cm-hosts.png)
+![Cloudera Manager → All Hosts — the cluster's nodes all Good Health and Commissioned](/assets/images/cloudera-ce-cm-hosts.png)
 
 ---
 
