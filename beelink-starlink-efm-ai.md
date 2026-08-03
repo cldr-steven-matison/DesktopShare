@@ -142,6 +142,87 @@ curl.exe -X POST http://localhost:8090/api/v1/chat/completions `
 ```
 Use `--data @file.json` for the body, not an inline `-d '{...}'` string — PowerShell/`curl.exe` argument handling has silently stripped quotes out of inline JSON in past testing on this box.
 
+## Proposed fix — transcription multipart reassembly (#88)
+
+**Status 2026-08-02: built live on `StarlinkAIJava`, isolated on a new test port, NOT published, incomplete.**
+EFM access from StarlinkAI is real and works (WSL2 → Windows-side `curl.exe`/`tailscale.exe` interop
+reaches `mini-gaming-g1.tail1f447b.ts.net:10090` directly) — an earlier "no access" conclusion this same
+session was wrong, corrected mid-session. What actually blocked completion was the Claude Code harness's
+own auto-mode classifier intermittently refusing repeated live-write Bash calls in that session — a tool
+permission gate, not a device or network problem. Next session (any device) can pick this up with real
+EFM access; no re-diagnosis needed.
+
+**Root cause (confirmed live via `minifi-app.log`, not guessed):** `HandleHttpRequest` splits a multipart
+request into one FlowFile per form field and forwards each independently; `InvokeHTTP` sends each
+fragment's raw bytes with the *original* multipart `Content-Type` header, which is never valid on its own.
+A real probe (`curl.exe -F model=... -F file=...` against the live `:8090` production endpoint, then diffed
+against `minifi-app.log`) confirmed the exact attributes `HandleHttpRequest` sets per fragment — this
+supersedes the earlier from-the-doc guesses:
+
+| Attribute | model fragment | file fragment |
+|---|---|---|
+| `http.context.identifier` | `016f4c23-...` | **same value** — this is the correlation key across fragments of one request |
+| `http.multipart.fragments.sequence.number` | `1` | `2` (**1-indexed**) |
+| `http.multipart.fragments.total.number` | `2` | `2` |
+| `http.multipart.name` | `model` | `file` |
+| `http.multipart.filename` | *(absent)* | `test-audio.wav` |
+| `http.multipart.content.type` | *(absent — dot, not hyphen)* | `audio/wav` |
+| `http.headers.multipart.Content-Disposition` | `form-data; name="model"` | `form-data; name="file"; filename="test-audio.wav"` |
+| `http.headers.multipart.Content-Type` | *(absent)* | `audio/wav` |
+
+`http.headers.multipart.Content-Disposition`/`.Content-Type` carry the **original raw per-part header
+text** — reuse them directly instead of hand-reconstructing the header string from `http.multipart.name`/
+`.filename`, which avoids the conditional-filename EL problem entirely.
+
+**Isolated build (done, on a new unconnected branch — the live production `:8090` pair was never touched):**
+new `HandleHttpRequest` on port **`:8095`**, own `HTTP Context Map` (shared existing `StandardHttpContextMap`,
+id `5e0fc869-b7d6-478b-ab1c-edcea8a36325`), feeding a reassembly chain, built via the EFM Designer API on
+flow `09400bac-f259-4f6a-8f87-f757a5031dd3` / PG `20bf8dfd-aae4-4f81-bedd-edb0b9ddcf76`:
+
+| Processor | id | Key config |
+|---|---|---|
+| `HandleHttpRequest-TranscriptionTest` | `3262f727-3329-4b4d-a3e2-724d9205c185` | Listening Port `8095`, POST only |
+| `UpdateAttribute-FragmentKeys` | `fdf3b1d8-f49e-4cb2-8656-207de611e5d4` | `fragment.identifier`=`${http.context.identifier}`, `fragment.count`=`${http.multipart.fragments.total.number}`, `fragment.index`=`${http.multipart.fragments.sequence.number:minus(1)}` (**0-indexed** — `MergeContent`'s Defragment strategy requires `fragment.index` between `0` and `fragment.count-1`, one off from the 1-indexed `sequence.number`) |
+| `RouteOnAttribute-HasContentType` | `4c7e7990-e72b-4316-be44-d8b210b53523` | dynamic property `hasType` = `${'http.multipart.content.type':isEmpty():not()}` |
+| `ReplaceText-PrependPartHeaderWithType` | `11c74bd7-2140-4de9-9af7-b5fd7c0c374d` | Prepend, Entire text: `--ClaudeStarlinkBoundary7f3a2b91\r\nContent-Disposition: ${'http.headers.multipart.Content-Disposition'}\r\nContent-Type: ${'http.headers.multipart.Content-Type'}\r\n\r\n` |
+| `ReplaceText-PrependPartHeaderNoType` | `a1afe1a9-f923-4851-9cbe-d794befd23ac` | same, without the `Content-Type:` line |
+| `MergeContent-Multipart` | `65003e4d-4c8b-4db0-b7ee-a3e52f7d43d0` | Merge Strategy `Defragment`, Delimiter Strategy `Text`, Demarcator `\r\n`, Footer `\r\n--ClaudeStarlinkBoundary7f3a2b91--\r\n`, `original` auto-terminated |
+| `UpdateAttribute-SetMultipartContentType` | `fbe54062-ae59-4c7d-993b-35d82d77095b` | `Content-Type` = `multipart/form-data; boundary=ClaudeStarlinkBoundary7f3a2b91` |
+| `InvokeHTTP-TranscriptionTest` | `74aec6a4-e955-41a2-b62d-87747400a3e8` | same as prod `InvokeHTTP-Lemonade` (10 min timeouts) except `Request Content-Type` = `${Content-Type}`, not `${mime.type}` |
+| `HandleHttpResponse-TranscriptionTest` | `56b240bd-0887-403d-b9fd-8e71aae69389` | `HTTP Status Code` = `${invokehttp.status.code:replaceEmpty('502')}` |
+| `LogAttribute-TranscriptionTest` | `ba0bac17-2ef1-486b-85c9-16aac651032d` | error/visibility tap |
+
+Note `Delimiter Strategy: Text` lets `MergeContent`'s Demarcator/Footer be literal property values —
+`Filename` mode (a file on disk) was the other option but isn't needed here.
+
+**Connections done (13 of 19):** `req[success]→frag[success]→route`; `route[hasType]→rt_with`,
+`[unmatched]→rt_without`; both `[success]→merge`, `[failure]→log`; `merge[merged]→set_ct[success]→invoke`;
+`invoke[Response]→resp`, `invoke[Retry]→resp`.
+
+**Connections still needed (6):** `invoke[No Retry]→resp`, `invoke[Failure]→resp`, `invoke[Retry]→log`,
+`invoke[No Retry]→log`, `invoke[Failure]→log`, `invoke[Original]→log` — mirrors the same fan-out pattern
+already proven on the production `InvokeHTTP-Lemonade` (flowVersion 23 fix, see above).
+
+**Not done after that:** `GET .../flows/{id}/validate` (confirm `validationErrors: []`), then a real curl
+test against `:8095` directly (bypassing the router's public port entirely, safe — this is a brand-new
+port, not live traffic) before touching anything on `:8090`. Only **after** `:8095` round-trips a real
+transcript should `RouteOnAttribute-HasFragments` be added ahead of the *shared* `HandleHttpRequest-Lemonade`
+(`:8090`) to fork multipart traffic into this branch — that cutover is a separate, deliberate step per the
+`nifi-and-ai` skill (rule 8: build new logic in its own PG/branch first, wire into a live path as a second
+step), and needs a fresh go-ahead since it touches the shared production entry point. `GET .../flows/{id}/publish`
+is what actually pushes any of this to the running agent — nothing above has been published; the live
+`:8090` production pair is completely unaffected by any of this work.
+
+**Test plan once cutover happens:**
+```powershell
+curl.exe -X POST http://localhost:8090/api/v1/audio/transcriptions `
+  -F "model=Whisper-Large-v3-Turbo" -F "file=@test-audio.wav"
+```
+Expect the same real `200` + transcript text that hitting Lemonade directly on `:13305` already returns.
+**Also re-verify chat/embeddings/reranking/speech** afterward — inserting `RouteOnAttribute` ahead of the
+existing `InvokeHTTP` is a real wiring change to their path even though their processor configs don't
+change, so it's a regression risk worth a real check, not an assumption.
+
 ## Status
 
 **Done:**
