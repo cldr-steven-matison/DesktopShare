@@ -20,26 +20,27 @@ k8s legs only** (MiNiFi → NiFi in minikube).
     `conf` flow JSON) — this is the concrete form of Ch10 build step 1.
   - **Transports:** confirms S2S supports **RAW TCP and HTTP** — matches this leg's HTTP-over-8443
     decision; RAW needs its own exposed socket (the reason it's ruled out here).
-  - **Trap, carry to Ch11 (C++):** the two YAML examples spell the RPG key *differently* —
+  - **Trap, carry to Ch10 (C++):** the two YAML examples spell the RPG key *differently* —
     `Remote Process Groups` (RAW example) vs `Remote Processing Groups` (HTTP example). The C++
     strict-YAML parser is picky about this; pin the exact key against the pinned agent version at
     build time. Output-port→processor connections use the `undefined` source relationship.
-  - Note this upstream doc is the **MiNiFi C++** side of S2S (Ch11); the NiFi-side port/instance-id
-    mechanics apply to Ch10 too, but Ch10's source agent is MiNiFi **Java** (`minifi.properties` +
+  - Note this upstream doc is the **MiNiFi C++** side of S2S (Ch10); the NiFi-side port/instance-id
+    mechanics apply to Ch11 too, but Ch11's source agent is MiNiFi **Java** (`minifi.properties` +
     flow definition, not this C++ strict-YAML `Remote Process Groups` block).
 - Apache `nifi-minifi-cpp` `extensions/python/PYTHON.md` (where a path carries Python logic)
 
 ## The two paths (local k8s)
 
-| # | Path | Environment | Prereqs |
-|----|------|-------------|---------|
-| 1 | MiNiFi Java → NiFi K8s | local minikube | Java MiNiFi agent, NiFi Remote Process Group + input port |
-| 2 | MiNiFi C++ → NiFi K8s | local minikube | C++ MiNiFi agent, same RPG/input port |
+| # | Path | Environment | Prereqs | Status |
+|----|------|-------------|---------|--------|
+| Ch10 | MiNiFi C++ → NiFi K8s | local minikube | C++ MiNiFi agent, NiFi Remote Process Group + input port | 🟢 field-validated 2026-08-04 |
+| Ch11 | MiNiFi Java → NiFi K8s | local minikube | Java MiNiFi agent, same RPG/input port | 🔲 scoped, untested |
 
 ## Build order
 
-Path 1 then path 2 — nail the RPG/input-port mechanics and the transport protocol
-(RAW vs HTTP) with no cloud variables. (The three cloud CDP legs were descoped 2026-08-03; see above.)
+Ch10 (C++) proved the RPG/input-port mechanics and the HTTP transport with no cloud variables —
+field-validated 2026-08-04. Ch11 (Java) reuses that proven NiFi-side setup. (The three cloud CDP legs
+were descoped 2026-08-03; see above.)
 
 ## Per-path deliverable
 
@@ -47,10 +48,12 @@ Each path gets: the source-side config (MiNiFi `config.yml` RPG block or NiFi RP
 the target-side input port, the transport protocol choice with rationale, and a
 copy-paste verification (send a flow file, confirm arrival on the target).
 
-## Ch10 — MiNiFi Java → NiFi K8s (first leg): detailed build plan
+## Ch11 — MiNiFi Java → NiFi K8s: detailed build plan
 
-**Scoped this pass (2026-07-30, FTF3XR2065); the live build is deferred — see blockers below.** This
-is the one leg #30 builds and field-tests; Ch11 stays scoped-but-untested until it proves the pattern.
+**Scoped (2026-07-30, FTF3XR2065); the live Java build is deferred — see blockers below.** Ch10 (MiNiFi
+C++) proved the pattern end to end on 2026-08-04 (runbook in
+[`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md)); this Java leg reuses that proven NiFi-side
+setup and remains the open piece under this parent.
 
 ### The environment on this device (confirmed)
 
@@ -92,13 +95,13 @@ NiFi web URL; the SSL context handles the secured connection.
 2. **Source side — the RPG block.** The MiNiFi Java flow gets a Remote Process Group pointing at the
    NiFi web URL, transport `HTTP`, feeding the input port's ID, with a `GenerateFlowFile` upstream for
    test payload. (MiNiFi Java uses `minifi.properties` + a flow definition; the C++ strict-YAML
-   `Remote Processing Groups` / explicit-UUID trap in the Traps section applies to Ch11, not here.)
+   `Remote Processing Groups` / explicit-UUID trap in the Traps section applies to Ch10 (C++), not here.)
 3. **SSL context.** Point the agent at NiFi's cert (or the `mynifi-cfm-operator-user-cert` material) so
    the S2S-over-HTTPS handshake succeeds.
 4. **Verify.** Send a flow file from the source; confirm arrival on the NiFi input port (queue count /
    provenance on `mynifi-0`). That's the copy-paste verification the per-path deliverable calls for.
 
-### Blockers to resolve before the live Ch10 field-test
+### Blockers to resolve before the live Ch11 field-test
 
 1. **EFM is scaled to 0 on this device** — scale it back up before deploying a new agent via the deployer.
 2. **NiFi's S2S port isn't exposed to the host** — depends on `minikube tunnel` + ingress (option 1) or an in-cluster agent (option 2).
@@ -107,7 +110,7 @@ NiFi web URL; the SSL context handles the secured connection.
 5. **The NiFi input port + access policy must be created first** — ~~the secured-NiFi identity/policy is the real unknown~~. **Resolved 2026-08-04:** on a CFM-operator NiFi you don't POST the policy, you declare it — a `User` CR (`certificate.generate: true`) granted `write` on `/data-transfer/input-ports/<id>` + `read` on `/site-to-site`. Full recipe + traps in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md#wall-4-resolved--the-cfm-operator-owns-authorization-declare-it-dont-post-it-2026-08-04).
 6. ~~**Apache `SITE_TO_SITE.md` hasn't been fetched into the repo** — pull it in as prep.~~ **Resolved 2026-07-31** — fetched verbatim to [`files/site-to-site/SITE_TO_SITE.md`](files/site-to-site/SITE_TO_SITE.md) (see Reference above).
 
-These are why this pass **scopes** Ch10 rather than building it: the live build (and the EFM scale-up /
+These are why this pass **scopes** Ch11 rather than building it: the live build (and the EFM scale-up /
 any NiFi restart it implies) is a deliberate next step under this parent, not part of this planning pass.
 
 ## Traps to watch (carry forward from prior work)
