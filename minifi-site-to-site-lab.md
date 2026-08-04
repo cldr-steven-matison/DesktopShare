@@ -163,6 +163,8 @@ Brought the `s2s-lab` profile back up and drove it to a working FlowFile transit
 
 and the NiFi side, the `from-minifi` → funnel queue climbing one FlowFile every ~5s (7 → 8 → 10 → … → 100+). The full path, all live: **MiNiFi C++ agent (client cert `CN=minifi-s2s`, signed by the CFM CA) → secure S2S over HTTPS 8443, HTTP transport, mTLS → CFM-operator NiFi `from-minifi` input port**, authorized by the operator-reconciled `User` policy. No hand-authored policies.
 
+![The from-minifi input port (running) receiving MiNiFi C++ FlowFiles via secure Site-to-Site, queued into a downstream funnel on the CFM-operator NiFi canvas](images/minifi-s2s-from-minifi-queue.png)
+
 ### The working recipe (what actually got it there)
 
 1. **Declare the peer — don't POST it.** The [`minifi-s2s` User CR](#wall-4-resolved--the-cfm-operator-owns-authorization-declare-it-dont-post-it-2026-08-04) above. The operator reconciled it into NiFi *as `cfm-operator.cfm-operator-system.svc`* — confirmed in its logs (`Created access policy … /data-transfer/input-ports/<id>` and `… /site-to-site`, both granting user `minifi-s2s`). This is the exact `POST /policies` that hand-driving as the seeded admin got `500` for. Verified in NiFi: `GET /policies/write/data-transfer/input-ports/<id>` → `users:[minifi-s2s]`.
@@ -183,6 +185,21 @@ and the NiFi side, the `from-minifi` → funnel queue climbing one FlowFile ever
 ### Reaching the UI (mTLS, no password)
 
 The NiFi binds its **pod IP** (`nifi.web.https.host=nifi-0.nifi…svc`), so `kubectl port-forward` fails TLS (`SSL_ERROR_SYSCALL`). Path in: make `nifi-web` a `LoadBalancer`, `sudo minikube tunnel -p s2s-lab` (binds it to `127.0.0.1:8443` on the docker driver), map `127.0.0.1 nifi-web.cfm-streaming.svc.cluster.local` in `/etc/hosts` (that host is in both `nifi.web.proxy.host` and the cert SAN), and import the operator user cert as a browser PKCS12. Login is the cert — there is no username/password.
+
+Package the admin cert (identity `cfm-operator.cfm-operator-system.svc`, which the clean seed grants full canvas rights) as a PKCS12 from the `nifi-cfm-operator-user-cert` secret:
+
+```bash
+openssl pkcs12 -export -legacy \
+  -in tls.crt -inkey tls.key -certfile ca.crt \
+  -name "nifi-s2s-admin (cfm-operator)" -out ~/nifi-s2s-admin.p12 -passout pass:nifi
+```
+
+Three gotchas that actually bit, in order:
+- **`-legacy` is mandatory.** OpenSSL 3.x defaults to AES-256/SHA-256 PKCS12 encryption that macOS Keychain can't parse — the import fails with `OSStatus -26276` (`errSecDecode`) *after* you type the password, so it looks like a wrong-password error but isn't. `-legacy` writes the `pbeWithSHA1And40BitRC2-CBC` / SHA1-MAC encoding macOS accepts.
+- **Import into the *System* keychain, not *login*.** In the Keychain import drop-down, select **System** — with **login** the cert imports but Chrome/Safari won't offer it for client auth.
+- **Chrome re-prompts for your macOS user + password** when it first reaches for the key (unlocking the System keychain for TLS client auth). Enter your Mac account credentials — that's the OS keychain unlock, not a NiFi login (NiFi has no password login at all).
+
+Then browse `https://nifi-web.cfm-streaming.svc.cluster.local:8443/nifi/` and pick the `nifi-s2s-admin (cfm-operator)` certificate.
 
 ## Reusable lessons
 - A bare MiNiFi pod reporting `Running` proves nothing — verify the process and the binary arch match the node.
