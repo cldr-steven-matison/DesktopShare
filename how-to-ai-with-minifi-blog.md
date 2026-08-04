@@ -41,6 +41,42 @@ All five endpoints are confirmed end-to-end with real payloads: chat (real synch
 
 One real gotcha this design introduced: `InvokeHTTP`'s `Socket Read Timeout` defaults to `15 secs`, and LLM inference routinely takes 10-25s+. Every request failed silently on that default — a `SocketTimeoutException` auto-terminating on `Failure` with nothing routed back, so the caller just sat until the HTTP context map's own 60s expiration gave up with a generic 503. Set it to match your slowest endpoint (`10 mins` here), not the framework default.
 
+## `ListenHTTP` vs `HandleHttpRequest`/`HandleHttpResponse` — the fork that shapes every edge AI flow
+
+The single design decision that decides what an edge AI flow can *do* is which HTTP entry processor it uses, because the two families answer the caller completely differently.
+
+`ListenHTTP` — the only HTTP-ingest processor MiNiFi **C++** ships — is **fire-and-forget**. It accepts a POST and immediately returns an empty `200` ack; it has no way to send a computed body back on the same connection. If the caller wants the model's actual answer, it has to arrive out-of-band: the classic shape is `ListenHTTP → … → PublishKafka`, with the client polling a Kafka topic keyed on a `request_id` it supplied in the request. Two extra moving parts — a broker and a correlation key — exist purely because the front door can't talk back. `ListenHTTP` also carries the `5/5` batch/buffer trap and, on some C++ builds, a residual `1/1` multipart drop (`MINIFICPP-2243`).
+
+`HandleHttpRequest` + `HandleHttpResponse` — MiNiFi **Java**, with the `StandardHttpContextMap` controller service — are a **synchronous pair**. `HandleHttpRequest` parks the caller's connection in the context map keyed by `http.context.identifier`, the flow does its work, and `HandleHttpResponse` writes the real body and status back on that same parked connection. No broker, no polling, no `request_id` — the caller gets the model's answer as the HTTP response to its own request. That's the decisive capability for an HTTP-fronted inference proxy, and it's Java-only.
+
+### StarlinkAI — before and after
+
+**Before** (C++ `ListenHTTP`, fire-and-forget over Kafka):
+```text
+client → ListenHTTP(:PORT, request_id) → InvokeHTTP(Lemonade) → PublishKafka(results)
+client ← (empty 200 ack)
+client ⟳ polls a Kafka topic for its request_id … eventually reads the answer
+```
+Every service needed its own `ListenHTTP`/`InvokeHTTP` pair, a Kafka round trip, and client-side correlation — and multipart transcription POSTs were silently dropped at the buffer check.
+
+**After** (Java `HandleHttpRequest`/`HandleHttpResponse`, synchronous):
+```text
+client → HandleHttpRequest(:8090, any path)
+       → InvokeHTTP(POST http://localhost:13305${http.request.uri})
+       → HandleHttpResponse(200) → client   (Lemonade's real answer, inline)
+```
+One flow, one port, no Kafka, no `request_id`. All five Lemonade endpoints ride the same three processors, distinguished only by the forwarded path.
+
+### NvidiaNano — before and after
+
+The Jetson is the same fork seen from the inference side.
+
+**Before:** the production ingest listeners (`/streamChatListener`, `/matrixListener`, `/contentListener`) are C++ `ListenHTTP → PublishKafka` — fire-and-forget, and still dropping POSTs at `1/1` (`MINIFICPP-2243`, [#54](https://github.com/cldr-steven-matison/DesktopShare/issues/54), ~4/day). The "AI" processor was worse than fire-and-forget: an `ExecuteScript` that re-read its script and re-deserialized the TensorRT engine on *every trigger* — a per-request model load costing far more than the inference it was there to run.
+
+**After:** one resident TensorRT daemon (`127.0.0.1:5910`, MobileNetV2 FP16, ~4 ms) with three thin front doors — the synchronous one being a Java agent's `HandleHttpRequest → InvokeHTTP(localhost:5910/classify) → HandleHttpResponse`, the exact StarlinkAI shape, returning the classification inline. `systemctl --user restart trt-infer` swaps the model without touching MiNiFi. The synchronous Java door to the daemon is proven; migrating the C++ *ingest* listeners off `ListenHTTP` onto `HandleHttpRequest` is the candidate fix for the [#54](https://github.com/cldr-steven-matison/DesktopShare/issues/54) drop — not yet applied on the Jetson, stated honestly.
+
+The takeaway: **if the caller needs the model's answer back, that's a `HandleHttpRequest`/`HandleHttpResponse` flow on a Java agent. If it's genuinely fire-and-forget telemetry, `ListenHTTP → PublishKafka` on C++ is fine** — just set batch/buffer to `1/1` and know the multipart caveat.
+
 ## When the agent *does* need to compute: two Python paths, and they are not the same
 
 Sometimes routing isn't enough and you want logic to run on the agent itself — enrich a FlowFile, call a library, reshape a payload before it leaves the edge. MiNiFi C++ gives you two ways to run Python, and conflating them is the most common mistake I see (I made it myself in an earlier draft). They are different processors with different reload behavior:
@@ -131,6 +167,35 @@ POST /efm/api/designer/flows/{flowId}/publish
 Two gotchas that `GET .../validate` catches before publish: new processors don't get their `autoTerminatedRelationships` set for you (an `EvaluateJsonPath` needs `failure` and `unmatched` terminated explicitly, or publish `409`s), and EFM's Designer has no disabled/inert state — a single invalid or orphaned processor anywhere on the canvas blocks `/publish`. Building the StarlinkAI router this way, publishing `flowVersion 12` returned `{"dirty":false,"localChanges":false}` and HTTP `200`, and the agent bound all five ports on its next heartbeat.
 
 The other EFM rule that catches people: **the Designer validates against the agent class → manifest mapping, not against whatever agent is online.** Put a Java agent on a class whose flow was authored for C++ and the Designer rejects the processors, because the FQCNs differ (`org.apache.nifi.minifi.processors.ListenHTTP` vs the Java equivalent). When you add NARs or extensions to a running agent, its new processors stay invisible to the Designer until you re-point the class mapping to the agent's new `agentManifestId`. I keep mixed runtimes as parallel classes — `WindowsDesktopCpp` separate from the Java `WindowsDesktop`, `KubernetesPodJava` separate from the C++ `KubernetesPod` — so a Java agent never lands on a C++ canvas.
+
+## The `nifi-and-ai` skill — the playbook these flows come from
+
+Everything above is codified in a Claude skill, `nifi-and-ai`, that rides along in the repo. It's the distilled version of every bug in this post, and for MiNiFi specifically it earns its keep in a few concrete places:
+
+- **Flow dev.** The synchronous-router shape, the `ListenHTTP` `5/5` trap, the `Retry`-isn't-`Failure` drop, the `InvokeHTTP`-defaults-to-`GET` and 15s-timeout footguns — each is a rule, not a rediscovery. Build a new edge flow and the skill already knows the shape and where it silently breaks.
+- **API work.** The EFM Flow Designer contract (no whole-flow `PUT`; build component-by-component; `GET …/validate` before `/publish`), the Resource Manager upload body that's silently swallowed if it's a bare array, and the "dump the live `flow.json` before you edit" rule all live in the skill's reference files.
+- **Knowing what's actually in the build.** Which processors a given agent *has* is not a given — C++ and Java ship different manifests, `ExecuteScript`'s Python engine is absent from every stock binary, and the Designer validates against the agent-class→manifest mapping rather than the live agent. The skill names these so you check the manifest instead of assuming a processor exists.
+- **Layout.** A `references/layout.md` with the EFM row/column pitch constants — because two fresh builds landed cramped at the tighter NiFi pitch before the numbers were pinned.
+- **Testing.** Send a real payload through the real pipeline, dump the live flow, and read `minifi-app.log` for the *actual* attributes — never edit from a remembered description. The transcription fix above was root-caused entirely by diffing the log against a real multipart probe.
+
+### EFM-directed vs direct-on-agent
+
+There are two ways to change what an agent does, and they are not interchangeable:
+
+- **EFM-directed** — author the flow in the EFM Flow Designer and *publish* it to the agent class over C2; the agent picks it up on its next heartbeat. This is the tracked, durable, fleet-wide path: the flow is versioned in EFM, survives agent restarts, and applies to every agent in the class. It's also the only path with a write contract to respect (component-by-component, validate, publish) and a class→manifest gate that rejects a C++ flow published onto a Java class.
+- **Direct-on-agent** — touch the box itself: `kubectl cp` a script onto the agent's script path, drop a `.py` into the processor directory, edit `config.yml`. Immediate and ideal for iteration, but it bypasses EFM entirely — nothing is tracked, and a pod restart or C2 reconcile can wipe it. Worse, EFM *owns* some agent properties: a hand-edit to a `minifi.properties` key EFM manages gets regenerated (often empty) on the next boot, and some properties are denylisted from C2 push altogether.
+
+The rule of thumb: **iterate direct-on-agent, ship EFM-directed.** Prototype a script with `kubectl cp` because it hot-reloads; once it's stable, deliver it as a tracked EFM Resource so it survives a restart.
+
+## A few more concepts field validation kept surfacing
+
+Beyond the flow mechanics, the high-level ideas that cost time until they were named:
+
+- **An agent class is not one machine.** A class is a manifest + a published flow; any number of agents can join it. Publish once, every agent in the class converges. Mixed runtimes (C++ vs Java) must be *parallel* classes or the FQCNs collide.
+- **The live flow is the only truth.** The running canvas drifts from your notes faster than you'd think — dump `GET /efm/api/designer/flows/{id}` or the agent's `config.yml` before editing, every time.
+- **Persistence has layers.** The flow (EFM/C2), the scripts and assets (Resource Manager, needs the `efm-resources` PVC or the bytes die with the pod), and the agent's own state are three different stores with three different lifetimes. "It's saved" means naming *which* store.
+- **EFM holds write authority over agent properties.** This is why direct file edits revert and why a metrics endpoint you can't open via config might still be reachable another way — e.g. relaying over Site-to-Site to a NiFi that already has the API open, instead of trying to open one on a headless agent.
+- **Manifest staleness bites silently.** Change a processor's properties without changing its name and the Designer can serve a cached manifest — the new field won't appear until the class is re-pointed at the agent's new `agentManifestId`.
 
 ## The lessons that save you a debugging session
 
