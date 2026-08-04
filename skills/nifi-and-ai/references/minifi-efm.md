@@ -146,3 +146,13 @@ EFM's manifest registration appears to key off the *set of processor type names*
 This blocks configuring the processor's properties through the Designer: `.../validate` rejects any property not in the stale cached descriptor list, which blocks `/publish`.
 
 **Workaround:** rename the processor (e.g. `UpdateAttribute` → `UpdateAttributeVerify`) so the class sees a new *name*, which reliably mints a fresh `agentManifestId` with correct content — then rename back if desired. This is an EFM server-side bug (Java/Postgres-backed manifest store), not fixable from the agent/flow side.
+
+## 13. `InvokeHTTP` in a `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pair: a 5xx from the target can hang the client for 30+ seconds, or forever
+
+Two compounding gotchas, found building `NvidiaNanoJava`'s streamChat/matrix pairs (#84) by copying an existing working pair (`/classify`, #46) as a template:
+
+1. **The `Retry` relationship (status 500-599) is not auto-terminated and easy to leave wired back to the processor itself** (a self-loop looks harmless when copying an existing template, since the working template only ever exercised the 2xx path). With no other destination, a flowfile routed to `Retry` loops forever — the client waiting on `HandleHttpResponse` never gets an answer, no matter how generous `InvokeHTTP`'s own socket timeouts are set. **Route `Retry` to the same terminal `HandleHttpResponse` as `No Retry`/`Failure`** (one connection can carry all three relationships) unless a real automatic-retry loop is actually wanted.
+
+2. **Even after fixing that, every processor has a `penaltyDuration` scheduling field defaulting to 30 seconds — invisible in the Designer's property list**, since it's not a `properties` entry but a top-level field on the processor's `componentConfiguration` (`GET /efm/api/designer/flows/{flowId}/processors/{id}` shows it; confirm on the agent's own `flow.json.gz`, e.g. `penaltyDuration: 30000 ms`). `InvokeHTTP` penalizes the flowfile before routing it to `Retry`, so any 5xx adds a flat ~30s hang before the downstream `HandleHttpResponse` ever sees it — easy to misdiagnose as a hung connection or a bad `Socket Read Timeout` when the HTTP call itself actually completed in milliseconds. For a synchronous request/response pair that terminates on error rather than genuinely retrying, **set `penaltyDuration` to `0 sec`** via the same processor PUT (top-level field, alongside `properties`) — penalizing serves no purpose when nothing loops back.
+
+Check both on *every* `HandleHttpRequest`/`InvokeHTTP` pair copied from a working template, not just new ones — a template that's only ever seen 2xx responses in testing (e.g. `/classify`) can carry this same latent bug unnoticed indefinitely.
