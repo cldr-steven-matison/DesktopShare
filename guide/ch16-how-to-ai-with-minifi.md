@@ -510,7 +510,9 @@ These are the ones that drop data silently rather than erroring:
 ## Source documents
 
 - `how-to-ai-with-minifi-blog.md` — the polished blog draft; primary narrative source for this
-  chapter (157 lines).
+  chapter. Expanded under #92 with a `ListenHTTP`-vs-`HandleHttpRequest` section, StarlinkAI +
+  NvidiaNano before/after architectures, and a `nifi-and-ai` skill section — the chapter stays the
+  synthesized subset; the deep-dives live in Ch17 (router) and Ch14 (skill EFM portion).
 - `beelink-starlink-efm-ai.md` — the StarlinkAI case study with live processor UUIDs, the
   flowVersion 23 error-routing fix, the transcription multipart reassembly fix (#88, flowVersion 27),
   and confirmed 5/5 endpoint test results.
