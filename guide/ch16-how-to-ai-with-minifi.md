@@ -14,15 +14,15 @@ uses MiNiFi Java agent `2.24.08.0-19`.
 > `400`. This chapter assumes agents are online and asks the next question: what do you make them
 > do.
 
-**Known limitation — transcription (1 of 5 endpoints):** 4 of the 5 Lemonade endpoints (chat,
-embeddings, reranking, speech) are confirmed working end-to-end through the MiNiFi Java router. The
-5th — transcription via multipart POST — is **not working yet**. `HandleHttpRequest` splits a
-multipart request into one FlowFile per form field and forwards each fragment independently; the
-reassembly step (`MergeContent` keyed on `http.multipart.fragments.*`) needed to recombine them
-before `InvokeHTTP` is partially built but not yet published. Root cause is confirmed from live
-`minifi-app.log` and tracked under
-[issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88). This chapter documents
-exactly what is proven and what is still open — it does not claim full coverage.
+**All 5 Lemonade endpoints confirmed (as of 2026-08-04):** chat, embeddings, reranking, speech, and
+transcription all round-trip real data end-to-end through the MiNiFi Java router on production
+`:8090`. Transcription via multipart POST was the last holdout — `HandleHttpRequest` splits a
+multipart request into one FlowFile per form field, and those fragments have to be reassembled
+before `InvokeHTTP` or Lemonade `400`s the invalid body. That reassembly branch was built, proven
+in isolation on a test port first, then cut into production behind a `RouteOnAttribute-HasFragments`
+fork ([issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88), fixed + closed) —
+see "Solved gap: transcription multipart reassembly" below for the exact chain and the two gotchas
+that cost the most time.
 
 ---
 
@@ -137,14 +137,15 @@ InvokeHTTP[Original]       → LogAttribute-Error only
 | Embeddings | `/api/v1/embeddings` | Yes — real 200, real embedding vector (`Qwen3-Embedding-0.6B-GGUF`), ~0.2s |
 | Reranking | `/api/v1/reranking` | Yes — real 200, real relevance scores, correctly ranked on-topic document highest, ~2.5s |
 | Speech (TTS) | `/api/v1/audio/speech` | Yes — real 200, real Kokoro MP3 (valid ID3/MPEG, 78KB), ~7s |
-| Transcription | `/api/v1/audio/transcriptions` | **No — open as issue #88 (see below)** |
+| Transcription | `/api/v1/audio/transcriptions` | **Yes** — real 200, real transcript (fixed 2026-08-04, issue #88; see below) |
 
-### Known gap: transcription multipart reassembly (issue #88)
+### Solved gap: transcription multipart reassembly (issue #88)
 
 `HandleHttpRequest` splits a multipart request into one FlowFile per form field and forwards each
 fragment independently to `InvokeHTTP`. Each fragment carries the *original* multipart
-`Content-Type` header but only that one field's raw bytes — never valid multipart. Lemonade
-correctly rejects it with `400 Bad request`.
+`Content-Type` header but only that one field's raw bytes — never valid multipart, so Lemonade
+correctly rejected it with `400 Bad request`. This is exactly what a pure pass-through router can't
+handle, and it's the one endpoint that needs real work rather than path forwarding.
 
 Confirmed from live `minifi-app.log` — the exact attributes `HandleHttpRequest` sets per fragment:
 
@@ -157,22 +158,37 @@ Confirmed from live `minifi-app.log` — the exact attributes `HandleHttpRequest
 | `http.multipart.filename` | *(absent)* | `test-audio.wav` |
 | `http.headers.multipart.Content-Disposition` | `form-data; name="model"` | `form-data; name="file"; filename="test-audio.wav"` |
 
-The fix requires a reassembly chain before `InvokeHTTP`: `UpdateAttribute` (map `fragment.*` keys
-from the `http.multipart.*` attributes), `RouteOnAttribute` (fork by `http.multipart.content.type`
-presence), two `ReplaceText` processors (prepend MIME part headers with and without `Content-Type`
-line), `MergeContent` (Defragment strategy, `fragment.index` **0-indexed** — `sequence.number`
-minus 1), `UpdateAttribute` (set reassembled `Content-Type`), then `InvokeHTTP`. The isolated build
-on test port `:8095` is partially wired; 6 connections and final validation remain. Tracked under
-[issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88). Full detail and the
-in-progress processor UUIDs are in `beelink-starlink-efm-ai.md` §"Proposed fix — transcription
-multipart reassembly."
+The fix is a reassembly chain ahead of `InvokeHTTP`: `UpdateAttribute` (map `fragment.*` keys from
+the `http.multipart.*` attributes), `RouteOnAttribute` (fork by `http.multipart.content.type`
+presence), two `ReplaceText` processors (prepend the MIME part header, with and without the
+`Content-Type:` line), `MergeContent` (Defragment strategy, `fragment.index` **0-indexed** —
+`sequence.number` minus 1), `UpdateAttribute` (set the reassembled `Content-Type` with the new
+boundary), then `InvokeHTTP`. Built and proven in isolation on test port `:8095` first (real `200`,
+real transcript), then cut into the live router behind a `RouteOnAttribute-HasFragments` fork ahead
+of the shared `InvokeHTTP` — multipart requests take the reassembly branch, everything else passes
+straight through unchanged. Full detail and the live processor UUIDs are in
+`beelink-starlink-efm-ai.md` §"Transcription multipart reassembly — FIXED (#88)."
 
-A direct probe to Lemonade on `:13305` with the identical multipart POST returns a real `200` and
-real transcript text — the request itself is well-formed and the model works; only the MiNiFi
-pass-through leg is broken.
+Two gotchas cost the most time, both worth knowing before you build this:
 
-**Summary: 4 of 5 Lemonade endpoints confirmed working end-to-end through the MiNiFi router. The
-5th (transcription) is confirmed broken, root-caused, and tracked under issue #88.**
+- **`ReplaceText` prepends `Replacement Value`, not `Text to Prepend`** (on `minifi-standard-nar
+  2.24.08.0-19` with `Replacement Strategy = Prepend`). The boundary/header text sitting in the
+  intuitively-correct `Text to Prepend` field did nothing; every part came out starting with the
+  literal default `$1` and the body was missing its opening boundary. Move the header text into
+  `Replacement Value`.
+- **MiNiFi's `InvokeHTTP` does not swap FlowFile content for the HTTP response body on a non-2xx** —
+  the `Response` relationship keeps the original *outgoing* request bytes. This is router-wide, not
+  specific to this branch; it just never surfaced while only the success path was tested. It's also
+  what let me read the exact bytes MiNiFi was sending Lemonade, which is how the `$1` bug was found.
+
+A direct probe to Lemonade on `:13305` with the identical multipart POST always returned a real
+`200` and real transcript — the request and model were fine all along; only the MiNiFi pass-through
+leg needed the reassembly step.
+
+**Summary: all 5 Lemonade endpoints confirmed working end-to-end through the MiNiFi router. The 5th
+(transcription) was root-caused and fixed 2026-08-04 under issue #88 — the multipart reassembly
+branch is live on production `:8090`, with chat/embeddings/reranking/speech regression-tested after
+cutover, zero regressions.**
 
 ### Setting up the StarlinkAI router from scratch
 
@@ -496,12 +512,13 @@ These are the ones that drop data silently rather than erroring:
 - `how-to-ai-with-minifi-blog.md` — the polished blog draft; primary narrative source for this
   chapter (157 lines).
 - `beelink-starlink-efm-ai.md` — the StarlinkAI case study with live processor UUIDs, the
-  flowVersion 23 error-routing fix, the in-progress transcription reassembly build, and confirmed
-  endpoint test results (240 lines).
+  flowVersion 23 error-routing fix, the transcription multipart reassembly fix (#88, flowVersion 27),
+  and confirmed 5/5 endpoint test results.
 - `completed/how-to-ai-with-minifi.md` — archived subplan with the original scope and blocker
   notes.
 - Ch5 ([ExecuteScript Availability](ch05-executescript-availability.md)) — the full build-by-build
   breakdown of which runtimes ship the Python engine.
 - Ch17 (Edge-AI router case study, issue #67) — the dedicated deep-dive on the StarlinkAI router
-  architecture, Tailscale integration, and the transcription fix once issue #88 is resolved.
+  architecture, Tailscale integration, and the transcription reassembly fix (issue #88, resolved
+  2026-08-04). Chapter prose still to be authored/folded under #67.
 - Ch19 (EFM + NVIDIA Jetson, issue #69) — on-device model execution via TensorRT/llama.cpp.

@@ -197,7 +197,7 @@ Every entry uses the same card so the gallery reads consistently:
 ## Entry 7 — Edge-AI router (MiNiFi Java, EFM-managed)
 
 - **Name:** `starlinkai-lemonade-router-java`
-- **Purpose:** Front a local Lemonade Server (AMD OpenAI-compatible inference, port 13305) with a three-processor MiNiFi Java flow that proxies all five Lemonade endpoints synchronously. The agent is tiny; the GPU model runs on the adjacent box. Four of five endpoints are confirmed working end to end; transcription multipart reassembly is an open issue (#25).
+- **Purpose:** Front a local Lemonade Server (AMD OpenAI-compatible inference, port 13305) with a three-processor MiNiFi Java flow that proxies all five Lemonade endpoints synchronously. The agent is tiny; the GPU model runs on the adjacent box. All five endpoints are confirmed working end to end; transcription needed a multipart-reassembly branch ahead of `InvokeHTTP`, fixed 2026-08-04 (#88).
 - **Agent:** MiNiFi **Java** `2.24.08.0-19`, EFM-managed agent class `StarlinkAIJava`, running on StarlinkAI Beelink SER9 (`TunaStarlink`, Windows). `HandleHttpRequest`/`HandleHttpResponse` — the Java-only synchronous response pair — are why this is a Java flow, not C++.
 - **Shape:**
   ```
@@ -220,7 +220,7 @@ Every entry uses the same card so the gallery reads consistently:
        -d '{"model":"Qwen3-Embedding-0.6B-GGUF","input":["test sentence"]}'
   ```
   Expected: real synchronous response from Lemonade, `invokehttp.status.code=200` on `LogAttribute`.
-- **Status:** ✅ 4 of 5 endpoints confirmed (chat, embeddings, reranking, TTS); transcription multipart reassembly open under [issue #25](https://github.com/cldr-steven-matison/DesktopShare/issues/25). Full walkthrough: [Chapter 16](ch16-how-to-ai-with-minifi.md).
+- **Status:** ✅ all 5 endpoints confirmed (chat, embeddings, reranking, TTS, transcription). Transcription needed a multipart-reassembly branch ahead of `InvokeHTTP` — built, proven, and cut into production 2026-08-04 under [issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88) (fixed + closed). Full walkthrough: [Chapter 16](ch16-how-to-ai-with-minifi.md).
 
 > **⚠️ `InvokeHTTP` socket timeouts.** LLM inference routinely takes 10–25s; the framework default `Socket Read Timeout` of 15 secs fails every real call. Set Read and Write timeouts to `10 mins`. `HTTP Method` silently defaults to `GET` — set it to `POST` explicitly.
 

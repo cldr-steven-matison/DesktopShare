@@ -130,9 +130,9 @@ All 5 Lemonade services, one port, one flow — the path the client POSTs to is 
 | Embeddings | `/api/v1/embeddings` | **Yes** — real 200, real embedding vector (`Qwen3-Embedding-0.6B-GGUF`), ~0.2s |
 | Reranking | `/api/v1/reranking` | **Yes** — real 200, real relevance scores (`jina-reranker-v1-tiny-en-GGUF`), correctly ranked the on-topic document highest, ~2.5s |
 | Speech (TTS) | `/api/v1/audio/speech` | **Yes** — real 200, real Kokoro MP3 (valid ID3/MPEG, 78KB), ~7s |
-| Transcription | `/api/v1/audio/transcriptions` | **No — new bug found, see below.** Intake at `HandleHttpRequest` is clean (no drops), but the full round trip through `InvokeHTTP` fails with a real `400` every time |
+| Transcription | `/api/v1/audio/transcriptions` | **Yes** (fixed 2026-08-04, #88) — real 200, real transcript. Intake was always clean; the round trip through `InvokeHTTP` used to `400` until the multipart fragments were reassembled ahead of it — see "Transcription multipart reassembly — FIXED (#88)" below |
 
-**New bug found 2026-08-02 — multipart fragments never get reassembled before forwarding.** `HandleHttpRequest` splits a multipart request into one FlowFile per form field (confirmed via `minifi-app.log`: `http.multipart.fragments.total.number: 2`, one fragment for `model`, one for `file`). Each fragment is then forwarded to `InvokeHTTP-Lemonade` **independently**, as its own request, with `Content-Type` still set to the *original* multipart header (`multipart/form-data; boundary=...`) but a body that's only that one fragment's raw bytes — never valid multipart. Lemonade correctly rejects it: `invokehttp.response.body: {"error":{"message":"Bad request","type":"bad_request"}}`. Confirmed the request itself is well-formed by sending the identical multipart POST straight to Lemonade on `:13305` — real `200`, real transcript text back. The pure `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pass-through design (no reassembly step) works for single-part bodies (JSON, raw binary) but cannot proxy a true multi-field multipart request as-is; fixing it needs the fragments recombined (e.g. a `MergeContent` keyed on `http.multipart.fragments.*`) before `InvokeHTTP`. Filed as a new issue rather than folded into this fix, since it's a materially different problem from the error-routing gap above.
+**The bug (found 2026-08-02, fixed 2026-08-04 — see the FIXED section below): multipart fragments never got reassembled before forwarding.** `HandleHttpRequest` splits a multipart request into one FlowFile per form field (confirmed via `minifi-app.log`: `http.multipart.fragments.total.number: 2`, one fragment for `model`, one for `file`). Each fragment is then forwarded to `InvokeHTTP-Lemonade` **independently**, as its own request, with `Content-Type` still set to the *original* multipart header (`multipart/form-data; boundary=...`) but a body that's only that one fragment's raw bytes — never valid multipart. Lemonade correctly rejects it: `invokehttp.response.body: {"error":{"message":"Bad request","type":"bad_request"}}`. Confirmed the request itself is well-formed by sending the identical multipart POST straight to Lemonade on `:13305` — real `200`, real transcript text back. The pure `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pass-through design (no reassembly step) works for single-part bodies (JSON, raw binary) but cannot proxy a true multi-field multipart request as-is; fixing it needs the fragments recombined (e.g. a `MergeContent` keyed on `http.multipart.fragments.*`) before `InvokeHTTP`. Filed as a new issue rather than folded into this fix, since it's a materially different problem from the error-routing gap above.
 
 Test command:
 ```powershell
@@ -142,15 +142,14 @@ curl.exe -X POST http://localhost:8090/api/v1/chat/completions `
 ```
 Use `--data @file.json` for the body, not an inline `-d '{...}'` string — PowerShell/`curl.exe` argument handling has silently stripped quotes out of inline JSON in past testing on this box.
 
-## Proposed fix — transcription multipart reassembly (#88)
+## Transcription multipart reassembly — FIXED (#88)
 
-**Status 2026-08-02: built live on `StarlinkAIJava`, isolated on a new test port, NOT published, incomplete.**
-EFM access from StarlinkAI is real and works (WSL2 → Windows-side `curl.exe`/`tailscale.exe` interop
-reaches `mini-gaming-g1.tail1f447b.ts.net:10090` directly) — an earlier "no access" conclusion this same
-session was wrong, corrected mid-session. What actually blocked completion was the Claude Code harness's
-own auto-mode classifier intermittently refusing repeated live-write Bash calls in that session — a tool
-permission gate, not a device or network problem. Next session (any device) can pick this up with real
-EFM access; no re-diagnosis needed.
+**Status 2026-08-04: DONE. Fixed, cut over into production `:8090`, all 5 Lemonade endpoints confirmed
+with real data (flowVersion 27). #88 closed.** The reassembly branch was built and proven in isolation on
+port `:8095` first (flowVersion 26 — real `200`, real transcript), then wired into the shared production
+entry point behind a `RouteOnAttribute-HasFragments` fork (flowVersion 27), with chat/embeddings/reranking/
+speech regression-tested immediately after — zero regressions. The build detail below is the record of what
+was built and the two gotchas that cost the most time.
 
 **Root cause (confirmed live via `minifi-app.log`, not guessed):** `HandleHttpRequest` splits a multipart
 request into one FlowFile per form field and forwards each independently; `InvokeHTTP` sends each
@@ -184,8 +183,8 @@ flow `09400bac-f259-4f6a-8f87-f757a5031dd3` / PG `20bf8dfd-aae4-4f81-bedd-edb0b9
 | `HandleHttpRequest-TranscriptionTest` | `3262f727-3329-4b4d-a3e2-724d9205c185` | Listening Port `8095`, POST only |
 | `UpdateAttribute-FragmentKeys` | `fdf3b1d8-f49e-4cb2-8656-207de611e5d4` | `fragment.identifier`=`${http.context.identifier}`, `fragment.count`=`${http.multipart.fragments.total.number}`, `fragment.index`=`${http.multipart.fragments.sequence.number:minus(1)}` (**0-indexed** — `MergeContent`'s Defragment strategy requires `fragment.index` between `0` and `fragment.count-1`, one off from the 1-indexed `sequence.number`) |
 | `RouteOnAttribute-HasContentType` | `4c7e7990-e72b-4316-be44-d8b210b53523` | dynamic property `hasType` = `${'http.multipart.content.type':isEmpty():not()}` |
-| `ReplaceText-PrependPartHeaderWithType` | `11c74bd7-2140-4de9-9af7-b5fd7c0c374d` | Prepend, Entire text: `--ClaudeStarlinkBoundary7f3a2b91\r\nContent-Disposition: ${'http.headers.multipart.Content-Disposition'}\r\nContent-Type: ${'http.headers.multipart.Content-Type'}\r\n\r\n` |
-| `ReplaceText-PrependPartHeaderNoType` | `a1afe1a9-f923-4851-9cbe-d794befd23ac` | same, without the `Content-Type:` line |
+| `ReplaceText-PrependPartHeaderWithType` | `11c74bd7-2140-4de9-9af7-b5fd7c0c374d` | Prepend. **The header text goes in `Replacement Value`, NOT `Text to Prepend`** — see gotcha below. Value: `--ClaudeStarlinkBoundary7f3a2b91\r\nContent-Disposition: ${'http.headers.multipart.Content-Disposition'}\r\nContent-Type: ${'http.headers.multipart.Content-Type'}\r\n\r\n` |
+| `ReplaceText-PrependPartHeaderNoType` | `a1afe1a9-f923-4851-9cbe-d794befd23ac` | same (in `Replacement Value`), without the `Content-Type:` line |
 | `MergeContent-Multipart` | `65003e4d-4c8b-4db0-b7ee-a3e52f7d43d0` | Merge Strategy `Defragment`, Delimiter Strategy `Text`, Demarcator `\r\n`, Footer `\r\n--ClaudeStarlinkBoundary7f3a2b91--\r\n`, `original` auto-terminated |
 | `UpdateAttribute-SetMultipartContentType` | `fbe54062-ae59-4c7d-993b-35d82d77095b` | `Content-Type` = `multipart/form-data; boundary=ClaudeStarlinkBoundary7f3a2b91` |
 | `InvokeHTTP-TranscriptionTest` | `74aec6a4-e955-41a2-b62d-87747400a3e8` | same as prod `InvokeHTTP-Lemonade` (10 min timeouts) except `Request Content-Type` = `${Content-Type}`, not `${mime.type}` |
@@ -195,33 +194,52 @@ flow `09400bac-f259-4f6a-8f87-f757a5031dd3` / PG `20bf8dfd-aae4-4f81-bedd-edb0b9
 Note `Delimiter Strategy: Text` lets `MergeContent`'s Demarcator/Footer be literal property values —
 `Filename` mode (a file on disk) was the other option but isn't needed here.
 
-**Connections done (13 of 19):** `req[success]→frag[success]→route`; `route[hasType]→rt_with`,
-`[unmatched]→rt_without`; both `[success]→merge`, `[failure]→log`; `merge[merged]→set_ct[success]→invoke`;
-`invoke[Response]→resp`, `invoke[Retry]→resp`.
+**All 19 connections wired** (flowVersion 25), mirroring the production `InvokeHTTP-Lemonade` fan-out
+pattern: `req[success]→frag[success]→route`; `route[hasType]→rt_with`, `[unmatched]→rt_without`; both
+`[success]→merge`, `[failure]→log`; `merge[merged]→set_ct[success]→invoke`; `invoke[Response/Retry/No
+Retry/Failure]→resp` and `→log`; `invoke[Original]→log`. Validation also caught that
+`LogAttribute-TranscriptionTest`'s `success` and `HandleHttpResponse-TranscriptionTest`'s `success`/
+`failure` needed `autoTerminatedRelationships` set — matching their production twins.
 
-**Connections still needed (6):** `invoke[No Retry]→resp`, `invoke[Failure]→resp`, `invoke[Retry]→log`,
-`invoke[No Retry]→log`, `invoke[Failure]→log`, `invoke[Original]→log` — mirrors the same fan-out pattern
-already proven on the production `InvokeHTTP-Lemonade` (flowVersion 23 fix, see above).
+**Two gotchas cost the most time — both traced against `:8095` in isolation before any production traffic:**
 
-**Not done after that:** `GET .../flows/{id}/validate` (confirm `validationErrors: []`), then a real curl
-test against `:8095` directly (bypassing the router's public port entirely, safe — this is a brand-new
-port, not live traffic) before touching anything on `:8090`. Only **after** `:8095` round-trips a real
-transcript should `RouteOnAttribute-HasFragments` be added ahead of the *shared* `HandleHttpRequest-Lemonade`
-(`:8090`) to fork multipart traffic into this branch — that cutover is a separate, deliberate step per the
-`nifi-and-ai` skill (rule 8: build new logic in its own PG/branch first, wire into a live path as a second
-step), and needs a fresh go-ahead since it touches the shared production entry point. `GET .../flows/{id}/publish`
-is what actually pushes any of this to the running agent — nothing above has been published; the live
-`:8090` production pair is completely unaffected by any of this work.
+1. **`ReplaceText` prepends `Replacement Value`, not `Text to Prepend`** (on this `minifi-standard-nar
+   2.24.08.0-19` build). The real boundary/header text was sitting in the intuitively-correct `Text to
+   Prepend` field while `Replacement Value` was left at its literal default `$1` — so the reconstructed
+   multipart body came out missing its opening boundary with every part starting with a literal `$1`.
+   Moving the header text into `Replacement Value` on both `ReplaceText` processors fixed it (flowVersion 26).
+2. **MiNiFi's `InvokeHTTP` does not replace FlowFile content with the HTTP response body on a non-2xx** —
+   the `Response` relationship's content stays the original *outgoing* request bytes. Reproduced against
+   production with a deliberately bad chat request, so this is router-wide, not branch-specific; it just
+   never surfaced before because prior testing only exercised the success path. Useful side effect: it let
+   me read the exact bytes MiNiFi sent to Lemonade, which is how gotcha #1 was found.
 
-**Test plan once cutover happens:**
+**Proven in isolation (flowVersion 26):** real `curl` against `:8095` returned `200`, `{"text":" .\n"}` — a
+genuine Whisper response (the test WAV is a pure 1s tone, not speech, so minimal text is expected; the round
+trip is what's proven). Note the original `test-audio.wav` in this repo turned out to be an 18-byte
+placeholder (`RIFF....WAVEtest`) — a real 1s tone had to be generated to test.
+
+**Cutover into production (flowVersion 27):** added `RouteOnAttribute-HasFragments` between
+`HandleHttpRequest-Lemonade` and `InvokeHTTP-Lemonade` — dynamic property `hasFragments` =
+`${http.multipart.fragments.total.number:isEmpty():not()}`, mirroring the existing
+`RouteOnAttribute-HasContentType` pattern. Multipart requests fork into the proven reassembly branch;
+everything else (`unmatched` — chat/embeddings/reranking/speech, none of which carry multipart fragment
+attributes) continues straight to `InvokeHTTP-Lemonade`, unchanged. No new response-side wiring was needed:
+`HandleHttpResponse-TranscriptionTest` and `HandleHttpResponse-Lemonade` share the same
+`StandardHttpContextMap`, and NiFi correlates the reply to the original caller via the
+`http.context.identifier` attribute — not by which `HandleHttpResponse` instance fires — so a request that
+arrives on `:8090` is answered correctly even though it routes through the `:8095`-branch's response processor.
+
+**Confirmed on production `:8090` (flowVersion 27):**
 ```powershell
 curl.exe -X POST http://localhost:8090/api/v1/audio/transcriptions `
   -F "model=Whisper-Large-v3-Turbo" -F "file=@test-audio.wav"
 ```
-Expect the same real `200` + transcript text that hitting Lemonade directly on `:13305` already returns.
-**Also re-verify chat/embeddings/reranking/speech** afterward — inserting `RouteOnAttribute` ahead of the
-existing `InvokeHTTP` is a real wiring change to their path even though their processor configs don't
-change, so it's a regression risk worth a real check, not an assumption.
+returned `200`, `{"text":" .\n"}`. **Chat/embeddings/reranking/speech regression-tested immediately after**
+(inserting `RouteOnAttribute` ahead of the shared `InvokeHTTP` is a real wiring change to their path even
+though their configs don't change): chat → real completion, embeddings → real vector, reranking → real
+relevance scores, speech → real 34KB MP3. **All 5 Lemonade endpoints round-trip real data through `:8090`,
+zero regressions.**
 
 ## Status
 
@@ -234,7 +252,7 @@ change, so it's a regression risk worth a real check, not an assumption.
 - [x] Transcription's multipart intake confirmed clean under `HandleHttpRequest` (the failure mode that blocked the old `ListenHTTP`-based design is gone)
 - [x] Full end-to-end retest of embeddings/reranking/speech with real data — all 3 confirmed working
 - [x] Forward `InvokeHTTP`'s non-2xx responses back to the caller instead of leaving them stuck on `LogAttribute-Error` only (flowVersion 23)
+- [x] Fix multipart fragment reassembly so transcription's real round trip works (#88, flowVersion 26 isolated → 27 cutover) — **all 5 endpoints now confirmed on production `:8090`, zero regressions**
 
 **Open:**
-- [ ] Fix multipart fragment reassembly so transcription's real round trip works (new bug, see "Endpoints" above)
 - [ ] Cross-Tailscale test from a second array machine (only local curl tested so far)
