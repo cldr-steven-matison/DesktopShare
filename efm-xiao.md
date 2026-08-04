@@ -17,7 +17,9 @@ I didn't need to build anything from scratch for the broker or the NiFi side —
 
 ## Chip
 
-VID `303a:1001`, "USB JTAG/serial debug unit," manufacturer Espressif — this is the ESP32-S3 or -C3 family (both have native USB and WiFi). Haven't pinned the exact variant yet; that's `esptool.py --port /dev/ttyACM0 chip_id`, blocked on `sudo apt-get install -y esptool` finishing.
+VID `303a:1001`, "USB JTAG/serial debug unit," manufacturer Espressif. Confirmed via `esptool --port /dev/ttyACM0 chip-id`: **ESP32-S3** (QFN56, revision v0.2), Wi-Fi + BT5 LE, dual core + LP core, 240MHz, 8MB embedded PSRAM, MAC `e0:72:a1:fb:fd:04`. FQBN `esp32:esp32:XIAO_ESP32S3`.
+
+No `sudo`/apt available on StarlinkAI's WSL2 in the session that did this — installed `esptool` and `arduino-cli` as user-local binaries in `~/.local/bin` (GitHub release tarballs, no root needed) instead of the apt path this doc originally sketched.
 
 ## Scope for v1
 
@@ -80,6 +82,12 @@ Serial log confirms WiFi connect + accepted publishes. Then an independent `mosq
 - Don't build the camera/binary path as a side effect of "just getting the telemetry wired." No object-storage sink exists in this array yet — that's real, separate design work.
 - Don't run the NiFi-side write from StarlinkAI. No cluster access here, and it's not the established host for that anyway.
 
-## When this ships
+## v1 shipped (StarlinkAI side) — 2026-08-04
 
-Update this doc with the confirmed chip variant, the real Tailscale broker address, and whatever the `SparkPlug` PG handoff actually looked like once it's run from `MINI-Gaming-G1` — including anything that didn't match this plan.
+Steps 1-3 done and independently verified from StarlinkAI. Step 4 (the `SparkPlug` PG handoff on `MINI-Gaming-G1`) is still open — not run from here, per this doc's own scope.
+
+- **Firmware**: `~/xiao-telemetry/xiao-telemetry.ino` on this host (not committed — device-local build output, same as the `secrets.h` pattern). WiFi (`WiFi.h`), MQTT (`PubSubClient`), JSON (`ArduinoJson` v7 `JsonDocument`), NTP-synced real epoch via `configTime()` (the original plan's `millis()/1000` placeholder would have sent a fake epoch — fixed before flashing). Internal-temp metric via the core's `temperatureRead()`, not the classic-ESP32-only ROM call `temprature_sens_read()` — that ROM function doesn't exist on S3 and fails the link step.
+- **Broker address**: the real dotted-quad LAN IP, `192.168.1.121:1883` — not a symbolic hostname. The XIAO has no Tailscale client and joins the WindowsDesktop/EFM WiFi (`ATTyjuHfEi`) directly, so it needs the literal LAN IP, confirmed via a real `MQTT: connected` CONNACK on first boot.
+- **Topology gotcha worth keeping**: StarlinkAI's own Windows host is *not* on this same LAN despite its Wi-Fi adapter also landing in the `192.168.1.0/24` range (`192.168.1.245`, different network, reached over Starlink) — `Test-NetConnection`/ARP to `192.168.1.121` fail from that host even though the XIAO (a different physical device, same WiFi AP as WindowsDesktop) connects to it fine. Overlapping private-IP ranges across unrelated networks, not a routing bug. **Verification had to go over Tailscale instead** — WindowsDesktop's Tailscale IP (`100.68.113.126:1883`, confirmed reachable, `mini-gaming-g1` peer) — since that's the one path StarlinkAI and WindowsDesktop actually share.
+- **Independent verification** (not just the firmware's own serial log, per this doc's own rule): `paho-mqtt` subscribe to `test/sensor/data` run from the StarlinkAI Windows host's Python over the Tailscale route above — 5 real messages received matching the firmware's serial log exactly, e.g. `{"device_id":"XiaoESP32-01","temperature":47.8,"humidity":null,"timestamp":1785853894}`.
+- **Still open**: the `SparkPlug` PG's `ConsumeMQTT` handoff (§4 above) — needs `MINI-Gaming-G1`'s `kubectl`/cluster access, not available from StarlinkAI.
