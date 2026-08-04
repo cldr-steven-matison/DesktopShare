@@ -1,6 +1,6 @@
 # MiNiFi Site-to-Site: the full transport matrix
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟢 Ch10 FIELD-VALIDATED (2026-08-04) — MiNiFi C++ → CFM-operator NiFi secure S2S proven end to end on the `s2s-lab` profile; FlowFiles transit into the target input port, peer authorized declaratively via the operator's `User` CR. Full runbook + war stories in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md). Ch11 (Java agent) still scoped-but-untested.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟢 Ch10 FIELD-VALIDATED (2026-08-04) — MiNiFi C++ → CFM-operator NiFi secure S2S proven end to end on the `s2s-lab` profile; FlowFiles transit into the target input port, peer authorized declaratively via the operator's `User` CR. Full runbook + war stories in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md). Ch11 (Java agent) 🟡 BUILT-BUT-BLOCKED (2026-08-04, #98): the entire path is stood up live and every layer proven — NiFi-side secure S2S, an authorized `minifi-s2s` peer, a registered MiNiFi Java agent, and a published `GenerateFlowFile → RPG(HTTP) → from-minifi` flow — but the final mTLS transit is blocked by a characterized platform limit (the EFM-deployer Java agent regenerates `minifi.properties` on every start, wiping its `nifi.security.*` client-cert config; the #41-class wall). Full reproducible recipe + the three-way proof of the blocker: [`files/site-to-site/ch11-java/README.md`](files/site-to-site/ch11-java/README.md).**
 
 Site-to-Site (S2S) is how flow files move between MiNiFi and NiFi. **Scope: the two local
 k8s legs only** (MiNiFi → NiFi in minikube).
@@ -110,8 +110,18 @@ NiFi web URL; the SSL context handles the secured connection.
 5. **The NiFi input port + access policy must be created first** — ~~the secured-NiFi identity/policy is the real unknown~~. **Resolved 2026-08-04:** on a CFM-operator NiFi you don't POST the policy, you declare it — a `User` CR (`certificate.generate: true`) granted `write` on `/data-transfer/input-ports/<id>` + `read` on `/site-to-site`. Full recipe + traps in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md#wall-4-resolved--the-cfm-operator-owns-authorization-declare-it-dont-post-it-2026-08-04).
 6. ~~**Apache `SITE_TO_SITE.md` hasn't been fetched into the repo** — pull it in as prep.~~ **Resolved 2026-07-31** — fetched verbatim to [`files/site-to-site/SITE_TO_SITE.md`](files/site-to-site/SITE_TO_SITE.md) (see Reference above).
 
-These are why this pass **scopes** Ch11 rather than building it: the live build (and the EFM scale-up /
-any NiFi restart it implies) is a deliberate next step under this parent, not part of this planning pass.
+**2026-08-04 (#98): the live Java build was executed** on a fresh `s2s-lab` profile — blockers 1–4 cleared
+(EFM stood up, Java agent installed via the deployer as an in-cluster pod, no `minifi-java` image needed
+since the ubuntu+deployer pattern serves the staged tarball). The full reproducible recipe is
+[`files/site-to-site/ch11-java/README.md`](files/site-to-site/ch11-java/README.md). Every layer is proven
+live **except the final mTLS transit**, which is blocked by a platform limit distinct from all of the above:
+the EFM-deployer Java agent **regenerates `minifi.properties` from its C2-cached config on every startup**,
+wiping the `nifi.security.*` client keystore/truststore (proven three ways, incl. a read-only-file startup
+failure), so the agent never presents a client cert and NiFi's S2S peer refresh fails `certificate_unknown`/PKIX.
+Both EFM-native property-injection paths are also broken (agent-class `customizedProperties` PUT doesn't
+persist; C2 `UPDATE_PROPERTIES` for `nifi.security.*` is denylisted) — the same class as [#41](https://github.com/cldr-steven-matison/DesktopShare/issues/41).
+Proposed unblock (not yet built): a custom `minifi-java` image with a fixed config + client cert baked in,
+run unmanaged — see the README. The `s2s-lab` profile is left **up** for inspection.
 
 ## Traps to watch (carry forward from prior work)
 
