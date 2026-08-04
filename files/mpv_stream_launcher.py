@@ -156,14 +156,74 @@ def ensure_mpv_running(screen):
     send_ipc(screen, ["set_property", "fullscreen", True])
 
 
-def send_ipc(screen, command):
+# request_id is echoed back by mpv, which is how a reply is told apart from the
+# event lines mpv emits continuously on the same pipe.
+_request_id = 0
+
+
+def send_ipc(screen, command, timeout=10):
+    r"""Send one IPC command and return mpv's decoded reply.
+
+    Raises on an mpv-reported error instead of the old write-and-close, which
+    made a rejected command (e.g. a bad loadfile) invisible to the caller.
+    Ported from mpv_stream_launcher_linux.py's socket version — same JSON
+    protocol, only the transport (named pipe vs. Unix socket) differs. Plain
+    open() still works here because Windows resolves \\.\pipe\... paths
+    through the same CreateFileW path io.open() uses underneath.
+    """
+    global _request_id
+    _request_id += 1
+    rid = _request_id
     cfg = SCREENS[screen]
-    # Plain open() works here because Windows resolves \\.\pipe\... paths
-    # through the same CreateFileW path io.open() uses underneath - no
-    # pywin32 dependency needed for a simple "write one command, close" call.
-    # If this proves unreliable in testing, switch to win32file.CreateFile.
-    with open(cfg["pipe"], "w", encoding="utf-8") as f:
-        f.write(json.dumps({"command": command}) + "\n")
+    with open(cfg["pipe"], "r+", encoding="utf-8", newline="") as f:
+        f.write(json.dumps({"command": command, "request_id": rid}) + "\n")
+        f.flush()
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            line = f.readline()
+            if not line.strip():
+                continue
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                continue
+            # Skip async event lines; only our own reply carries request_id.
+            if msg.get("request_id") != rid:
+                continue
+            if msg.get("error") != "success":
+                raise RuntimeError(f"mpv rejected {command!r}: {msg.get('error')}")
+            return msg
+    raise TimeoutError(f"no reply from mpv for {command!r} on {cfg['pipe']}")
+
+
+def get_property(screen, name):
+    """Read one mpv property, returning None if mpv has no value for it."""
+    try:
+        return send_ipc(screen, ["get_property", name]).get("data")
+    except RuntimeError:
+        return None  # property unavailable (e.g. playback-time while idle)
+
+
+def confirm_playing(screen, timeout=12.0):
+    """Wait until playback actually starts, or report that it never did.
+
+    `loadfile` returns success the moment mpv accepts the command — it says
+    nothing about whether yt-dlp resolved anything. Ported from the Linux
+    launcher after an offline Kick channel there returned ok:true while mpv
+    sat at "No file - mpv"; the same fails-open gap exists here since
+    TwitchChatListenerProcessor's live-check is a separate, earlier check.
+
+    Returns True once playback-time advances, False if mpv falls back to
+    idle (yt-dlp failed), or None on timeout (genuinely unknown, non-fatal).
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if get_property(screen, "playback-time") is not None:
+            return True
+        if time.monotonic() > deadline - timeout + 3.0 and get_property(screen, "idle-active"):
+            return False
+        time.sleep(0.4)
+    return None
 
 
 def kill_mpv(screen):
@@ -199,7 +259,20 @@ class Handler(BaseHTTPRequestHandler):
                 ensure_mpv_running(screen)
                 url = build_url(streamer)
                 send_ipc(screen, ["loadfile", url, "replace"])
-                self._respond(200, {"ok": True, "streamer": streamer, "screen": screen})
+
+                playing = confirm_playing(screen)
+                if playing is False:
+                    _debug_log(f"{screen}: {url} resolved to nothing playable")
+                    self._respond(502, {
+                        "ok": False, "streamer": streamer, "screen": screen,
+                        "url": url,
+                        "error": "stream did not start (channel offline, or "
+                                 "yt-dlp could not resolve it)",
+                    })
+                    return
+
+                self._respond(200, {"ok": True, "streamer": streamer, "screen": screen,
+                                    "url": url, "playing": playing})
             elif action == "stop":
                 if screen in _running:
                     # Stop playback AND get the window out of the way —
