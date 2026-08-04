@@ -1,0 +1,30 @@
+# systemd *user* unit for NvidiaNano's screen1 matrix-screensaver launcher.
+#
+# Same convention as mpv-stream-launcher.service alongside this file:
+# user-level (Linger=yes already set on this device), no root needed.
+#
+# Install:
+#   cp files/matrix-stream-launcher.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now matrix-stream-launcher
+#
+# WantedBy=default.target rather than graphical-session.target: with lingering
+# enabled the user manager comes up at boot, and the service itself does not
+# touch the display until a /show arrives (it sets DISPLAY/XAUTHORITY itself),
+# so it does not need to wait for a graphical session to exist.
+
+[Unit]
+Description=matrix screensaver launcher for screen1 (Chromium kiosk)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/DesktopShare/files/matrix_stream_launcher_linux.py
+Restart=always
+RestartSec=5
+# KillMode=process, matching mpv-stream-launcher.service's reasoning: don't
+# tear down a displayed matrix screensaver just because this unit restarts.
+KillMode=process
+
+[Install]
+WantedBy=default.target
