@@ -23,3 +23,4 @@
 | bbjess         | @bbjess                 |
 | whiz           | @crashoverride          |
 | trainwreckstv  | @trainwreckstv          |
+| rampagejackson | @rampagejackson         |
