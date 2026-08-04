@@ -1,5 +1,7 @@
 # Beelink SER9 MAX (H260): Windows-Native AI Router
 
+<!-- Folded into the Complete Guide to Edge Flow Management → guide/ch17-edge-ai-router.md (#67, 2026-08-04). This doc stays the full field record (live processor UUIDs, the complete #88 saga); the chapter is the synthesized case study. -->
+
 ## Overview
 
 Third node in the array (alongside WindowsDesktop and Mac), hostname `TunaStarlink`. Hardware: AMD Ryzen 7 260 (8C/16T, 3.8GHz base), Radeon 780M iGPU (RDNA3, 12 CUs), no NPU, 64GB RAM. On Starlink; Windows host also runs an OBS/OBSBOT Tiny 3 Twitch stream.
