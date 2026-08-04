@@ -1,6 +1,6 @@
 # MiNiFi Site-to-Site: the full transport matrix
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 scoped — Ch10 build plan detailed 2026-07-30; prep advanced 2026-07-31 (apache `SITE_TO_SITE.md` fetched, blocker #6 cleared); live build still deferred (5 blockers remain below).**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟢 Ch10 FIELD-VALIDATED (2026-08-04) — MiNiFi C++ → CFM-operator NiFi secure S2S proven end to end on the `s2s-lab` profile; FlowFiles transit into the target input port, peer authorized declaratively via the operator's `User` CR. Full runbook + war stories in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md). Ch11 (Java agent) still scoped-but-untested.**
 
 Site-to-Site (S2S) is how flow files move between MiNiFi and NiFi. **Scope: the two local
 k8s legs only** (MiNiFi → NiFi in minikube).
@@ -104,7 +104,7 @@ NiFi web URL; the SSL context handles the secured connection.
 2. **NiFi's S2S port isn't exposed to the host** — depends on `minikube tunnel` + ingress (option 1) or an in-cluster agent (option 2).
 3. **No MiNiFi Java agent exists on FTF3XR2065 yet** — install via the EFM deployer.
 4. **No `minifi-java` image** — blocks option 2 (in-cluster pod) only.
-5. **The NiFi input port + access policy must be created first** — the secured-NiFi identity/policy is the real unknown.
+5. **The NiFi input port + access policy must be created first** — ~~the secured-NiFi identity/policy is the real unknown~~. **Resolved 2026-08-04:** on a CFM-operator NiFi you don't POST the policy, you declare it — a `User` CR (`certificate.generate: true`) granted `write` on `/data-transfer/input-ports/<id>` + `read` on `/site-to-site`. Full recipe + traps in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md#wall-4-resolved--the-cfm-operator-owns-authorization-declare-it-dont-post-it-2026-08-04).
 6. ~~**Apache `SITE_TO_SITE.md` hasn't been fetched into the repo** — pull it in as prep.~~ **Resolved 2026-07-31** — fetched verbatim to [`files/site-to-site/SITE_TO_SITE.md`](files/site-to-site/SITE_TO_SITE.md) (see Reference above).
 
 These are why this pass **scopes** Ch10 rather than building it: the live build (and the EFM scale-up /

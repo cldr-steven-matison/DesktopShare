@@ -1,6 +1,6 @@
 # Site-to-Site on a Throwaway minikube Profile: a field runbook
 
-**Status: 🟡 in progress (2026-08-03, FTF3XR2065).** Companion to [`minifi-site-to-site.md`](minifi-site-to-site.md) (the S2S scoping doc). This is the build/journey record for proving **NiFi-K8s ↔ EFM/MiNiFi Site-to-Site** on a dedicated, disposable minikube profile — and the war stories that pushed us there. Blog-worthy; this doc is the spine.
+**Status: 🟢 PROVEN LIVE (2026-08-04, FTF3XR2065). MiNiFi C++ → CFM-operator NiFi secure Site-to-Site works end to end — FlowFiles transit into the target input port, authorized declaratively via the operator's `User` CR.** Companion to [`minifi-site-to-site.md`](minifi-site-to-site.md) (the S2S scoping doc). This is the build/journey record for proving **NiFi-K8s ↔ EFM/MiNiFi Site-to-Site** on a dedicated, disposable minikube profile — and the war stories that pushed us there. Blog-worthy; this doc is the spine.
 
 > **Credentials note:** the Cloudera registry username/password live in `~/cld-streaming.txt` on the build host. They are **never** committed here or pasted into the blog. All commands below read them from that file at runtime.
 
@@ -81,7 +81,117 @@ The fresh `s2s-lab` profile came up clean and **both original walls were cleared
 
 Net: the CFM operator appears to expect flows/policies deployed **declaratively** (operator / NiFi Registry), not hand-authored through the REST API at runtime — which is what secure S2S peer-authorization needs here. Everything else in the lab is healthy (NiFi 7/7, EFM 1/1 with schema migrated, postgres 1/1, aarch64 binary staged).
 
+## Wall #4, resolved — the CFM operator owns authorization; declare it, don't POST it (2026-08-04)
+
+I was fighting the operator instead of using it. Cracked open the chart on the box — `~/cfm-operator-3.0.0-b126.tgz`, CRDs in `cfm-operator/templates/crds.yaml` — and the operator ships three authorization CRDs I'd never used:
+
+```bash
+tar xzf ~/cfm-operator-3.0.0-b126.tgz -C /tmp/cfm-chart
+grep -E "kind: (User|UserGroup|AccessPolicyProfile)$" /tmp/cfm-chart/cfm-operator/templates/crds.yaml
+#   kind: AccessPolicyProfile
+#   kind: User
+#   kind: UserGroup
+```
+
+**Diagnosis.** `initialAdminIdentity` seeds a *login*, not a runtime flow-author — the operator deliberately owns NiFi's authorizer and reconciles users, groups, and access policies from `User` / `UserGroup` / `AccessPolicyProfile` CRs (`cfm.cloudera.com/v1alpha1`) as the true policy owner. That's the whole reason my hand POST as the seeded admin got `500 Unable to save Authorizations`: I was writing to a policy store the operator manages. The 403/500 wasn't a bug to route around — it was the operator telling me to declare the policy, not POST it.
+
+The `User` CR schema (from the CRD, verified against the [3.0.0 User doc](https://docs.cloudera.com/cfm-operator/3.0.0/configure-nifi-cr/topics/cfm-op-configure-nifi-cr-user.html)):
+
+- `spec.identity` — the NiFi identity string (must equal the *mapped* identity, not the raw cert DN — see the trap below).
+- `spec.instanceTarget` — `{kind: Nifi, name: mynifi, namespace: cfm-streaming}`.
+- `spec.certificate.generate: true` — **the operator mints a client cert signed by the target NiFi's issuer.** One field gives the MiNiFi agent both an S2S client identity NiFi trusts and a cert NiFi's CA signed — no manual keystore wrangling.
+- `spec.accessPolicies[]` — inline `{actions: [read|write], resources: [<NiFi resource path>]}`. Resources are the raw NiFi paths (`/flow`, `/controller`, `/process-groups/root`, `/data-transfer/input-ports/<id>`), exactly as the NiFi REST model. `AccessPolicyProfile` / `accessPolicyProfileRef` hold the reusable version.
+
+**Fix — declare the two identities the S2S leg needs.**
+
+1. A **flow-author** `User`, so the `from-minifi` input port can be created at all. Reconciled by the operator, this policy actually persists — the same grant the REST POST couldn't save:
+
+```yaml
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: User
+metadata:
+  name: flow-author
+  namespace: cfm-streaming
+spec:
+  identity: "flow-author"          # log in / drive REST as this identity
+  instanceTarget: { kind: Nifi, name: mynifi, namespace: cfm-streaming }
+  certificate:
+    generate: true                 # operator issues the client cert
+  accessPolicies:
+    - actions: [read, write]
+      resources: [/flow, /controller, /process-groups/root]
+```
+
+   Then create the `from-minifi` input port (UI or REST, authenticated as `flow-author`), enable S2S input, and read its UUID — the port must exist before the peer policy can name it.
+
+2. The **S2S peer** `User` — the MiNiFi agent identity, granted only what receiving via S2S needs: `write` on the port's data-transfer resource plus `read` on `/site-to-site` for peer/port discovery:
+
+```yaml
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: User
+metadata:
+  name: minifi-s2s
+  namespace: cfm-streaming
+spec:
+  identity: "minifi-s2s"           # must match the cert's MAPPED identity
+  instanceTarget: { kind: Nifi, name: mynifi, namespace: cfm-streaming }
+  certificate:
+    generate: true                 # agent's S2S keystore, signed by NiFi's CA
+  accessPolicies:
+    - actions: [write]
+      resources: [/data-transfer/input-ports/<from-minifi-port-uuid>]
+    - actions: [read]
+      resources: [/site-to-site]
+```
+
+   The MiNiFi agent's SSL context points at the cert/secret the operator generated for `minifi-s2s`; its RPG targets the NiFi web URL over HTTPS 8443, transport HTTP, feeding the `from-minifi` port. A FlowFile then transits — the copy-paste verification the per-path deliverable calls for.
+
+**Traps that will bite the live build:**
+
+- **`spec.identity` is the *mapped* identity, not the DN.** The operator's own cert maps by its SAN (`cfm-operator.cfm-operator-system.svc`), not its subject DN — the exact gotcha that cost a NiFi delete+recreate on `initialAdminIdentity`. Confirm what `certificate.generate` produces maps to under NiFi's identity-mapping and set `identity` to match, or the grant lands on a string nobody authenticates as.
+- **Port UUID is a chicken-and-egg.** `/data-transfer/input-ports/<id>` is per-port, so the port has to exist before the `minifi-s2s` User's policy can reference it. Order is fixed: flow-author User → create port → peer User with the real UUID.
+- **`initialAdminIdentity` is still immutable post-creation** — but it no longer matters for authoring. Authoring is the operator's job now, through these CRs.
+
+## Proven live — end-to-end secure S2S into an operator NiFi (2026-08-04)
+
+Brought the `s2s-lab` profile back up and drove it to a working FlowFile transit. The agent log is the money shot:
+
+```
+[SiteToSiteClient] Site to Site transaction <uuid> sent flow 1 flow records, with total size 32
+[SiteToSiteClient] Site2Site transaction <uuid> peer finished transaction
+```
+
+and the NiFi side, the `from-minifi` → funnel queue climbing one FlowFile every ~5s (7 → 8 → 10 → … → 100+). The full path, all live: **MiNiFi C++ agent (client cert `CN=minifi-s2s`, signed by the CFM CA) → secure S2S over HTTPS 8443, HTTP transport, mTLS → CFM-operator NiFi `from-minifi` input port**, authorized by the operator-reconciled `User` policy. No hand-authored policies.
+
+### The working recipe (what actually got it there)
+
+1. **Declare the peer — don't POST it.** The [`minifi-s2s` User CR](#wall-4-resolved--the-cfm-operator-owns-authorization-declare-it-dont-post-it-2026-08-04) above. The operator reconciled it into NiFi *as `cfm-operator.cfm-operator-system.svc`* — confirmed in its logs (`Created access policy … /data-transfer/input-ports/<id>` and `… /site-to-site`, both granting user `minifi-s2s`). This is the exact `POST /policies` that hand-driving as the seeded admin got `500` for. Verified in NiFi: `GET /policies/write/data-transfer/input-ports/<id>` → `users:[minifi-s2s]`.
+2. **Create the S2S target on NiFi as the initial admin.** The operator cert authenticates with `canWrite:true` on the root PG (once the authz store is clean — see below), so create an `Input Port` `from-minifi` on the root canvas, give it a downstream `→ funnel` connection (an input port with no output connection is *invalid* and won't start), and set it `RUNNING`.
+3. **Enable S2S input** — `configOverride.nifiProperties.upsert` on the `Nifi` CR: `nifi.remote.input.host=nifi-0.nifi.cfm-streaming.svc.cluster.local`, `nifi.remote.input.secure=true`, `nifi.remote.input.http.enabled=true`. The operator rolls the pod to apply.
+4. **Mint the agent cert yourself** — a cert-manager `Certificate` from the `cfm-operator-ca-issuer-signed` ClusterIssuer with **SAN `minifi-s2s`** (see the SAN trap below), because `certificate.generate: true` on the `User` CR is a **no-op in operator b126** (no secret, no `Certificate` CR, nothing in the operator log).
+5. **Build the agent flow via the EFM Designer API** (undocumented; contract in the skill's `references/minifi-efm.md`): `GenerateFlowFile` → `RemoteProcessGroup` (`targetUris=https://nifi-web.cfm-streaming.svc.cluster.local:8443`, `transportProtocol=HTTP`) → connection to a `REMOTE_INPUT_PORT` whose id is the NiFi `from-minifi` port UUID. Validate (`/validate` → `[]`) then `POST /publish`.
+6. **Give the C++ agent its client identity via `minifi.properties`** — the RPG has *no* SSL-context field, so MiNiFi C++ uses the global `nifi.security.client.{certificate,private.key,ca.certificate}` + `nifi.remote.input.secure=true`. Mount the cert secret and bake those into the boot script.
+
+### The blockers that stood between "declared" and "transiting"
+
+- **Corrupt `authorizations.xml` crash loop.** The NiFi pod was in `CrashLoopBackOff` on a torn `</policy` write (leftover from the *old* failed hand-POST attempts). Regenerated clean by moving `authorizations.xml` + `users.xml` aside and letting NiFi rebuild from the `authorizers.xml` seed. The clean seed gives the initial admin the **full** policy set including `/process-groups/<root> W` — which is why the historical `403 "No applicable policies"` was never a permissions design, just a corrupt file missing those rows.
+- **The operator could never reach NiFi.** It calls the NiFi API at `https://nifi-web.cfm-streaming.svc.cluster.local:8443` — a service that **didn't exist** (only the headless `nifi` service did), so every User/initial-admin reconcile failed `no such host` and `users.xml` stayed empty. The hostname *is* in the node-cert SAN, so the operator expects it — created a `nifi-web` ClusterIP (selector = the nifi pod, port 8443) and reconciliation started instantly.
+- **SAN, not DN, is the identity.** The operator's own cert is subject `CN=cfm-operator, O=Operator User` but its NiFi identity is the SAN `cfm-operator.cfm-operator-system.svc`. So the agent's `User.spec.identity` is the bare `minifi-s2s` and its cert must carry `SAN: DNS:minifi-s2s` — a subject DN alone maps to the wrong string.
+- **The EFM deployer's own minifi holds the flock LOCK.** The agent-deployer script starts a minifi during install; a second `exec ./bin/minifi` then dies on `Could not acquire LOCK … previous pid`. The boot script must `pkill` the deployer's instance, remove the stale `LOCK`, set the security props, *then* `exec` — otherwise it's a crash loop (the original pod only survived this by a lucky race).
+- **Never hand-scale the operator's StatefulSet.** Scaling `sts/nifi` to 0 directly (to free the PVC for the authz repair) deadlocked the operator's scale-up state machine (`ScalingBlocked: NoViableLeaders` — it needs a leader Pod to scale, but there are 0). Recovery was delete + re-apply the `Nifi` CR (fresh `.status`, PVCs retained since they have no owner refs). Repair the PVC by pausing the operator (`scale deploy/cfm-operator 0`) and using a debug pod, not by scaling the STS.
+
+### Reaching the UI (mTLS, no password)
+
+The NiFi binds its **pod IP** (`nifi.web.https.host=nifi-0.nifi…svc`), so `kubectl port-forward` fails TLS (`SSL_ERROR_SYSCALL`). Path in: make `nifi-web` a `LoadBalancer`, `sudo minikube tunnel -p s2s-lab` (binds it to `127.0.0.1:8443` on the docker driver), map `127.0.0.1 nifi-web.cfm-streaming.svc.cluster.local` in `/etc/hosts` (that host is in both `nifi.web.proxy.host` and the cert SAN), and import the operator user cert as a browser PKCS12. Login is the cert — there is no username/password.
+
 ## Reusable lessons
 - A bare MiNiFi pod reporting `Running` proves nothing — verify the process and the binary arch match the node.
 - Secure S2S into a NiFi needs a managed authorizer and a cert-reachable admin; `single-user-authorizer` can't do it, and `initialAdminIdentity` is immutable post-creation on a persistent CFM CR.
 - Experiments get their own minikube profile — the control plane shares the single node.
+- On an operator-managed NiFi, don't author users/policies through the REST API — the operator owns the authorizer and reconciles them from `User` / `UserGroup` / `AccessPolicyProfile` CRs. A `403 No applicable policies` / `500 Unable to save Authorizations` from the seeded admin is the operator telling you to declare, not POST.
+- The operator can only reconcile a NiFi it can *reach*. It calls `nifi-web.<ns>.svc:8443`; if that service is missing (the CR carried no `uiConnection`), every reconcile fails `no such host` and `users.xml` stays empty even though NiFi's own file-seed wrote the admin policies. The name is in the node-cert SAN — create the ClusterIP.
+- Client identity here maps by **SAN**, not subject DN (the operator cert `CN=cfm-operator,O=Operator User` → identity `cfm-operator.cfm-operator-system.svc`). Give a peer cert `SAN: DNS:<identity>` matching the `User.spec.identity`.
+- `certificate.generate: true` on the `User`/`UserGroup` CR is a no-op in operator **b126** — mint the peer cert with cert-manager from the `cfm-operator-ca-issuer-signed` issuer instead.
+- Never hand-scale the operator's `StatefulSet` — it deadlocks the scale-up state machine (`NoViableLeaders`). Pause the operator for PVC surgery; recover a wedged scale state by delete+recreate of the `Nifi` CR (PVCs have no owner refs, so they survive).
+- The EFM C++ agent-deployer starts its own minifi during install (holds the flock `LOCK`); a boot script that then `exec`s a second minifi crash-loops on `Could not acquire LOCK`. `pkill` + remove `LOCK` before the real `exec`.
+- MiNiFi C++ RPGs have no SSL-context-service field — secure S2S uses the global `nifi.security.client.*` in `minifi.properties`, so the peer cert must be on the agent's disk and referenced there, not in the flow.
