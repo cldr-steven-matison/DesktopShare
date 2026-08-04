@@ -149,19 +149,37 @@ upkeep rules:
    `✓` once closed). The tracker is the chapter↔issue correlation; a stale row is a stale spec for
    the next session.
 
-## Reporting back
+## Finishing an issue
 
-When the work is delivered, report in a comment (use the source doc's report-back template if it
-has one) and flip to `status:review`. **Leave the issue open — a device does not close its own
-issue.** Steven closes it once he's reviewed the work:
+Finishing is a **fixed ordered ritual, not four independent steps you do in any order** — and
+the order matters because step 3's comment must carry the sha that only exists after steps 1–2.
+When you've finished a task you were asked to complete, run it top to bottom:
+
+1. **Commit** the issue's file changes (manifests, flow JSON, doc/chapter updates). Git is the
+   data layer; the working tree is where the work actually lives.
+2. **Push** — an unpushed commit is invisible to every other device and its sha isn't durable.
+3. **Comment** on the issue with the result **and the commit sha** (`--body-file`, per
+   [`live-queues.md`](live-queues.md) / Telegram `/bash`: no multi-line inline), linking every
+   file you name (see "Link every file you name in a comment" below).
+4. **Flip** `status:in-progress` → `status:review`.
 
 ```bash
-gh issue comment <n> --body-file report.md          # --body-file, not inline (Telegram /bash: no multi-line)
-gh issue edit <n> --remove-label status:in-progress --add-label status:review
+git commit -m "<area>: <what changed> (#<n>)"       # 1
+git push                                             # 2
+gh issue comment <n> --body-file report.md           # 3 — result + commit sha, files linked
+gh issue edit <n> --remove-label status:in-progress --add-label status:review   # 4
 ```
 
-The comment still carries the commit sha — that doesn't change, only who closes and when. A
-session that closes its own issue removes the review gate, which is the whole point of the label.
+This is the **named exception** to the universal "commit/push only when explicitly asked" rule
+(`workflow.md`): *being asked to finish/deliver an issue is itself the explicit ask*, so the
+finish-ritual commit + push are **required**, not optional. The guard hook backstops the order —
+flipping to `status:review`/`status:done` with an uncommitted or unpushed tree is blocked, because
+that means steps 1–2 were skipped and the comment's sha (if any) points at nothing pushed.
+
+**Leave the issue open — a device does not close its own issue.** `status:review` is the hand-off;
+Steven closes it after reviewing (that's the whole point of the review gate — a session that closes
+its own issue removes it). Closing on Steven's explicit ask is the separate two-step move in
+"Closing an issue" below (`status:done` first, *then* `gh issue close`).
 
 Blocked instead? Add `status:blocked` and comment what you're waiting on — that surfaces
 to whoever's watching without derailing your session.

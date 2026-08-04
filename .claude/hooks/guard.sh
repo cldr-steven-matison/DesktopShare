@@ -8,7 +8,8 @@
 #   1. Confirm before any live-service redeploy/restart — a redeploy or single-pod
 #      restart of a service a running NiFi InvokeHTTP calls into kills the in-flight
 #      request (`unexpected end of stream`). This incident recurred 3x.
-#   2. git commit / push only when explicitly requested.
+#   2. git commit / push only when explicitly requested — EXCEPT the issue-finish
+#      ritual, where commit+push are required (device-comms.md "Finishing an issue").
 #   3. Never start an ad-hoc kubectl port-forward / minikube tunnel / minikube
 #      service — the canonical set lives as zellij panes (kube-service-ports-efm.kdl);
 #      a duplicate on the same target silently orphans or hangs (2026-07-29, issue #11).
@@ -22,6 +23,10 @@
 #      FIRST, then close (device-comms.md "Closing an issue"). A close while the
 #      issue still carries todo/in-progress/review strands the label; six issues
 #      drifted this way on 2026-08-03. An inline done-flip in the same command passes.
+#   7. Never flip an issue to status:review/done with an uncommitted or unpushed tree
+#      — finishing is the ordered ritual commit->push->comment(sha)->flip
+#      (device-comms.md "Finishing an issue"); a dirty flip strands the work and the
+#      comment's sha points at nothing pushed. Fails open (no git / no upstream).
 #
 # Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
 # Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
@@ -97,6 +102,27 @@ esac
 [ "$tool" = "Bash" ] || exit 0
 [ -z "$cmd" ] && exit 0
 
+# 7. Finish-ritual ordering — MUST run before the claim-clear block below, because the
+# standard finish flip (`gh issue edit N --remove-label status:in-progress --add-label
+# status:review`) mentions `status:in-progress` and would otherwise be swallowed by
+# claim-clear's early `exit 0`. Flipping an issue to status:review/done means the work is
+# delivered — but finishing is an ORDERED ritual (device-comms.md "Finishing an issue"):
+# commit -> push -> comment(sha) -> flip. If the tree still has uncommitted changes or
+# unpushed commits at the flip, steps 1-2 were skipped: the review hand-off strands the
+# work off every other device and the comment's sha (if any) points at nothing pushed.
+# Keys on --add-label status:(review|done), so a pure claim (--add-label status:in-progress)
+# never matches. Fails open (no git / no upstream).
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
+   && printf '%s' "$cmd" | grep -Eq -- '--add-label[= ]+status:(review|done)' \
+   && command -v git >/dev/null 2>&1; then
+  if [ -n "$(git -C "$proj" status --porcelain 2>/dev/null)" ]; then
+    emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)"
+  fi
+  if [ -n "$(git -C "$proj" log @{u}.. --oneline 2>/dev/null)" ]; then
+    emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. There are commits not yet pushed to upstream — push them so the sha in the issue comment is durable and visible to other devices, THEN flip."
+  fi
+fi
+
 # ---- claim-clear: a manual claim command clears those issues from the marker.
 #      Handle first so a manual claim is never second-guessed. It cannot trip rules
 #      1-4 (it's a gh issue edit to in-progress, not review/done). Loops ALL issue
@@ -121,9 +147,10 @@ if printf '%s' "$cmd" | grep -Eq 'deploy\.sh|rollout restart|kubectl +delete +po
   emit_ask "Live-service redeploy/restart detected. Per agent/incident-rules.md (Live service restarts): a redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls into kills the in-flight request (unexpected end of stream) — this has bitten 3x. Before approving: dump the live NiFi flow and confirm no processor is running/mid-fetch, let in-flight ones drain, and confirm exactly one pod Running. This approval covers ONLY this one command."
 fi
 
-# 2. Commit / push only when explicitly asked.
+# 2. Commit / push only when explicitly asked — EXCEPT the issue-finish ritual, where
+#    commit+push are required (device-comms.md "Finishing an issue" / workflow.md).
 if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit|push)\b'; then
-  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). Confirm this commit/push was asked for in the current turn before approving."
+  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). The one exception is the issue-FINISH ritual (device-comms.md 'Finishing an issue'): if you're finishing an issue you were asked to complete, commit+push are REQUIRED — approve. Otherwise confirm this commit/push was asked for in the current turn before approving."
 fi
 
 # 3. Ad-hoc port-forwards / tunnels. The canonical set lives as zellij panes

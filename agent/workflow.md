@@ -9,8 +9,9 @@ how you work once you're synced.
 
 ## Commit and push
 
-- **Commit and push only when Steven explicitly asks.** No "I'll commit that for you" — the default across every repo is uncommitted, working-tree changes stay uncommitted until asked.
-- When you do commit, one focused commit message per change. Follow the existing `<area>: <what changed>` style visible in `git log` — `streamers/EFM/NiFi: ...`, `blog: ...`, `nifi-and-ai skill: ...`.
+- **Commit and push only when Steven explicitly asks.** No "I'll commit that for you" — the default across every repo is uncommitted, working-tree changes stay uncommitted until asked. This governs **mid-work**: while a task is in flight, the tree stays dirty until asked.
+- **The one named exception: finishing an issue.** Being asked to finish/deliver an issue *is* the explicit ask, so the finish ritual's commit + push are **required, not optional** — commit → push → comment (with sha) → flip `status:review`. The full ordered ritual and the guard-hook backstop live in `device-comms.md` §"Finishing an issue". Don't stop at a dirty tree and a review flip: that strands the work off every other device and leaves the comment's sha pointing at nothing pushed.
+- When you do commit, one focused commit message per change. Follow the existing `<area>: <what changed>` style visible in `git log` — `streamers/EFM/NiFi: ...`, `blog: ...`, `nifi-and-ai skill: ...`. Reference the issue: `... (#<n>)`.
 
 ## Branches
 
