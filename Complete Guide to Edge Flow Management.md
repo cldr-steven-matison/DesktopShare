@@ -2,15 +2,14 @@
 
 *by Steven Matison*
 
-> **Reader entry point → [`guide/index.md`](guide/index.md).** That is the navigable guide (intro +
-> table of contents + folded chapters). This document is the **tracker of record** — per-chapter
-> status, sources, field-validation notes, and open issues.
+> **The published guide has moved → https://github.com/cldr-steven-matison/EdgeFlowManager** (extracted 2026-08-05).
+> The navigable guide (all chapters, figures, and runnable artifacts) now lives in that repo, where its
+> `README.md` is the reader entry point. DesktopShare's `guide/` is only a redirect stub — **do all guide
+> work in EdgeFlowManager**, not here.
 >
-> **Published form (decided [#72](https://github.com/cldr-steven-matison/DesktopShare/issues/72), 2026-08-03).**
-> The guide's published form is the `guide/` chapter set read through `guide/index.md`, in this repo —
-> not a single assembled document, and not a separate published site. This tracker's "living document /
-> master plan" framing retires once the last chapter folds; until then it stays the status-of-record and
-> `guide/index.md` is the reader artifact.
+> This document stays here as the **internal tracker of record** — per-chapter status, sources,
+> field-validation notes, and open issues. The `ch guide/chNN-....md` cells below record where each
+> chapter's prose was folded *before* the extraction.
 
 ![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](/images/efm-cloudera-edge-management.png)
 

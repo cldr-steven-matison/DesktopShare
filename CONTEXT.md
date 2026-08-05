@@ -44,6 +44,7 @@ hostname. Full specs and per-device paths: `CLAUDE-CHECKIN.md`.
 ## Repos (homes vary per device — see `CLAUDE-CHECKIN.md`)
 
 - **DesktopShare** (this) — docs, plans, cross-environment golden source. **Not** app code.
+- **EdgeFlowManager** — the published Complete Guide to Edge Flow Management (chapters, EFM/MiNiFi flow exports, figures). EFM guide work lives here now, **not** in DesktopShare's `guide/` (a redirect stub since 2026-08-05).
 - **cso-operator-app** — the Streamers / RAG control-plane app; has its own `CLAUDE.md`.
 - **nifi-custom-processors** — local-only custom NiFi Python processors (not git-tracked).
 - **ClouderaStreamingOperators**, **MiNiFi-Kubernetes-Playground**, **NiFi2 Processor Playground**
@@ -59,8 +60,9 @@ hostname. Full specs and per-device paths: `CLAUDE-CHECKIN.md`.
   gates on Steven's review). Full protocol: `agent/device-comms.md`.
 - **Promotion flow** — content moves DesktopShare root (in-progress) → `completed/` (done
   iterating) → `blog/` (polished draft) → blog repo `_posts/` (published).
-- **The guide** — `Complete Guide to Edge Flow Management.md`, the master EFM plan/index;
-  chapters are numbered only there.
+- **The guide** — the Complete Guide to Edge Flow Management, now published in its own repo
+  **EdgeFlowManager** (all guide work happens there). `Complete Guide to Edge Flow Management.md`
+  stays here as the internal tracker/plan of record; chapters are numbered only in the guide.
 - **Streamers** — the cso-operator-app pipeline that generates and posts stream content
   (Twitch/Kick/X); has a live pending/published queue governed by `agent/live-queues.md`.
 - **Live state outranks docs** — the cardinal rule: dump live `flow.json.gz`, hit health

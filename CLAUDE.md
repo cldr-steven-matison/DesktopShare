@@ -53,9 +53,13 @@ Repo homes vary per device — see `CLAUDE-CHECKIN.md` for the current per-host 
 | Repo | What it is |
 |---|---|
 | DesktopShare (this) | Docs, plans, cross-environment golden source. **Not** where app code lives. |
+| **EdgeFlowManager** | **The published Complete Guide to Edge Flow Management** — chapters, EFM/MiNiFi flow exports, and figures. Extracted from DesktopShare 2026-08-05; the guide index is its `README.md`. |
 | cso-operator-app | The Streamers / RAG app. Has its own `CLAUDE.md` — read it before touching that repo. |
 | nifi-custom-processors | Local-only, not git-tracked. Custom NiFi Python processors. |
 | ClouderaStreamingOperators, NiFi2-Processor-Playground, MiNiFi-Kubernetes-Playground | The Cloudera-side yamls, MiNiFi playground, custom processor playground. |
+
+> **⚠️ The EFM guide moved to its own repo (2026-08-05): [`EdgeFlowManager`](https://github.com/cldr-steven-matison/EdgeFlowManager).**
+> DesktopShare's `guide/` is now only a redirect stub — **do not edit chapters, flows, or figures there.** All guide work (chapters, `files/efm*` flow exports, EFM screenshots) now happens in **EdgeFlowManager**. DesktopShare keeps only the internal source/planning docs — the `Complete Guide to Edge Flow Management.md` tracker, `efm-guide-summary.md`, and the `efm-*` / `minifi-*` source docs — as the working record.
 
 ## Escalations
 
