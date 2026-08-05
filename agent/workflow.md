@@ -15,7 +15,9 @@ how you work once you're synced.
 
 ## Branches
 
-- **Don't auto-branch off `main`.** Several of these repos work directly on `main` (`cso-operator-app` in particular — see its `CLAUDE.md`), even though `main` is the default branch. If you're not sure whether a repo wants a branch, ask before creating one.
+- **One branch per issue in this repo: `issue-<n>-<slug>`.** Create it at the start of working an issue (`git checkout -b issue-<n>-<short-slug>` off `main`) and keep that issue's changes on it, so each agent operates on its own files and a commit only ever stages that issue's work. The checkout is shared, so only one issue's changes live in the working tree at a time — switch branches to change which issue is active.
+- **Other repos may still work directly on `main`.** `cso-operator-app` in particular does (see its `CLAUDE.md`). If you're unsure whether a repo wants a branch, ask before creating one.
+- Commit/push discipline is unchanged: commit and push only when explicitly asked; working-tree changes stay uncommitted by default.
 
 ## Live infra vs. docs
 
