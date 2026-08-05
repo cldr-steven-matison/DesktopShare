@@ -6,16 +6,14 @@ There are three metrics layers. They are independent — you can wire up any one
 
 1. **Layer 1 — EFM server metrics.** EFM is a Spring Boot app; it exposes an actuator Prometheus endpoint. ✅ Done.
 2. **Layer 2 — MiNiFi C++ agent metrics.** The C++ agent has a native Prometheus publisher (system + processor + repository metrics). ✅ Done.
-3. **Layer 2 (Java) — MiNiFi Java agent metrics.** Conclusively blocked at the platform level — issue #41. 🚫 Final.
-4. **Layer 3 — embedded / heartbeat metrics.** The smallest agents (ESP32/XIAO class) fold storage and health counters into the C2 heartbeat instead. 🟡 Design confirmed, Grafana panel not yet built.
-
-Source doc: `efm-metrics.md` (535 lines) — all field-validation output, property names, and verification commands below come from that file.
+3. **Layer 2 (Java) — MiNiFi Java agent metrics.** Conclusively blocked at the platform level. 🚫 Final.
+4. **Layer 3 — embedded / heartbeat metrics.** The smallest agents (ESP32/XIAO class) fold storage and health counters into the C2 heartbeat instead. 🟡 Design confirmed; Grafana panel out of scope here.
 
 ## The CSO Prometheus/Grafana stack
 
 All three layers target the **existing** observability stack. The `kube-prometheus-stack` Helm install that already scrapes CFM (NiFi), CSA (Flink), and CSM (Kafka/Strimzi) runs in the `cld-streaming` namespace. EFM and the edge agents become additional scrape targets on that same stack — the edge does not need its own monitoring silo.
 
-**On WindowsDesktop this stack did not exist until 2026-07-29 (issue #19).** See `efm-windowsdesktop-prometheus-grafana.md` for the exact commands that stood it up and confirmed EFM + NiFi (CFM) targets live. Kafka (CSM) and Flink (CSA) are deliberately not wired there yet.
+**On WindowsDesktop this stack has to be stood up separately** — EFM and NiFi (CFM) targets confirm live once it is. Kafka (CSM) and Flink (CSA) are deliberately not wired there yet.
 
 For contrast on the NiFi side: the old `PrometheusReportingTask` is gone in NiFi 2.x. Metrics now come from the built-in `/nifi-api/flow/metrics/prometheus` REST endpoint. EFM and MiNiFi are the edge-side complement to that datacenter endpoint.
 
@@ -62,7 +60,7 @@ kubectl port-forward -n cld-streaming deploy/efm 10190:10090 &
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:10190/efm/actuator/health   # want 200
 ```
 
-**Field-validated (FTF3XR2065, 2026-07-29).** Prerequisites already present (secrets, ConfigMap, both PVCs Bound, `efm` Postgres DB, image cached in minikube) — single `kubectl apply`, pod `Running` and health-green in ~15s (DB already migrated). The MiNiFi `KubernetesPod` agent enrolled the same session.
+**Field-validated.** Prerequisites already present (secrets, ConfigMap, both PVCs Bound, `efm` Postgres DB, image cached in minikube) — single `kubectl apply`, pod `Running` and health-green in ~15s (DB already migrated). The MiNiFi `KubernetesPod` agent enrolled the same session.
 
 ### Why the metrics endpoint already works
 
@@ -97,7 +95,7 @@ Once it's heartbeating, `/efm/actuator/prometheus` gains `agentClass="Kubernetes
 
 EFM's Kubernetes `Service` exposes two named ports: `efm-ui` on `10090` (the UI/API) and `metrics` on `9092`.
 
-> **⚠️ The metrics do not come out of the `metrics` port.** The Service *declares* `metrics/9092`, and the obvious read is "scrape 9092." That's wrong. Field-confirmed 2026-07-29: `9092` accepts a TCP connection but returns an **empty reply**, because EFM never starts a separate management server there (`management.server.port=9092` is not set in `efm.properties`). The actuator — including the Prometheus endpoint — is served on the **main server port `10090`** under the `/efm` servlet context path. The `metrics/9092` port is a Service-definition leftover, not a live endpoint.
+> **⚠️ The metrics do not come out of the `metrics` port.** The Service *declares* `metrics/9092`, and the obvious read is "scrape 9092." That's wrong: `9092` accepts a TCP connection but returns an **empty reply**, because EFM never starts a separate management server there (`management.server.port=9092` is not set in `efm.properties`). The actuator — including the Prometheus endpoint — is served on the **main server port `10090`** under the `/efm` servlet context path. The `metrics/9092` port is a Service-definition leftover, not a live endpoint.
 
 Confirm which port actually serves before writing the `ServiceMonitor`:
 
@@ -105,7 +103,7 @@ Confirm which port actually serves before writing the `ServiceMonitor`:
 kubectl port-forward -n cld-streaming deploy/efm 10190:10090 &
 # Actuator index lists "prometheus" as a registered endpoint:
 curl -s http://localhost:10190/efm/actuator | python3 -m json.tool | grep prometheus
-# Returns real Prometheus text (1429 lines on FTF3XR2065, 1965 on WindowsDesktop):
+# Returns real Prometheus text (~1429 lines on the K8s EFM pod, 1965 on WindowsDesktop):
 curl -s http://localhost:10190/efm/actuator/prometheus | head
 ```
 
@@ -142,7 +140,7 @@ spec:
 kubectl apply -f efm-service-monitor.yaml
 ```
 
-**Field-verified 2026-07-29 (FTF3XR2065).** After applying, the target registers and goes green within ~90s (Prometheus config reload + first scrape):
+**Field-verified.** After applying, the target registers and goes green within ~90s (Prometheus config reload + first scrape):
 
 ```text
 $ curl -s 'localhost:9490/api/v1/query?query=up{job="efm"}'
@@ -151,7 +149,7 @@ up{container="efm",endpoint="efm-ui",instance="10.244.5.43:10090",job="efm",
    namespace="cld-streaming",pod="efm-686c9c4758-mlvbw",service="efm"} = 1
 ```
 
-**Also confirmed on WindowsDesktop 2026-07-29 (issue #19).** `http://192.168.1.121:10090/efm/actuator/prometheus` returns 1965 lines; `ServiceMonitor` applied and `up{job="efm"}=1` confirmed — see `efm-windowsdesktop-prometheus-grafana.md`.
+**Also confirmed on WindowsDesktop.** `http://192.168.1.121:10090/efm/actuator/prometheus` returns 1965 lines; `ServiceMonitor` applied and `up{job="efm"}=1` confirmed.
 
 If you want to use `metrics/9092` (cleaner separation from the UI), set `management.server.port=9092` in the `efm-config` ConfigMap and redeploy — then `port: metrics` in the `ServiceMonitor` works. Until you do that, scrape `efm-ui`.
 
@@ -159,7 +157,7 @@ If you want to use `metrics/9092` (cleaner separation from the UI), set `managem
 
 MiNiFi C++ has a native Prometheus publisher — no `ExecuteScript`, no sidecar. It ships as a separate extension, `libminifi-prometheus.so`. Confirm it's present in the agent's `extensions/` directory before troubleshooting a "publisher never starts" symptom.
 
-### Corrected property names (field-validated 2026-07-29)
+### Corrected property names
 
 > **⚠️ The `nifi.c2.*` property names documented in earlier revisions of this guide do not exist in MiNiFi C++ 1.26.02.** Those keys are never read by the binary — confirmed by `strings` against `libminifi-prometheus.so` and by the shipped `minifi.properties` template itself, which shows the real keys commented out under a "Publish metrics to external consumers" header. The real namespace is `nifi.metrics.publisher.*`.
 
@@ -179,7 +177,7 @@ Notes from the field:
 - **`nifi.metrics.publisher.metrics` is a comma-separated list of metric-node classes, not a boolean toggle.** `QueueMetrics` and `RepositoryMetrics` are always available. `DeviceInfoNode` and `FlowInformation` are the general per-agent and per-processor nodes. A class tied to a specific processor (e.g. `GetFileMetrics`) only emits if a processor of that type actually exists in the agent's flow — check `config.yml` first, or it is silently a no-op.
 - **The setting only takes effect on a service restart, not a config-only reload.**
 
-### Field validation — NvidiaNano (2026-07-29, real Jetson hardware, systemd-managed)
+### Field validation — NvidiaNano (real Jetson hardware, systemd-managed)
 
 After restarting the systemd-managed `minifi` service with the corrected config:
 
@@ -203,11 +201,11 @@ minifi_is_running{metric_class="FlowInformation",component_name="FlowController"
 
 Binds `0.0.0.0`, so it is LAN-reachable. Series carry `agent_identifier`, `metric_class`, and per-connection/per-processor tags — exactly the shape a Grafana panel needs.
 
-### Field validation — WindowsDesktopCpp (2026-07-29, issue #20)
+### Field validation — WindowsDesktopCpp
 
-Writing `95-metrics.properties` to `C:\WINDOWS\System32\nifi-minifi-cpp\conf\minifi.properties.d\` was initially blocked by UAC Admin Approval Mode. `tunas` is in `BUILTIN\Administrators`, but the live process token returns `IsInRole(Administrator) = False` (filtered standard token). `Get-Acl` confirms `BUILTIN\Administrators` has `FullControl` but `BUILTIN\Users` (the effective group on the filtered token) only has `ReadAndExecute` — matches the denial exactly.
+Writing `95-metrics.properties` to `C:\WINDOWS\System32\nifi-minifi-cpp\conf\minifi.properties.d\` is blocked by UAC Admin Approval Mode. An admin account is in `BUILTIN\Administrators`, but the live process token returns `IsInRole(Administrator) = False` (filtered standard token). `Get-Acl` confirms `BUILTIN\Administrators` has `FullControl` but `BUILTIN\Users` (the effective group on the filtered token) only has `ReadAndExecute` — which matches the denial exactly.
 
-**Resolved in the same session with a human at the physical console.** `Start-Process powershell -Verb RunAs -Wait` from the WSL2 side popped the UAC consent prompt on the real Windows desktop; Steven approved it interactively. The elevated script wrote `95-metrics.properties` and ran `Restart-Service -Name "Apache NiFi MiNiFi" -Force` in the same elevated context. Confirmed live immediately after:
+**The fix is an elevated write.** `Start-Process powershell -Verb RunAs -Wait` pops the UAC consent prompt; the elevated script writes `95-metrics.properties` and runs `Restart-Service -Name "Apache NiFi MiNiFi" -Force` in the same elevated context. Confirmed live immediately after:
 
 ```powershell
 Get-Service "Apache NiFi MiNiFi"  # Status: Running
@@ -215,7 +213,7 @@ Get-NetTCPConnection -LocalPort 9936  # State: Listen
 curl http://127.0.0.1:9936/metrics   # returns real minifi_* Prometheus text
 ```
 
-The response includes `agent_identifier="40eb2f92-94c5-4478-beed-7060e41c9d7f"` on live queue/connection metrics from the running flow. The one-time UAC prompt was the entire blocker.
+The response includes `agent_identifier="40eb2f92-94c5-4478-beed-7060e41c9d7f"` on live queue/connection metrics from the running flow. The one-time UAC prompt is the entire blocker.
 
 ### Wiring C++ agent metrics into CSO Prometheus (WindowsDesktop)
 
@@ -265,13 +263,13 @@ spec:
     interval: 15s
 ```
 
-**Field-verified 2026-07-29.** Confirmed via Prometheus's own `/api/v1/targets` (`health: "up"`) and a live PromQL query returning real per-connection series from the running flow. Job name: `windowsdesktopcpp-minifi-metrics`. Full manifest and verification steps: `efm-windowsdesktop-prometheus-grafana.md` §5.
+Confirm the target via Prometheus's own `/api/v1/targets` (`health: "up"`) and a live PromQL query returning real per-connection series from the running flow. Job name: `windowsdesktopcpp-minifi-metrics`.
 
 ### Restarting the C++ agent — the real mechanics
 
 Applying a `minifi.properties.d/*.properties` change requires restarting the `minifi` systemd service. Three paths that look equivalent are not:
 
-- **`sudo systemctl restart minifi` — the only path that reliably works on Linux (NvidiaNano, StarlinkAI).** Requires an interactive sudo password on NvidiaNano; no `NOPASSWD` sudoers entry exists as of 2026-07-29. An agent session cannot supply that password non-interactively.
+- **`sudo systemctl restart minifi` — the only path that reliably works on Linux (NvidiaNano, StarlinkAI).** Requires an interactive sudo password on NvidiaNano; with no `NOPASSWD` sudoers entry, an automated session cannot supply that password non-interactively.
 - **`~/minifi-1.26.02/bin/minifi.sh restart` is not an independent alternative.** Reading the script shows its `restart_service()` just calls `systemctl restart minifi.service` on Linux — needs the exact same sudo privilege.
 - **Killing the process directly does not reliably force a systemd respawn.** The unit file sets `Restart=on-failure` with `RestartForceExitStatus=3` — that rule fires on a specific exit code used by the agent's own C2-triggered restart path, not on an externally sent `SIGTERM`. Confirmed live: sending `SIGTERM` to the MiNiFi PID made the process exit cleanly, `systemctl is-active` immediately reported `inactive`, and the agent stayed down until a human ran `sudo systemctl start minifi`.
 
@@ -280,29 +278,29 @@ Applying a `minifi.properties.d/*.properties` change requires restarting the `mi
 The publisher binds `0.0.0.0`, but:
 
 - Confirm the host firewall allows the port (default `9936`) on the interface the scraper arrives on.
-- On StarlinkAI over Tailscale, Windows firewall rules for `9936` are an open question — WindowsDesktop has `Allow EFM Port 10090` and generic Kafka `9092` rules, but no dedicated metrics `9936` rule, and Tailscale's adapter can land on a firewall profile the existing rules don't cover. Confirm metrics-over-tailnet is actually wanted before adding a rule (see `beelink-starlink-efm-ai.md`).
+- On StarlinkAI over Tailscale, Windows firewall rules for `9936` need attention — WindowsDesktop has `Allow EFM Port 10090` and generic Kafka `9092` rules, but no dedicated metrics `9936` rule, and Tailscale's adapter can land on a firewall profile the existing rules don't cover. Confirm metrics-over-tailnet is actually wanted before adding a rule.
 
 ## Layer 2 — MiNiFi Java agent metrics (blocked)
 
-> **⚠️ MiNiFi Java Layer 2 metrics are conclusively blocked — a confirmed platform limit tracked under issue #41, closed 2026-07-30. This is a final negative result, not an open question.**
+> **⚠️ MiNiFi Java Layer 2 metrics are conclusively blocked — a confirmed platform limit. This is a final negative result, not an open question.**
 
 On the C++ side, enabling Prometheus metrics is a three-line properties drop-in. On the Java side (`WindowsDesktop` agent, MiNiFi Java `2.24.08.0-19`), both real paths were exhausted:
 
 **Why there is no drop-in property equivalent.** `minifi.properties` has no `metric`/`prometheus`/`reporting` properties at all — no commented-out template to uncomment, unlike C++. `bootstrap.conf`'s only documented status reporter is `StatusLogger`, which writes to a file, not a metrics endpoint. The live `flow.json.gz` has `"reportingTasks":[]` and no Prometheus-capable reporting-task NAR ships in `lib\` or `extensions\` (`nifi-site-to-site-reporting-nar` is the only one present — that is S2S provenance reporting, not Prometheus).
 
-**Path A — enable the embedded web API (`nifi.web.http.port`).** NiFi 2.x's built-in `/nifi-api/flow/metrics/prometheus` REST endpoint requires the embedded Jetty web server to be running. `nifi.web.http.port` is empty on this agent — it runs fully headless. Staged and tested live 2026-07-29: `nifi.web.http.host=127.0.0.1` and `nifi.web.http.port=8998` were set directly in `conf/minifi.properties` (writable without elevation). After restart via `run-minifi.bat`, both properties were back to empty — EFM regenerates this agent's `minifi.properties` from its C2-stored config on every boot, regardless of which key changed. `/nifi-api/flow/metrics/prometheus` was never reachable (connection refused on `8998`, confirmed from both WSL2 and Windows-side `Invoke-WebRequest`).
+**Path A — enable the embedded web API (`nifi.web.http.port`).** NiFi 2.x's built-in `/nifi-api/flow/metrics/prometheus` REST endpoint requires the embedded Jetty web server to be running. `nifi.web.http.port` is empty on this agent — it runs fully headless. Staged and tested live: `nifi.web.http.host=127.0.0.1` and `nifi.web.http.port=8998` were set directly in `conf/minifi.properties` (writable without elevation). After restart via `run-minifi.bat`, both properties were back to empty — EFM regenerates this agent's `minifi.properties` from its C2-stored config on every boot, regardless of which key changed. `/nifi-api/flow/metrics/prometheus` was never reachable (connection refused on `8998`, confirmed from both WSL2 and Windows-side `Invoke-WebRequest`).
 
-**Path B — push `nifi.web.http.*` through EFM's C2 `UPDATE_PROPERTIES`.** Since direct file edit reverts on restart, the only remaining channel is EFM's own C2 push. Both keys were inserted directly into EFM's Postgres `property_updates` table (agent class `WindowsDesktop`) — required because `PUT /efm/api/agent-classes/WindowsDesktop` returns `200` but does not persist (confirmed via direct DB read immediately after; a separate EFM bug). After an EFM pod restart to force cache reload, both properties were pushed to the live agent every ~5s and rejected every time — `operation.state = FAILED` for both `nifi.web.http.host` and `nifi.web.http.port`. This is the same server-side C2 denylist behavior already confirmed for `nifi.python.command` in [issue #38](https://github.com/cldr-steven-matison/DesktopShare/issues/38).
+**Path B — push `nifi.web.http.*` through EFM's C2 `UPDATE_PROPERTIES`.** Since direct file edit reverts on restart, the only remaining channel is EFM's own C2 push. Both keys were inserted directly into EFM's Postgres `property_updates` table (agent class `WindowsDesktop`) — required because `PUT /efm/api/agent-classes/WindowsDesktop` returns `200` but does not persist (confirmed via direct DB read immediately after; a separate EFM bug). After an EFM pod restart to force cache reload, both properties were pushed to the live agent every ~5s and rejected every time — `operation.state = FAILED` for both `nifi.web.http.host` and `nifi.web.http.port`. This is the same server-side C2 denylist behavior seen for `nifi.python.command`.
 
 **Path B is also the only path.** Searching the exact-matching `2.24.08.0-19` source tarball (`~/efm-binaries/nifi-minifi-java-2.0.0.2.24.08.0-19-source.tar.gz`) end to end: the only Prometheus code anywhere — `org.apache.nifi.prometheusutil.*`, `PrometheusMetricsWriter` — lives inside `nifi-web-api` itself, wired directly to the embedded Jetty server. There is no separate `nifi-prometheus-nar` module. `/nifi-api/flow/metrics/prometheus` is only reachable by enabling the embedded web API. What looked like two independent paths was actually the same path.
 
-**Conclusion (issue #41, 2026-07-30): on this specific platform combination — an EFM/C2-managed, headless MiNiFi Java `2.24.08.0-19` agent — there is no supported channel to get NiFi 2.x's built-in Prometheus endpoint live.** Not a config mistake, not an oversight. Direct file edit reverts on restart, the C2 protocol itself blocks the properties needed to turn the embedded web API on, and no alternative NAR-based metrics path ships in this build. A different architecture (e.g. `SiteToSiteMetricsReportingTask`, which does exist in this source tree, relaying metrics to `mynifi`'s already-open web API instead of opening one on this agent) is the only remaining avenue and is out of scope for this issue. The C++ Layer 2 pattern is the reference for what a working MiNiFi Prometheus target looks like on this stack.
+**Conclusion: on this specific platform combination — an EFM/C2-managed, headless MiNiFi Java `2.24.08.0-19` agent — there is no supported channel to get NiFi 2.x's built-in Prometheus endpoint live.** Not a config mistake, not an oversight. Direct file edit reverts on restart, the C2 protocol itself blocks the properties needed to turn the embedded web API on, and no alternative NAR-based metrics path ships in this build. A different architecture (e.g. `SiteToSiteMetricsReportingTask`, which does exist in this source tree, relaying metrics to `mynifi`'s already-open web API instead of opening one on this agent) is the only remaining avenue and is out of scope here. The C++ Layer 2 pattern is the reference for what a working MiNiFi Prometheus target looks like on this stack.
 
 ## Layer 3 — embedded heartbeat metrics (XIAO/microfi)
 
-The ESP32-class agent (`efm-xiao-microfi.md`) is too small to run a Prometheus server. Instead it puts its own health into the **C2 heartbeat**: LittleFS durable-storage counters with watermark-based eviction, reported as storage metrics in the heartbeat payload EFM already receives.
+The ESP32-class agent is too small to run a Prometheus server. Instead it puts its own health into the **C2 heartbeat**: LittleFS durable-storage counters with watermark-based eviction, reported as storage metrics in the heartbeat payload EFM already receives.
 
-Getting those heartbeat metrics onto a Grafana panel means going through EFM (Layer 1) rather than scraping the device directly — EFM holds the agent state, Prometheus scrapes EFM. Design confirmed for the ESP32 class; a Grafana panel is not yet built.
+Getting those heartbeat metrics onto a Grafana panel means going through EFM (Layer 1) rather than scraping the device directly — EFM holds the agent state, Prometheus scrapes EFM. Design confirmed for the ESP32 class; a Grafana panel is out of scope here.
 
 ## What NOT to do
 
@@ -314,10 +312,10 @@ Getting those heartbeat metrics onto a Grafana panel means going through EFM (La
 
 **Don't apply the `ServiceMonitor` and call it done.** Confirm the target shows green and a value lands in Prometheus (`up{job="efm"}=1`) before trusting it. The port trap above silently yields an empty scrape if the wrong port is used.
 
-**Don't configure the MiNiFi C++ publisher with `nifi.c2.*` property names.** That namespace does not exist in MiNiFi C++ 1.26.02 — field-corrected 2026-07-29. The real keys are `nifi.metrics.publisher.*`.
+**Don't configure the MiNiFi C++ publisher with `nifi.c2.*` property names.** That namespace does not exist in MiNiFi C++ 1.26.02. The real keys are `nifi.metrics.publisher.*`.
 
 **Don't edit `minifi.properties` directly on C++ agents.** The file warns it is overwritten on upgrade, and EFM writes `90_c2.properties` into `conf/minifi.properties.d/` on enrollment. Use a new drop-in file like `95-metrics.properties` instead.
 
 **Don't treat "kill the MiNiFi C++ process" as a safe unattended restart.** `Restart=on-failure` does not catch a plain `SIGTERM` — confirmed live on NvidiaNano, the agent stayed down. Use `sudo systemctl restart minifi` (requires a human at the terminal; no passwordless sudo configured).
 
-**Don't attempt to enable Java Layer 2 metrics by editing the agent's `minifi.properties` directly.** EFM regenerates that file from its C2-stored config on every agent boot — the edit reverts on the next restart. The C2 protocol itself also blocks `nifi.web.http.*` properties server-side. Both paths are exhausted and closed under issue #41.
+**Don't attempt to enable Java Layer 2 metrics by editing the agent's `minifi.properties` directly.** EFM regenerates that file from its C2-stored config on every agent boot — the edit reverts on the next restart. The C2 protocol itself also blocks `nifi.web.http.*` properties server-side. Both paths are exhausted.

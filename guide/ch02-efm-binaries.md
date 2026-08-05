@@ -5,7 +5,7 @@ edge device a `400 BAD_REQUEST` the moment you run it. Every time I hit that wal
 the same thing: EFM is a binary vending machine, and the vending machine only dispenses what you
 have physically stocked in the exact slot it expects. This chapter is the staging layout that
 actually works — five agent binaries across C++ and Java, x86_64 and ARM64 and Windows — plus the
-Windows traps (the MSI Python black hole, the missing Java processors) that cost the most time.
+Windows traps (the MSI Python black hole, the missing Java processors) that snag the most installs.
 Everything here is field-verified on a live EFM `2.3.1.0-2` running in minikube against
 `nifi-minifi-cpp 1.26.02-b30` and CEM Java `2.24.08.0-19`.
 
@@ -179,9 +179,9 @@ Output must be exactly these five leaves:
 Refresh the EFM UI and the deploy dropdown now cleanly offers `v1.26.02 - linux`,
 `v1.26.02 - windows`, and `v2.24.08.0-19 - linux`.
 
-![Deploy Agent CLI Command — Java binary version dropdown showing linux and windows leaves present](/assets/images/efm-Deploy-Agent-CLI-1.jpg)
+![Deploy Agent CLI Command — Java binary version dropdown showing linux and windows leaves present](assets/images/efm-Deploy-Agent-CLI-1.jpg)
 
-![Deploy Agent CLI Command — C++ binary version dropdown showing linux, linuxaarch64, and windows leaves](/assets/images/efm-Deploy-Agent-CLI-2.jpg)
+![Deploy Agent CLI Command — C++ binary version dropdown showing linux, linuxaarch64, and windows leaves](assets/images/efm-Deploy-Agent-CLI-2.jpg)
 
 ## Deploy an agent
 
@@ -315,7 +315,7 @@ curl -X POST http://127.0.0.1:10090/efm/api/agent-class-manifest-config \
   -d '{"agentClassName":"WindowsDesktopCpp","agentManifestId":"<id-from-GET-/agents/{id}>"}'
 ```
 
-![Windows extensions directory after full-feature install — both minifi-python-script-extension.dll and minifi_native.pyd present](/assets/images/efm-binaries-windows.jpg)
+![Windows extensions directory after full-feature install — both minifi-python-script-extension.dll and minifi_native.pyd present](assets/images/efm-binaries-windows.jpg)
 
 ## Windows Java: it installs clean, then you find out what's missing
 
@@ -393,7 +393,7 @@ to `./extensions`) and the running agent's NAR Auto-Loader picks them up in 5–
 restart — `[0] skipped` in `minifi-app.log` for all three. The manifest goes from **114 to 122**
 processors.
 
-Field-verified on both `KubernetesPodJava` and the native `WindowsDesktop` Java agent (2026-07-27):
+Field-verified on both `KubernetesPodJava` and the native `WindowsDesktop` Java agent:
 
 - `ExecuteScript` ran a real Groovy transform — attribute `nar.groovy.smoke=windows-java-nar-drop-in-ok`
   showed up on every flowfile through the smoke flow.
@@ -518,11 +518,8 @@ is not — either way it is installed and running.
 - **Don't copy NiFi's NARs into the Java MiNiFi agent.** The `Nar-Dependency-Version` will not match; build from the exact-version source instead.
 - **Don't forget to remap the agent class after adding NARs.** The Designer still rejects the new processors as "not an available Processor type" until you POST the agent's new `agentManifestId` to `/efm/api/agent-class-manifest-config`.
 
-## Sources
+## Related chapters
 
-Primary: `efm-binaries-blog.md` (polished blog draft, the narrative source for this chapter).
-Fieldwork: `efm-binaries.md` (527-line lab notes with full commands and verification output),
-`efm-windows-java-minifi.md` (Java MiNiFi on Windows and Kubernetes — processor catalog,
-class-manifest trap, Kafka + scripting NAR drop-in, early-ack test, Jetson Java deploy),
-`efm-binaries-windows-python.md` (C++ Windows Python black hole, Path A/B field verification),
-`efm-binaries-manual-deliver.md` (offline three-file install pattern for air-gapped devices).
+- Ch4 — [MiNiFi Java Processor Catalog](ch04-java-processor-catalog.md): what the Java tarball ships and the class-manifest trap.
+- Ch5 — [ExecuteScript Availability](ch05-executescript-availability.md): the C++ Windows Python paths and the four ways to add scripting.
+- Ch8 — [MiNiFi Java Setup](ch08-minifi-java-setup.md): the Kafka + scripting NAR drop-in and the Jetson Java deploy.

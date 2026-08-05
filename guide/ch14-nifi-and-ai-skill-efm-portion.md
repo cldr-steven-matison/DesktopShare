@@ -237,11 +237,8 @@ Keep mixed runtimes as parallel classes — `WindowsDesktopCpp` separate from `W
 Building via the API means you also place every processor by `position:{x,y}` — there is no
 auto-layout. On an EFM Designer build the row pitch is **300** (not the NiFi canvas's 200), branch/
 column pitch is **~600–900** (not ~300–480), and a linear chain runs **vertical** (constant `x`,
-`y += 300`). A `(0,0)→(400,0)` sideways pair is the flagged-bad shape that landed cramped twice
-([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)). State your intended shape and
-pitch and match it against `references/layout.md` *before* the first `POST .../processors`, not after
-the build reads cramped — a `guard.sh` PreToolUse hook in this repo prompts on any
-processor-create/update carrying a `position` to do exactly that.
+`y += 300`). A `(0,0)→(400,0)` sideways pair is the flagged-bad shape that reads cramped. Decide your
+intended shape and pitch *before* the first `POST .../processors`, not after the build reads cramped.
 
 ---
 
@@ -333,15 +330,13 @@ across the flow, or budget for a real `Service` if the pod will restart more tha
 
 ---
 
-## Source documents
+## Related chapters
 
-- `skills/nifi-and-ai/SKILL.md` — the 9 rules, deployment shapes, and reference map (the skill core).
-- `skills/nifi-and-ai/references/minifi-efm.md` — the EFM portion in full; the primary source for
-  this chapter.
-- `skills/nifi-and-ai/references/layout.md` — the canvas coordinate model and the Designer pitch.
-- Ch2 ([EFM Binaries](ch02-efm-binaries.md)) — the full binary-staging tree, Windows MSI Python, and
+- Ch2 — [EFM Binaries](ch02-efm-binaries.md): the full binary-staging tree, Windows MSI Python, and
   the missing Java scripting NAR.
-- Ch5 ([ExecuteScript Availability](ch05-executescript-availability.md)) — which runtimes ship the
+- Ch5 — [ExecuteScript Availability](ch05-executescript-availability.md): which runtimes ship the
   Python engine.
-- Ch16 ([How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md)) — what you make agents *do* once this
+- Ch16 — [How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md): what you make agents *do* once this
   machinery is in place; builds against the same Designer contract.
+
+The `nifi-and-ai` skill (`skills/nifi-and-ai/`) is the working toolkit this chapter documents.

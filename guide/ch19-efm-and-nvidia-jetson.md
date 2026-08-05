@@ -1,15 +1,15 @@
 # Chapter 19: EFM + NVIDIA Jetson use case
 
-This chapter walks through enrolling a Jetson Orin Nano (device `NvidiaNano`, hostname `tunastreet`, aarch64) as a MiNiFi C++ agent under EFM, delivering a TensorRT inference script as an agent resource, publishing an edge flow, and confirming the full `ListenHTTP → ExecuteScript → PublishKafka` chain end to end on real hardware. Everything here is field-captured on the actual board — 2026-07-29 through 2026-07-31. The cross-reference for the full source is `efm-nvidia-jetson-nano.md`.
+This chapter walks through enrolling a Jetson Orin Nano (device `NvidiaNano`, hostname `tunastreet`, aarch64) as a MiNiFi C++ agent under EFM, delivering a TensorRT inference script as an agent resource, publishing an edge flow, and confirming the full `ListenHTTP → ExecuteScript → PublishKafka` chain end to end on real hardware. Everything here is field-captured on the actual board.
 
-> **⚠️ Device-class assignment note.** The `NvidiaNano` agent class used throughout this chapter is the current assignment. A new SensorClass device (theme G, issue [#74](https://github.com/cldr-steven-matison/DesktopShare/issues/74)) is incoming and the device-class roster may shift when that lands. Do not treat `NvidiaNano` as a permanent class name — check the current class assignment before building dependent flows or tooling.
+> **⚠️ Device-class assignment note.** The `NvidiaNano` agent class used throughout this chapter is the current assignment. The device-class roster may shift over time, so do not treat `NvidiaNano` as a permanent class name — check the current class assignment before building dependent flows or tooling.
 
 ## Prerequisites
 
 This chapter builds directly on:
 
-- EFM persisted on Kubernetes — see [Chapter 1](ch01-efm-on-kubernetes.md) and `efm-persistance.md`
-- MiNiFi C++ binaries installed into EFM's `agent-deployer/binaries` tree — see `efm-binaries.md`
+- EFM persisted on Kubernetes — see [Chapter 1](ch01-efm-on-kubernetes.md)
+- MiNiFi C++ binaries installed into EFM's `agent-deployer/binaries` tree — see [Chapter 2](ch02-efm-binaries.md)
 - The CSO stack (NiFi, Kafka/Strimzi, Flink, Prometheus/Grafana) running in minikube under `cld-streaming`
 
 After installing binaries, restart EFM before proceeding:
@@ -45,9 +45,9 @@ The Jetson is a separate box on the LAN and cannot reach the host's `127.0.0.1`.
 
 After EFM is up, create a class to reach the **Deploy Agent CLI** screen. The binary version dropdowns read from `agent-deployer/binaries/{agentType}/{osArch}/{agentVersion}` — the `linuxaarch64` C++ build is what the Jetson enrolls against.
 
-![Deploy Agent CLI Command — Java binary version dropdown](/assets/images/efm-Deploy-Agent-CLI-1.jpg)
+![Deploy Agent CLI Command — Java binary version dropdown](assets/images/efm-Deploy-Agent-CLI-1.jpg)
 
-![Deploy Agent CLI Command — C++ binary version dropdown, including the linuxaarch64 build for the Jetson](/assets/images/efm-Deploy-Agent-CLI-2.jpg)
+![Deploy Agent CLI Command — C++ binary version dropdown, including the linuxaarch64 build for the Jetson](assets/images/efm-Deploy-Agent-CLI-2.jpg)
 
 ## Windows networking: mirrored mode vs NAT mode
 
@@ -194,7 +194,7 @@ kubectl exec -it minifi-agent-k8s -n cld-streaming -- tail -f /nifi-minifi-cpp-1
 
 Field-captured on WindowsDesktop from the live pod — the C++ build only logs *failed* C2 heartbeats, not successful ones, so there's no "registered!" line. What the log shows is the agent retrying every 5s while EFM was mid-startup, then going quiet once EFM came up — consistent with the heartbeat succeeding silently. The live-connection proof is the EFM dashboard:
 
-![KubernetesPod class in EFM → Monitor → Agents — Good Health, one agent enrolled](/assets/images/efm-KubernetesPod-Class.jpg)
+![KubernetesPod class in EFM → Monitor → Agents — Good Health, one agent enrolled](assets/images/efm-KubernetesPod-Class.jpg)
 
 The `KubernetesPod` class shows **Good Health** with `minifi-agent-k8s-gaming` enrolled and reporting.
 
@@ -228,11 +228,11 @@ tail -f minifi-1.26.02/logs/minifi-app.log
 
 The agent appears in EFM → **Monitor** → **Agents** under class `NvidiaNano` within a few minutes:
 
-![NvidiaNano class in EFM → Monitor → Agents — Good Health, Jetson agent enrolled](/assets/images/efm-NvidiaNano-Class.jpg)
+![NvidiaNano class in EFM → Monitor → Agents — Good Health, Jetson agent enrolled](assets/images/efm-NvidiaNano-Class.jpg)
 
-The `NvidiaNano` class shows **Good Health** with the Jetson Orin Nano's C++ agent enrolled and reporting. The `NvidiaNano` class is field-confirmed operational as of 2026-07-29.
+The `NvidiaNano` class shows **Good Health** with the Jetson Orin Nano's C++ agent enrolled and reporting. The `NvidiaNano` class is field-confirmed operational.
 
-> **⚠️ Device-class reminder.** As noted above, the `NvidiaNano` class name may change when the SensorClass device (theme G, issue [#74](https://github.com/cldr-steven-matison/DesktopShare/issues/74)) lands. Update any automation or flow references at that point.
+> **⚠️ Device-class reminder.** As noted above, the `NvidiaNano` class name may change if the device-class roster shifts. Update any automation or flow references at that point.
 
 ## Restarting MiNiFi on the Jetson
 
@@ -319,7 +319,7 @@ Import and publish the flow to the `NvidiaNano` class via EFM's flow designer. T
 
 Agent Resources are managed from within EFM — upload files there, assign them to the agent class on the Resources tab, and they appear in the agent's `/assets/` directory.
 
-> **⚠️ Execute bit not set on delivery.** EFM drops assigned resources into the agent's `assets/` directory without the execute bit. `ExecuteScript` cannot run `gpu_nifi_tensorRT-3.py` until you set it manually. Field-verified 2026-07-31: the install dir is `nifi-minifi-cpp-1.26.02` and the assets folder is singular `asset/`:
+> **⚠️ Execute bit not set on delivery.** EFM drops assigned resources into the agent's `assets/` directory without the execute bit. `ExecuteScript` cannot run `gpu_nifi_tensorRT-3.py` until you set it manually. Field-verified: the install dir is `nifi-minifi-cpp-1.26.02` and the assets folder is singular `asset/`:
 
 ```bash
 chmod +x ~/nifi-minifi-cpp-1.26.02/asset/gpu_nifi_tensorRT-3.py
@@ -346,17 +346,17 @@ kafka-console-consumer.sh --bootstrap-server gaming-pc-lan-ip:31623 \
   --topic agent-nvidia-tensorRT --from-beginning --max-messages 1
 ```
 
-**Field-captured 2026-07-31** — real end-to-end run: POSTed to the Jetson's `ListenHTTP`, consumed from `agent-nvidia-tensorRT`:
+**Field-captured** — real end-to-end run: POSTed to the Jetson's `ListenHTTP`, consumed from `agent-nvidia-tensorRT`:
 
 ```json
 {"sensor": "jetson-test", "value": 42, "tensorrt": {"version": "10.16.2.10", "status": "Active"}}
 ```
 
-The `tensorrt` block was appended live on the Jetson's GPU by `gpu_nifi_tensorRT-3.py`. Full `ListenHTTP → ExecuteScript → PublishKafka` chain confirmed end to end on real aarch64 hardware, 2026-07-31.
+The `tensorrt` block was appended live on the Jetson's GPU by `gpu_nifi_tensorRT-3.py`. Full `ListenHTTP → ExecuteScript → PublishKafka` chain confirmed end to end on real aarch64 hardware.
 
 ## Prometheus observability for EFM and the Jetson agent
 
-Two metrics layers extend the CSO Prometheus/Grafana stack that already watches NiFi/Kafka/Flink. The full three-layer story is in `efm-metrics.md`; this section is the Jetson-specific slice.
+Two metrics layers extend the CSO Prometheus/Grafana stack that already watches NiFi/Kafka/Flink. The full three-layer story is [Chapter 21 (Metrics & Observability)](ch21-metrics-and-observability.md); this section is the Jetson-specific slice.
 
 ### Layer 1 — EFM server metrics (field-validated)
 
@@ -391,7 +391,7 @@ kubectl port-forward -n cld-streaming deploy/efm 10190:10090 &
 curl -s http://localhost:10190/efm/actuator/prometheus | head
 ```
 
-### Layer 2 — Jetson agent metrics (field-validated 2026-07-29 on NvidiaNano)
+### Layer 2 — Jetson agent metrics (field-validated on NvidiaNano)
 
 MiNiFi C++ has a native Prometheus publisher — no `ExecuteScript`, no sidecar — shipped as `libminifi-prometheus.so`. The correct property namespace is `nifi.metrics.publisher.*` (not `nifi.c2.enable.metrics`/`nifi.c2.metrics.publisher.*` — those don't exist in this build, confirmed against the binary and shipped config template).
 
@@ -415,7 +415,7 @@ $ curl -s http://127.0.0.1:9936/metrics | wc -l
 204
 ```
 
-Binds `0.0.0.0` (confirmed via `ss`), so it is LAN-reachable in principle. The firewall rule allowing `9936` inbound on this device's `ufw` was **not validated** on this pass — don't add it reflexively before the CSO Prometheus scrape side is ready. The scrape-target wiring on CSO Prometheus and the Grafana panel build remain open — handed to WindowsDesktop, see `efm-metrics.md` and the issue thread for [#16](https://github.com/cldr-steven-matison/DesktopShare/issues/16).
+Binds `0.0.0.0` (confirmed via `ss`), so it is LAN-reachable in principle. Confirm the host firewall allows `9936` inbound on this device's `ufw` before wiring the CSO Prometheus scrape side — don't add the rule reflexively until the scrape target is actually wanted. The CSO Prometheus scrape-target wiring and Grafana panel are covered in [Chapter 21 (Metrics & Observability)](ch21-metrics-and-observability.md).
 
 > **⚠️ Restarting to apply metrics config.** `sudo systemctl restart minifi` is the only reliable path — see the restart section above. The same caveat applies here: `minifi.sh restart` calls systemctl internally; a direct `kill` leaves the agent inactive with no automatic respawn.
 
@@ -472,13 +472,12 @@ sudo systemctl restart minifi
 sudo systemctl status minifi
 ```
 
-## Resources
+## Related chapters
 
-- `efm-persistance.md` — persisted EFM on Kubernetes, the base this chapter builds on
-- `efm-binaries.md` — installing the MiNiFi Java & C++ binaries into EFM
-- `efm-metrics.md` — full three-layer EFM/agent Prometheus story; this chapter carries the Jetson slice
-- `efm-nvidia-jetson-nano.md` — the full 646-line source document for this chapter
-- [MiNiFi Kubernetes Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) — the MiNiFi test harness
+- Ch1 — [EFM on Kubernetes](ch01-efm-on-kubernetes.md): persisted EFM, the base this chapter builds on.
+- Ch2 — [EFM Binaries](ch02-efm-binaries.md): installing the MiNiFi Java & C++ binaries into EFM.
+- Ch21 — [Metrics & Observability](ch21-metrics-and-observability.md): the full three-layer EFM/agent Prometheus story; this chapter carries the Jetson slice.
+- [MiNiFi Kubernetes Playground](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) — the MiNiFi test harness.
 - EFM agent flows: [NvidiaNano-TensorRT.json](../files/efm/NvidiaNano-TensorRT.json), [WindowsDesktop-TensorRT.json](../files/efm/WindowsDesktop-TensorRT.json), [KubernetesPod-TensorRT.json](../files/efm/KubernetesPod-TensorRT.json)
 - TailLog variants: [NvidiaNano.json](../files/efm/NvidiaNano.json), [WindowsDesktop.json](../files/efm/WindowsDesktop.json), [KubernetesPod.json](../files/efm/KubernetesPod.json)
 - Edge inference script: [gpu_nifi_tensorRT-3.py](../files/gpu_nifi_tensorRT-3.py)

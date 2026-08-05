@@ -4,9 +4,9 @@ The companion to Chapter 15 ("How to AI with NiFi and Python") runs Python infer
 on a Kubernetes cluster with room to spare. This chapter is the opposite end of the wire: a MiNiFi
 agent on a small edge box — a Beelink mini PC, a Windows desktop, a Jetson, a bare Kubernetes pod
 — that has no business hosting a model but still needs to do AI work. The agent almost never runs
-the model itself. It routes, transforms, enrolls, and ships results. Everything here is
-field-verified against a live EFM `2.3.1.0-2` and MiNiFi C++ `1.26.02`; the StarlinkAI case study
-uses MiNiFi Java agent `2.24.08.0-19`.
+the model itself. It routes, transforms, enrolls, and ships results. This chapter runs against
+EFM `2.3.1.0-2` and MiNiFi C++ `1.26.02`; the StarlinkAI case study uses the MiNiFi Java agent
+`2.24.08.0-19`.
 
 > **⚠️ This is the "using" chapter, not the "installing" chapter.** Staging agent binaries, the
 > five-leaf EFM directory layout, the Windows MSI Python black hole, and the missing Java NARs all
@@ -14,15 +14,12 @@ uses MiNiFi Java agent `2.24.08.0-19`.
 > `400`. This chapter assumes agents are online and asks the next question: what do you make them
 > do.
 
-**All 5 Lemonade endpoints confirmed (as of 2026-08-04):** chat, embeddings, reranking, speech, and
-transcription all round-trip real data end-to-end through the MiNiFi Java router on production
-`:8090`. Transcription via multipart POST was the last holdout — `HandleHttpRequest` splits a
-multipart request into one FlowFile per form field, and those fragments have to be reassembled
-before `InvokeHTTP` or Lemonade `400`s the invalid body. That reassembly branch was built, proven
-in isolation on a test port first, then cut into production behind a `RouteOnAttribute-HasFragments`
-fork ([issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88), fixed + closed) —
-see "Solved gap: transcription multipart reassembly" below for the exact chain and the two gotchas
-that cost the most time.
+All five Lemonade endpoints — chat, embeddings, reranking, speech, and transcription — round-trip
+real data end-to-end through the MiNiFi Java router on `:8090`. Transcription is the one that needs
+real work: `HandleHttpRequest` splits a multipart POST into one FlowFile per form field, and those
+fragments must be reassembled before `InvokeHTTP` or Lemonade `400`s the invalid body. The
+reassembly branch sits behind a `RouteOnAttribute-HasFragments` fork — see
+[Transcription: multipart reassembly](#transcription-multipart-reassembly) below.
 
 ---
 
@@ -65,7 +62,7 @@ services instead of one `ListenHTTP`/`InvokeHTTP` pair per service. The agent do
 model is; it accepts a POST, forwards it, and hands the real response straight back. The value is
 the flow, the enrollment, and the transport, not the inference.
 
-![HandleHttpRequest-Lemonade → InvokeHTTP-Lemonade → HandleHttpResponse-Lemonade, live per-processor throughput in the EFM Flow Designer](/assets/images/efm-starlink-ai-unified-lemonade-flow.png)
+![HandleHttpRequest-Lemonade → InvokeHTTP-Lemonade → HandleHttpResponse-Lemonade, live per-processor throughput in the EFM Flow Designer](assets/images/efm-starlink-ai-unified-lemonade-flow.png)
 
 ### Why MiNiFi Java, not C++
 
@@ -137,9 +134,9 @@ InvokeHTTP[Original]       → LogAttribute-Error only
 | Embeddings | `/api/v1/embeddings` | Yes — real 200, real embedding vector (`Qwen3-Embedding-0.6B-GGUF`), ~0.2s |
 | Reranking | `/api/v1/reranking` | Yes — real 200, real relevance scores, correctly ranked on-topic document highest, ~2.5s |
 | Speech (TTS) | `/api/v1/audio/speech` | Yes — real 200, real Kokoro MP3 (valid ID3/MPEG, 78KB), ~7s |
-| Transcription | `/api/v1/audio/transcriptions` | **Yes** — real 200, real transcript (fixed 2026-08-04, issue #88; see below) |
+| Transcription | `/api/v1/audio/transcriptions` | **Yes** — real 200, real transcript (needs the multipart reassembly branch below) |
 
-### Solved gap: transcription multipart reassembly (issue #88)
+### Transcription: multipart reassembly
 
 `HandleHttpRequest` splits a multipart request into one FlowFile per form field and forwards each
 fragment independently to `InvokeHTTP`. Each fragment carries the *original* multipart
@@ -147,7 +144,7 @@ fragment independently to `InvokeHTTP`. Each fragment carries the *original* mul
 correctly rejected it with `400 Bad request`. This is exactly what a pure pass-through router can't
 handle, and it's the one endpoint that needs real work rather than path forwarding.
 
-Confirmed from live `minifi-app.log` — the exact attributes `HandleHttpRequest` sets per fragment:
+The attributes `HandleHttpRequest` sets per fragment:
 
 | Attribute | `model` fragment | `file` fragment |
 |---|---|---|
@@ -163,13 +160,11 @@ the `http.multipart.*` attributes), `RouteOnAttribute` (fork by `http.multipart.
 presence), two `ReplaceText` processors (prepend the MIME part header, with and without the
 `Content-Type:` line), `MergeContent` (Defragment strategy, `fragment.index` **0-indexed** —
 `sequence.number` minus 1), `UpdateAttribute` (set the reassembled `Content-Type` with the new
-boundary), then `InvokeHTTP`. Built and proven in isolation on test port `:8095` first (real `200`,
-real transcript), then cut into the live router behind a `RouteOnAttribute-HasFragments` fork ahead
-of the shared `InvokeHTTP` — multipart requests take the reassembly branch, everything else passes
-straight through unchanged. Full detail and the live processor UUIDs are in
-`beelink-starlink-efm-ai.md` §"Transcription multipart reassembly — FIXED (#88)."
+boundary), then `InvokeHTTP`. The whole reassembly chain sits behind a
+`RouteOnAttribute-HasFragments` fork ahead of the shared `InvokeHTTP` — multipart requests take the
+reassembly branch, everything else passes straight through unchanged.
 
-Two gotchas cost the most time, both worth knowing before you build this:
+Two gotchas are worth knowing before you build this:
 
 - **`ReplaceText` prepends `Replacement Value`, not `Text to Prepend`** (on `minifi-standard-nar
   2.24.08.0-19` with `Replacement Strategy = Prepend`). The boundary/header text sitting in the
@@ -178,17 +173,12 @@ Two gotchas cost the most time, both worth knowing before you build this:
   `Replacement Value`.
 - **MiNiFi's `InvokeHTTP` does not swap FlowFile content for the HTTP response body on a non-2xx** —
   the `Response` relationship keeps the original *outgoing* request bytes. This is router-wide, not
-  specific to this branch; it just never surfaced while only the success path was tested. It's also
-  what let me read the exact bytes MiNiFi was sending Lemonade, which is how the `$1` bug was found.
+  specific to this branch. It also lets you read the exact bytes MiNiFi is sending Lemonade, which
+  is how the `$1` bug above surfaces.
 
-A direct probe to Lemonade on `:13305` with the identical multipart POST always returned a real
-`200` and real transcript — the request and model were fine all along; only the MiNiFi pass-through
-leg needed the reassembly step.
-
-**Summary: all 5 Lemonade endpoints confirmed working end-to-end through the MiNiFi router. The 5th
-(transcription) was root-caused and fixed 2026-08-04 under issue #88 — the multipart reassembly
-branch is live on production `:8090`, with chat/embeddings/reranking/speech regression-tested after
-cutover, zero regressions.**
+A direct probe to Lemonade on `:13305` with the identical multipart POST returns a real `200` and
+real transcript — the request and model are fine; only the MiNiFi pass-through leg needs the
+reassembly step.
 
 ### Setting up the StarlinkAI router from scratch
 
@@ -215,7 +205,7 @@ Pull and confirm models:
 lemonade pull Qwen3-4B-GGUF              # chat
 lemonade pull Qwen3-Embedding-0.6B-GGUF  # embeddings
 lemonade pull jina-reranker-v1-tiny-en-GGUF  # reranking
-lemonade pull Whisper-Large-v3-Turbo     # transcription (needed for #88)
+lemonade pull Whisper-Large-v3-Turbo     # transcription
 lemonade pull kokoro-v1                  # TTS (install as kokoro:cpu if no discrete GPU)
 ```
 
@@ -309,7 +299,7 @@ In EFM Designer flows the C++ FQCN is `org.apache.nifi.minifi.processors.Execute
 `minifi` in the path. It is not the Java NiFi
 `org.apache.nifi.processors.standard.ExecuteScript`.
 
-![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](/assets/images/efm-nifi-and-ai-skill-spacing.jpg)
+![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](assets/images/efm-nifi-and-ai-skill-spacing.jpg)
 
 ### `ExecuteScript` availability
 
@@ -389,16 +379,16 @@ class EdgeTagger(FlowFileTransform):
 Drop the `.py` into the agent's configured processor directory (`nifi.python.processor.dir`,
 default `${MINIFI_HOME}/minifi-python/`, authored processors go in the sibling
 `nifi_python_processors/` package) and restart. The agent's `PythonCreator` scans the directory
-once at boot and registers the type under its own FQCN — confirmed live:
+once at boot and registers the type under its own FQCN:
 `org.apache.nifi.minifi.processors.nifi_python_processors.EdgeTagger` appears in
 `GET /efm/api/agent-manifests/{id}` with the exact text from `ProcessorDetails.description` in the
-`typeDescription` field. That's proof the authored `describe()` ran, not a placeholder.
+`typeDescription` field — confirmation the authored `describe()` ran, not a placeholder.
 
 From there it wires into an EFM Designer flow (`ListenHTTP → EdgeTagger → LogAttribute`) exactly
 like a stock processor — no special-casing to reference a custom type — and publishes with zero
 validation errors.
 
-![The custom EdgeTagger Python processor live in a flow — ListenHTTP-EdgeTagger → EdgeTagger → LogAttribute-EdgeTagger, the middle node showing under its own name, not ExecuteScript](/assets/images/efm-custome-python-edge-tagger.jpg)
+![The custom EdgeTagger Python processor live in a flow — ListenHTTP-EdgeTagger → EdgeTagger → LogAttribute-EdgeTagger, the middle node showing under its own name, not ExecuteScript](assets/images/efm-custome-python-edge-tagger.jpg)
 
 > **⚠️ A custom processor is not a hot patch.** `PythonCreator` scans at boot; a `.py` dropped in
 > or edited after the agent is running is not picked up until the agent restarts. This is the sharp
@@ -413,12 +403,12 @@ Two paths, same as scripts:
 - **Baked into the image / copied by hand** — for a fixed agent. Correct for development and
   single-box deployments.
 - **EFM Resource asset-directory sync** — push the `.py` as a resource into the agent's asset
-  directory over the C2 asset-sync command. No image rebuild, no manual copy. Confirmed
-  field-proven on the arm64 K8s C++ leg: `EdgeTagger` delivered as a resource, synced in ~5s,
-  `.state` digest matched, registered as a first-class type, flow green with no drops.
+  directory over the C2 asset-sync command. No image rebuild, no manual copy: on the arm64 K8s C++
+  agent, `EdgeTagger` delivered as a resource syncs in ~5s, its `.state` digest matches, and it
+  registers as a first-class type with the flow running clean.
 
-The C++ Java-agent parallel framework (`python/api/nifiapi/`, `python/framework/`) is structurally
-present but not yet exercised end-to-end — an honest "wired, not yet proven."
+The C++ agent's Java-processor parallel framework (`python/api/nifiapi/`, `python/framework/`) is
+structurally present but not exercised end-to-end here.
 
 ### `ExecuteScript` vs custom processor — pick one
 
@@ -507,20 +497,13 @@ These are the ones that drop data silently rather than erroring:
 
 ---
 
-## Source documents
+## Related chapters
 
-- `how-to-ai-with-minifi-blog.md` — the polished blog draft; primary narrative source for this
-  chapter. Expanded under #92 with a `ListenHTTP`-vs-`HandleHttpRequest` section, StarlinkAI +
-  NvidiaNano before/after architectures, and a `nifi-and-ai` skill section — the chapter stays the
-  synthesized subset; the deep-dives live in Ch17 (router) and Ch14 (skill EFM portion).
-- `beelink-starlink-efm-ai.md` — the StarlinkAI case study with live processor UUIDs, the
-  flowVersion 23 error-routing fix, the transcription multipart reassembly fix (#88, flowVersion 27),
-  and confirmed 5/5 endpoint test results.
-- `completed/how-to-ai-with-minifi.md` — archived subplan with the original scope and blocker
-  notes.
-- Ch5 ([ExecuteScript Availability](ch05-executescript-availability.md)) — the full build-by-build
+- Ch5 — [ExecuteScript Availability](ch05-executescript-availability.md): the full build-by-build
   breakdown of which runtimes ship the Python engine.
-- Ch17 (Edge-AI router case study, issue #67) — the dedicated deep-dive on the StarlinkAI router
-  architecture, Tailscale integration, and the transcription reassembly fix (issue #88, resolved
-  2026-08-04). Chapter prose still to be authored/folded under #67.
-- Ch19 (EFM + NVIDIA Jetson, issue #69) — on-device model execution via TensorRT/llama.cpp.
+- Ch14 — [The NiFi and AI Skill — EFM Portion](ch14-nifi-and-ai-skill-efm-portion.md): building
+  these flows through the `nifi-and-ai` skill rather than by hand.
+- Ch17 — [Edge-AI router case study](ch17-edge-ai-router.md): the deep-dive on the StarlinkAI router
+  architecture, Tailscale integration, and the transcription reassembly branch.
+- Ch19 — [EFM + NVIDIA Jetson use case](ch19-efm-and-nvidia-jetson.md): on-device model execution
+  via TensorRT / llama.cpp.

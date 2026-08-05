@@ -5,13 +5,13 @@ Chapter 16 introduced the four AI-at-edge options and used the StarlinkAI router
 real node, end to end — the hardware, why it runs the stack it does, how it joins the array, the
 exact router flow, and the one endpoint that needed real engineering rather than pass-through
 plumbing. Where Chapter 16 states the shape, this chapter is the field record of building it,
-including the two bugs that cost the most time.
+including the two bugs behind it.
 
 > **⚠️ Read Chapter 16 first for the generalized patterns.** The "why MiNiFi Java, not C++"
 > reasoning, the EFM Designer write contract (no whole-flow PUT), and the edge traps are covered
 > there and only summarized here. This chapter is the case study; Chapter 16 is the playbook.
 
-Everything below is field-verified on the live node against EFM `2.3.1.0-2` and MiNiFi **Java** agent
+Everything below runs on the live node against EFM `2.3.1.0-2` and the MiNiFi **Java** agent
 `2.24.08.0-19`.
 
 ---
@@ -71,7 +71,7 @@ Three processors, one port, no Kafka, no `request_id` correlation — the caller
 response directly and synchronously. Everything in the serving path runs **natively on Windows** —
 no containers, no WSL2 (WSL2 on this box is only used for repo/doc access).
 
-![HandleHttpRequest-Lemonade → InvokeHTTP-Lemonade → HandleHttpResponse-Lemonade, live per-processor throughput in the EFM Flow Designer](/assets/images/efm-starlink-ai-unified-lemonade-flow.png)
+![HandleHttpRequest-Lemonade → InvokeHTTP-Lemonade → HandleHttpResponse-Lemonade, live per-processor throughput in the EFM Flow Designer](assets/images/efm-starlink-ai-unified-lemonade-flow.png)
 
 The deployed router in the EFM Flow Designer with monitoring active — real per-processor throughput
 (In / Read-Write / Out / Tasks) on the three-processor primary path, plus an error-observability
@@ -222,7 +222,7 @@ verbatim to Lemonade:
 | Embeddings | `/api/v1/embeddings` | Yes — real 200, real embedding vector (`Qwen3-Embedding-0.6B-GGUF`), ~0.2s |
 | Reranking | `/api/v1/reranking` | Yes — real 200, real relevance scores, correctly ranked the on-topic document highest, ~2.5s |
 | Speech (TTS) | `/api/v1/audio/speech` | Yes — real 200, real Kokoro MP3 (valid ID3/MPEG, 78 KB), ~7s |
-| Transcription | `/api/v1/audio/transcriptions` | **Yes** (fixed 2026-08-04, [#88](https://github.com/cldr-steven-matison/DesktopShare/issues/88)) — real 200, real transcript; needed the reassembly branch below |
+| Transcription | `/api/v1/audio/transcriptions` | **Yes** — real 200, real transcript; needs the reassembly branch below |
 
 ```powershell
 # Chat — use --data @file.json, not inline -d '{...}': PowerShell/curl.exe has silently
@@ -234,7 +234,7 @@ curl.exe -X POST http://localhost:8090/api/v1/chat/completions `
 
 ---
 
-## The transcription multipart reassembly fix (#88)
+## The transcription multipart reassembly fix
 
 Four of the five endpoints are pure pass-through — same three processors, same code path, only the
 URL differs. Transcription was the holdout, and it is the reason this node earned its own chapter.
@@ -269,8 +269,8 @@ header text** — reuse them directly instead of hand-reconstructing the header 
 `http.multipart.name`/`.filename`, which sidesteps the conditional-filename expression-language
 problem entirely.
 
-**The reassembly chain**, built ahead of `InvokeHTTP` and proven in isolation on a separate port
-(`:8095`) before any production traffic touched it:
+**The reassembly chain**, built ahead of `InvokeHTTP` on a separate port (`:8095`) before wiring it
+into the live flow:
 
 | Processor | Key config |
 |---|---|
@@ -287,8 +287,7 @@ problem entirely.
 `Delimiter Strategy: Text` lets `MergeContent`'s Demarcator/Footer be literal property values (the
 `Filename` mode reads a file on disk — not needed here).
 
-> **⚠️ Two gotchas cost the most time — both traced against `:8095` in isolation before any
-> production traffic.**
+> **⚠️ Two gotchas to know before you build this — both traced against `:8095` in isolation.**
 >
 > 1. **`ReplaceText` prepends `Replacement Value`, not `Text to Prepend`** (on this
 >    `minifi-standard-nar 2.24.08.0-19` build with `Replacement Strategy = Prepend`). The real
@@ -303,14 +302,14 @@ problem entirely.
 >    Useful side effect: it let me read the exact bytes MiNiFi sent to Lemonade — which is how gotcha
 >    #1 was found.
 
-**Isolated proof (flowVersion 26):** a real `curl` against `:8095` returned `200`, `{"text":" .\n"}` —
-a genuine Whisper response (the test WAV is a pure 1s tone, not speech, so minimal text is expected;
-the round trip is what's proven). Note the repo's original `test-audio.wav` turned out to be an
-18-byte placeholder (`RIFF….WAVEtest`) — a real 1s tone had to be generated to test.
+**Isolated test:** a real `curl` against `:8095` returns `200`, `{"text":" .\n"}` — a genuine
+Whisper response (the test WAV is a pure 1s tone, not speech, so minimal text is expected; the round
+trip is the point). Note the repo's original `test-audio.wav` is an 18-byte placeholder
+(`RIFF….WAVEtest`) — generate a real 1s tone to test.
 
-**Cutover into production (flowVersion 27):** a `RouteOnAttribute-HasFragments` gate
+**Wiring it into the live flow:** a `RouteOnAttribute-HasFragments` gate
 (`hasFragments` = `${http.multipart.fragments.total.number:isEmpty():not()}`) was inserted between
-`HandleHttpRequest-Lemonade` and `InvokeHTTP-Lemonade`. Multipart requests fork into the proven
+`HandleHttpRequest-Lemonade` and `InvokeHTTP-Lemonade`. Multipart requests fork into the
 reassembly branch; everything else (`unmatched` — chat/embeddings/reranking/speech, none of which
 carry multipart fragment attributes) continues straight to `InvokeHTTP-Lemonade`, unchanged. No
 new response-side wiring was needed: both `HandleHttpResponse` processors share the same
@@ -319,7 +318,7 @@ new response-side wiring was needed: both `HandleHttpResponse` processors share 
 arrives on `:8090` is answered correctly even when it routes through the `:8095`-branch's response
 processor.
 
-**Confirmed on production `:8090` (flowVersion 27):**
+**On the live `:8090` flow:**
 
 ```powershell
 curl.exe -X POST http://localhost:8090/api/v1/audio/transcriptions `
@@ -327,36 +326,22 @@ curl.exe -X POST http://localhost:8090/api/v1/audio/transcriptions `
 # → 200, {"text":" .\n"}
 ```
 
-Chat/embeddings/reranking/speech were regression-tested immediately after cutover — inserting a
-`RouteOnAttribute` ahead of the shared `InvokeHTTP` is a real wiring change to their path even though
-their configs don't change — and all four round-tripped real data with **zero regressions**. All
-five Lemonade endpoints now round-trip real data through `:8090`.
+Re-test chat/embeddings/reranking/speech after adding the gate — inserting a `RouteOnAttribute`
+ahead of the shared `InvokeHTTP` is a real wiring change to their path even though their configs
+don't change. All five Lemonade endpoints round-trip real data through `:8090`.
+
+One caveat: this router has been exercised with local `curl` against `:8090`. A cross-Tailscale call
+from a second array machine follows the same path but hasn't been run here yet.
 
 ---
 
-## Status
+## Related chapters
 
-**Done:** Tailscale, Lemonade Server (5 models, Vulkan offload confirmed), JDK 21, and the MiNiFi
-Java agent all installed and running; `StarlinkAIJava` EFM class online and heartbeating; the unified
-three-processor pass-through flow built, validated, and published; the `Socket Read Timeout` bug
-fixed (15s default → 10 min); non-2xx responses routed back to the caller (flowVersion 23); the
-transcription multipart reassembly branch built, proven in isolation, and cut into production
-(#88, flowVersion 27) — **all 5 endpoints confirmed on production `:8090`, zero regressions**.
-
-**Open:** cross-Tailscale test from a second array machine — only local `curl` has been exercised so
-far.
-
----
-
-## Source documents
-
-- `beelink-starlink-efm-ai.md` — the full StarlinkAI case study: live processor UUIDs, the
-  flowVersion 23 error-routing fix, the complete transcription multipart reassembly build (#88,
-  flowVersion 27), and the confirmed 5/5 endpoint results. Primary source for this chapter.
-- Ch16 ([How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md)) — the generalized edge-AI playbook
-  this case study instantiates: the four options, why MiNiFi Java over C++, and the EFM Designer
+- Ch16 — [How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md): the generalized edge-AI playbook
+  this case study instantiates — the four options, why MiNiFi Java over C++, and the EFM Designer
   write contract.
-- Ch2 (EFM Binaries) — staging the agent binaries and the deployer, referenced by the setup steps.
-- Ch19 (EFM + NVIDIA Jetson) — the on-device model-execution counterpart to this route-to-a-server
-  case study.
+- Ch2 — [EFM Binaries](ch02-efm-binaries.md): staging the agent binaries and the deployer the setup
+  steps rely on.
+- Ch19 — [EFM + NVIDIA Jetson use case](ch19-efm-and-nvidia-jetson.md): the on-device
+  model-execution counterpart to this route-to-a-server case study.
 </content>

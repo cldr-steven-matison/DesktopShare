@@ -2,11 +2,7 @@
 
 *by Steven Matison*
 
-![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](../images/efm-cloudera-edge-management.png)
-
-This is the reader-facing entry point for the guide. Each chapter is built, run, and proven on
-real hardware before it lands here — every ✅ points at a source doc I can hand you and a flow I
-have actually run. Nothing here is aspirational hand-waving.
+![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](assets/images/efm-cloudera-edge-management.png)
 
 Edge Flow Management is the central manager for organizing agent **Classes**, **Resources**, and
 **Edge Flows**. NiFi in the datacenter is well documented; EFM is not — until now. What happens out
@@ -16,8 +12,8 @@ processors actually exist in which build, managing custom processors and resourc
 flow from a designer canvas onto a device that keeps changing its IP. This guide is the map I wish
 I'd had when I first installed [EFM on Kubernetes](https://cldr-steven-matison.github.io/blog/cloudera-edge-flow-manager-on-kubernetes/).
 
-> **Status.** The guide is 19 chapters across 8 parts, plus a real-world demos section. Chapters
-> that are ready are linked below; the rest are marked *in progress* and land as they are finished.
+Every chapter here is built and run on real hardware — the processor catalogs are the ones counted
+on live agents, not the ones the docs promise, and every flow is one that actually ran.
 
 ---
 
@@ -47,8 +43,8 @@ Install and use plain MiNiFi (C++ and Java), then bring EFM in to manage the age
 ### Part IV — Site-to-Site
 The two local k8s transport legs (MiNiFi → NiFi). Reference: apache `SITE_TO_SITE.md`.
 
-- **Ch10** — S2S: MiNiFi Java → NiFi K8s *(in progress)*
-- **Ch11** — S2S: MiNiFi C++ → NiFi K8s *(in progress)*
+- **Ch10** — S2S: MiNiFi C++ → NiFi K8s *(field-validated; fold pending)*
+- **Ch11** — [S2S: MiNiFi Java → NiFi K8s](ch11-minifi-java-site-to-site.md)
 
 ### Part V — AI at the Edge
 The `nifi-and-ai` skill and its EFM machinery as the grounding lead-in, then NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.
@@ -56,7 +52,7 @@ The `nifi-and-ai` skill and its EFM machinery as the grounding lead-in, then NiF
 - **Ch14** — [The NiFi and AI Skill — EFM Portion](ch14-nifi-and-ai-skill-efm-portion.md)
 - **Ch15** — [How to AI with NiFi and Python](ch15-how-to-ai-with-nifi-and-python.md)
 - **Ch16** — [How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md)
-- **Ch17** — Edge-AI router case study *(in progress)*
+- **Ch17** — [Edge-AI router case study](ch17-edge-ai-router.md)
 
 ### Part VI — Sample Gallery
 Curated, runnable flows accumulated as the guide is built.
@@ -76,19 +72,14 @@ The layer that watches all of the above — EFM's own metrics, the C++ agent's P
 
 ---
 
-## What you have here — and what's still in flight
+## What you have here
 
 Read this end to end and you have the map I wish I'd had the first time I tried to run a real flow
 at the edge: EFM stood up and persisted on Kubernetes, the actual processor catalogs for the C++ and
-Java builds (not the docs' idea of them, the ones I counted on real agents), the four ways
-`ExecuteScript` does and doesn't exist, how to author custom Python processors as first-class edge
-types, the Site-to-Site legs, the AI-at-the-edge patterns, a gallery of runnable flows, two
-real-world demos, and the observability layer that watches all of it. Every ✅ chapter points at a
-flow I actually ran on real hardware and a source doc I can hand you.
+Java builds, the four ways `ExecuteScript` does and doesn't exist, how to author custom Python
+processors as first-class edge types, the Site-to-Site legs, the AI-at-the-edge patterns, a gallery
+of runnable flows, two real-world demos, and the observability layer that watches all of it.
 
 **This is the published guide** — the chapter files in this directory, read through this index on
-GitHub. There is no separate document to assemble and no other site to go to.
-
-It is not finished, and I won't pretend it is. What's left is folding the remaining chapters in,
-field-validating each on real hardware, and building out the Site-to-Site legs. Chapters marked
-*in progress* above aren't linked yet — that work is in flight, not imaginary.
+GitHub. There is no separate document to assemble and no other site to go to. Chapters marked
+*in progress* aren't linked yet; they land as they are finished.
