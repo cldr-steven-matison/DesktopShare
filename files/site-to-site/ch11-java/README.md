@@ -186,3 +186,69 @@ EFM-deployer path can't hold.
 
 The C++ Ch10 agent never hit this: its boot script sets the client SSL props directly and C++ MiNiFi
 doesn't regenerate config from `bootstrap.conf` the same way.
+
+## Addendum (#41) — MiNiFi Java metrics over S2S: `SiteToSiteMetricsReportingTask`
+
+Once the transport above works, the *same* secure channel relays the **agent's own metrics** to NiFi:
+a `SiteToSiteMetricsReportingTask` in the agent flow POSTs metrics to the `from-minifi` input port over
+the identical mTLS S2S path (no new port, no new authz — reuses the proven peer). This is the
+[#41](https://github.com/cldr-steven-matison/DesktopShare/issues/41) transport leg (no Prometheus).
+
+Two gotchas, each cost a rebuild:
+
+1. **Reporting tasks do NOT inherit `nifi.minifi.flow.use.parent.ssl=true`** — that flag only wires
+   RPGs. The reporting task's S2S client falls back to the JVM default truststore →
+   `PKIX path building failed (certificate_unknown)` (the #98 symptom, but for reporting tasks). **Fix:**
+   add an explicit `org.apache.nifi.ssl.StandardRestrictedSSLContextService` (bundle `org.apache.nifi` /
+   `nifi-ssl-context-service-nar`) at the flow's **top-level `controllerServices`**, pointing at the
+   mounted client keystore `/certs-ks/keystore.p12` + the baked CA truststore, and set the task's
+   `SSL Context Service` to that CS's identifier.
+2. **The transport property KEY is `s2s-transport-protocol`, not the display name `Transport Protocol`.**
+   Using the display name fails validation: `'Transport Protocol' … is not a supported property or has
+   no Validator`. (`Destination URL` / `Input Port Name` keys DO equal their display names — descriptor
+   names are mixed, so check each with the NAR.)
+
+Both the reporting task and the SSL CS are baked into `flow.json.raw` **and** `flow.json.gz` (consistent,
+per the authoritative-`.raw` rule above); `nifi.minifi.sensitive.props.key=` is empty, so the keystore
+passwords go in as plaintext. The JSON added to the flow:
+
+```json
+"controllerServices": [{
+  "identifier": "<cs-uuid>", "instanceIdentifier": "<cs-uuid>", "name": "minifi-s2s-ssl",
+  "type": "org.apache.nifi.ssl.StandardRestrictedSSLContextService",
+  "bundle": {"group":"org.apache.nifi","artifact":"nifi-ssl-context-service-nar","version":"2.24.08.0-19"},
+  "properties": {"Keystore Filename":"/certs-ks/keystore.p12","Keystore Password":"changeit","key-password":"changeit","Keystore Type":"PKCS12","Truststore Filename":"/minifi-2.24.08.0-19/conf/truststore-ks.p12","Truststore Password":"changeit","Truststore Type":"PKCS12"},
+  "scheduledState": "ENABLED", "componentType": "CONTROLLER_SERVICE"
+}],
+"reportingTasks": [{
+  "identifier": "<rt-uuid>", "name": "MetricsToNiFi-S2S",
+  "type": "org.apache.nifi.reporting.SiteToSiteMetricsReportingTask",
+  "bundle": {"group":"org.apache.nifi","artifact":"nifi-site-to-site-reporting-nar","version":"2.24.08.0-19"},
+  "properties": {"Destination URL":"https://nifi-web.cfm-streaming.svc.cluster.local:8443","Input Port Name":"from-minifi","s2s-transport-protocol":"HTTP","SSL Context Service":"<cs-uuid>"},
+  "schedulingPeriod": "30 sec", "schedulingStrategy": "TIMER_DRIVEN", "scheduledState": "RUNNING", "componentType": "REPORTING_TASK"
+}]
+```
+
+Rebuild the image (tag `minifi-java-s2s:metrics-41`) and redeploy as above. **Build with `docker build`
+against `eval "$(minikube -p s2s-lab docker-env)"` — not `minikube image build`**, which shipped the
+214 MB `minifi.tar.gz` context as 0 bytes, so `ADD` didn't auto-extract → `exec bin/minifi.sh: no such
+file` (exit 127).
+
+**Verified live (transport leg).** Agent log: `SiteToSiteMetricsReportingTask … Successfully sent
+metrics to destination … Transaction ID …` (S2S is a two-phase commit, so a committed Transaction ID =
+NiFi-confirmed receipt); 0 PKIX; pod stable. NiFi side: `from-minifi → Funnel` receiving `130 (77.3 KB)`
+per 5 min — the 32-byte `GenerateFlowFile` data can't account for the KB, so that's the metrics reports.
+Reaching the UI to see this is the LoadBalancer + `minikube tunnel` recipe in
+[`minifi-site-to-site-lab.md` §Reaching the UI](../../../minifi-site-to-site-lab.md#reaching-the-ui-mtls-no-password).
+
+![NiFi canvas — the from-minifi input port receiving MiNiFi Java metrics over secure S2S, queued into a funnel](../../../images/efm-s2s-metrics-canvas.png)
+
+![NiFi Summary → Connections — from-minifi → Funnel, In 130 (77.3 KB) over 5 min, queue 4,142 (869 KB)](../../../images/efm-s2s-metrics-connections.png)
+
+![NiFi Summary → Input Ports — from-minifi Running, receiving metrics over S2S](../../../images/efm-s2s-metrics-inputports.png)
+
+The reporting task itself is **agent-side** — it does *not* appear in NiFi's Controller Settings →
+Reporting Tasks (that list is for NiFi's own tasks). The agent log is its authoritative evidence.
+
+**Remaining for the #41 DoD:** a Prometheus scrape target + the metrics→Prometheus route (the #19 stack
+was trimmed from `s2s-lab`).
