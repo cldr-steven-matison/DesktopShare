@@ -35,7 +35,9 @@ For EFM-guide work specifically, that includes the master plan: whenever an issu
 
 ## Publishing a blog post end-to-end (to the live blog repo)
 
-Most blog work stays **local** — `root → DesktopShare/blog/` is "publishing" for our purposes, and guide-chapter blogs in particular never get pushed to the final repo (the hard rule in the `desktopshare-promotion-flow` memory). The steps below are the **separate, deliberate full push** that only runs when Steven explicitly asks to "publish end to end" / "push to the blog" for a specific standalone post. Precedents: CE post #81, and the minikube profile-swap post (2026-08-05).
+Most blog work stays **local** — `root → DesktopShare/blog/` is "publishing" for our purposes, and guide-chapter blogs in particular never get pushed to the final repo (the hard rule in the `desktopshare-promotion-flow` memory).
+
+**This propagation to the live site (`cldr-steven-matison.github.io` / stevenmatison.com) is NEVER an autonomous agent capability.** It runs only when Steven explicitly names a **specific** post and asks for it to be promoted ("publish end to end", "push this to the blog"). Don't infer it, don't batch it, don't offer to "also push the others" — one named post per explicit request. Precedents: CE post #81, and the minikube profile-swap post (2026-08-05). The steps below are that deliberate full push.
 
 Before starting, the draft's front matter must already carry the teaser form (`title` + `excerpt` + `header.teaser: "/assets/images/<Name>.<ext>"`) and the image must exist in `DesktopShare/images/`. Then, in order:
 
