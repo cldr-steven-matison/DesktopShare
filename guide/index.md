@@ -63,7 +63,7 @@ Curated, runnable flows accumulated as the guide is built.
 EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos — the final output and story (NvidiaNano, StarlinkAI, SparkPlug).
 
 - **Ch19** — [EFM + NVIDIA Jetson use case](ch19-efm-and-nvidia-jetson.md)
-- **Ch20** — SparkPlug demo *(in progress)*
+- **Ch20** — [SparkPlug B — MQTT/IIoT edge demo](ch20-sparkplug-demo.md)
 
 ### Part VIII — Observability
 The layer that watches all of the above — EFM's own metrics, the C++ agent's Prometheus publisher, and the smallest agents' heartbeat metrics, all into one CSO Prometheus/Grafana stack.

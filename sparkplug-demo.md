@@ -1,6 +1,6 @@
 # SparkPlug Demo
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 assessed — skeleton drafted, hardware pass TBD.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: ✅ folded into [`guide/ch20-sparkplug-demo.md`](guide/ch20-sparkplug-demo.md) (2026-08-05, #70).**
 
 One of the two real-world finale demos (Ch20). SparkPlug B is the MQTT payload spec for
 industrial IoT — the natural edge use case for MiNiFi: sensors publishing over MQTT, an edge
@@ -86,7 +86,13 @@ downstream of a merge) when the NiFi-side work actually happens — not scoped d
 easiest. **Not done yet — this is a note for whenever the NiFi wiring work is picked up, no live
 flow touched by recording it here.**
 
-## When this ships
+## Shipped
 
-Fold into the guide as the second finale demo, add [`files/SparkPlug.json`](files/SparkPlug.json)
-to the Sample Gallery (Ch18), and flip this demo's Master Plan row (Ch20) to ✅.
+Folded into [`guide/ch20-sparkplug-demo.md`](guide/ch20-sparkplug-demo.md) 2026-08-05. Covers the
+full field history: the PG's silent loss and restore, both `ConsumeMQTT`/`ConsumeMQTTIIoT` legs
+wired to Kafka, the XIAO ESP32-S3 hardware pass (replacing the parked BME280-on-Jetson path), and
+the MicroFi Repro58 topic-contamination incident and fix. The MiNiFi+TensorRT edge-intelligence
+stretch phase is recorded in the chapter as designed-not-run — it depends on the still-parked
+real-sensor leg. Master Plan row (Ch20) flipped to ✅. Adding `files/SparkPlug.json` as a full
+Sample Gallery (Ch18) card is still open — that also needs a matching card in the MiNiFi Playground
+repo's `sample-gallery/README.md`, not done as part of this fold.

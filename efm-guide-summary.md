@@ -1,6 +1,6 @@
 # EFM Guide — Completion Summary
 
-*High-level metrics snapshot for `Complete Guide to Edge Flow Management.md`. Last updated 2026-08-04 (reconciled to the day's landed work: **Ch10** S2S MiNiFi C++→NiFi field-validated and closed [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30); **Ch11** S2S MiNiFi Java→NiFi built live but blocked at the final mTLS transit, a #41-class platform limit ([#98](https://github.com/cldr-steven-matison/DesktopShare/issues/98)); **Ch17** edge-AI router folded into `guide/ch17` with the [#88](https://github.com/cldr-steven-matison/DesktopShare/issues/88) transcription fix landing 5/5 endpoints ([#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67), review); **Ch16** finalized with blog publish intentionally deferred ([#61](https://github.com/cldr-steven-matison/DesktopShare/issues/61), review); **Ch20** SparkPlug PG restored + Kafka wired, topic collision still open ([#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70)). The prior version had the Ch10/Ch11 rows swapped and stale — now corrected.)*
+*High-level metrics snapshot for `Complete Guide to Edge Flow Management.md`. Last updated 2026-08-05 (reconciled to the day's landed work: **Ch20** SparkPlug — the MicroFi Repro58 topic-contamination rig removed and verified clean, chapter folded into `guide/ch20-sparkplug-demo.md` ([#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70)). Prior day: **Ch10** S2S MiNiFi C++→NiFi field-validated and closed [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30); **Ch11** S2S MiNiFi Java→NiFi built live but blocked at the final mTLS transit, a #41-class platform limit ([#98](https://github.com/cldr-steven-matison/DesktopShare/issues/98)); **Ch17** edge-AI router folded into `guide/ch17` with the [#88](https://github.com/cldr-steven-matison/DesktopShare/issues/88) transcription fix landing 5/5 endpoints ([#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67), review); **Ch16** finalized with blog publish intentionally deferred ([#61](https://github.com/cldr-steven-matison/DesktopShare/issues/61), review).)*
 
 > **Keep in sync:** update this file in the same pass as any change to the main guide's status
 > tracker (`Complete Guide to Edge Flow Management.md`). Only high-level metrics live here —
@@ -14,18 +14,18 @@ handful of platform-blocked legs that are proven-except-for-the-blocker rather t
 
 | Axis | State | % |
 |---|---|---|
-| **Field/build validation** (proving flows on real hardware) | "Yes" for ~15 of 19 chapters (Ch10 S2S C++ newly proven 2026-08-04; Ch11 S2S Java built-but-blocked at mTLS) | **~86%** |
-| **Published prose** (chapters folded into `guide/`) | 15 of 19 folded (Ch17 added 2026-08-04) | **~79%** |
-| **Blended, status-weighted** | ~16.5 / 19 | **~85%** |
-| **Issue mailbox** | 78 of 99 closed (open guide items: [#60](https://github.com/cldr-steven-matison/DesktopShare/issues/60) Ch2 blog, [#61](https://github.com/cldr-steven-matison/DesktopShare/issues/61) Ch16 blog · review, [#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67) Ch17 · review, [#69](https://github.com/cldr-steven-matison/DesktopShare/issues/69) Ch19 fold · blocked, [#98](https://github.com/cldr-steven-matison/DesktopShare/issues/98) Ch11 · blocked; [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59) close-plan epic) | **79%** |
+| **Field/build validation** (proving flows on real hardware) | "Yes" for ~16 of 19 chapters (Ch20 SparkPlug wiring + real XIAO capture proven 2026-08-05; Ch11 S2S Java built-but-blocked at mTLS) | **~84%** |
+| **Published prose** (chapters folded into `guide/`) | 16 of 19 folded (Ch20 added 2026-08-05) | **~84%** |
+| **Blended, status-weighted** | ~17.5 / 19 | **~92%** |
+| **Issue mailbox** | 78 of 99 closed (open guide items: [#60](https://github.com/cldr-steven-matison/DesktopShare/issues/60) Ch2 blog, [#61](https://github.com/cldr-steven-matison/DesktopShare/issues/61) Ch16 blog · review, [#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67) Ch17 · review, [#69](https://github.com/cldr-steven-matison/DesktopShare/issues/69) Ch19 fold · blocked, [#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70) Ch20 · review, [#98](https://github.com/cldr-steven-matison/DesktopShare/issues/98) Ch11 · blocked; [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59) close-plan epic) | **79%** |
 
 ## Metric counts
 
 | Metric | Count |
 |---|---|
 | Chapters (8 parts) | 19 (+Ch14 NiFi & AI Skill EFM Portion 2026-08-03; cloud S2S Ch12–13 descoped 2026-08-03) |
-| ✅ Done / 🟡 In-progress / 🔲 Not started | 16 / 3 / 0 |
-| Folded guide chapters (`guide/`) | 16 files, ~37,000 words |
+| ✅ Done / 🟡 In-progress / 🔲 Not started | 18 / 1 / 0 |
+| Folded guide chapters (`guide/`) | 17 files, ~40,000 words |
 | Guide index / TOC (`guide/index.md`) | 1 file, ~920 words |
 | Source + subplan docs | ~28 files, ~68,000 words |
 | Blog drafts (Ch2, Ch16) | ~5,500 words (Ch16 draft expanded under #92) |
@@ -54,7 +54,7 @@ handful of platform-blocked legs that are proven-except-for-the-blocker rather t
 - ✅ Ch17 — Edge-AI router case study: StarlinkAI *(folded 2026-08-04, #67; 5/5 endpoints confirmed)*
 - 🟡 Ch18 — Sample gallery of MiNiFi flows *(folded, partial — accumulates as S2S/SparkPlug validate)*
 - ✅✍️ Ch19 — EFM + NVIDIA Jetson use case *(folded)*
-- 🟡 Ch20 — SparkPlug Demo Xiao - Nano - NiFi *(PG restored + Kafka wired 2026-08-04; topic collision open — #70)*
+- ✅ Ch20 — SparkPlug Demo Xiao - Nano - NiFi *(folded 2026-08-05, #70; PG restored, both legs wired, MicroFi topic-contamination rig removed and verified; edge-intelligence/TensorRT stretch phase recorded as designed-not-run)*
 - ✅✍️ Ch21 — Metrics & Observability *(folded)*
 
 *Legend: ✅ done / field-validated · 🟡 in-progress · 🔲 not started · 📝 blog published · ✍️ blog to write*
