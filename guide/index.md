@@ -17,10 +17,7 @@ flow from a designer canvas onto a device that keeps changing its IP. This guide
 I'd had when I first installed [EFM on Kubernetes](https://cldr-steven-matison.github.io/blog/cloudera-edge-flow-manager-on-kubernetes/).
 
 > **Status.** The guide is 19 chapters across 8 parts, plus a real-world demos section. Chapters
-> already folded are linked below; the rest are being built and folded under close-plan epic
-> [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59). The per-chapter status of
-> record — sources, field-validation notes, and open issues — lives in the tracker,
-> [`Complete Guide to Edge Flow Management.md`](../Complete%20Guide%20to%20Edge%20Flow%20Management.md).
+> that are ready are linked below; the rest are marked *in progress* and land as they are finished.
 
 ---
 
@@ -48,10 +45,10 @@ Install and use plain MiNiFi (C++ and Java), then bring EFM in to manage the age
 - **Ch9** — [Introduce EFM into the Playground](ch09-efm-in-the-playground.md)
 
 ### Part IV — Site-to-Site
-The two local k8s transport legs (MiNiFi → NiFi). The three cloud CDP legs (DataFlow, Data Hub) were descoped 2026-08-03. Reference: apache `SITE_TO_SITE.md`.
+The two local k8s transport legs (MiNiFi → NiFi). Reference: apache `SITE_TO_SITE.md`.
 
-- **Ch10** — S2S: MiNiFi Java → NiFi K8s *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
-- **Ch11** — S2S: MiNiFi C++ → NiFi K8s *(pending — [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30))*
+- **Ch10** — S2S: MiNiFi Java → NiFi K8s *(in progress)*
+- **Ch11** — S2S: MiNiFi C++ → NiFi K8s *(in progress)*
 
 ### Part V — AI at the Edge
 The `nifi-and-ai` skill and its EFM machinery as the grounding lead-in, then NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.
@@ -59,7 +56,7 @@ The `nifi-and-ai` skill and its EFM machinery as the grounding lead-in, then NiF
 - **Ch14** — [The NiFi and AI Skill — EFM Portion](ch14-nifi-and-ai-skill-efm-portion.md)
 - **Ch15** — [How to AI with NiFi and Python](ch15-how-to-ai-with-nifi-and-python.md)
 - **Ch16** — [How to AI with MiNiFi](ch16-how-to-ai-with-minifi.md)
-- **Ch17** — Edge-AI router case study *(pending — [#67](https://github.com/cldr-steven-matison/DesktopShare/issues/67))*
+- **Ch17** — Edge-AI router case study *(in progress)*
 
 ### Part VI — Sample Gallery
 Curated, runnable flows accumulated as the guide is built.
@@ -70,7 +67,7 @@ Curated, runnable flows accumulated as the guide is built.
 EFM + NVIDIA Jetson, and the SparkPlug/IIoT demos — the final output and story (NvidiaNano, StarlinkAI, SparkPlug).
 
 - **Ch19** — [EFM + NVIDIA Jetson use case](ch19-efm-and-nvidia-jetson.md)
-- **Ch20** — SparkPlug demo *(pending — [#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70))*
+- **Ch20** — SparkPlug demo *(in progress)*
 
 ### Part VIII — Observability
 The layer that watches all of the above — EFM's own metrics, the C++ agent's Prometheus publisher, and the smallest agents' heartbeat metrics, all into one CSO Prometheus/Grafana stack.
@@ -90,15 +87,8 @@ real-world demos, and the observability layer that watches all of it. Every ✅ 
 flow I actually ran on real hardware and a source doc I can hand you.
 
 **This is the published guide** — the chapter files in this directory, read through this index on
-GitHub. It lives in the DesktopShare repo; there is no separate document to assemble and no other
-site to go to. When you want a chapter's deeper source material or its field-validation trail, follow
-the cross-reference at the top of that chapter.
+GitHub. There is no separate document to assemble and no other site to go to.
 
-It is not finished, and I won't pretend it is. What's left is folding the remaining chapters into
-this directory, field-validating each (or honestly documenting the gap), publishing the two ready
-blogs (Ch2, Ch16), and building the first Site-to-Site leg to prove that pattern. That work is
-tracked chapter-by-chapter in the
-[tracker](../Complete%20Guide%20to%20Edge%20Flow%20Management.md) and coordinated under epic
-[#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59). When you hit a chapter that
-isn't linked yet, its source doc and current state are in that tracker — the work is in flight, not
-imaginary.
+It is not finished, and I won't pretend it is. What's left is folding the remaining chapters in,
+field-validating each on real hardware, and building out the Site-to-Site legs. Chapters marked
+*in progress* above aren't linked yet — that work is in flight, not imaginary.
