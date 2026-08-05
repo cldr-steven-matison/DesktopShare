@@ -1,8 +1,8 @@
 ---
-layout: single
 title: "Disposable Clusters on One Box: The minikube Profile Swap"
-date: 2026-08-04
-classes: wide
+excerpt: "How I proved MiNiFi → NiFi Site-to-Site without risking 123 days of a live Cloudera stack — a second, disposable minikube profile swapped in and out on the same box, with the long-lived cluster preserved untouched."
+header:
+  teaser: "/assets/images/Minikube-Profile-Swap.jpg"
 categories:
   - blog
 tags:
@@ -12,14 +12,14 @@ tags:
   - cfm
   - nifi
   - efm
-  - devops
+  - minifi
 ---
 
-I had 123 days of a Cloudera stack running on one minikube node — NiFi, EFM, Kafka, Flink, SSB, Prometheus, and a whole RAG app — and I needed to prove out MiNiFi → NiFi Site-to-Site without risking any of it. The obvious move, standing up two more operator-managed NiFis on that same node, is exactly what took the cluster down. This is the technique that let me experiment safely instead: a second, disposable cluster on the same machine, swapped in and out, with the long-lived one preserved untouched.
+I had 123 days of a Cloudera stack running on one minikube node — NiFi, EFM, Kafka, Flink, SSB, Prometheus, a whole RAG app, MiNiFi Agents, and more — and I needed to prove out MiNiFi → NiFi Site-to-Site without risking any of it. The obvious move, standing up another operator-managed NiFi on that same minikube, is exactly what took the cluster down. This is the technique that let me experiment safely instead: a second, disposable cluster on the same machine, swapped in and out, with the long-lived one preserved untouched.
 
 ## The war story that motivates the whole thing
 
-Proving EFM/MiNiFi → NiFi Site-to-Site, I first did the sensible-sounding thing: experiment *on* the shared, long-lived CFM/CSO minikube. It was already carrying the full stack. Standing up two extra operator-managed NiFis alongside it spiked CPU, and the **kube API server started returning `TLS handshake timeout`.** On single-node minikube the control plane shares the one node with your workloads, so a couple of heavyweight JVMs booting next to an already-full stack starved the API server itself — the thing you need responsive to *fix* the problem.
+Proving EFM/MiNiFi → NiFi Site-to-Site, I first did the sensible-sounding thing: experiment *on* the shared, long-lived CFM/CSO minikube. It was already carrying the full stack. Standing an extra operator-managed NiFi alongside it spiked CPU, and the **kube API server started returning `TLS handshake timeout`.** On single-node minikube the control plane shares the one node with your workloads, so another heavyweight JVM booting next to an already-full stack starved the API server itself — the thing you need responsive to *fix* the problem.
 
 The lesson wrote itself: **experiments get their own cluster.** I didn't need to tear down 123 days of stack to run a two-hour experiment. I needed a second cluster, and minikube already supports exactly that.
 
