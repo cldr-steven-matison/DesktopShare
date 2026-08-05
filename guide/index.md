@@ -40,11 +40,14 @@ Install and use plain MiNiFi (C++ and Java), then bring EFM in to manage the age
 - **Ch8** — [MiNiFi Java setup](ch08-minifi-java-setup.md)
 - **Ch9** — [Introduce EFM into the Playground](ch09-efm-in-the-playground.md)
 
-### Part IV — Site-to-Site
-The two local k8s transport legs (MiNiFi → NiFi). Reference: apache `SITE_TO_SITE.md`.
+### Part IV — Site-to-Site & Real Hardware Edge Transport
+The two local k8s transport legs (MiNiFi → NiFi), then two real-hardware edge legs: a from-scratch
+ESP32 C2 agent enrolled in EFM, and Sparkplug B over MQTT. Reference: apache `SITE_TO_SITE.md`.
 
 - **Ch10** — [S2S: MiNiFi C++ → NiFi K8s](ch10-minifi-cpp-site-to-site.md)
 - **Ch11** — [S2S: MiNiFi Java → NiFi K8s](ch11-minifi-java-site-to-site.md)
+- **Ch12** — [EFM and MicroFi](ch12-efm-and-microfi.md)
+- **Ch13** — [EFM and SparkPlug MQTT](ch13-efm-and-sparkplug-mqtt.md)
 
 ### Part V — AI at the Edge
 The `nifi-and-ai` skill and its EFM machinery as the grounding lead-in, then NiFi + Python, the same idea pushed to a MiNiFi agent, and the StarlinkAI/Lemonade edge-AI router as a worked case study.
@@ -77,8 +80,9 @@ The layer that watches all of the above — EFM's own metrics, the C++ agent's P
 Read this end to end and you have the map I wish I'd had the first time I tried to run a real flow
 at the edge: EFM stood up and persisted on Kubernetes, the actual processor catalogs for the C++ and
 Java builds, the four ways `ExecuteScript` does and doesn't exist, how to author custom Python
-processors as first-class edge types, the Site-to-Site legs, the AI-at-the-edge patterns, a gallery
-of runnable flows, two real-world demos, and the observability layer that watches all of it.
+processors as first-class edge types, the Site-to-Site legs, a from-scratch ESP32 C2 agent and
+Sparkplug B over MQTT, the AI-at-the-edge patterns, a gallery of runnable flows, two real-world
+demos, and the observability layer that watches all of it.
 
 **This is the published guide** — the chapter files in this directory, read through this index on
 GitHub. There is no separate document to assemble and no other site to go to. Chapters marked

@@ -2,103 +2,16 @@
 
 This is the second real-world finale demo: an edge device publishing MQTT telemetry through Mosquitto into a NiFi process group and out to Kafka, with Sparkplug B's binary IIoT payload as the second, heavier-weight leg alongside plain JSON. It took three real course changes to get here — the sensor device changed, the NiFi process group got wiped and had to be restored, and a leftover debug rig turned out to be polluting the exact topic the real device publishes on. All three are part of the story, not cleaned out of it.
 
+**Protocol and processor mechanics live in [Chapter 13 — EFM and SparkPlug MQTT](ch13-efm-and-sparkplug-mqtt.md).** What Sparkplug B is, the Mosquitto broker manifests, MiNiFi C++'s stock relay-only MQTT processors versus NiFi's `ConsumeMQTTIIoT` decoder, the two-leg process-group pattern, and both test-publisher scripts are covered there in depth — this chapter assumes that background and doesn't re-derive it. This chapter is the field story of one real device shipping real telemetry through that pipeline, plus the two incidents that came with it.
+
 ## Prerequisites
 
 - The CSO stack (NiFi, Kafka/Strimzi) running in minikube under `cld-streaming`/`cfm-streaming` on `MINI-Gaming-G1` (WindowsDesktop) — the host where the live NiFi flow in this chapter actually runs.
-- A Mosquitto broker reachable from both the edge device and NiFi.
-
-## What SparkPlug B is
-
-Sparkplug B is an MQTT payload spec for industrial IoT: a protobuf-encoded message format with a defined lifecycle (`NBIRTH`/`NDATA`/`NDEATH` — node birth, data, death certificates) layered on top of plain MQTT topics (`spBv1.0/<group>/<message-type>/<edge-node>`). It's the natural edge-to-NiFi pattern for MiNiFi: a device publishes over MQTT, an edge agent or NiFi flow consumes and decodes, and the result lands in Kafka for everything downstream. There's no dedicated "SparkPlug" processor in the MiNiFi C++ catalog — MQTT support ships stock via `libminifi-mqtt-extensions.so` (`ConsumeMQTT`/`PublishMQTT`), and SparkPlug B decode happens NiFi-side with `ConsumeMQTTIIoT`, a purpose-built processor for exactly this payload.
-
-## Broker — Mosquitto in minikube
-
-Deploy Mosquitto into its own namespace in the same cluster NiFi runs in:
-
-```bash
-kubectl create namespace mqtt
-```
-
-```yaml
-# mosquitto-configMap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mosquitto-config
-  namespace: mqtt
-data:
-  mosquitto.conf: |
-    listener 1883
-    allow_anonymous true
-    persistence true
-    persistence_location /mosquitto/data/
-    log_dest stdout
-```
-
-```yaml
-# mosquitto.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mosquitto
-  namespace: mqtt
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: mosquitto
-  template:
-    metadata:
-      labels:
-        app: mosquitto
-    spec:
-      containers:
-      - name: mosquitto
-        image: eclipse-mosquitto:2.0.21
-        ports:
-        - containerPort: 1883
-        volumeMounts:
-        - name: config
-          mountPath: /mosquitto/config
-        - name: data
-          mountPath: /mosquitto/data
-      volumes:
-      - name: config
-        configMap:
-          name: mosquitto-config
-      - name: data
-        emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mosquitto
-  namespace: mqtt
-spec:
-  selector:
-    app: mosquitto
-  ports:
-  - port: 1883
-    targetPort: 1883
-  type: NodePort
-```
-
-```bash
-kubectl apply -f mosquitto-configMap.yaml
-kubectl apply -f mosquitto.yaml
-kubectl get svc -n mqtt
-```
-
-> **⚠️ This doc assumed Mosquitto was already live from an earlier pass — it wasn't.** When the edge-device plan for this chapter was first written, the live cluster had no `mqtt` namespace at all; the only Mosquitto in the fleet was on a different host entirely. It was actually deployed here for real on 2026-07-31.
+- Mosquitto deployed and reachable from both the edge device and NiFi — manifests in [Chapter 13](ch13-efm-and-sparkplug-mqtt.md). **This doc assumed Mosquitto was already live from an earlier pass — it wasn't.** When the edge-device plan for this chapter was first written, the live cluster had no `mqtt` namespace at all; the only Mosquitto in the fleet was on a different host entirely. It was actually deployed here for real on 2026-07-31.
 
 ## NiFi ingestion — the `SparkPlug` process group
 
-A NiFi process group named `SparkPlug` (exported at [`files/SparkPlug.json`](../files/SparkPlug.json)) holds two independent consumer legs:
-
-- **`ConsumeMQTT`** — `Topic Filter: test/sensor/data`, plain JSON payloads.
-- **`ConsumeMQTTIIoT`** — `Topic Filter: spBv1.0/#`, real Sparkplug B binary payloads.
-
-Both terminated at a dead-end `EOL` output port for a long time — the PG was built far enough to prove MQTT ingestion worked, but never wired to Kafka.
+A NiFi process group named `SparkPlug` (exported at [`files/SparkPlug.json`](../files/SparkPlug.json)) holds the two-leg pattern Chapter 13 documents in full — `ConsumeMQTT` on the plain-JSON topic, `ConsumeMQTTIIoT` on `spBv1.0/#`. Both terminated at a dead-end `EOL` output port for a long time — the PG was built far enough to prove MQTT ingestion worked, but never wired to Kafka.
 
 ### Incident — the PG had been silently deleted, not just stale
 
@@ -249,101 +162,7 @@ The original plan for this chapter included a further phase: a MiNiFi flow runni
 
 ## Appendix — reusable command forms
 
-### Session 1 field run (Mac) — raw terminal history
-
-```terminal
-source venv/bin/activate
-pip install paho-mqtt
-pip install pysparkplug
-nano sparkplug_test_publisher.py
-python sparkplug_test_publisher.py
-```
-
-```bash
-kubectl apply -f mosquitto-configMap.yaml
-kubectl apply -f mosquitto.yaml
-kubectl port-forward pod/mosquitto-b7876bbf7-7kstt 1883:1883 -n mqtt
-source venv/bin/activate
-python sparkplug_test_publisher.py
-```
-
-### Plain-JSON test publisher (`mqtt_test_publisher.py`)
-
-```python
-import time
-import json
-import random
-import paho.mqtt.client as mqtt
-
-BROKER = "localhost"
-PORT = 1883
-TOPIC = "test/sensor/data"
-
-client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-client.connect(BROKER, PORT, 60)
-client.loop_start()
-
-try:
-    while True:
-        payload = {
-            "device_id": "MacMockSensor-01",
-            "temperature": round(random.uniform(20.0, 30.0), 2),
-            "humidity": round(random.uniform(40.0, 60.0), 2),
-            "timestamp": int(time.time())
-        }
-        client.publish(TOPIC, json.dumps(payload))
-        print(f"Published: {payload}")
-        time.sleep(2)
-except KeyboardInterrupt:
-    client.loop_stop()
-    client.disconnect()
-```
-
-### Sparkplug B test publisher (`sparkplug_test_publisher.py`)
-
-```python
-import time
-import random
-import paho.mqtt.client as mqtt
-from pysparkplug import NBirth, NData, Metric, DataType, get_current_timestamp
-
-BROKER = "localhost"
-PORT = 1883
-GROUP_ID = "MacLocalTest"
-EDGE_NODE_ID = "Mac-Node-01"
-
-TOPIC_NBIRTH = f"spBv1.0/{GROUP_ID}/NBIRTH/{EDGE_NODE_ID}"
-TOPIC_NDATA = f"spBv1.0/{GROUP_ID}/NDATA/{EDGE_NODE_ID}"
-
-client = mqtt.Client()
-client.connect(BROKER, PORT, 60)
-client.loop_start()
-
-ts_birth = get_current_timestamp()
-metrics_birth = (
-    Metric(name="Temperature", datatype=DataType.FLOAT, value=22.0, timestamp=ts_birth),
-    Metric(name="Humidity", datatype=DataType.FLOAT, value=50.0, timestamp=ts_birth),
-)
-client.publish(TOPIC_NBIRTH, NBirth(timestamp=ts_birth, seq=0, metrics=metrics_birth).encode(), qos=1)
-
-seq = 1
-try:
-    while True:
-        temp_val = round(random.uniform(20.0, 35.0), 2)
-        humid_val = round(random.uniform(40.0, 60.0), 2)
-        ts_data = get_current_timestamp()
-        metrics_data = (
-            Metric(name="Temperature", datatype=DataType.FLOAT, value=temp_val, timestamp=ts_data),
-            Metric(name="Humidity", datatype=DataType.FLOAT, value=humid_val, timestamp=ts_data),
-        )
-        client.publish(TOPIC_NDATA, NData(timestamp=ts_data, seq=seq, metrics=metrics_data).encode(), qos=1)
-        print(f"Sent Sparkplug NDATA (Seq: {seq}) -> Temp: {temp_val} | Humid: {humid_val}")
-        seq = (seq + 1) % 256
-        time.sleep(5)
-except KeyboardInterrupt:
-    client.loop_stop()
-    client.disconnect()
-```
+**Both test-publisher scripts (plain-JSON and real Sparkplug B binary via `pysparkplug`) and the raw terminal history of the first field run are in [Chapter 13](ch13-efm-and-sparkplug-mqtt.md#test-publishers)** — reproduced there in full rather than duplicated here, since Chapter 13 is now the canonical protocol/processor reference this chapter points to.
 
 ### Consume the live topics
 
@@ -359,6 +178,8 @@ kubectl exec -n cld-streaming my-cluster-combined-0 -- \
 
 ## Related chapters
 
+- Ch12 — [EFM and MicroFi](ch12-efm-and-microfi.md): the ESP32 C2-agent/EFM-enrollment side of this same XIAO device family, including the `PublishMQTT` work this demo's MQTT egress leans on and the leftover debug rig behind this chapter's topic-contamination incident.
+- Ch13 — [EFM and SparkPlug MQTT](ch13-efm-and-sparkplug-mqtt.md): the protocol and processor mechanics behind this chapter — what Sparkplug B is, the Mosquitto deploy, the two-leg process-group pattern, both test-publisher scripts.
 - Ch18 — [Sample gallery](ch18-sample-gallery.md): [`SparkPlug.json`](../files/SparkPlug.json) belongs here alongside the other runnable flows.
 - Ch19 — [EFM + NVIDIA Jetson use case](ch19-efm-and-nvidia-jetson.md): the `ExecuteScript`/TensorRT pattern this chapter's stretch phase reuses.
 - Ch21 — [Metrics & Observability](ch21-metrics-and-observability.md): the Prometheus/Grafana layer that watches this same NiFi/Kafka stack.
