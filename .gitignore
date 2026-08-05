@@ -5,13 +5,7 @@
 /.claude/settings.local.json
 /.claude/skills/
 /.claude/.claim-pending
-/files/tuna-test/input/
-/files/tuna-test/output/
-/files/tuna-test/.env.local
-/files/tuna-test/__pycache__/
-/files/tuna-test/.venv/
-/files/tuna-test/Wav2Lip/
-/files/tuna-test/voices/
-/files/tuna-test/assets/
-/files/heygen-srm-poc/.env.local
-/files/heygen-srm-poc/output/
+# Local-only working directories — real content kept on disk, never tracked.
+/files/tuna-test/
+/files/heygen-srm-poc/
+/geekom-g1/
