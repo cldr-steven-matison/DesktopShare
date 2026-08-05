@@ -12,7 +12,6 @@
 > what, when, and which issue drove it) lives in git, the source docs, and the extracted chapters —
 > not here.
 
-![Cloudera Data in Motion — MiNiFi edge devices feeding NiFi, Kafka, and Flink for ingest and transform, into data-at-rest and AI/analytics, over the SDX security and governance layer](/images/efm-cloudera-edge-management.png)
 
 Edge Flow Management is the central manager for organizing agent Classes, Resources, and Edge Flows.
 NiFi in the datacenter is well documented; EFM is not — until now. What happens out at the edge — a
