@@ -33,6 +33,21 @@ Every plan that touches infra or code closes with a "when this ships, update `<t
 
 For EFM-guide work specifically, that includes the master plan: whenever an issue advances a chapter, update the `Complete Guide to Edge Flow Management.md` status tracker in the same pass and keep its **Issues** column linked to the driving issue(s). The tracker is the live chapter↔issue correlation — see `device-comms.md` §"Working an issue" step 4.
 
+## Publishing a blog post end-to-end (to the live blog repo)
+
+Most blog work stays **local** — `root → DesktopShare/blog/` is "publishing" for our purposes, and guide-chapter blogs in particular never get pushed to the final repo (the hard rule in the `desktopshare-promotion-flow` memory). The steps below are the **separate, deliberate full push** that only runs when Steven explicitly asks to "publish end to end" / "push to the blog" for a specific standalone post. Precedents: CE post #81, and the minikube profile-swap post (2026-08-05).
+
+Before starting, the draft's front matter must already carry the teaser form (`title` + `excerpt` + `header.teaser: "/assets/images/<Name>.<ext>"`) and the image must exist in `DesktopShare/images/`. Then, in order:
+
+1. **Move `root → DesktopShare/blog/`** with `git mv`, naming the file after the title (Title Case, drop the `:` — e.g. `Disposable Clusters on One Box - The minikube Profile Swap.md`). This `blog/` copy is the golden source. The front matter already uses `/assets/images/…`, so no `/images/`→`/assets/images/` rewrite is needed.
+2. **Copy into `cldr-steven-matison.github.io`** (path: `~/Documents/GitHub/cldr-steven-matison.github.io` on the Mac):
+   - post → `_posts/YYYY-MM-DD-<Same Title>.md` using **today's date** as the `YYYY-MM-DD-` prefix (spaces kept, no colon — matches `2026-08-03-Cloudera Community Edition on AWS in One Command.md`).
+   - teaser image → `assets/images/<Name>.<ext>` (the exact path the front matter's `header.teaser` points at).
+3. **Build:** `cd` into the github.io repo and `bundle exec jekyll build` (Jekyll 4.3.2 via rbenv). The Sass `$span-width / $container` deprecation warnings from the Minimal-Mistakes theme are pre-existing noise, not errors — a clean build ends with `done in N seconds`. Verify the post rendered under `_site/blog/<slug>/` and the image landed in `_site/assets/images/`.
+4. **Commit + push both repos** (this is the explicit ask, so the commit+push is required): DesktopShare gets the `blog/` move + the source image + any doc updates; github.io gets the new `_posts/` file + `assets/images/` file. `blog: …` style message in each, one focused commit per repo.
+
+Post-push cleanup (optional, per the promotion-flow memory): once the final repo holds the authoritative copy, the DesktopShare `blog/` copy may be renamed to a plain kebab doc name.
+
 ## Finding the pattern you need
 
 We already solved most of the hard problems once. Before writing a new fix from scratch, walk this ladder:
