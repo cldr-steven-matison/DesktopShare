@@ -41,21 +41,20 @@ All five endpoints are confirmed end-to-end with real payloads: chat (real synch
 
 One real gotcha this design introduced: `InvokeHTTP`'s `Socket Read Timeout` defaults to `15 secs`, and LLM inference routinely takes 10-25s+. Every request failed silently on that default — a `SocketTimeoutException` auto-terminating on `Failure` with nothing routed back, so the caller just sat until the HTTP context map's own 60s expiration gave up with a generic 503. Set it to match your slowest endpoint (`10 mins` here), not the framework default.
 
+![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](/images/efm-nifi-and-ai-skill-spacing.jpg)
 
 ## `ListenHTTP` vs `HandleHttpRequest`/`HandleHttpResponse` — the fork that shapes every edge AI flow
 
 The single design decision that decides what an edge AI flow can *do* is which HTTP entry processor it uses, because the two families answer the caller completely differently.
 
-![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](/images/efm-nifi-and-ai-skill-spacing.jpg)
 
 `ListenHTTP` — the only HTTP-ingest processor MiNiFi **C++** ships — is **fire-and-forget**. It accepts a POST and immediately returns an empty `200` ack; it has no way to send a computed body back on the same connection. If the caller wants the model's actual answer, it has to arrive out-of-band: the classic shape is `ListenHTTP → … → PublishKafka`, with the client polling a Kafka topic keyed on a `request_id` it supplied in the request. Two extra moving parts — a broker and a correlation key — exist purely because the front door can't talk back. `ListenHTTP` also carries the `5/5` batch/buffer trap and, on some C++ builds, a residual `1/1` multipart drop (`MINIFICPP-2243`).
 
-![HandleHttpRequest → InvokeHTTP → HandleHttpResponse verified live on StarlinkAI — the synchronous pair returning the model's real answer on the caller's own connection](/images/starlinkai-screen3-4-handlehttp-verify.jpg)
+![StarlinkAI — the final unified router flow: one HandleHttpRequest → InvokeHTTP → HandleHttpResponse fronting all five Lemonade endpoints on a single port](/images/efm-starlink-ai-unified-lemonade-flow.png)
+
 
 `HandleHttpRequest` + `HandleHttpResponse` — MiNiFi **Java**, with the `StandardHttpContextMap` controller service — are a **synchronous pair**. `HandleHttpRequest` parks the caller's connection in the context map keyed by `http.context.identifier`, the flow does its work, and `HandleHttpResponse` writes the real body and status back on that same parked connection. No broker, no polling, no `request_id` — the caller gets the model's answer as the HTTP response to its own request. That's the decisive capability for an HTTP-fronted inference proxy, and it's Java-only.
 
-
-![StarlinkAI — the final unified router flow: one HandleHttpRequest → InvokeHTTP → HandleHttpResponse fronting all five Lemonade endpoints on a single port](/images/efm-starlink-ai-unified-lemonade-flow.png)
 
 ### StarlinkAI — before and after
 
@@ -193,7 +192,9 @@ Everything above is codified in a Claude skill, `nifi-and-ai` ([skill](https://g
 - **Testing.** Send a real payload through the real pipeline, dump the live flow, and read `minifi-app.log` for the *actual* attributes — never edit from a remembered description. The transcription fix above was root-caused entirely by diffing the log against a real multipart probe.
 
 
-A human aside on that fourth bullet, because it deserves more than the one line the summary gave it: **layout** is the item an AI reliably buries. I asked for it explicitly and it still came back as a footnote wedged between API work and testing — because to a model a flow is a graph, and the coordinates are noise. The data moves the same whether the boxes are aligned or stacked on top of each other. But you're the one who opens that canvas when a flow is silently dropping data, tracing a single connection through a tangle of overlapping processors to find which `InvokeHTTP` of the four is the one timing out. Readable layout is the difference between reading a flow and excavating it. The unspoken assumption under the shrug is that a *properly* built NiFi or MiNiFi flow in production would never need a human's eyes on it — :eyes: — so why bother making it legible. It will, and you will: something always breaks, and the first thing you do is look. Spend the two minutes on the pitch and the alignment; future-you, squinting at a production incident, is the one who benefits.   
+A human injection on that fourth bullet: it deserves more than the one line the summary gave it.  
+
+    **layout** is the item an AI reliably buries. I asked for it explicitly and it still came back as a footnote wedged between API work and testing.  To an AI a flow is a graph and the coordinates are noise. The data moves the same whether the boxes are aligned or stacked on top of each other. You're the one who opens that canvas when a flow is silently dropping data, tracing a single connection through a tangle of overlapping processors to find which `InvokeHTTP` of the four is the one timing out. Readable layout is the difference between reading a flow and excavating it. The unspoken assumption under the covers is that a *properly* built NiFi or MiNiFi flow in production would never need a human's eyes on it :eyes:  Why bother making it legible? Something always breaks, and the first thing someone else might do is look at your flow. Spend the two minutes on the pitch and the alignment; the future-you is the one who benefits.
 
 ![Before — the same flow at the default pitch, processors crowding and connections crossing](/images/flow-agent-layout.png)
 
