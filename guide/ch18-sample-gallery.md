@@ -75,7 +75,7 @@ Every entry uses the same card so the gallery reads consistently:
 
   kubectl exec -it deployment/minifi-test-java -- /bin/sh -c "cat /tmp/minifi-test-output/*"
   ```
-- **Status:** ✅ field-verified end-to-end 2026-07-29, playground Minikube. Full walkthrough: [Chapter 8](ch08-minifi-java-setup.md).
+- **Status:** ✅ field-verified end-to-end on playground Minikube. Full walkthrough: [Chapter 8](ch08-minifi-java-setup.md).
 
 > **⚠️ Java config gotchas.** Connections wire by `source id`/`destination id` UUID, not by name. Processor `class` is fully-qualified. The readiness/liveness probes must be `tcpSocket`, not `httpGet` — Java's `ListenHTTP` returns `405` to a bare `GET` and an `httpGet` probe crash-loops the pod.
 
@@ -101,7 +101,7 @@ Every entry uses the same card so the gallery reads consistently:
   kubectl logs minifi-test-efm-cpp -n default | grep LogAttribute
   # expected: LogAttribute -- filename: <uuid>, content: PlaygroundCpp Level 2 heartbeat
   ```
-- **Status:** ✅ field-validated 2026-07-31, playground Minikube, `default` namespace. Full walkthrough: [Chapter 9](ch09-efm-in-the-playground.md).
+- **Status:** ✅ field-validated on playground Minikube, `default` namespace. Full walkthrough: [Chapter 9](ch09-efm-in-the-playground.md).
 
 > **⚠️ EFM health-poll required.** On cold-start EFM takes up to two minutes to bind its Jetty listener. Both manifests poll `/efm/actuator/health` in a loop before running the deployer curl — skip the poll and the agent never enrolls. Both `flowId` and `pgId` are required in the processor-create API path; using only `pgId` returns a misleading Spring 404.
 
@@ -123,7 +123,7 @@ Every entry uses the same card so the gallery reads consistently:
   kubectl logs minifi-test-efm-java -n default | grep LogAttribute
   # expected: LogAttribute -- filename: <uuid>, content: PlaygroundJava Level 2 heartbeat
   ```
-- **Status:** ✅ field-validated 2026-07-31, playground Minikube, `default` namespace. Full walkthrough: [Chapter 9](ch09-efm-in-the-playground.md).
+- **Status:** ✅ field-validated on playground Minikube, `default` namespace. Full walkthrough: [Chapter 9](ch09-efm-in-the-playground.md).
 
 ---
 
@@ -154,9 +154,9 @@ Every entry uses the same card so the gallery reads consistently:
     --topic agent-nvidia-tensorRT --from-beginning --max-messages 1
   # expected: {"sensor": "jetson-test", "value": 42, "tensorrt": {"version": "10.16.2.10", "status": "Active"}}
   ```
-- **Status:** ✅ field-validated 2026-07-31 on real Jetson Orin Nano hardware; `tensorrt` block appended live on-device. Full walkthrough: [Chapter 19](ch19-efm-and-nvidia-jetson.md).
+- **Status:** ✅ field-validated on real Jetson Orin Nano hardware; `tensorrt` block appended live on-device. Full walkthrough: [Chapter 19](ch19-efm-and-nvidia-jetson.md).
 
-> **⚠️ Execute bit.** EFM delivers resources to `asset/` without the execute bit. Run `chmod +x ~/nifi-minifi-cpp-1.26.02/asset/gpu_nifi_tensorRT-3.py` on the Jetson after the resource syncs — `ExecuteScript` silently fails without it. The `NvidiaNano` class name may change when the SensorClass device (issue [#74](https://github.com/cldr-steven-matison/DesktopShare/issues/74)) lands.
+> **⚠️ Execute bit.** EFM delivers resources to `asset/` without the execute bit. Run `chmod +x ~/nifi-minifi-cpp-1.26.02/asset/gpu_nifi_tensorRT-3.py` on the Jetson after the resource syncs — `ExecuteScript` silently fails without it. `NvidiaNano` is the current class assignment and may change; check the current class before building dependent tooling.
 
 ---
 
@@ -197,7 +197,7 @@ Every entry uses the same card so the gallery reads consistently:
 ## Entry 7 — Edge-AI router (MiNiFi Java, EFM-managed)
 
 - **Name:** `starlinkai-lemonade-router-java`
-- **Purpose:** Front a local Lemonade Server (AMD OpenAI-compatible inference, port 13305) with a three-processor MiNiFi Java flow that proxies all five Lemonade endpoints synchronously. The agent is tiny; the GPU model runs on the adjacent box. All five endpoints are confirmed working end to end; transcription needed a multipart-reassembly branch ahead of `InvokeHTTP`, fixed 2026-08-04 (#88).
+- **Purpose:** Front a local Lemonade Server (AMD OpenAI-compatible inference, port 13305) with a three-processor MiNiFi Java flow that proxies all five Lemonade endpoints synchronously. The agent is tiny; the GPU model runs on the adjacent box. All five endpoints work end to end; transcription needs a multipart-reassembly branch ahead of `InvokeHTTP`.
 - **Agent:** MiNiFi **Java** `2.24.08.0-19`, EFM-managed agent class `StarlinkAIJava`, running on StarlinkAI Beelink SER9 (`TunaStarlink`, Windows). `HandleHttpRequest`/`HandleHttpResponse` — the Java-only synchronous response pair — are why this is a Java flow, not C++.
 - **Shape:**
   ```
@@ -206,7 +206,7 @@ Every entry uses the same card so the gallery reads consistently:
     ─(Response)─→ HandleHttpResponse-Lemonade  (Status Code: ${invokehttp.status.code:replaceEmpty('502')})
   ```
   `Retry`, `No Retry`, and `Failure` from `InvokeHTTP` also wire to `HandleHttpResponse` (and `LogAttribute-Error`) — not to `Original`, which would double-respond the HTTP context.
-- **Files:** Flow export lives in `files/efm/` per the StarlinkAI agent class. Full processor UUIDs and connection wiring (flowVersion 23 shape) in `beelink-starlink-efm-ai.md`.
+- **Files:** Flow export lives in `files/efm/` per the StarlinkAI agent class.
 - **Verification:**
   ```bash
   # Chat
@@ -220,7 +220,7 @@ Every entry uses the same card so the gallery reads consistently:
        -d '{"model":"Qwen3-Embedding-0.6B-GGUF","input":["test sentence"]}'
   ```
   Expected: real synchronous response from Lemonade, `invokehttp.status.code=200` on `LogAttribute`.
-- **Status:** ✅ all 5 endpoints confirmed (chat, embeddings, reranking, TTS, transcription). Transcription needed a multipart-reassembly branch ahead of `InvokeHTTP` — built, proven, and cut into production 2026-08-04 under [issue #88](https://github.com/cldr-steven-matison/DesktopShare/issues/88) (fixed + closed). Full walkthrough: [Chapter 16](ch16-how-to-ai-with-minifi.md).
+- **Status:** ✅ all 5 endpoints work (chat, embeddings, reranking, TTS, transcription). Transcription needs a multipart-reassembly branch ahead of `InvokeHTTP`. Full walkthrough: [Chapter 16](ch16-how-to-ai-with-minifi.md).
 
 > **⚠️ `InvokeHTTP` socket timeouts.** LLM inference routinely takes 10–25s; the framework default `Socket Read Timeout` of 15 secs fails every real call. Set Read and Write timeouts to `10 mins`. `HTTP Method` silently defaults to `GET` — set it to `POST` explicitly.
 
@@ -228,22 +228,15 @@ Every entry uses the same card so the gallery reads consistently:
 
 ## Pending entries
 
-These are the candidates from the gallery plan that do not yet have a fully folded, field-validated chapter to back them. Each becomes a full card above only after its own chapter is field-validated.
+These flows are planned but don't yet have a folded, field-validated chapter behind them. Each becomes a full card above once its chapter lands.
 
-| Candidate | Blocking work | Tracking |
-|---|---|---|
-| S2S source flows — MiNiFi Java → NiFi K8s (Ch10) | Site-to-Site chapter pair, live build deferred | [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30) |
-| S2S source flows — MiNiFi C++ → NiFi K8s (Ch11) | Same S2S chapter pair | [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30) |
-| SparkPlug / MQTT ingest (Ch20) | SparkPlug demo chapter not yet folded | [#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70) |
-
-> **Pending** — S2S (Ch10, Ch11): tracked under [#30](https://github.com/cldr-steven-matison/DesktopShare/issues/30); fills when Ch10 and Ch11 validate.
-
-> **Pending** — SparkPlug (Ch20): tracked under [#70](https://github.com/cldr-steven-matison/DesktopShare/issues/70); fills when Ch20 validates.
+- **S2S source flows — MiNiFi → NiFi K8s** (Ch10 C++, Ch11 Java): the Site-to-Site chapter pair.
+- **SparkPlug / MQTT ingest** (Ch20): the SparkPlug demo chapter.
 
 ---
 
 ## How this gallery grows
 
-A flow earns a card here after three things are true: (1) its chapter is field-validated, (2) the config or flow export is committed to the Playground repo or `files/efm/`, and (3) the card has been added both here and to `sample-gallery/README.md` in the Playground. Update the master guide status tracker (`Complete Guide to Edge Flow Management.md`) at the same time.
+A flow earns a card here after three things are true: (1) its chapter is field-validated, (2) the config or flow export is committed to the Playground repo or `files/efm/`, and (3) the card is added both here and to `sample-gallery/README.md` in the Playground.
 
-The gallery's runnable index: [`sample-gallery/README.md`](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground/blob/main/sample-gallery/README.md). Scaffolded 2026-07-31 (issue [#32](https://github.com/cldr-steven-matison/DesktopShare/issues/32)); this chapter folded under [#68](https://github.com/cldr-steven-matison/DesktopShare/issues/68).
+The gallery's runnable index: [`sample-gallery/README.md`](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground/blob/main/sample-gallery/README.md).

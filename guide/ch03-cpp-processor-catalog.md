@@ -10,7 +10,6 @@ The stock image is Cloudera-curated, Apache-licensed. The upstream source lives 
 
 The EFM deployer registers these agents as `agentType=cpp`. `MINIFI_HOME` inside the container is `/opt/minifi/nifi-minifi-cpp-1.26.02`. The EFM binary path for each platform follows the pattern `${agentType}/${osArch}/${agentVersion}/` — `osArch` must be `linux`, `linuxaarch64`, or `windows`; hyphens are rejected by the EFM validator.
 
-Source for this section: `minifi-playground-cpp-processors.md`.
 
 ---
 
@@ -144,21 +143,19 @@ Extracted from a running instance. Every name below is verbatim from that catalo
 
 | Platform | Agent binary | Stock count | Extra-extensions | ExecuteScript | Status |
 |---|---|---|---|---|---|
-| Linux x86_64 | `binaries/cpp/linux/1.26.02/minifi.tar.gz` | 74 | Injection recipe in `efm-binaries.md` | Via extra-extensions or source build | Confirmed — running instance verified |
-| Linux aarch64 (ARM64) | `binaries/cpp/linuxaarch64/1.26.02/minifi.tar.gz` | 79 (live re-capture, 2026-07-28) | Already staged on `NvidiaNano` (Jetson) | Confirmed present, live-executed | Field-verified |
-| Windows x64 (MSI) | `binaries/cpp/windows/1.26.02/minifi.msi` | 81 (live re-capture, 2026-07-27) | `ADDLOCAL=ALL` enables Python scripting DLL | `ADDLOCAL=ALL` required, confirmed present | Field-verified |
+| Linux x86_64 | `binaries/cpp/linux/1.26.02/minifi.tar.gz` | 74 | Injection recipe in [Ch2](ch02-efm-binaries.md) | Via extra-extensions or source build | Confirmed — running instance verified |
+| Linux aarch64 (ARM64) | `binaries/cpp/linuxaarch64/1.26.02/minifi.tar.gz` | 79 (live re-capture) | Already staged on `NvidiaNano` (Jetson) | Confirmed present, live-executed | Field-verified |
+| Windows x64 (MSI) | `binaries/cpp/windows/1.26.02/minifi.msi` | 81 (live re-capture) | `ADDLOCAL=ALL` enables Python scripting DLL | `ADDLOCAL=ALL` required, confirmed present | Field-verified |
 
-**aarch64 detail:** Live-captured from the `NvidiaNano` agent (class `NvidiaNano`, manifest `dab61017-33fb-44e7-a159-882601f01952`, build `1.26.02`) via `GET /efm/api/agent-manifests/{id}`, committed as `files/efm/NvidiaNano-manifest.json`. 5 more than the stock 74: `ExecuteProcess`, `ExecuteScript`, `FetchOPCProcessor`, `PutOPCProcessor`, `RunLlamaCppInference` — the extra-extensions `.so` files were already staged on this device (installed 2026-06-09). `ExecuteScript` confirmed running live in Python engine (3 processors in the device's production flow). Kafka confirmed with a genuine end-to-end round trip: 10/10 messages, sequential offsets 0–9, topic `minifi-aarch64-test`.
+**aarch64 detail:** Live-captured from the `NvidiaNano` agent (class `NvidiaNano`, manifest `dab61017-33fb-44e7-a159-882601f01952`, build `1.26.02`) via `GET /efm/api/agent-manifests/{id}`, committed as `files/efm/NvidiaNano-manifest.json`. 5 more than the stock 74: `ExecuteProcess`, `ExecuteScript`, `FetchOPCProcessor`, `PutOPCProcessor`, `RunLlamaCppInference` — the extra-extensions `.so` files were already staged on this device. `ExecuteScript` confirmed running live in Python engine (3 processors in the device's production flow). Kafka confirmed with a genuine end-to-end round trip: 10/10 messages, sequential offsets 0–9, topic `minifi-aarch64-test`.
 
 **Windows detail:** Live-captured from agent `40eb2f92-94c5-4478-beed-7060e41c9d7f` (`WindowsDesktopCpp`, manifest `ad8fb2bf-a4de-49e6-92ec-4d70fcbe5519`), committed as `files/efm/WindowsDesktopCpp-manifest.json`. 5 more than the stock 74: `FetchOPCProcessor`, `PutOPCProcessor`, `GetCouchbaseKey`, `PutCouchbaseKey`, `RunLlamaCppInference` — same binary as an earlier 76-processor capture, so these were extension bundles not loaded at that time.
-
-Full evidence for both platforms is in `minifi-playground-cpp-processors.md`.
 
 ---
 
 ## Processors unlocked by extra-extensions injection
 
-After injecting `extra-extensions-linux.tar.gz` into the agent's `extensions/` directory (recipe in `efm-binaries.md`), these `.so` files appear:
+After injecting `extra-extensions-linux.tar.gz` into the agent's `extensions/` directory (recipe in [Chapter 2](ch02-efm-binaries.md)), these `.so` files appear:
 
 | `.so` filename | Enables | Notes |
 |---|---|---|
@@ -169,9 +166,9 @@ After injecting `extra-extensions-linux.tar.gz` into the agent's `extensions/` d
 | `libminifi-llamacpp.so` | **RunLlamaCppInference** | On-device LLM inference via llama.cpp |
 | `libminifi-script-extension.so` | Script dispatch host | Required for both Lua and Python `ExecuteScript` |
 
-The injection is: unpack the tarball, `find -name "*.so" -exec cp {} extensions/`, re-tar, and pipe into the EFM pod before the agent deploys. Full recipe in `efm-binaries.md`.
+The injection is: unpack the tarball, `find -name "*.so" -exec cp {} extensions/`, re-tar, and pipe into the EFM pod before the agent deploys. Full recipe in [Chapter 2 (EFM Binaries)](ch02-efm-binaries.md).
 
-There is also an ARM64-specific tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. Field-verified 2026-07-29 on `NvidiaNano`: 26 `.so` files present (18 stock + 8 extra-extensions), identical basenames to the x86_64 list — no ARM64-only or missing filenames.
+There is also an ARM64-specific tarball: `nifi-minifi-cpp-1.26.02-b30-extra-extensions-linux-arm64.tar.gz`. Field-verified on `NvidiaNano`: 26 `.so` files present (18 stock + 8 extra-extensions), identical basenames to the x86_64 list — no ARM64-only or missing filenames.
 
 On Windows, the equivalent is the MSI with `ADDLOCAL=ALL` — `.dll` files compiled with MSVC, not the Linux `.so` files. Do not copy `.so` files onto a Windows agent.
 
@@ -284,14 +281,17 @@ Use C++ when you need a lightweight agent that moves data: ingestion, routing, p
 
 - **Do not run the EFM Windows deployer from `C:\WINDOWS\system32`.** The deployer installs to `$PWD`. Running from system32 dumps the entire install tree into a system directory and creates permission issues on upgrade. `cd C:\minifi` first.
 
-- **Do not skip `ADDLOCAL=ALL` on Windows and then wonder why Python doesn't work.** The EFM-generated deployer command never includes `ADDLOCAL=ALL`. Symptom: `Could not instantiate: PythonScriptExecutor` every 30 seconds. The `msiexec /i ... ADDLOCAL=ALL` repair pass is mandatory. Full recovery plan in `efm-binaries-windows-python.md`.
+- **Do not skip `ADDLOCAL=ALL` on Windows and then wonder why Python doesn't work.** The EFM-generated deployer command never includes `ADDLOCAL=ALL`. Symptom: `Could not instantiate: PythonScriptExecutor` every 30 seconds. The `msiexec /i ... ADDLOCAL=ALL` repair pass is mandatory. Full recovery plan in [Chapter 5 (ExecuteScript Availability)](ch05-executescript-availability.md).
 
-- **The `linuxaarch64` manifest does not match the x86_64 list — field-verified 2026-07-28.** 79 processors on the Jetson vs. 74 stock, because extra-extensions were already staged on that device. No x86-only processors were missing on aarch64. See `files/efm/NvidiaNano-manifest.json`.
+- **The `linuxaarch64` manifest does not match the x86_64 list — field-verified.** 79 processors on the Jetson vs. 74 stock, because extra-extensions were already staged on that device. No x86-only processors were missing on aarch64. See `files/efm/NvidiaNano-manifest.json`.
 
 - **Do not confuse `ExecuteScript` (C++, post-injection) with Python custom processors in Java NiFi 2.x.** C++'s `ExecuteScript` re-reads its script file from disk on every trigger with no restart needed. Java NiFi Python custom processors require a version bump and processor switch to register a new bundle version in a running instance.
 
 ---
 
-## Source
+## Related chapters
 
-`minifi-playground-cpp-processors.md` — the full 466-line catalog with per-platform manifest captures, all processor counts with evidence, the `ExecuteScript` fix paths A–D, the Dockerfile/Kubernetes YAML, and extended per-platform validation narrative.
+- Ch2 — [EFM Binaries](ch02-efm-binaries.md): the extra-extensions injection recipe and staging tree.
+- Ch5 — [ExecuteScript Availability](ch05-executescript-availability.md): the four `ExecuteScript` fix paths (A–D) in full.
+
+Per-platform manifest captures are committed under `files/efm/` (e.g. `NvidiaNano-manifest.json`, `WindowsDesktopCpp-manifest.json`).

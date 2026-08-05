@@ -2,8 +2,6 @@
 
 This chapter brings EFM into the `MiNiFi-Kubernetes-Playground` repo alongside the Level 1 standalone pods from Chapters 7 and 8 — without touching any Level 1 file. Two new bare pods, two new EFM agent classes, a smoke flow on each, verified live. This is `Level 2`: EFM-managed, additive, proof that the same agent-deployer bootstrap pattern used in the main `cld-streaming` cluster works just as well in the `default` namespace.
 
-Source doc: `minifi-playground-efm-level2.md` (148 lines, field-validated 2026-07-31, flow JSON exported to `files/efm/`).
-
 ## What Level 2 is and isn't
 
 Level 1 (`minifi-test.yaml`, `minifi-test-java.yaml`) is Docker-baked config — `config.yml` / `config-java.yml` copied at build time, no EFM. Level 2 adds two new pods, two new EFM agent classes (`PlaygroundCpp`, `PlaygroundJava`), and a managed flow on each. None of the original six files (`Dockerfile`, `Dockerfile.java`, `config.yml`, `config-java.yml`, `minifi-test.yaml`, `minifi-test-java.yaml`) were touched.
@@ -172,7 +170,7 @@ Repeat Steps 1–4 for `PlaygroundJava` with `FLOW_ID` and `PG_ID` for that clas
 
 ## Layout: always use the EFM-Designer pitch
 
-Place `GenerateFlowFile` at `(0, 0)` and `LogAttribute` at `(0, 300)`. The row pitch for the EFM Designer is 300, not 200. A `(0,0)→(400,0)` horizontal layout or a 200-pitch vertical layout passes `validationErrors: []` but fails visual QA in the Designer canvas. This chapter's first build (2026-07-30) used `(0,0)→(400,0)` and was rolled back the same day for exactly that reason. The correct rules are in `skills/nifi-and-ai/references/layout.md` — read it before any programmatic EFM Designer build.
+Place `GenerateFlowFile` at `(0, 0)` and `LogAttribute` at `(0, 300)`. The row pitch for the EFM Designer is 300, not 200. A `(0,0)→(400,0)` horizontal layout or a 200-pitch vertical layout passes `validationErrors: []` but fails visual QA in the Designer canvas. Decide the pitch before the first programmatic build, not after the canvas reads cramped.
 
 Verify positions after publish, not just after create:
 
@@ -192,17 +190,17 @@ Expected output for both flavors:
 
 Check EFM Monitor → Agents after `kubectl apply`. Both should reach `ONLINE` status within ~2 minutes.
 
-![PlaygroundCpp agent class in EFM → Monitor → Agents — Good Health, one agent enrolled](/assets/images/efm-PlaygroundCpp-Class.jpg)
+![PlaygroundCpp agent class in EFM → Monitor → Agents — Good Health, one agent enrolled](assets/images/efm-PlaygroundCpp-Class.jpg)
 
-![PlaygroundJava agent class in EFM → Monitor → Agents — Good Health, one agent enrolled](/assets/images/efm-PlaygroundJava-Class.jpg)
+![PlaygroundJava agent class in EFM → Monitor → Agents — Good Health, one agent enrolled](assets/images/efm-PlaygroundJava-Class.jpg)
 
-![PlaygroundCpp Flow Designer — vertical GenerateFlowFile → LogAttribute at row pitch 300, Published, Monitoring Active](/assets/images/efm-PlaygroundCpp-Class-efm-ui.jpg)
+![PlaygroundCpp Flow Designer — vertical GenerateFlowFile → LogAttribute at row pitch 300, Published, Monitoring Active](assets/images/efm-PlaygroundCpp-Class-efm-ui.jpg)
 
-![PlaygroundCpp flow canvas close-up — correct (0,0)/(0,300) placement](/assets/images/efm-PlaygroundCpp-Class-efm-ui-flow.jpg)
+![PlaygroundCpp flow canvas close-up — correct (0,0)/(0,300) placement](assets/images/efm-PlaygroundCpp-Class-efm-ui-flow.jpg)
 
-![PlaygroundJava Flow Designer — same vertical shape, Published, Monitoring Active](/assets/images/efm-PlaygroundJava-Class-efm-ui.jpg)
+![PlaygroundJava Flow Designer — same vertical shape, Published, Monitoring Active](assets/images/efm-PlaygroundJava-Class-efm-ui.jpg)
 
-![PlaygroundJava flow canvas close-up — correct (0,0)/(0,300) placement](/assets/images/efm-PlaygroundJava-Class-efm-ui-flow.jpg)
+![PlaygroundJava flow canvas close-up — correct (0,0)/(0,300) placement](assets/images/efm-PlaygroundJava-Class-efm-ui-flow.jpg)
 
 Verify from the pod itself:
 
@@ -262,6 +260,9 @@ Neither PlaygroundCpp nor PlaygroundJava should appear in either response. The p
 
 **Export flow JSON after class deletion.** Deleting the agent class removes the Designer flow definition. Export (`GET /efm/api/designer/flows/{id}` or the UI Export button) before teardown, not after.
 
-## Source
+## Related chapters
 
-`minifi-playground-efm-level2.md` (148 lines) — all manifests, API calls, verification steps, and incident notes in this chapter are drawn from that field-validated record. Flow exports: `files/efm/PlaygroundCpp.json`, `files/efm/PlaygroundJava.json`.
+- Ch7 — [Standalone MiNiFi C++ on Kubernetes](ch07-standalone-minifi-cpp-on-k8s.md): the Level 1 C++ pod this builds alongside.
+- Ch8 — [MiNiFi Java Setup](ch08-minifi-java-setup.md): the Level 1 Java pod this builds alongside.
+
+Flow exports are committed at `files/efm/PlaygroundCpp.json` and `files/efm/PlaygroundJava.json`.

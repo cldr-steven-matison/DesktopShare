@@ -2,8 +2,8 @@
 
 This chapter documents getting MiNiFi Java `2.24.08.0-19` running under EFM management — on native
 Windows (`WindowsDesktop`) and as a Kubernetes pod (`KubernetesPodJava`) — with both agents ONLINE
-and publishing flows. Every step here was field-verified 2026-07-25; the Kafka/scripting NAR
-drop-in was added 2026-07-27. The C++ side of this setup lives in Chapter 7 and the binary staging
+and publishing flows. Every step here is field-verified, including the Kafka/scripting NAR
+drop-in. The C++ side of this setup lives in Chapter 7 and the binary staging
 mechanics live in Chapter 2 — this chapter is the Java-specific install, enrollment, and flow
 authoring story.
 
@@ -164,8 +164,7 @@ args:
 
 Sizing: `768Mi request / 1536Mi limit` is the field-measured baseline for this agent. The main JVM
 process RSS sits around 378–424 MB; the bootstrap-watcher JVM adds another 83–86 MB — combined
-roughly 500 MB. Full footprint numbers from both the K8s pod and a native `docker run` evaluation
-are in `efm-windows-java-minifi.md` § *Early-ack round-trip test*.
+roughly 500 MB, measured on both the K8s pod and a native `docker run`.
 
 ## Processor catalog — field-verified stock set
 
@@ -254,12 +253,12 @@ curl -X POST http://127.0.0.1:10090/efm/api/agent-class-manifest-config \
 ## Stock gaps: no Kafka NAR, no scripting NAR out of the box
 
 The stock `2.24.08.0-19` tarball ships neither `PublishKafka`/`ConsumeKafka` nor `ExecuteScript`.
-This is confirmed in the field (2026-07-25) and agrees with Cloudera's own CEM 2.4.0 release notes
+This is confirmed in the field and agrees with Cloudera's own CEM 2.4.0 release notes
 (`docs.cloudera.com/cem/2.4.0/release-notes-minifi-java/topics/cem-java-agent-processors.html`),
 which document the out-of-the-box set with no Kafka and no scripting, and reference adding them
 via a NAR drop-in into `<MINIFI_AGENT_HOME>/extensions`.
 
-### Adding the NARs — field-verified 2026-07-27
+### Adding the NARs — field-verified
 
 The NARs cannot be copied from a full NiFi install. NiFi's NAR loader matches by **exact**
 group+id+version string. A `mynifi` instance running CFM `2.6.0.4.3.4.0-234` carries NARs whose
@@ -324,7 +323,7 @@ Watch `minifi-app.log` for the `NAR Auto-Loader` pickup lines (`[0] skipped` = c
 manifest goes **114 → 122 processors**. After autoload, re-map the class manifest ID (see *The
 class-manifest trap* above) — the new manifest ID appears in the agent's next heartbeat.
 
-### Field certification — what actually ran (2026-07-27)
+### Field certification — what actually ran
 
 **`KubernetesPodJava`:**
 - `ExecuteScript` (Groovy 4.0.23): a Groovy script set a custom attribute that appeared on every
@@ -341,9 +340,8 @@ class-manifest trap* above) — the new manifest ID appears in the agent's next 
   appeared on every flowfile.
 - `PublishKafka` instantiated a real Kafka 3.9.0 transactional producer, attempted a real TCP
   connect to the LAN broker, and failed with `TimeoutException: Timeout expired after 5000ms while
-  awaiting InitProducerId` — the same hairpin-NAT limitation hitting the C++ agent in
-  `efm-validation-agent.md` Task 3. This is a network topology issue, not a processor-availability
-  failure.
+  awaiting InitProducerId` — the same hairpin-NAT limitation that hits the C++ agent. This is a
+  network topology issue, not a processor-availability failure.
 
 Pre-built artifacts live at `~/efm-binaries/java-nar-drop-in-2.24.08.0-19/` on WindowsDesktop —
 copy anywhere without rebuilding.
@@ -353,8 +351,7 @@ copy anywhere without rebuilding.
 `nifi-scripting-nar` for this build ships **Groovy 4.0.23 and Clojure 1.8.0**. There is no
 Jython/Python in this NAR (unlike the C++ `ExecuteScript` extension, which runs Python via the C++
 Python bridge). If you need Python execution in a Java MiNiFi agent, the path is the py4j framework
-(`nifi.python.command` in `minifi.properties`) — that route is partially explored in
-`efm-windows-java-minifi.md` § *Custom Python processor (py4j framework)*, but is currently
+(`nifi.python.command` in `minifi.properties`) — but that route is currently
 blocked because `nifi.python.command` cannot be set durably on an EFM-managed agent (the agent
 regenerates `minifi.properties` from EFM's stored config on every boot, and C2 `UPDATE_PROPERTIES`
 for this key is on the server-side denylist).
@@ -369,8 +366,7 @@ Both processors and their `StandardHttpContextMap` controller service ship in th
 HandleHttpRequest (:8085) → HandleHttpResponse (200) → LogAttribute
 ```
 
-Field-verified 2026-07-31 ([#55](https://github.com/cldr-steven-matison/DesktopShare/issues/55))
-on a `docker run` of `container.repo.cloudera.com/cloudera/nifi-minifi-java:latest`:
+Field-verified on a `docker run` of `container.repo.cloudera.com/cloudera/nifi-minifi-java:latest`:
 
 - `curl -X POST` returned a real `200` in ~84 ms
 - The flowfile reached `LogAttribute` independently afterward — proof the response flushes without
@@ -387,7 +383,7 @@ A Java MiNiFi agent on an aarch64 device uses the same `java/linux` tarball (the
 coordinate covers both x86_64 and aarch64 for the Java binary, since it is a JVM artifact). The
 only additional requirement is a JRE 21 for aarch64.
 
-Field-verified 2026-07-31 ([#28](https://github.com/cldr-steven-matison/DesktopShare/issues/28)):
+Field-verified:
 
 - **JRE**: Eclipse Temurin 21.0.12+8 aarch64, portable tarball extracted to `~/jdk21/` — no
   `apt`/`sudo` required, fully user-space.
@@ -402,8 +398,8 @@ Field-verified 2026-07-31 ([#28](https://github.com/cldr-steven-matison/DesktopS
   disk (419 MB agent + 158 MB JRE).
 - Both `NvidiaNano` (C++) and `NvidiaNanoJava` (Java) agents run concurrently — no conflict.
 
-No flow was published on `NvidiaNanoJava` in this pass; the actual router-flow switch to
-`HandleHttpRequest`/`HandleHttpResponse` for the XIAO/MicroFi synchronous round-trip is #28's
+No flow is published on `NvidiaNanoJava` here; the router-flow switch to
+`HandleHttpRequest`/`HandleHttpResponse` for the XIAO/MicroFi synchronous round-trip is a separate
 design decision.
 
 ## What NOT to do
@@ -414,7 +410,7 @@ validation 409s, and empty flows after "successful" reloads. Always create a new
 
 **Assume Java MiNiFi CEM = full NiFi processor set.** The field-verified stock count is
 **114** — not "200+". Both the Kafka and scripting NARs are absent in the tarball. They can be
-built from the matching source and dropped in to reach 122 (field-verified 2026-07-27) — but
+built from the matching source and dropped in to reach 122 (field-verified) — but
 don't assume they're simply unavailable either.
 
 **Copy NARs from a full NiFi instance.** `Nar-Dependency-Version` mismatches cause silent
@@ -435,7 +431,7 @@ state. Every processor on the canvas must pass validation, connected or not. A 4
 that references processors you're not actively working on usually means there are disconnected
 processors left over from a previous session — delete them before publishing.
 
-## Known final gap: no Kafka NAR parity out of the box — tracked as issue #66
+## Known final gap: no Kafka NAR parity out of the box
 
 The stock Java MiNiFi image (`container.repo.cloudera.com/cloudera/nifi-minifi-java:latest`) and
 the EFM-staged CEM tarball (`minifi-2.24.08.0-19-bin.tar.gz`) both ship **without a Kafka NAR**.
@@ -448,12 +444,10 @@ filesystem and have the matching source tarball. For agents that are auto-provis
 without a post-install step, the gap remains.
 
 Kafka NAR parity — getting `PublishKafka` into a stock Java MiNiFi deployment without a manual
-build — is tracked separately as
-[issue #66](https://github.com/cldr-steven-matison/DesktopShare/issues/66). That work is **not**
-a blocker for the flows in this chapter; the NAR drop-in is the working path today.
+build — remains a separate open item. It is **not** a blocker for the flows in this chapter; the
+NAR drop-in is the working path today.
 
-## Source
+## Related chapters
 
-Primary: `efm-windows-java-minifi.md` (310 lines — field-verified 2026-07-25; Kafka + scripting
-NAR drop-in field-verified 2026-07-27). Binary staging mechanics and the Java NAR build recipe:
-`efm-binaries.md`. Full processor list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`.
+- Ch2 — [EFM Binaries](ch02-efm-binaries.md): binary staging mechanics and the Java NAR build recipe.
+- Ch4 — [MiNiFi Java Processor Catalog](ch04-java-processor-catalog.md): the full processor/controller-service set. Full processor list: `files/efm/java-minifi-2.24.08.0-19-processors.txt`.

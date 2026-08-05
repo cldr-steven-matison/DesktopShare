@@ -51,8 +51,7 @@ All three YAMLs live in `~/ClouderaStreamingOperators/`: `efm-configMap.yaml`, `
 
 ## The 8-phase deploy
 
-Full command listing (every flag, every verify step) is in `blog/efm-persistance.md`. This section
-keeps the key command per phase.
+This section keeps the key command per phase.
 
 ### Phase 0 — cluster up check
 
@@ -129,7 +128,7 @@ If `grep db.url` shows `h2`, the ConfigMap didn't mount — re-apply `efm-config
 
 ### Phase 5 — stage agent binaries (one-time per PVC)
 
-If the binaries directory is already populated, skip this. Otherwise see `efm-binaries.md` for the
+If the binaries directory is already populated, skip this. Otherwise see [Chapter 2 (EFM Binaries)](ch02-efm-binaries.md) for the
 full build. The streaming copy:
 
 ```bash
@@ -243,8 +242,7 @@ as a missing file on the next heartbeat. The fix is `efm-pvc.yaml` + remounting,
 
 ---
 
-## Source
+## Related chapters
 
-Source doc: `blog/efm-persistance.md` — the full 8-phase recipe with every command, every verify
-step, and the complete YAML reference. This chapter is a condensed synthesis; that file is the
-full listing.
+- Ch2 — [EFM Binaries & staging tree](ch02-efm-binaries.md): stocking the agent-binary tree that the
+  deploy above expects, so the `Deploy Agent` button stops returning `400`.
