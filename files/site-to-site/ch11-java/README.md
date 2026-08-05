@@ -5,8 +5,10 @@ profile 2026-08-04 (FTF3XR2065). This is the companion to [`minifi-site-to-site-
 (the Ch10 C++ spine) — everything here reuses that proven NiFi-side setup; only the **source agent**
 changes (Java instead of C++).
 
-**Status: every layer proven live EXCEPT the final mTLS transit, which is blocked by a characterized
-platform limit (see "The blocker" below) — the same class as [#41](https://github.com/cldr-steven-matison/DesktopShare/issues/41).**
+**Status: DONE — every layer proven live, including the final mTLS transit.** The transit was never a
+`#41`-class platform limit; the real root cause was MiNiFi Java's `bootstrap.conf`→`minifi.properties`
+regeneration wiping the S2S client SSL config (see "The blocker — and its actual root cause" below).
+Fixed durably in `bootstrap.conf` and shipped as a custom unmanaged `minifi-java` image (resolves #35).
 
 The manifests here are the pieces that were **not** committed after Ch10 and had to be reconstructed;
 they now live in-repo so the next run is copy-paste. The two large declarative files that already
@@ -105,35 +107,82 @@ operator only creates the headless `nifi` service (6007/5000); **`nifi-web` (844
 hand** or every User/initial-admin reconcile fails `no such host` and `users.xml` stays empty. That
 host IS in the node-cert SAN, so TLS validates once the service exists.
 
-## The blocker — EFM-managed Java agent can't hold its S2S client cert (a #41-class platform limit)
+## The blocker — and its actual root cause (corrected)
 
-The flow publishes and the agent applies it and actively attempts S2S — but the RPG's first S2S REST
-call to NiFi fails `(certificate_unknown) PKIX path building failed` because **the agent never presents
-a client cert**. Root cause, proven three ways:
+The RPG's first S2S call to NiFi failed `(certificate_unknown) PKIX path building failed: unable to
+find valid certification path to requested target`. The failing stack is **client-side**
+(`SSLHandshake.consume → PKIXValidator.engineValidate`): minifi couldn't build a trust path to
+NiFi's *server* cert — i.e. the S2S client was validating against the **JVM default truststore
+(`cacerts`)**, not minifi's, so it had never loaded the `cfm-operator-ca`. The keystore/truststore
+files were correct all along (client `CN=minifi-s2s` signed by `cfm-operator-ca`; truststore holds
+`cfm-operator-ca`; server `CN=nifi` signed by the same CA) — they simply weren't being applied to the
+S2S/RPG SSL context.
 
-1. Local `nifi.security.*` edits to `minifi.properties` are **blank again after every restart**.
-2. `c2.enable=false` set locally is **reset to `true`** on the next start.
-3. Making `minifi.properties` read-only → startup dies with `StartupFailureException: Unable to create
-   MiNiFi properties file … Failed to write MiNiFi properties … Permission denied`.
+Why: **MiNiFi Java regenerates `minifi.properties` from `bootstrap.conf` on every start.** The
+EFM-deployer's `bootstrap.conf` ships with `nifi.minifi.security.*` **empty** and
+`nifi.minifi.flow.use.parent.ssl=false`. Editing the *generated* `minifi.properties` (as earlier
+attempts did) is wiped on the next restart. This is the bootstrap→properties regeneration, **not** a
+`#41` C2 `UPDATE_PROPERTIES` denylist — that framing was a misdiagnosis.
 
-So the EFM-deployer Java agent **regenerates `minifi.properties` from its C2-cached config as the first
-step of every startup**, wiping the client keystore/truststore config (and `use.parent.ssl`, and
-`c2.enable` itself). The truststore/keystore themselves are correct — `curl --cacert <ca> https://nifi-web:8443`
-returns `SSL certificate verify ok` (the server only rejects the missing *client* cert), and the
-keytool-built truststore's CA is byte-identical to the validating CA.
+**The durable fix** (proven live): set the client SSL config in **`bootstrap.conf`**, which *is* the
+source of truth the regeneration reads:
 
-Both EFM-native ways to inject those props are also broken (both confirmed under #41):
-- Agent-class `customizedProperties` PUT returns `200` but **does not persist** (GET shows `{}` again).
-- C2 `UPDATE_PROPERTIES` for `nifi.security.*` / `nifi.web.*` is **denylisted** server-side.
+```
+nifi.minifi.security.keystore=/certs-ks/keystore.p12
+nifi.minifi.security.keystoreType=PKCS12
+nifi.minifi.security.keystorePasswd=changeit
+nifi.minifi.security.keyPasswd=changeit
+nifi.minifi.security.truststore=<install>/conf/truststore-ks.p12
+nifi.minifi.security.truststoreType=PKCS12
+nifi.minifi.security.truststorePasswd=changeit
+nifi.minifi.flow.use.parent.ssl=true
+```
 
-The C++ Ch10 agent avoided this: its boot script sets `nifi.security.client.*` and C++ MiNiFi does not
-regenerate its config from C2 the same way.
+Restarting minifi with that regenerated `minifi.properties` carrying `nifi.security.*` +
+`use.parent.ssl=true`, the RPG immediately `Successfully refreshed Flow Contents` and streamed
+FlowFiles over mTLS (`RemoteGroupPort[name=from-minifi] Successfully sent … to …/nifi-api`), NiFi-side
+`flowFilesReceived` climbing — **zero PKIX errors**.
 
-## Proposed unblock (not yet built)
+The catch for the EFM-deployer pattern: `bootstrap.conf` survives a *minifi-process* restart but is
+rewritten fresh (empty SSL again) on a *pod* restart, because the deployer re-runs on cold boot.
 
-A **custom `minifi-java` image** (resolves #35): `FROM eclipse-temurin:21-jre`, unpack
-`minifi-2.24.08.0-19-bin.tar.gz`, bake in a fixed `minifi.properties` (C2 disabled, `nifi.security.*`
-pointing at the mounted `minifi-s2s` keystore/truststore, `nifi.minifi.flow.use.parent.ssl=true`) and
-the published `flow.json.gz`, run as a plain pod. No EFM-deployer bootstrap = no config regen, so the
-client cert sticks and the mTLS handshake should complete. This is the "in-cluster image" path; it
-runs the agent unmanaged (direct-on-agent) rather than EFM-directed.
+## The resolution — a custom unmanaged `minifi-java` image (resolves #98 + #35)
+
+Bake the fixed `bootstrap.conf` into an image and run it with no EFM deployer, so nothing rewrites it
+on boot. Files in this dir: [`Dockerfile`](Dockerfile), [`bootstrap.conf`](bootstrap.conf) (fixed,
+`c2.enable=false`), [`minifi-java-unmanaged.yaml`](minifi-java-unmanaged.yaml) (a plain Deployment).
+
+Assemble the build context (the binary/cluster-specific pieces are referenced, not committed):
+
+```bash
+mkdir -p ~/s2s-java-image && cd ~/s2s-java-image
+cp <this-dir>/Dockerfile <this-dir>/bootstrap.conf <this-dir>/minifi-java-unmanaged.yaml .
+ln -f ~/efm-binaries/staging/binaries/java/linux/2.24.08.0-19/minifi.tar.gz minifi.tar.gz
+# the flow + CA truststore come off the running agent (or any published copy):
+A=$(kubectl -n cld-streaming get pod -l app=minifi-java-unmanaged -o jsonpath='{.items[0].metadata.name}')
+for f in flow.json.raw flow.json.gz flow-identifier truststore-ks.p12; do
+  kubectl cp cld-streaming/$A:/minifi-2.24.08.0-19/conf/$f ./$f
+done
+```
+
+```bash
+# build into the cluster's docker daemon (no registry push)
+eval "$(minikube -p s2s-lab docker-env)"
+docker build -t minifi-java-s2s:2.24.08.0-19 .
+kubectl apply -f minifi-java-unmanaged.yaml           # mounts minifi-s2s-keystore at /certs-ks
+```
+
+Baked into the image: the fixed `bootstrap.conf`, the CA-only `truststore-ks.p12` (public, safe to
+bake), and the flow. **`flow.json.raw` is authoritative in MiNiFi Java 2.x** — `flow.json.gz` is
+derived from it; bake both plus `flow-identifier` or minifi regenerates an empty default flow and
+recompresses over the `.gz` (symptom: `Starting 0 processors`). The client **keystore.p12** (private
+key) is *not* baked — it is mounted at runtime from the `minifi-s2s-keystore` secret.
+
+Verified from a **cold pod**, no EFM: `Starting 1 processors/ports/funnels` → `Started 1 Remote Group
+Ports transmitting` → `Successfully refreshed Flow Contents` → `Successfully sent … (32 bytes) …
+in 14 ms`, sent count climbing every 5 s, NiFi-side `flowFilesReceived` rising, **0 PKIX**. Because
+every boot reads the baked `bootstrap.conf`, this is pod-restart durable — the property the
+EFM-deployer path can't hold.
+
+The C++ Ch10 agent never hit this: its boot script sets the client SSL props directly and C++ MiNiFi
+doesn't regenerate config from `bootstrap.conf` the same way.

@@ -1,6 +1,6 @@
 # MiNiFi Site-to-Site: the full transport matrix
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟢 Ch10 FIELD-VALIDATED (2026-08-04) — MiNiFi C++ → CFM-operator NiFi secure S2S proven end to end on the `s2s-lab` profile; FlowFiles transit into the target input port, peer authorized declaratively via the operator's `User` CR. Full runbook + war stories in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md). Ch11 (Java agent) 🟡 BUILT-BUT-BLOCKED (2026-08-04, #98): the entire path is stood up live and every layer proven — NiFi-side secure S2S, an authorized `minifi-s2s` peer, a registered MiNiFi Java agent, and a published `GenerateFlowFile → RPG(HTTP) → from-minifi` flow — but the final mTLS transit is blocked by a characterized platform limit (the EFM-deployer Java agent regenerates `minifi.properties` on every start, wiping its `nifi.security.*` client-cert config; the #41-class wall). Full reproducible recipe + the three-way proof of the blocker: [`files/site-to-site/ch11-java/README.md`](files/site-to-site/ch11-java/README.md).**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟢 Ch10 FIELD-VALIDATED (2026-08-04) — MiNiFi C++ → CFM-operator NiFi secure S2S proven end to end on the `s2s-lab` profile; FlowFiles transit into the target input port, peer authorized declaratively via the operator's `User` CR. Full runbook + war stories in [`minifi-site-to-site-lab.md`](minifi-site-to-site-lab.md). Ch11 (Java agent) 🟢 FIELD-VALIDATED (2026-08-05, #98): the entire path is proven end to end — NiFi-side secure S2S, an authorized `minifi-s2s` peer, a MiNiFi Java agent, and a `GenerateFlowFile → RPG(HTTP) → from-minifi` flow transiting FlowFiles over mTLS. The earlier "blocker" was a misdiagnosis: the failure was a client-side `PKIX` (the RPG SSL client fell back to the JVM default `cacerts`), and the root cause was MiNiFi Java regenerating `minifi.properties` from `bootstrap.conf` on every start — not a #41-class C2 denylist. Fix: set `nifi.minifi.security.*` + `nifi.minifi.flow.use.parent.ssl=true` in `bootstrap.conf`, shipped as a custom unmanaged `minifi-java` image (resolves #35). Chapter [`guide/ch11-minifi-java-site-to-site.md`](guide/ch11-minifi-java-site-to-site.md); recipe [`files/site-to-site/ch11-java/README.md`](files/site-to-site/ch11-java/README.md).**
 
 Site-to-Site (S2S) is how flow files move between MiNiFi and NiFi. **Scope: the two local
 k8s legs only** (MiNiFi → NiFi in minikube).
@@ -34,7 +34,7 @@ k8s legs only** (MiNiFi → NiFi in minikube).
 | # | Path | Environment | Prereqs | Status |
 |----|------|-------------|---------|--------|
 | Ch10 | MiNiFi C++ → NiFi K8s | local minikube | C++ MiNiFi agent, NiFi Remote Process Group + input port | 🟢 field-validated 2026-08-04 |
-| Ch11 | MiNiFi Java → NiFi K8s | local minikube | Java MiNiFi agent, same RPG/input port | 🔲 scoped, untested |
+| Ch11 | MiNiFi Java → NiFi K8s | local minikube | Java MiNiFi agent, same RPG/input port | ✅ field-validated 2026-08-05 (#98) |
 
 ## Build order
 
