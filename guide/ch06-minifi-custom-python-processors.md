@@ -132,6 +132,11 @@ There is also a real prerequisite the C++ legs never had: **the stock MiNiFi-Jav
 
 ---
 
+## Runnable scenario
+
+Both recipes are packaged as a lift-and-run scenario — each `.py`, its `minifi.properties`/`bootstrap.conf` snippet, and the published EFM flow export (plus a one-`apply` disposable Java agent pod):
+[`MiNiFi-Kubernetes-Playground/sample-gallery/python-processors/`](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground/tree/main/sample-gallery/python-processors).
+
 ## Source
 
-`minifi-python-processors.md` — the living findings doc this chapter is drawn from, with the full per-leg result blocks (Windows C++, k8s arm64/x86_64, Jetson real-HW, and the Java-leg block) and the open packaging item. Companion docs: `efm-binaries.md` (the on-device `.so`/`.pyd` evidence), Apache `nifi-minifi-cpp` `PYTHON.md` (the authoritative custom-Python-processor API) and `CONFIGURE.md#asset-directory` (the EFM-Resources delivery path), and the [ExecuteScript Availability](ch05-executescript-availability.md) chapter — the adjacent, different concept, here for boundary-drawing only.
+`minifi-python-processors.md` — the living findings doc this chapter is drawn from, with the full per-leg result blocks (Windows C++, k8s arm64/x86_64, Jetson real-HW, and the CEM Java leg). Companion docs: `efm-binaries.md` (the on-device `.so`/`.pyd` evidence), Apache `nifi-minifi-cpp` `PYTHON.md` (the authoritative custom-Python-processor API) and `CONFIGURE.md#asset-directory` (the EFM-Resources delivery path), and the [ExecuteScript Availability](ch05-executescript-availability.md) chapter — the adjacent, different concept, here for boundary-drawing only.

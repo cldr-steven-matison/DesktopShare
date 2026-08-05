@@ -24,8 +24,8 @@ handful of platform-blocked legs that are proven-except-for-the-blocker rather t
 | Metric | Count |
 |---|---|
 | Chapters (8 parts) | 19 (+Ch14 NiFi & AI Skill EFM Portion 2026-08-03; cloud S2S Ch12–13 descoped 2026-08-03) |
-| ✅ Done / 🟡 In-progress / 🔲 Not started | 15 / 4 / 0 |
-| Folded guide chapters (`guide/`) | 15 files, ~35,600 words |
+| ✅ Done / 🟡 In-progress / 🔲 Not started | 16 / 3 / 0 |
+| Folded guide chapters (`guide/`) | 16 files, ~37,000 words |
 | Guide index / TOC (`guide/index.md`) | 1 file, ~920 words |
 | Source + subplan docs | ~28 files, ~68,000 words |
 | Blog drafts (Ch2, Ch16) | ~5,500 words (Ch16 draft expanded under #92) |
@@ -42,7 +42,7 @@ handful of platform-blocked legs that are proven-except-for-the-blocker rather t
 - ✅ Ch3 — C++ processor catalog
 - ✅ Ch4 — Java processor catalog
 - ✅ Ch5 — ExecuteScript availability (4 paths)
-- 🟡 Ch6 — MiNiFi custom Python processors *(folded to `guide/ch06`; all 6 platform legs proven incl. CEM Java 2026-08-04 via `bootstrap.conf`+`python3` — epic #59; only Playground packaging remains)*
+- ✅ Ch6 — MiNiFi custom Python processors *(folded to `guide/ch06`; all 6 platform legs proven incl. CEM Java via `bootstrap.conf`+`python3`, AND packaged as a runnable Playground scenario — 2026-08-04, epic #59)*
 - ✅ Ch7 — Standalone MiNiFi C++ on K8s MiNiFi Playground (repo)
 - ✅ Ch8 — MiNiFi Playground Java setup
 - ✅ Ch9 — Introduce EFM into the MiNiFi Playground

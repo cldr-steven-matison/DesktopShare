@@ -1,6 +1,6 @@
 # MiNiFi Custom Python Processors
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows direct-placement leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10); Windows MSI EFM-Resources leg proven end-to-end for function-style processors, with two real Windows-specific delivery gotchas found and worked around (2026-07-29, issue #4 item 2). Java py4j framework confirmed structurally present AND loads authored code (2026-07-29, issue #4 item 3). Jetson aarch64 real-hardware leg proven end-to-end via the full EFM-managed path (2026-08-01, issue #65). **CEM Java leg now proven end-to-end (2026-08-04, epic #59, `MinikubeMacJavaPyTest` k8s throwaway):** the "no live channel" block was a red herring — set `nifi.python.command` in `bootstrap.conf` (MiNiFi-Java regenerates `minifi.properties` from it every start, wiping direct edits) and add a `python3` to the image; full `ListenHTTP → EdgeJavaTagger → LogAttribute` flow via the EFM Designer API, 3/3 POSTs, no drops. Remaining: only step 5's Playground packaging.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows direct-placement leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10); Windows MSI EFM-Resources leg proven end-to-end for function-style processors, with two real Windows-specific delivery gotchas found and worked around (2026-07-29, issue #4 item 2). Java py4j framework confirmed structurally present AND loads authored code (2026-07-29, issue #4 item 3). Jetson aarch64 real-hardware leg proven end-to-end via the full EFM-managed path (2026-08-01, issue #65). **CEM Java leg now proven end-to-end (2026-08-04, epic #59, `MinikubeMacJavaPyTest` k8s throwaway):** the "no live channel" block was a red herring — set `nifi.python.command` in `bootstrap.conf` (MiNiFi-Java regenerates `minifi.properties` from it every start, wiping direct edits) and add a `python3` to the image; full `ListenHTTP → EdgeJavaTagger → LogAttribute` flow via the EFM Designer API, 3/3 POSTs, no drops. Playground packaging (step 5) done 2026-08-04 — runnable `python-processors/` scenario (C++ + Java recipes) added to `MiNiFi-Kubernetes-Playground/sample-gallery/python-processors/` with a gallery card. All legs proven AND packaged → Ch6 ✅ done.**
 
 Authoring **custom processors in Python** and loading them into a MiNiFi C++ agent at the
 edge — the MiNiFi counterpart to the NiFi 2.x custom Python processors we already run in
@@ -205,7 +205,7 @@ can't currently be set on this EFM-managed agent through any channel tried this 
 2. **Place** it in the agent's configured processor directory; restart the agent. — **Done**, via direct file placement (see delivery-mechanism note above for why not EFM Resources this time).
 3. **Confirm** it registers: pull the agent manifest (same method as `efm-validation-agent.md` Task 1) and check the new type is listed with its declared properties/relationships. — **Done**, full manifest entry captured above.
 4. **Wire** it in an EFM Designer flow: `ListenHTTP → EdgeTagger → PutFile`; POST a payload; confirm the attribute lands and no drops (ListenHTTP Batch/Buffer Size = 1, MINIFICPP-2243). — **Done** (`LogAttribute` instead of `PutFile` — equally valid proof of a real transform running), zero validation errors, `edgechromeloader.registered=true` confirmed on a real POSTed flow file.
-5. **Package** as a `python-processors/` scenario in the MiNiFi Playground repo (authored `.py` + `minifi.properties` snippet + the flow). — **Not done this session** — this issue's scope was proving registration on the real Windows agent classes, not packaging the Playground scenario; a future session should fold `EdgeChromeLoader` (or the k8s/arm64 leg's authored processor) into `NiFi2-Processor-Playground`/`MiNiFi-Kubernetes-Playground` once both legs are proven.
+5. **Package** as a `python-processors/` scenario in the MiNiFi Playground repo (authored `.py` + properties snippet + the flow). — **Done 2026-08-04** — [`MiNiFi-Kubernetes-Playground/sample-gallery/python-processors/`](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground/tree/main/sample-gallery/python-processors) carries both the C++ `EdgeTagger` (function-style) and the Java `EdgeJavaTagger` (py4j) recipes — each with its `.py`, its `minifi.properties`/`bootstrap.conf` snippet, and the published EFM flow export — plus a gallery card.
 
 ## Field-validation task — deliver the processor via EFM Resources (asset directory); k8s first
 
@@ -473,13 +473,14 @@ live agent; POST a payload, confirm the transform in the sink and no buffer-full
 that a *change* to the `.py` needs an agent restart (unlike ExecuteScript) so the reader isn't
 surprised.
 
-## When this ships
+## When this ships — SHIPPED 2026-08-04
 
-Add `python-processors/` to the Playground, flip this chapter's row to ✅ in the master guide, and update
-`minifi-playground-cpp-processors.md` alongside (per the cross-reference rule — the source doc
-gets the authored-processor count/mechanics folded in, not left to drift). If the processor does
-AI work, it also becomes one of the capabilities the "How to AI with MiNiFi" post covers —
-as one option among several, not the whole post.
+Done: `python-processors/` scenario added to the Playground
+([`MiNiFi-Kubernetes-Playground/sample-gallery/python-processors/`](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground/tree/main/sample-gallery/python-processors) — C++ + Java recipes,
+`.py` + props/`bootstrap.conf` snippet + published flow export + a gallery card); Ch6 flipped to ✅
+in the master guide; `minifi-playground-cpp-processors.md` cross-referenced (per the cross-reference
+rule). If the processor does AI work, it also becomes one of the capabilities the "How to AI with
+MiNiFi" post covers — as one option among several, not the whole post.
 
 **Six legs now proven end-to-end as of 2026-08-04** — Windows C++ direct
 placement (`WindowsDesktopCpp`, issue #4), k8s arm64 C++ (`KubernetesPod`/FTF3XR2065, issue #6),

@@ -272,6 +272,18 @@ Test-Path "C:\minifi\nifi-minifi-cpp\extensions\minifi_native.pyd"              
 
 Full 9-step recovery plan (including clean-slate uninstall) is in `efm-binaries-windows-python.md`.
 
+### Custom Python *processors* — distinct from `ExecuteScript`
+
+Once the Python runtime is present (any fix path above), the same agent can also load **authored
+custom Python processors** — a *new processor type* you write, registered under its own name, not
+the generic `ExecuteScript`. That's a separate capability with its own delivery mechanics (EFM
+Resources into the asset directory, function-style vs `nifiapi` class-style, restart-on-signature-change),
+covered in [Ch6 of the guide](Complete%20Guide%20to%20Edge%20Flow%20Management.md) and packaged as a
+runnable scenario in the Playground:
+[`sample-gallery/python-processors/`](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground/tree/main/sample-gallery/python-processors)
+(C++ `EdgeTagger` + Java `EdgeJavaTagger`). Do not conflate the two: `ExecuteScript` is one built-in
+processor you paste a script into; a custom processor is a type you author.
+
 ---
 
 ## `config.yml` processor class name reference
