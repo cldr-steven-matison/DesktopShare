@@ -38,7 +38,7 @@ Which processors actually exist in each build, how `ExecuteScript` availability 
 - **Ch3** — [MiNiFi C++ Processor Catalog](ch03-cpp-processor-catalog.md)
 - **Ch4** — [MiNiFi Java Processor Catalog](ch04-java-processor-catalog.md)
 - **Ch5** — [ExecuteScript Availability](ch05-executescript-availability.md)
-- **Ch6** — MiNiFi custom Python processors *(pending — [#65](https://github.com/cldr-steven-matison/DesktopShare/issues/65))*
+- **Ch6** — [MiNiFi custom Python processors](ch06-minifi-custom-python-processors.md)
 
 ### Part III — MiNiFi Playground repo
 Install and use plain MiNiFi (C++ and Java), then bring EFM in to manage the agents and resources.

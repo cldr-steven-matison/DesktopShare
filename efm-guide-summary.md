@@ -42,7 +42,7 @@ handful of platform-blocked legs that are proven-except-for-the-blocker rather t
 - ✅ Ch3 — C++ processor catalog
 - ✅ Ch4 — Java processor catalog
 - ✅ Ch5 — ExecuteScript availability (4 paths)
-- 🟡✍️ Ch6 — MiNiFi custom Python processors
+- 🟡 Ch6 — MiNiFi custom Python processors *(folded to `guide/ch06`; all 6 platform legs proven incl. CEM Java 2026-08-04 via `bootstrap.conf`+`python3` — epic #59; only Playground packaging remains)*
 - ✅ Ch7 — Standalone MiNiFi C++ on K8s MiNiFi Playground (repo)
 - ✅ Ch8 — MiNiFi Playground Java setup
 - ✅ Ch9 — Introduce EFM into the MiNiFi Playground

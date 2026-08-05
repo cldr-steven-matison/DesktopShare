@@ -1,6 +1,6 @@
 # MiNiFi Custom Python Processors
 
-**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows direct-placement leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10); Windows MSI EFM-Resources leg proven end-to-end for function-style processors, with two real Windows-specific delivery gotchas found and worked around (2026-07-29, issue #4 item 2). Java py4j framework confirmed structurally present AND loads authored code, but functionally blocked on this agent by a required `nifi.python.command` property that can't currently be set through any live channel (2026-07-29, issue #4 item 3). Jetson aarch64 real-hardware leg proven end-to-end via the full EFM-managed path (2026-08-01, issue #65). Remaining: Java CEM property-gate workaround, and step 5's Playground packaging.**
+**Subplan of the Complete Guide to Edge Flow Management. Status: 🟡 C++/Windows direct-placement leg proven end-to-end (2026-07-28, issue #4); k8s/arm64 field-validation task proven end-to-end (2026-07-28, issue #6); k8s/x86_64 field-validation task proven end-to-end via the full EFM-managed path — Designer build + publish, not a local config.yml shortcut (2026-07-29, issue #10); Windows MSI EFM-Resources leg proven end-to-end for function-style processors, with two real Windows-specific delivery gotchas found and worked around (2026-07-29, issue #4 item 2). Java py4j framework confirmed structurally present AND loads authored code (2026-07-29, issue #4 item 3). Jetson aarch64 real-hardware leg proven end-to-end via the full EFM-managed path (2026-08-01, issue #65). **CEM Java leg now proven end-to-end (2026-08-04, epic #59, `MinikubeMacJavaPyTest` k8s throwaway):** the "no live channel" block was a red herring — set `nifi.python.command` in `bootstrap.conf` (MiNiFi-Java regenerates `minifi.properties` from it every start, wiping direct edits) and add a `python3` to the image; full `ListenHTTP → EdgeJavaTagger → LogAttribute` flow via the EFM Designer API, 3/3 POSTs, no drops. Remaining: only step 5's Playground packaging.**
 
 Authoring **custom processors in Python** and loading them into a MiNiFi C++ agent at the
 edge — the MiNiFi counterpart to the NiFi 2.x custom Python processors we already run in
@@ -266,7 +266,7 @@ running config off the pod, don't assume the install layout.
 | C++ | Linux x86_64 | WindowsDesktop minikube (`device:WindowsDesktop`) — **✅ done, issue #10** |
 | C++ | Windows (MSI, Path D box) | WindowsDesktop (`device:WindowsDesktop`) — **✅ done, issue #4 item 2** |
 | C++ | Linux aarch64 (real HW) | Jetson (`device:NvidiaNano`, via WindowsDesktop SSH) — **✅ done, issue #65** |
-| Java | CEM Java agent | WindowsDesktop or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) — **🟡 partial, issue #4 item 3** |
+| Java | CEM Java agent | WindowsDesktop or FTF3XR2065 (`device:WindowsDesktop` / `device:FTF3XR2065`) — **✅ done, epic #59 (2026-08-04, `MinikubeMacJavaPyTest` k8s throwaway)** — full flow via EFM Designer API, 3/3 POSTs, no drops. Unblock: `nifi.python.command` in `bootstrap.conf` + `python3` in image. Windows CEM agent (issue #4 item 3) untested with this workaround but the mechanism is deployment-general |
 
 The k8s (arm64 C++) leg (issue #6), k8s (x86_64 C++) leg (issue #10), Windows MSI C++ leg
 (issue #4 item 2), and the Jetson aarch64 real-HW leg (issue #65) are all done. Issue #10
@@ -481,15 +481,19 @@ gets the authored-processor count/mechanics folded in, not left to drift). If th
 AI work, it also becomes one of the capabilities the "How to AI with MiNiFi" post covers —
 as one option among several, not the whole post.
 
-**Not there yet as of 2026-08-01** — five legs are now fully proven end-to-end: Windows C++ direct
+**Six legs now proven end-to-end as of 2026-08-04** — Windows C++ direct
 placement (`WindowsDesktopCpp`, issue #4), k8s arm64 C++ (`KubernetesPod`/FTF3XR2065, issue #6),
 k8s x86_64 C++ (`KubernetesPodPyTest`/WindowsDesktop, issue #10, the first leg to also prove the
 full EFM Designer build-and-publish path rather than a local `config.yml`), Windows MSI C++ via
-EFM Resources (`WindowsDesktopCppPyTest`/WindowsDesktop, issue #4 item 2), and Jetson aarch64 real
-hardware (`NvidiaNanoPyTest`/NvidiaNano via WindowsDesktop SSH, issue #65). Still open: the Java CEM
-agent (structurally proven, functionally blocked on a property-configuration gap — see the
-Java-leg result block above), and step 5's Playground packaging (not done on any leg yet). Ship
-criteria: all legs proven AND packaged, not just five of them.
+EFM Resources (`WindowsDesktopCppPyTest`/WindowsDesktop, issue #4 item 2), Jetson aarch64 real
+hardware (`NvidiaNanoPyTest`/NvidiaNano via WindowsDesktop SSH, issue #65), and — new —
+**the CEM Java leg** (`MinikubeMacJavaPyTest`/FTF3XR2065, throwaway k8s agent, epic #59): the
+long-standing "no live channel" block was resolved by setting `nifi.python.command` in
+**`bootstrap.conf`** (MiNiFi-Java regenerates `minifi.properties` from it on every start, so a
+direct properties edit is wiped) plus adding a `python3` to the image; full
+`ListenHTTP → EdgeJavaTagger → LogAttribute` flow built via the EFM Designer API, 3/3 POSTs, no
+drops. Still open: **step 5's Playground packaging** (not done on any leg yet). Ship
+criteria: all legs proven AND packaged — packaging is now the only remaining gate.
 
 ### Venv-bootstrap bug — item 4 sanity re-check (2026-07-29, issue #4)
 
