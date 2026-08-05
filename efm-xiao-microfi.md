@@ -646,3 +646,59 @@ Update `efm-xiao.md` too: MicroFi registers cleanly and the implicit ack works, 
 the sketch" plan is now genuinely the fallback rather than the primary path — the open decision is
 still whether `PublishMQTT` (unbuilt, `P0` on MicroFi's roadmap) is close enough to wait for before
 committing to one path for real telemetry-to-Kafka work.
+
+## GetGPIO resolved, ListenHTTP shipped — 2026-08-04 (WindowsDesktop, issues #58/#26)
+
+The XIAO moved from StarlinkAI to WindowsDesktop (SSH into StarlinkAI's WSL2 over Tailscale to pull
+the `steven-matison/MicroFi` clone — gh CLI on this host has no access to the private fork; the
+existing native-Windows clone at `C:\Users\tunas\MicroFi` on StarlinkAI was the real source, cloned
+over `ssh://` since a straight `git push` into its currently-checked-out branch is refused by git).
+Same MAC (`e0:72:a1:fb:fd:04`) confirmed via `esptool chip-id` before touching anything.
+
+**#58 (`GetGPIO` memory corruption) — closed, no regression found.** ~35 minutes of clean runtime
+across multiple boots with `CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY` +
+`CONFIG_COMPILER_STACK_CHECK_MODE_STRONG` added (heap poisoning alone, already tried by a prior
+session, doesn't cover `FlowEngine::nodes_[]`'s static/BSS storage — correctly flagged then, held
+this time). Survived a real chip reset and a real MQTT transport disconnect with the *exact*
+original signature (`esp_mqtt_handle_transport_read_error... errno=128`) with zero corruption.
+First real physical validation: held the BOOT/GPIO0 button, confirmed `payload: 0` while held,
+`1` on release — proves a genuine hardware read, not just "doesn't crash." Root-cause confirmation
+via the hardware GDB watchpoint (staged by a prior session, JTAG driver binding is host-specific
+and wasn't redone here) is still the only thing that would make this airtight; closed anyway per
+direct instruction, reopen if it resurfaces.
+
+Found and fixed a small real bug along the way: `wifi.cpp`'s disconnect handler had no visibility
+into *why* a disconnect happened. Added `ESP_LOGW` on `WIFI_EVENT_STA_DISCONNECTED`'s `reason`/
+`rssi` fields — this is what caught `WIFI_REASON_NO_AP_FOUND` (201, rssi=-128, real "scan came back
+empty") during this session's own WiFi setup, distinguishing it cleanly from an auth failure.
+
+**New processor: `ListenHTTP`** (`src/processors/listen_http.cpp`) — inbound HTTP ingress,
+`esp_http_server`-backed, MiNiFi C++-compatible property names (`Listening Port`, `Base Path`).
+Fire-and-forget ack, matching MiNiFi C++'s real `ListenHTTP` (not the synchronous
+`HandleHttpRequest`/`HandleHttpResponse` pairing built elsewhere in the array today — that needs a
+request/response correlation model this single-task engine doesn't have yet, a natural follow-up).
+The httpd server's own FreeRTOS task can't safely touch `Session`/`Queue` state directly (engine
+state is single-task-owned per `flow_engine.h`), so the URI handler only ever pushes a fixed-size
+item onto a small `xQueueCreate`d FreeRTOS queue; `on_trigger` (engine task, every tick) drains it —
+same cross-task bridge shape `FlowEngine::apply()` already uses for the C2 task. Verified end-to-end
+on hardware: `curl -X POST http://192.168.1.198:8095/test -d "hello from windowsdesktop"` → real
+200 in 205ms → `LogAttribute` logged `payload: hello from windowsdesktop`, exact content preserved.
+
+Needed the same `agent-class-manifest-config` pin-to-latest-manifest step documented earlier in this
+file for `PublishMQTT` — a `POST` returned "mapping already exists," a `PUT` was needed instead
+(though the processor-create API itself worked before the pin took effect either way; the pin's
+effect seems scoped to the Designer's palette, not the write API).
+
+**Re-confirmed live**: the `kMaxFlowNodes=4` silent-drop bug (documented earlier in this file) fired
+again — pushing the `ListenHTTP` pair on top of the existing 4-node repro flow (6 processors total)
+silently dropped `LogAttribute-Repro58` and `PublishMQTT`, only a `WARN` log. Still unfixed, still
+worth its own issue.
+
+**Capacity note**: flash is now at 96.8% on this unit's 2MB layout (1,141,317 / 1,179,648 bytes) —
+very little headroom left before either trimming a processor or moving to a bigger-flash unit.
+
+Commits on `feature/get-gpio` (`steven-matison/MicroFi`): `7607380` (wifi disconnect-reason
+logging), `4e23be8` (`ListenHTTP`). Pushed via the same StarlinkAI-clone relay (this host has no
+direct `fork` remote access) — push to `origin` (StarlinkAI's clone) under a temp branch name
+(pushing directly to its checked-out `feature/get-gpio` is refused by git), then `ssh` in and
+`git merge --ff-only` + `git push fork` from there.
