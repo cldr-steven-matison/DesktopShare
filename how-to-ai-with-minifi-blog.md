@@ -74,15 +74,15 @@ client → HandleHttpRequest(:8090, any path)
 ```
 One flow, one port, no Kafka, no `request_id`. All five Lemonade endpoints ride the same three processors, distinguished only by the forwarded path.
 
-[ add final NvidiaNanoAI flow image — screenshot requested on #28 ]
+![The final NvidiaNano flow in EFM's Flow Designer — HandleHttpRequest/InvokeHTTP/HandleHttpResponse for classify, streamChat, and matrix, Monitoring Active](/images/efm-NvidiaNano-Flow.png)
 
 ### NvidiaNano — before and after
 
 The Jetson is the same fork seen from the inference side.
 
-**Before:** the production ingest listeners (`/streamChatListener`, `/matrixListener`, `/contentListener`) are C++ `ListenHTTP → PublishKafka` — fire-and-forget, and still dropping POSTs at `1/1` (`MINIFICPP-2243`, [#54](https://github.com/cldr-steven-matison/DesktopShare/issues/54), ~4/day). The "AI" processor was worse than fire-and-forget: an `ExecuteScript` that re-read its script and re-deserialized the TensorRT engine on *every trigger* — a per-request model load costing far more than the inference it was there to run.
+**Before:** the production ingest listeners (`/streamChatListener`, `/matrixListener`, `/contentListener`) were C++ `ListenHTTP → PublishKafka` — fire-and-forget, and prone to silently dropping POSTs at the buffer-full check (a `MINIFICPP-2243`-shaped bug). The "AI" processor was worse than fire-and-forget: an `ExecuteScript` that re-read its script and re-deserialized the TensorRT engine on *every trigger* — a per-request model load costing far more than the inference it was there to run.
 
-**After:** one resident TensorRT daemon (`127.0.0.1:5910`, MobileNetV2 FP16, ~4 ms) with three thin front doors — the synchronous one being a Java agent's `HandleHttpRequest → InvokeHTTP(localhost:5910/classify) → HandleHttpResponse`, the exact StarlinkAI shape, returning the classification inline. `systemctl --user restart trt-infer` swaps the model without touching MiNiFi. The synchronous Java door to the daemon is proven; migrating the C++ *ingest* listeners off `ListenHTTP` onto `HandleHttpRequest` is the candidate fix for the [#54](https://github.com/cldr-steven-matison/DesktopShare/issues/54) drop — not yet applied on the Jetson, stated honestly.
+**After:** one resident TensorRT daemon (`127.0.0.1:5910`, MobileNetV2 FP16, ~4 ms) fronted by a Java MiNiFi agent running three `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` legs — `/classify`, `/streamChatListener`, `/matrixListener` — the exact StarlinkAI shape, each returning a real response inline instead of an ack-and-hope. `systemctl --user restart trt-infer` swaps the model without touching MiNiFi.
 
 The takeaway: **if the caller needs the model's answer back, that's a `HandleHttpRequest`/`HandleHttpResponse` flow on a Java agent. If it's genuinely fire-and-forget telemetry, `ListenHTTP → PublishKafka` on C++ is fine** — just set batch/buffer to `1/1` and know the multipart caveat.
 

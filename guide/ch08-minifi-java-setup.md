@@ -398,9 +398,21 @@ Field-verified:
   disk (419 MB agent + 158 MB JRE).
 - Both `NvidiaNano` (C++) and `NvidiaNanoJava` (Java) agents run concurrently — no conflict.
 
-No flow is published on `NvidiaNanoJava` here; the router-flow switch to
-`HandleHttpRequest`/`HandleHttpResponse` for the XIAO/MicroFi synchronous round-trip is a separate
-design decision.
+### The `HandleHttpRequest` flow built on `NvidiaNanoJava`
+
+`NvidiaNanoJava` carries three synchronous `HandleHttpRequest → InvokeHTTP → HandleHttpResponse`
+legs, each proxying to a resident local daemon on the Jetson and returning a real response (200,
+or 502 on a downstream failure) rather than a fire-and-forget ack:
+
+- **`/classify`** — proxies to a resident TensorRT inference daemon.
+- **`/streamChatListener`** — the Twitch `!load` screen-control front door.
+- **`/matrixListener`** — the Twitch `!matrix` screensaver front door.
+
+![NvidiaNanoJava Inference flow — HandleHttpRequest → InvokeHTTP → HandleHttpResponse](assets/images/efm-NvidiaNano-Inference-Flow.png)
+
+![NvidiaNanoJava StreamChat flow — HandleHttpRequest → InvokeHTTP → HandleHttpResponse](assets/images/efm-NvidiaNano-StreamChat-Flow.png)
+
+![NvidiaNanoJava Matrix flow — HandleHttpRequest → InvokeHTTP → HandleHttpResponse](assets/images/efm-NvidiaNano-Matrix-Flow.png)
 
 ## What NOT to do
 
