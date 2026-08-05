@@ -47,7 +47,7 @@ handful of platform-blocked legs that are proven-except-for-the-blocker rather t
 - ✅ Ch8 — MiNiFi Playground Java setup
 - ✅ Ch9 — Introduce EFM into the MiNiFi Playground
 - ✅ Ch10 — S2S: MiNiFi C++ → NiFi K8s *(field-validated 2026-08-04, #30 closed)*
-- 🟡 Ch11 — S2S: MiNiFi Java → NiFi K8s *(built live 2026-08-04, blocked at mTLS transit — #98, #41-class)*
+- ✅ Ch11 — S2S: MiNiFi Java → NiFi K8s *(field-validated 2026-08-05, #98; fixed via `bootstrap.conf` client SSL + unmanaged `minifi-java` image, #35)*
 - ✅ Ch14 — NiFi and AI Skill — EFM Portion *(folded; guide-only, no separate blog)*
 - ✅📝 Ch15 — How to AI with NiFi and Python
 - ✅✍️ Ch16 — How to AI with MiNiFi *(folded; blog publish deferred — #61)*
