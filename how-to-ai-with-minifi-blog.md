@@ -14,7 +14,7 @@ tags:
   - kubernetes
   - python
 header:
-  image: /images/how_to_ai_and_minifi_python.png
+  image: /images/how-to-ai-with-minifi.png
 ---
 
 The companion post to this one, "How to AI with NiFi and Python," runs Python inference *inside* NiFi on a Kubernetes cluster with room to spare. This post is the opposite end of the wire: a MiNiFi agent on a small edge box — a Beelink mini PC, a Windows desktop, a Jetson, a bare Kubernetes pod — that has no business hosting a model but still needs to do AI work. The trick is that the agent almost never runs the model itself. It routes, it transforms, it enrolls, and it ships results back over Kafka. Everything below is the *using* side of Edge Flow Manager: how you drive AI flows onto agents you've already stood up. Every flow, port, and processor name here is field-verified against a live EFM `2.3.1.0-2` and MiNiFi C++ `1.26.02` agents.
@@ -41,13 +41,21 @@ All five endpoints are confirmed end-to-end with real payloads: chat (real synch
 
 One real gotcha this design introduced: `InvokeHTTP`'s `Socket Read Timeout` defaults to `15 secs`, and LLM inference routinely takes 10-25s+. Every request failed silently on that default — a `SocketTimeoutException` auto-terminating on `Failure` with nothing routed back, so the caller just sat until the HTTP context map's own 60s expiration gave up with a generic 503. Set it to match your slowest endpoint (`10 mins` here), not the framework default.
 
+
 ## `ListenHTTP` vs `HandleHttpRequest`/`HandleHttpResponse` — the fork that shapes every edge AI flow
 
 The single design decision that decides what an edge AI flow can *do* is which HTTP entry processor it uses, because the two families answer the caller completely differently.
 
+![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](/images/efm-nifi-and-ai-skill-spacing.jpg)
+
 `ListenHTTP` — the only HTTP-ingest processor MiNiFi **C++** ships — is **fire-and-forget**. It accepts a POST and immediately returns an empty `200` ack; it has no way to send a computed body back on the same connection. If the caller wants the model's actual answer, it has to arrive out-of-band: the classic shape is `ListenHTTP → … → PublishKafka`, with the client polling a Kafka topic keyed on a `request_id` it supplied in the request. Two extra moving parts — a broker and a correlation key — exist purely because the front door can't talk back. `ListenHTTP` also carries the `5/5` batch/buffer trap and, on some C++ builds, a residual `1/1` multipart drop (`MINIFICPP-2243`).
 
+![HandleHttpRequest → InvokeHTTP → HandleHttpResponse verified live on StarlinkAI — the synchronous pair returning the model's real answer on the caller's own connection](/images/starlinkai-screen3-4-handlehttp-verify.jpg)
+
 `HandleHttpRequest` + `HandleHttpResponse` — MiNiFi **Java**, with the `StandardHttpContextMap` controller service — are a **synchronous pair**. `HandleHttpRequest` parks the caller's connection in the context map keyed by `http.context.identifier`, the flow does its work, and `HandleHttpResponse` writes the real body and status back on that same parked connection. No broker, no polling, no `request_id` — the caller gets the model's answer as the HTTP response to its own request. That's the decisive capability for an HTTP-fronted inference proxy, and it's Java-only.
+
+
+![StarlinkAI — the final unified router flow: one HandleHttpRequest → InvokeHTTP → HandleHttpResponse fronting all five Lemonade endpoints on a single port](/images/efm-starlink-ai-unified-lemonade-flow.png)
 
 ### StarlinkAI — before and after
 
@@ -66,6 +74,8 @@ client → HandleHttpRequest(:8090, any path)
        → HandleHttpResponse(200) → client   (Lemonade's real answer, inline)
 ```
 One flow, one port, no Kafka, no `request_id`. All five Lemonade endpoints ride the same three processors, distinguished only by the forwarded path.
+
+[ add final NvidiaNanoAI flow image — screenshot requested on #28 ]
 
 ### NvidiaNano — before and after
 
@@ -109,7 +119,6 @@ def onTrigger(context, session):
 
 POST a payload and the attribute lands on `LogAttribute` — proof the extension didn't just load, it executed. The property that makes `ExecuteScript` pleasant to work with: a running C++ agent **re-reads its Script File from disk on every trigger**. Edit the script, POST again, the new logic runs — no restart, no republish. In EFM Designer flows the C++ FQCN is `org.apache.nifi.minifi.processors.ExecuteScript` (note the `minifi` in the path — it is *not* the Java NiFi `org.apache.nifi.processors.standard.ExecuteScript`).
 
-![WindowsDesktopCpp Flow Designer canvas — parallel ListenHTTP → ExecuteScript → LogAttribute lanes for the Python smoke, load, and matrix tests](/images/efm-nifi-and-ai-skill-spacing.jpg)
 
 Two things bite here, both covered in depth in the companion posts:
 
@@ -149,6 +158,11 @@ Drop that `.py` into the agent's configured processor directory (`nifi.python.pr
 
 Delivery scales the same two ways as scripts: baked into the image / dropped in by hand for a fixed agent, or pushed as an **EFM Resource** into the agent's asset directory over the C2 asset-sync command for the managed path — no image rebuild, no manual copy. The managed asset-directory delivery is field-proven on the arm64 K8s C++ leg (`EdgeTagger` delivered as a resource, synced in ~5s, `.state` digest matched, registered as a first-class type, flow green with no drops). The C++ Java-agent path ships a parallel py4j-based framework (`python/api/nifiapi/`, `python/framework/`) that's structurally present but not yet exercised end-to-end — an honest "wired, not yet proven."
 
+
+![The StarlinkAI agent class in EFM — the manifest plus published flow every StarlinkAI agent converges to on its next heartbeat](/images/efm-StarlinkAI-Class.jpg)
+
+![The NvidiaNano agent class in EFM — the Jetson's class, kept parallel to StarlinkAI's so the C++ and Java manifests never collide](/images/efm-NvidiaNano-Class.jpg)
+
 ## Driving it all from EFM — the Designer write contract
 
 Everything above is published to agents through EFM, and the EFM Flow Designer API has one contract that will waste your afternoon if you assume the obvious. **There is no whole-flow PUT.** `PUT /efm/api/designer/flows/{flowId}` returns `405 Request method 'PUT' is not supported`. You build a flow one component at a time:
@@ -170,13 +184,21 @@ The other EFM rule that catches people: **the Designer validates against the age
 
 ## The `nifi-and-ai` skill — the playbook these flows come from
 
-Everything above is codified in a Claude skill, `nifi-and-ai`, that rides along in the repo. It's the distilled version of every bug in this post, and for MiNiFi specifically it earns its keep in a few concrete places:
+Everything above is codified in a Claude skill, `nifi-and-ai` ([skill](https://github.com/cldr-steven-matison/DesktopShare/blob/main/skills/nifi-and-ai/SKILL.md)),  that rides along in the repo. It's the distilled version of every bug in this post, and for MiNiFi specifically it earns its keep in a few concrete places:
 
 - **Flow dev.** The synchronous-router shape, the `ListenHTTP` `5/5` trap, the `Retry`-isn't-`Failure` drop, the `InvokeHTTP`-defaults-to-`GET` and 15s-timeout footguns — each is a rule, not a rediscovery. Build a new edge flow and the skill already knows the shape and where it silently breaks.
 - **API work.** The EFM Flow Designer contract (no whole-flow `PUT`; build component-by-component; `GET …/validate` before `/publish`), the Resource Manager upload body that's silently swallowed if it's a bare array, and the "dump the live `flow.json` before you edit" rule all live in the skill's reference files.
 - **Knowing what's actually in the build.** Which processors a given agent *has* is not a given — C++ and Java ship different manifests, `ExecuteScript`'s Python engine is absent from every stock binary, and the Designer validates against the agent-class→manifest mapping rather than the live agent. The skill names these so you check the manifest instead of assuming a processor exists.
 - **Layout.** A `references/layout.md` with the EFM row/column pitch constants — because two fresh builds landed cramped at the tighter NiFi pitch before the numbers were pinned.
 - **Testing.** Send a real payload through the real pipeline, dump the live flow, and read `minifi-app.log` for the *actual* attributes — never edit from a remembered description. The transcription fix above was root-caused entirely by diffing the log against a real multipart probe.
+
+
+A human aside on that fourth bullet, because it deserves more than the one line the summary gave it: **layout** is the item an AI reliably buries. I asked for it explicitly and it still came back as a footnote wedged between API work and testing — because to a model a flow is a graph, and the coordinates are noise. The data moves the same whether the boxes are aligned or stacked on top of each other. But you're the one who opens that canvas when a flow is silently dropping data, tracing a single connection through a tangle of overlapping processors to find which `InvokeHTTP` of the four is the one timing out. Readable layout is the difference between reading a flow and excavating it. The unspoken assumption under the shrug is that a *properly* built NiFi or MiNiFi flow in production would never need a human's eyes on it — :eyes: — so why bother making it legible. It will, and you will: something always breaks, and the first thing you do is look. Spend the two minutes on the pitch and the alignment; future-you, squinting at a production incident, is the one who benefits.   
+
+![Before — the same flow at the default pitch, processors crowding and connections crossing](/images/flow-agent-layout.png)
+
+![After — re-laid using the skill's `references/layout.md` row/column pitch constants, each lane readable at a glance](/images/flow-agent-layout-with-skill.png)
+
 
 ### EFM-directed vs direct-on-agent
 
@@ -185,7 +207,9 @@ There are two ways to change what an agent does, and they are not interchangeabl
 - **EFM-directed** — author the flow in the EFM Flow Designer and *publish* it to the agent class over C2; the agent picks it up on its next heartbeat. This is the tracked, durable, fleet-wide path: the flow is versioned in EFM, survives agent restarts, and applies to every agent in the class. It's also the only path with a write contract to respect (component-by-component, validate, publish) and a class→manifest gate that rejects a C++ flow published onto a Java class.
 - **Direct-on-agent** — touch the box itself: `kubectl cp` a script onto the agent's script path, drop a `.py` into the processor directory, edit `config.yml`. Immediate and ideal for iteration, but it bypasses EFM entirely — nothing is tracked, and a pod restart or C2 reconcile can wipe it. Worse, EFM *owns* some agent properties: a hand-edit to a `minifi.properties` key EFM manages gets regenerated (often empty) on the next boot, and some properties are denylisted from C2 push altogether.
 
-The rule of thumb: **iterate direct-on-agent, ship EFM-directed.** Prototype a script with `kubectl cp` because it hot-reloads; once it's stable, deliver it as a tracked EFM Resource so it survives a restart.
+
+:trophy: **The rule of thumb:** **iterate direct-on-agent, ship EFM-directed.** Prototype a script with `kubectl cp` because it hot-reloads; once it's stable, deliver it as a tracked EFM Resource so it survives a restart.
+{: .notice--warning}
 
 ## A few more concepts field validation kept surfacing
 
@@ -203,7 +227,9 @@ These are the ones I've paid for more than once — the distilled version of my 
 
 - **`ListenHTTP` `Batch Size`/`Buffer Size` default to `5/5`.** A single request never fills the buffer and is dropped with `buffer is NOT full 1/5`. Set both to `1` (MINIFICPP-2243 off-by-one). This is the first thing to check when a flow "does nothing."
 - **`InvokeHTTP`'s `HTTP Method` silently stays `GET`.** Even when you meant `POST`. Every Lemonade call was a bodyless GET until I set it explicitly.
-- **Kafka bootstrap: external NodePort vs in-cluster port.** From outside the cluster (an edge agent over Tailscale) it's the NodePort — `:31623` here — not the internal `:9092`. And on Strimzi, per-broker `advertisedHost` has to be the reachable hostname or brokers hand clients a raw LAN IP they can't route to.
+- **A broker hands the client the address to reconnect on — it has to be one the client can actually reach.** This bit me on Kafka but it's a general edge lesson. The first connection succeeds, then the broker advertises the endpoint clients should use for real traffic; if that advertised address is an internal cluster hostname or a raw pod IP, an agent *outside* the cluster can't route to it and the connection silently stalls. From outside, point clients at an externally reachable endpoint (a NodePort, a LoadBalancer, or an ingress) and make the broker advertise *that* address, not its in-cluster service name. The rule generalizes past Kafka: any service that redirects a client to a second address has to advertise one that's reachable from the network the client is actually on.
+
+
 - **`Retry` is not `Failure`.** Auto-terminating `InvokeHTTP`'s `Retry` relationship silently drops every transient 5xx/429. Self-loop `Retry` with a bounded `FlowFile Expiration` and route `Failure` to a log processor.
 - **Live flow is truth.** Before editing a running agent's flow, pull what's actually there (`GET /efm/api/designer/flows/{id}`, or dump the agent's `config.yml`). Don't edit from a remembered description — the running canvas has drifted from your notes more often than not.
 - **Never GET-then-PUT a processor that has sensitive properties.** EFM/NiFi returns `********` for a sensitive value on read; PUT it back and you write that literal over the real credential. Bind secrets to a Parameter Context, or use a narrow-scope endpoint. (The router's processors have none, which is why the three full-entity PUTs to fix relationships were safe.)
