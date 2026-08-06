@@ -28,7 +28,8 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | EFM scrape wired into CSO Prometheus via `ServiceMonitor` (port `efm-ui`) | Field-verified 2026-07-29 — `ServiceMonitor` applied, target `http://10.244.x.x:10090/efm/actuator/prometheus` green, `up{job="efm"}=1` in Prometheus | ✅ |
 | CSO Prometheus/Grafana stack exists on WindowsDesktop's `cld-streaming` cluster | Field-verified 2026-07-29 (issue #19) — `kube-prometheus-stack` installed via Helm into `cld-streaming` (matches the field-tested blog pattern, not the generic plan's `monitoring` namespace). All 6 pods `Running`, 10 Prometheus Operator CRDs present. EFM and NiFi (CFM) ServiceMonitors both confirmed `up=1`; Kafka (CSM) and Flink (CSA) deliberately not wired this pass — see `efm-windowsdesktop-prometheus-grafana.md` §4. | ✅ |
 | MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. On **WindowsDesktopCpp**, the config drop-in was UAC-blocked earlier the same day; **enabled and confirmed live later the same session** with a human at the console approving the one elevation prompt — `95-metrics.properties` written, service restarted, `curl http://127.0.0.1:9936/metrics` returns real `minifi_*` text with `agent_identifier=40eb2f92-94c5-4478-beed-7060e41c9d7f`. Wired into the CSO Prometheus stack as an external target the same session — `up=1`, real per-connection series queryable. | ✅ |
-| MiNiFi Java (`WindowsDesktop` class) metrics | **Conclusively blocked, both real paths exhausted — issue #41, 2026-07-30.** No drop-in equivalent of the C++ publisher exists, and no standalone Prometheus reporting-task NAR exists anywhere in the exact-matching `2.24.08.0-19` source tree (confirmed by search — Prometheus code lives only inside `nifi-web-api`). Pushing `nifi.web.http.host`/`nifi.web.http.port` through EFM's own C2 `UPDATE_PROPERTIES` (the only remaining channel, since a direct file edit reverts on restart) is denylisted server-side — confirmed live, `operation.state=FAILED` every ~5s for both keys, same denylist behavior as `nifi.python.command` (issue #38). No supported channel exists on this platform combination to expose Java Layer 2 metrics. See Layer 2 below for full detail. | 🚫 |
+| MiNiFi Java (`WindowsDesktop` class) metrics — built-in Prometheus endpoint | **Conclusively blocked, both real paths exhausted — issue #41, 2026-07-30.** No drop-in equivalent of the C++ publisher exists, and no standalone Prometheus reporting-task NAR exists anywhere in the exact-matching `2.24.08.0-19` source tree (confirmed by search — Prometheus code lives only inside `nifi-web-api`). Pushing `nifi.web.http.host`/`nifi.web.http.port` through EFM's own C2 `UPDATE_PROPERTIES` (the only remaining channel, since a direct file edit reverts on restart) is denylisted server-side — confirmed live, `operation.state=FAILED` every ~5s for both keys, same denylist behavior as `nifi.python.command` (issue #38). No supported channel exists on this platform combination to expose the *built-in* Prometheus endpoint. See Layer 2 below for full detail. | 🚫 |
+| MiNiFi Java metrics via Site-to-Site relay | **Unblocked and field-validated — issue #123, 2026-08-06 (`s2s-lab`).** The built-in Prometheus endpoint stays blocked, but the agent's metrics reach the operator NiFi over secure Site-to-Site by a different mechanism. Two routes, both proven live: an **EFM-managed** `PutRecord → SiteToSiteReportingRecordSink` (controller service, `nifi-site-to-site-reporting-nar`) relaying host metrics, and an **unmanaged** agent running the full `SiteToSiteMetricsReportingTask` (all JVM/NiFi internal metrics). Both transit into the `from-minifi` input port over mTLS. See Layer 2 below. | ✅ |
 | XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
 
 ## Layer 0 — get EFM running (prerequisites + deploy)
@@ -471,8 +472,34 @@ exhausted:**
   architecture (e.g. `SiteToSiteMetricsReportingTask`, which does exist in this source tree,
   relaying metrics to `mynifi`'s already-open web API instead of opening one on this agent) is the
   only remaining avenue, and is out of scope for this issue. C++ Layer 2 is the reference pattern
-  for what a working MiNiFi Prometheus target looks like on this stack; Java Layer 2 is blocked by
-  platform, not effort.
+  for what a working MiNiFi Prometheus target looks like on this stack; the built-in Java Prometheus
+  endpoint is blocked by platform, not effort.
+
+**2026-08-06 (issue #123) — Java Layer 2 unblocked via a Site-to-Site metrics relay (the "only
+remaining avenue" above, now field-validated on `s2s-lab`).** The built-in Prometheus endpoint stays
+blocked; instead the agent's metrics are carried back to the CFM-operator NiFi over the same secure
+S2S transport the Ch10/Ch11 proof already established. Two independent routes, both proven live:
+
+- **EFM-managed — `PutRecord → SiteToSiteReportingRecordSink`.** A formal `ReportingTask` cannot be
+  configured through EFM at all (every `reporting-tasks` Designer endpoint 404s; `flowContent` has no
+  `reportingTasks` key), so the reporting task is replaced by a **controller service** of the same
+  NAR (`org.apache.nifi.reporting.sink.SiteToSiteReportingRecordSink`, `nifi-site-to-site-reporting-nar`)
+  driven by a stock `PutRecord`. Built entirely through the EFM Designer API on class `MinikubeMacJava`:
+  `GenerateFlowFile (30s) → ExecuteStreamCommand (reads /proc → JSON) → PutRecord (JsonTreeReader +
+  the RecordSink)`. A real record transited into `from-minifi`:
+  `{"agent_id":"minifi-java-agent","load1":5.24,"mem_total_kb":32555448,"mem_available_kb":22280236,…}`.
+  The RecordSink's SSL is **not** inherited from `nifi.minifi.flow.use.parent.ssl` — it needs an
+  explicit `StandardRestrictedSSLContextService` (keystore/truststore, PKCS12), and the transport key
+  is `s2s-transport-protocol` (set `HTTP`) — the same two gotchas as the reporting-task route.
+- **Unmanaged — `SiteToSiteMetricsReportingTask`.** An unmanaged Java agent (config authored
+  directly, bypassing EFM's C2 denylist) runs the actual reporting task and delivers the *full*
+  JVM/NiFi internal metric set (`jvm.heap_used`, `loadAverage1min`, `FlowFilesQueued`, GC, thread
+  states, …) into the same port — richer than the managed RecordSink, which is limited to OS/host
+  metrics since no stock processor can read the agent's internal registry without the embedded web API.
+
+Net: "MiNiFi Java Layer 2 metrics" is achievable on this stack via S2S relay. It is **not** Prometheus
+parity — the managed route carries host/OS metrics, and neither route exposes a Prometheus scrape
+endpoint on the agent; both push records into NiFi, which is where Prometheus already scrapes.
 
 ## Layer 3 — embedded / heartbeat metrics (XIAO/microfi)
 
