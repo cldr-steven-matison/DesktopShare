@@ -72,11 +72,6 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 | NiFi2 Processor Playground | `~/Documents/GitHub/NiFi2 Processor Playground` | Custom Python/Java processors (companion) |
 | Blog | `~/Documents/GitHub/cldr-steven-matison.github.io` | Jekyll `_posts/`, published on commit |
 
-Per-device paths (WindowsDesktop, StarlinkAI, Jetson, Macbook, droplet) live in `CLAUDE-CHECKIN.md`.
-
-Content promotion: `DesktopShare root (in-progress)` → `completed/` (done iterating) → `blog/`
-(polished draft) → blog repo `_posts/YYYY-MM-DD-Title.md` (published on commit).
-
 ## Subplans (source docs → chapter)
 
 - `efm-binaries-blog.md` — Ch2 blog draft
@@ -92,32 +87,9 @@ Content promotion: `DesktopShare root (in-progress)` → `completed/` (done iter
 - `sparkplug-demo.md`, `efm-xiao.md` — Ch20
 - `efm-metrics.md` — Ch21
 
-## Ground rules while building this
-
-- **Live state outranks docs:** dump live `flow.json.gz`, hit health endpoints, `git log` before editing. Full incident background in `agent/incident-rules.md`.
-- **Never GET-then-PUT a NiFi processor with sensitive properties** — the masked `********` writes back literal and destroys the credential. Use Parameter Contexts or `/run-status`.
-- **Confirm before any restart or redeploy of a live service**; drain in-flight `InvokeHTTP` first.
-- **Cross-reference, don't cross-link.** A chapter's content comes from its source doc(s) (the Subplans map above) — write the real content into the chapter and name its source, rather than linking out. Update the source doc in the same pass whenever a chapter changes; the source is never left to drift.
-- Commit only when explicitly asked (except the finish-an-issue ritual — see `agent/device-comms.md`).
-
-
-
 # EFM Guide — Completion Summary
 
 ## Overall: ~88% complete
-
-The expensive part — proving every flow on real edge hardware — is essentially done, and all 21
-chapters are authored and folded into EdgeFlowManager. A full editorial pass
-([#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121)) normalized capitalization,
-rewrote Ch8 (standalone Java) and Ch16 (how-to), re-themed Part IV to *MiNiFi on Kubernetes* (new
-Ch10 k8s-pods chapter; old Ch10+11 Site-to-Site merged into Ch11), and carved the skill out to the
-public [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi) repo. Ch10's live-agent
-introspection field-validated 2026-08-06 ([#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122)).
-What remains is field work:
-Ch21 Java metrics via S2S ([#123](https://github.com/cldr-steven-matison/DesktopShare/issues/123), rerouted to `device:FTF3XR2065`), the
-Ch20 live cross-device assembly ([#109](https://github.com/cldr-steven-matison/DesktopShare/issues/109)),
-a deferred Ch16 blog ([#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92)), and the
-field-partials (Ch13 Sparkplug binary; Ch18 gallery still accumulating).
 
 | Axis | State | % |
 |---|---|---|
@@ -137,30 +109,4 @@ field-partials (Ch13 Sparkplug binary; Ch18 gallery still accumulating).
 | Flow exports (`files/**/*.json`) | 25 |
 | Scripts / K8s configs (`files/`) | 91 |
 | Source + subplan docs (DesktopShare root) | ~72 `.md` |
-
-## Chapter status
-
-- ✅📝 Ch1 — EFM on Kubernetes
-- ✅ Ch2 — EFM Binaries & staging tree
-- ✅ Ch3 — C++ processor catalog
-- ✅ Ch4 — Java processor catalog
-- ✅ Ch5 — ExecuteScript availability (4 paths)
-- ✅ Ch6 — MiNiFi custom Python processors
-- ✅ Ch7 — Standalone MiNiFi C++ on K8s
-- ✅ Ch8 — Standalone MiNiFi Java on Kubernetes (no EFM)
-- ✅ Ch9 — Introduce EFM into the Playground
-- ✅ Ch10 — MiNiFi C++ & Java as Kubernetes pods *(live introspection field-validated, #122)*
-- ✅ Ch11 — Site-to-Site — MiNiFi to NiFi on Kubernetes *(C++ & Java, merged)*
-- ✅ Ch12 — EFM and MicroFi
-- ✅ Ch13 — EFM and SparkPlug MQTT *(field Partial)*
-- ✅ Ch14 — NiFi and AI Skill — EFM Portion *(skill → public NiFiandAi repo)*
-- ✅📝 Ch15 — How to AI with NiFi and Python
-- ✅ Ch16 — How to AI with MiNiFi *(rewritten as how-to; blog deferred, #92)*
-- ✅ Ch17 — Edge-AI router case study: StarlinkAI
-- 🟡 Ch18 — Sample gallery of MiNiFi flows *(accumulating)*
-- ✅ Ch19 — EFM + NVIDIA Jetson use case *(HandleHttp section added, blocked on screenshots, #125)*
-- 🟡 Ch20 — SparkPlug Demo — Xiao · Nano · NiFi *(live assembly not run, #109)*
-- ✅ Ch21 — Metrics & Observability
-
-*Legend: ✅ done / field-validated · 🟡 in-progress · 🔲 not started · 📝 blog published*
 
