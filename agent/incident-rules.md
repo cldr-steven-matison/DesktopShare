@@ -13,6 +13,13 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
   - Check every processor's property descriptors for `sensitive: true` before any full-entity PUT, regardless of what the edit is for — `validationStatus: VALID` never proves a sensitive value is real.
 - **Live flow.json is truth. Docs lag.** Before editing a running PG, dump the live flow and read what's actually there. Don't rely on a memory or doc that says "the processor is configured X" — read the flow.
 
+## EFM agent deployment
+
+- **Never hand-build an EFM agent-deployer command, and never reuse an `agentIdentifier` across a new enrollment.** Same shape as the GET-then-PUT rule above: a documented-safe API path exists, and skipping it for a hand-rolled equivalent causes real breakage. The only sanctioned source for a deployer command is EFM's **Deploy Agent CLI** screen or its backing API `POST /efm/api/agent-deployer/generateCommand` (omit `agentIdentifier` — the server mints a fresh, collision-free one). Do not hand-construct the `curl`/`Invoke-WebRequest`, and do not copy a previous deployment's command and edit its fields.
+  - Reusing an identifier is correct in exactly one case: restoring the *exact same* bare pod that was never de-registered (its saved manifest carries the original `agentIdentifier` so it re-registers as the same EFM agent). A *new* pod, a *class migration*, or any fresh enrollment is not that case — it needs its own identifier.
+  - Any sub-agent handed a "recreate/re-enroll this MiNiFi pod" or "move this agent to a new class" task must be told this explicitly in its prompt — it can't see this file, and left to its own judgment it will copy-edit the previous command. The `nifi-and-ai` skill (`SKILL.md` "Deployment shapes" + `references/minifi-efm.md` §4) carries the same rule for skill-invoking agents.
+  - (2026-08-06, issue #127: consolidating `KubernetesPodJava` into one `KubernetesPod` class, the Java agent was re-enrolled with a hand-built `curl` that reused the retired agent's `agentIdentifier`; the C2 `UPDATE` flow-push failed twice with `state: FAILED` and the Agents update-status column showed errors. Fixed by re-enrolling via `generateCommand` with its server-generated identifier.)
+
 ## Fixes and claims
 
 - **Do exactly what's asked. No more, no less.** Don't bundle an unrequested "obvious improvement" into a fix. A rename ≠ a rewire ≠ a retype. If the improvement is obviously worth doing, mention it and ask — don't ship it silently.
