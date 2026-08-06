@@ -673,6 +673,23 @@ backlog. Cleaning it up again is the same two `DELETE`s; a real fix needs MicroF
 actually POST to `/acknowledge`, which is out of scope here (firmware-architecture decision, not
 an EFM-side bug).
 
+## MicroFi reflashed back and reconfirmed healthy — 2026-08-06 (WindowsDesktop, issue #126)
+
+The same physical XIAO was temporarily reflashed with the Chapter 20 Arduino sketch (plus a new
+Sparkplug B leg) for the `efm-sparkplug-b-hardware-lab-plan.md` field validation — see that doc
+for the full report. That overwrote MicroFi's firmware, so `microfi_1` correctly went `MISSING`
+in EFM (dashboard showed `1 (0) agents`) for the duration of that test — expected fallout, not a
+regression, since a board can only run one firmware at a time.
+
+Reflashed the same working tree back (`C:\Users\tunas\MicroFi`, still on `feature/get-gpio`,
+`CONFIG_MICROFI_AGENT_CLASS="MicroFi"` unchanged) once the Sparkplug test was done. Rejoined WiFi
+on the same address (`192.168.1.198`), reloaded its LittleFS-persisted flow
+(`GenerateFlowFile → ListenHTTP → PublishMQTT`) exactly as it was before the detour, and
+re-registered with EFM. Confirmed both in Postgres (`agent_state: ONLINE`) and in the UI:
+
+![EFM dashboard, all agent classes Good Health, MicroFi 1 (1)](images/efm-dashboard-all-classes-healthy.png)
+![EFM MicroFi class row, Good Health, 1 (1) agents](images/efm-microfi-class-healthy.png)
+
 ## GetGPIO resolved, ListenHTTP shipped — 2026-08-04 (WindowsDesktop, issues #58/#26)
 
 The XIAO moved from StarlinkAI to WindowsDesktop (SSH into StarlinkAI's WSL2 over Tailscale to pull
