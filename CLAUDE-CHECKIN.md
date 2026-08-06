@@ -99,7 +99,7 @@ and want it live before committing? Run `bash skills/sync-skills.sh` by hand.)
 - Python: 3.14.4
 - Tailscale: 1.98.9, installed and logged in
 - Lemonade Server: 11.0.0, installed (Windows host, via winget) — Qwen3-4B-GGUF (LLM), Qwen3-Embedding-0.6B-GGUF (embeddings), jina-reranker-v1-tiny (reranking), Whisper-Large-v3-Turbo (transcription), kokoro-v1 (TTS) all loaded and ready; Vulkan GPU offload confirmed active
-- EFM/MiNiFi agents: two classes on this box. `StarlinkAI` (C++) — the original agent, still running the Twitch stream-screen control pairs (`ListenHTTP-StreamScreen3`/`4`, unrelated to Lemonade). `StarlinkAIJava` (Java, added 2026-08-02, see `beelink-starlink-efm-ai.md`) — the Lemonade AI router: single `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pass-through, port 8090, all 5 Lemonade endpoints, no Kafka, real synchronous answers
+- EFM/MiNiFi agents: **one class since 2026-08-06 (#131/#133)** — `StarlinkAI` (Java), consolidated from the old two-class split. The original C++ `StarlinkAI` (Twitch stream-screen control) and the Java `StarlinkAIJava` (Lemonade router, added 2026-08-02) were merged: the Lemonade flow was ported into a recreated `StarlinkAI` class, the C++ agent stopped/disabled, `StarlinkAIJava` decommissioned (agent + class deleted from EFM). Single Java agent now on port 8090, all 5 Lemonade endpoints, installed at `C:\Users\tunas\efm-agent\StarlinkAI-java\minifi-2.24.08.0-19\`. See `beelink-starlink-efm-ai.md`.
 
 ### Network
 - Connection: Starlink
