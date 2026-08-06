@@ -73,7 +73,7 @@ curl -L \
  http://<efm-host>:10090/efm/api/agent-deployer/script | bash -
 ```
 
-> **Incident (2026-08-06, [#127](https://github.com/cldr-steven-matison/DesktopShare/issues/127)):** consolidating `KubernetesPodJava` into a single `KubernetesPod` class, the Java agent was re-enrolled with a **hand-built** deployer `curl` that **reused the retired agent's `agentIdentifier`**. The EFM C2 `UPDATE` pushing the flow to the re-enrolled agent failed twice (`state: FAILED`), and the Agents update-status column showed errors for the class. Fixed by re-enrolling via `generateCommand` with its server-generated identifier. The one place reusing an identifier is correct is restoring the **exact same** bare pod that was never de-registered (§11) — a *new* enrollment or a *class migration* is not that case; mint a fresh identifier.
+> **Real-world failure mode:** consolidating two agent classes into one, a Java agent was re-enrolled with a **hand-built** deployer `curl` that **reused the retired agent's `agentIdentifier`**. The EFM C2 `UPDATE` pushing the flow to the re-enrolled agent failed twice (`state: FAILED`), and the Agents update-status column showed errors for the class. Fixed by re-enrolling via `generateCommand` with its server-generated identifier. The one place reusing an identifier is correct is restoring the **exact same** bare pod that was never de-registered (§11) — a *new* enrollment or a *class migration* is not that case; mint a fresh identifier.
 
 - **Windows:** run the *generated* command via `Invoke-WebRequest ... | Invoke-Expression` from PowerShell **as Administrator**. Do **not** run it from `C:\WINDOWS\system32` — the deployer installs to `$PWD` and system32 is a permission nightmare. `cd` to a clean dir first.
 
@@ -195,7 +195,7 @@ Check both on *every* `HandleHttpRequest`/`InvokeHTTP` pair copied from a workin
 
 ## 14. Orphaned Resource assets cause a permanent `SYNC RESOURCE` failure loop — unassigning them isn't enough, and the dashboard won't tell you it's fixed
 
-A second, distinct root cause for the same "Updated Agents" dashboard symptom as §4's incident — [#127](https://github.com/cldr-steven-matison/DesktopShare/issues/127) was a hand-built deployer command reusing an `agentIdentifier`; this one is a resource-sync cache issue on an otherwise correctly-enrolled agent. Same visible red badge, two unrelated mechanisms — check which one you actually have before applying either fix.
+A second, distinct root cause for the same "Updated Agents" dashboard symptom as §4's failure mode — a hand-built deployer command reusing an `agentIdentifier`; this one is a resource-sync cache issue on an otherwise correctly-enrolled agent. Same visible red badge, two unrelated mechanisms — check which one you actually have before applying either fix.
 
 Real incident: an agent class migrated from a C++ agent to a Java one, but 3 Python assets (`ExecuteScript` files the old C++ agent used) stayed **assigned** to the class in the resource manager. Java `ExecuteScript` can't run Python at all, so these were dead weight the moment the migration happened — and every ~10 minutes the live agent's heartbeat triggered a fresh `SYNC RESOURCE` operation that failed:
 
