@@ -5,22 +5,31 @@
 > **Keep in sync:** update this file in the same pass as any status change in the tracker
 > (`Complete Guide to Edge Flow Management.md`).
 
-## Overall: ~90% complete
+## Overall: ~88% complete
 
 The expensive part — proving every flow on real edge hardware — is essentially done, and all 21
-chapters are authored and folded into EdgeFlowManager. What remains is the Ch20 live cross-device
-assembly ([#109](https://github.com/cldr-steven-matison/DesktopShare/issues/109)), a deferred Ch16
-blog ([#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92)), and two field-partials
-(Ch13 — no real device has produced genuine Sparkplug B binary yet; Ch18 gallery still accumulating).
+chapters are authored and folded into EdgeFlowManager. A full editorial pass
+([#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121)) normalized capitalization,
+rewrote Ch8 (standalone Java) and Ch16 (how-to), re-themed Part IV to *MiNiFi on Kubernetes* (new
+Ch10 k8s-pods chapter; old Ch10+11 Site-to-Site merged into Ch11), and carved the skill out to the
+public [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi) repo. What remains is field work:
+the new Ch10 live-agent introspection ([#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122)),
+Ch21 Java metrics via S2S ([#123](https://github.com/cldr-steven-matison/DesktopShare/issues/123)), the
+Ch20 live cross-device assembly ([#109](https://github.com/cldr-steven-matison/DesktopShare/issues/109)),
+a deferred Ch16 blog ([#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92)), and the
+field-partials (Ch13 Sparkplug binary; Ch18 gallery still accumulating).
 
 | Axis | State | % |
 |---|---|---|
-| **Field/build validation** | ~18 of 21 "Yes" (Partial: Ch13, Ch20; Ch18 scaffolded) | ~86% |
+| **Field/build validation** | ~17 of 21 "Yes" (Partial: Ch10, Ch13, Ch20; Ch18 scaffolded) | ~83% |
 | **Published prose** | 21 of 21 chapters folded into EdgeFlowManager | 100% |
-| **Blended, status-weighted** | ~19 / 21 | ~90% |
+| **Blended, status-weighted** | ~18 / 21 | ~88% |
 | **Issue mailbox** | 94 of 108 closed | ~87% |
 
-Open guide issues: [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59) (close-plan epic),
+Open guide issues: [#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121) (editorial pass, tracker for the field-gated items),
+[#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122) (Ch10 k8s introspection + Ch4 SSL validation),
+[#123](https://github.com/cldr-steven-matison/DesktopShare/issues/123) (Ch21 Java S2S metrics),
+[#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59) (close-plan epic),
 [#73](https://github.com/cldr-steven-matison/DesktopShare/issues/73) (consistency / publish-readiness),
 [#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92) (Ch16 blog · review),
 [#106](https://github.com/cldr-steven-matison/DesktopShare/issues/106) (Ch12/13/20 epic),
@@ -33,7 +42,7 @@ Open guide issues: [#59](https://github.com/cldr-steven-matison/DesktopShare/iss
 | Metric | Count |
 |---|---|
 | Chapters (9 parts) | 21 |
-| ✅ done / 🟡 in-progress / 🔲 not started | 19 / 2 / 0 |
+| ✅ done / 🟡 in-progress / 🔲 not started | 18 / 3 / 0 |
 | Folded chapters (EdgeFlowManager) | 21 files, ~51,400 words |
 | Figures | 37 |
 | Flow exports (`files/**/*.json`) | 25 |
@@ -49,15 +58,15 @@ Open guide issues: [#59](https://github.com/cldr-steven-matison/DesktopShare/iss
 - ✅ Ch5 — ExecuteScript availability (4 paths)
 - ✅ Ch6 — MiNiFi custom Python processors
 - ✅ Ch7 — Standalone MiNiFi C++ on K8s
-- ✅ Ch8 — MiNiFi Playground Java setup
+- ✅ Ch8 — Standalone MiNiFi Java on Kubernetes (no EFM)
 - ✅ Ch9 — Introduce EFM into the Playground
-- ✅ Ch10 — S2S: MiNiFi C++ → NiFi K8s
-- ✅ Ch11 — S2S: MiNiFi Java → NiFi K8s
+- 🟡 Ch10 — MiNiFi C++ & Java as Kubernetes pods *(live introspection field work, #122)*
+- ✅ Ch11 — Site-to-Site — MiNiFi to NiFi on Kubernetes *(C++ & Java, merged)*
 - ✅ Ch12 — EFM and MicroFi
 - ✅ Ch13 — EFM and SparkPlug MQTT *(field Partial)*
-- ✅ Ch14 — NiFi and AI Skill — EFM Portion
+- ✅ Ch14 — NiFi and AI Skill — EFM Portion *(skill → public NiFiandAi repo)*
 - ✅📝 Ch15 — How to AI with NiFi and Python
-- ✅ Ch16 — How to AI with MiNiFi *(blog deferred, #92)*
+- ✅ Ch16 — How to AI with MiNiFi *(rewritten as how-to; blog deferred, #92)*
 - ✅ Ch17 — Edge-AI router case study: StarlinkAI
 - 🟡 Ch18 — Sample gallery of MiNiFi flows *(accumulating)*
 - ✅ Ch19 — EFM + NVIDIA Jetson use case

@@ -41,19 +41,19 @@ flow that actually ran on real hardware.
 | **1** ✅📝 | Yes | EFM on Kubernetes | Done. 8-phase deploy, Postgres + 2-PVC persistence (incl. the `efm-resources` trap). Blog published. |
 | **2** ✅ | Yes | EFM Binaries & staging tree | Done. Five-leaf staging tree, C++/ARM unpack-inject-repack, Windows MSI Path A/B, Maven NAR build. EFM Binaries blog tracked in #60 (closed). |
 | **3** ✅ | Yes | C++ processor catalog | Done. 74 x86_64 / 79 aarch64 / 81 Windows MSI; ARM64 extra-extensions confirmed on NvidiaNano. |
-| **4** ✅ | Yes | Java processor catalog | Done. 114 stock → 122 with the Kafka+scripting NAR drop-in. Known follow-up (unfiled): `Dockerfile.java` needs a new base image (no `minifi-java` registry image exists). |
+| **4** ✅ | Yes | Java processor catalog | Done. 114 stock → 122 with the Kafka+scripting NAR drop-in. #121: the not-yet-field-verified SSL/Record-Reader FQCN caveat was **removed** from the chapter; that validation is now field work (**[#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122)**). Known follow-up (unfiled): `Dockerfile.java` needs a new base image (no `minifi-java` registry image exists). |
 | **5** ✅ | Yes | ExecuteScript availability (4 paths) | Done. Status table + Paths A–D + phantom-processor & Session-0 traps. |
 | **6** ✅ | Yes | MiNiFi custom Python processors | Done. All 6 platform legs proven (incl. CEM Java via `nifi.python.command` in `bootstrap.conf` + a `python3` in the image) and packaged as a runnable Playground scenario. Distinct from `ExecuteScript` (Ch5). |
 | **7** ✅ | Yes | Standalone MiNiFi C++ on K8s | Done. v1.26.02 `ListenHTTP → PublishKafka + PutFile` Playground scenario. |
-| **8** ✅ | Yes | MiNiFi Playground Java setup | Done. End-to-end on WindowsDesktop minikube, incl. real Kafka produce+consume round trip. |
+| **8** ✅ | Yes | Standalone MiNiFi Java on K8s (no EFM) | **Rewritten (#121)** to pure standalone, mirroring Ch7: `config.yml`-baked `nifi-minifi-java:latest` (1.23.04-b15), `ListenHTTP → PutFile`, the TCP-probe-not-httpGet gotcha. All EFM references removed — EFM enters at Ch9. Source of truth = the playground repo's `config-java.yml`/`Dockerfile.java`/`minifi-test-java.yaml`. |
 | **9** ✅ | Yes | Introduce EFM into the Playground | Done. Level-2 EFM-managed C++ & Java variants built and verified (correct Designer pitch, live positions API-dumped), then decommissioned after proof. Exports: `files/efm/PlaygroundCpp.json`, `PlaygroundJava.json`. |
-| **10** ✅ | Yes | S2S: MiNiFi C++ → NiFi K8s | Done. Secure S2S over HTTPS/mTLS to CFM-operator NiFi; peer authorized declaratively via the operator's `User` CR. Lab: `minifi-site-to-site-lab.md`. |
-| **11** ✅ | Yes | S2S: MiNiFi Java → NiFi K8s | Done on the `s2s-lab` profile. Fix: set `nifi.minifi.security.*` + `nifi.minifi.flow.use.parent.ssl=true` durably in `bootstrap.conf` (Java regenerates `minifi.properties` from it each start); shipped as a custom unmanaged `minifi-java` image. Recipe: `files/site-to-site/ch11-java/`. |
+| **10** 🟡 | **Partial** | MiNiFi C++ & Java as K8s pods | **New chapter (#121)** — Part IV re-themed to *MiNiFi on Kubernetes*. EFM-managed pod pattern for both runtimes (`KubernetesPod` / `KubernetesPodJava`, mirroring `PlaygroundCpp`/`PlaygroundJava`) authored from proven playground YAMLs. **Live production-agent introspection HELD → [#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122)** (field work). |
+| **11** ✅ | Yes | Site-to-Site — MiNiFi to NiFi on K8s | **Merged (#121)** old Ch10 (C++) + Ch11 (Java) into one chapter: S2S intro (what/why/how on K8s), shared NiFi side (declarative `User` CR), C++ leg (SSL in `minifi.properties`), Java leg (SSL in `bootstrap.conf`, unmanaged image). Fixed the broken `../images/` path. |
 | **12** ✅ | Yes | EFM and MicroFi | Done. From-scratch ESP32 C2 agent (XIAO S3), processors built & verified on hardware, EFM enrollment confirmed. Open upstream: **#56** (`Session::transfer()` fan-out bug) in `steven-matison/MicroFi` — documented as a worked-around engine bug, not fixed. |
-| **13** ✅ | **Partial** | EFM and SparkPlug MQTT | Chapter done. Field **Partial**: no real embedded device has produced genuine Sparkplug B protobuf yet — every binary-payload test is `pysparkplug` on a workstation; `ConsumeMQTTIIoT` Primary-Host/Rebirth behavior untested. |
-| **14** ✅ | Yes | NiFi and AI Skill — EFM Portion | Done. The `nifi-and-ai` skill's EFM machinery as the Part VI lead-in. |
+| **13** ✅ | **Partial** | EFM and SparkPlug MQTT | Chapter done; **#121** removed the "further design exists…" edge-AI paragraph (belongs to Ch19/20) and the internal issue-# reference — reframed as a protocol-mechanics chapter to revise once the SparkPlug demo field work lands. Field **Partial**: no real embedded device has produced genuine Sparkplug B protobuf yet; `ConsumeMQTTIIoT` Primary-Host/Rebirth untested. |
+| **14** ✅ | Yes | NiFi and AI Skill — EFM Portion | Done. **#121**: skill carved out to its own **public repo [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi)** (sanitized — no device names/paths/issue-#s), synced from `skills/nifi-and-ai/` via `skills/publish-skill.sh` (repo→public only), and cross-linked from the chapter + DesktopShare README. |
 | **15** ✅📝 | Yes | How to AI with NiFi and Python | Done. The 4 rules, GenericTransform skeleton, FraudModel example, hot-reload. Blog published. |
-| **16** ✅ | Partial | How to AI with MiNiFi | Chapter done (StarlinkAI unified Java router section). Blog: expand content is #92 (`status:review`); publish intentionally deferred. |
+| **16** ✅ | Partial | How to AI with MiNiFi | **Rewritten (#121)** from war-story to how-to: the four edge-AI options, using the skill + Designer API, custom Python, testing/delivery, and the hard-won traps. StarlinkAI setup/router specifics consolidated into Ch17 (were duplicated). Blog: expand content is #92 (`status:review`); publish deferred. |
 | **17** ✅ | Yes | Edge-AI router case study: StarlinkAI | Done. Unified Java `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` on `:8090`, all 5 Lemonade endpoints live incl. the multipart-reassembly fix. Related open elsewhere: **#54** (`device:NvidiaNano`, same C++ drop class, candidate fix not yet applied). |
 | **18** 🟡 | Scaffolded | Sample gallery of MiNiFi flows | Scaffolded + folded. Accumulates as remaining flows land (S2S, SparkPlug slots still pending). |
 | **19** ✅ | Yes | EFM + NVIDIA Jetson use case | Field-validated (live §7 test on the Jetson; class + agent-row screenshots embedded). Fold tracked by **#69** (`status:todo`, open). Export: `files/efm/WindowsDesktop-TensorRT.json`. |
@@ -64,6 +64,9 @@ flow that actually ran on real hardware.
 
 The guide is extracted and largely complete. Open guide work (live issues):
 
+- **[#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121)** — full editorial review pass (this pass): capitalization normalized to Title Case guide-wide; Ch4–7/12/13/15 prose fixes; Ch8 & Ch16 rewrites; **Part IV re-themed → "MiNiFi on Kubernetes"** (new Ch10 k8s-pods, old Ch10+11 S2S merged into Ch11); skill carved out to [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi). Stays open as the tracker for the field-gated items below.
+- **[#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122)** — Ch10 field work: live `KubernetesPod`/`KubernetesPodJava` introspection + Ch4 SSL/Record-Reader FQCN validation (`device:WindowsDesktop`).
+- **[#123](https://github.com/cldr-steven-matison/DesktopShare/issues/123)** — Ch21 field work: Java Layer-2 metrics via Java Site-to-Site back to NiFi (`device:WindowsDesktop`).
 - **[#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59)** — EPIC: finish the guide (close plan); the authoritative to-do list.
 - **[#73](https://github.com/cldr-steven-matison/DesktopShare/issues/73)** — guide-wide consistency + publish-readiness pass.
 - **[#109](https://github.com/cldr-steven-matison/DesktopShare/issues/109)** — Ch20 live end-to-end SparkPlug assembly (blocked on S2S into `mynifi-0` + XIAO power-on).
@@ -102,7 +105,8 @@ Content promotion: `DesktopShare root (in-progress)` → `completed/` (done iter
 
 - `efm-binaries-blog.md` — Ch2 blog draft
 - `minifi-python-processors.md` — Ch6
-- `minifi-site-to-site.md`, `minifi-site-to-site-lab.md` — Ch10–11
+- MiNiFi Kubernetes Playground repo (`config-java.yml`, `Dockerfile.java`, `minifi-test-java.yaml`) — Ch8 (standalone Java); the `minifi-test-efm-*.yaml` variants — Ch10 (MiNiFi as k8s pods)
+- `minifi-site-to-site.md`, `minifi-site-to-site-lab.md` — Ch11 (merged Site-to-Site)
 - `efm-xiao-microfi.md` — Ch12
 - `sparkplug-iott.md` — Ch13
 - `how-to-ai-with-minifi-blog.md` — Ch16 blog draft (subplan archived at `completed/how-to-ai-with-minifi.md`)
