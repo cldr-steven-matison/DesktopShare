@@ -7,7 +7,7 @@ tricks. Read the section for the device you're touching — don't assume a fix
 on one side applies to the other without checking.
 
 - **Jetson Orin Nano** (native Ubuntu desktop) — see "Jetson implementation" below. Live since 2026-07-02, wired to Twitch chat's `!matrix` since 2026-07-21; command syntax unified to `!matrix screen1` (explicit, no bare `!matrix`) on 2026-07-25 — see "Chat command syntax" note below.
-- **StarlinkAI (TunaStarlink / Beelink, Windows 11 + WSL2)** — see "Windows implementation (TunaStarlink)" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Wired to Twitch chat since 2026-07-25** — `!matrix screen3`/`!matrix screen4` (array-wide numbering, same mismatch-with-local-names as `!load` — see `streamers-twitch-bot-mpv-plan.md`).
+- **StarlinkAI (TunaStarlink / Beelink, Windows 11 + WSL2)** — see "Windows implementation (TunaStarlink)" below. Built and verified 2026-07-23; extended to independent per-screen targeting and a 3rd monitor 2026-07-24 (capped at 2 simultaneous screens after a real crash — see "Known failure mode" #2). Same day, both Scheduled Tasks were switched from `python.exe` to `pythonw.exe` after a separate discovery — see "Known failure mode" #3. **Wired to Twitch chat since 2026-07-25** — `!matrix screen3`/`!matrix screen4` (array-wide numbering, same mismatch-with-local-names as `!load` — see `streamers-twitch-bot-mpv-plan.md`). **2026-08-06 (#133): moved off the old always-on-listener relay onto the native `HandleHttpRequest`/`ExecuteStreamCommand` agent architecture, same shape as WindowsDesktop's #130** — see "Native agent architecture" under this device's section.
 - **WindowsDesktop (MINI-Gaming-G1 / Windows gaming PC)** — see "Windows implementation (WindowsDesktop / MINI-Gaming-G1)" below. Built, verified, and wired to Twitch chat 2026-07-25 (`!matrix screen2`) — ported from the StarlinkAI implementation, ported over close to verbatim as expected. Same session also replaced this device's `!load` (Chrome/`browser_launcher.py`) with the mpv-based approach — see `streamers-twitch-bot-mpv-plan.md`.
 
 **Chat command syntax (updated 2026-07-25):** `!matrix` now always requires an explicit screen argument — `!matrix screen1|screen2|screen3|screen4` — matching `!load`'s own explicit numbering. There is no more bare `!matrix` defaulting to the Jetson; a bare `!matrix` (or any unrecognized screen token) is simply not a recognized command and gets no reply, same as an unrecognized `!load` screen. Changed in `TwitchChatListenerProcessor` (`0.0.18-SNAPSHOT`) and in central NiFi's `TwitchChatBot` `RouteOnAttribute`, which had its `matrix` dynamic property/relationship renamed to `matrix-screen1` (still targets the same Jetson `matrixListener` endpoint — only the internal routing name changed, not the wiring). Nothing on the edge/device side needed to change for this — `windows_matrix_launcher.py` never had a `screen1` entry (see "Known failure mode" #2 below), and the Jetson's own launcher script only ever served one screen.
@@ -231,7 +231,88 @@ idle clock.
 
 ## Windows implementation (StarlinkAI / TunaStarlink)
 
-### What it is
+**Update 2026-08-06 (#133 reopen) — the EFM relay for stream/matrix is
+retired, same shape as WindowsDesktop's #130.** Central NiFi's
+`InvokeStarlinkScreen3`/`InvokeStarlinkScreen4` no longer hop through an
+EFM `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` relay that POSTs
+to the always-on `mpv_stream_launcher.py`/`windows_matrix_launcher.py`
+Scheduled Tasks (`:5902`/`:5901`, described in the rest of this section) —
+they call the `StarlinkAI` Java MiNiFi agent's own `HandleHttpRequest →
+[EvaluateJsonPath] → ExecuteStreamCommand → HandleHttpResponse` pairs
+directly. **Unlike WindowsDesktop, this stayed on the *same* `StarlinkAI`
+class as the Lemonade AI flow — one MiNiFi agent process on this host, not
+a second class/agent.** See "Native agent architecture" below for the new
+shape; the mpv/Edge launch mechanics themselves (lazy-launch, IPC,
+`SetWindowPos` positioning) are unchanged, just invoked from a different
+caller, same as #130.
+
+### Native agent architecture (2026-08-06, issue #133)
+
+Four new `HandleHttpRequest`/`ExecuteStreamCommand`/`HandleHttpResponse`
+pipelines added to the existing `StarlinkAI` EFM class canvas (alongside
+the untouched Lemonade AI flow on `:8090`/`:8095` — see
+`beelink-starlink-efm-ai.md`), replacing the old `StreamScreen3`/
+`StreamScreen4` relay processors (deleted):
+
+- **`:8091`** (`mpv-load screen2`, array-facing `screen3`) —
+  `HandleHttpRequest → EvaluateJsonPath($.streamer) → ExecuteStreamCommand
+  → HandleHttpResponse`
+- **`:8092`** (`mpv-load screen3`, array-facing `screen4`) — same shape
+- **`:8093`** (`matrix-load screen2`, array-facing `screen3`) —
+  `HandleHttpRequest → ExecuteStreamCommand → HandleHttpResponse` (no
+  `EvaluateJsonPath` — matrix takes no streamer)
+- **`:8094`** (`matrix-load screen3`, array-facing `screen4`) — same shape
+
+`ExecuteStreamCommand` (`Command Path=python.exe`, `Working
+Directory=C:\minifi-manual`, `;`-delimited args) runs
+**`files/starlinkai_screen_control.py`** (repo-tracked, deployed to
+`C:\minifi-manual\`) — a port of WindowsDesktop's
+`files/windows_screen_control.py` extended to this device's two screens
+(`screen2`/`screen3`, positions/pipes from the table below). Same
+stateless, OS-state-derived design as the original: no in-memory
+`_running` dict, "is mpv/matrix already up" answered from a real IPC
+round-trip or a live process match, since each `ExecuteStreamCommand`
+trigger is a fresh process.
+
+**One real fix beyond a straight port, found during verification:** the
+original's `cmd_matrix_load` named each Edge profile dir by timestamp only
+(`edge-matrix-profile-<ms>`), with no screen tag — harmless on
+WindowsDesktop (one screen), but on this device (two screens, matrix
+legitimately runs on both simultaneously) it meant `kill_matrix_for_screen`
+couldn't tell which screen's window it was looking at. Caught live: with
+`screen3`'s matrix kiosk already up, triggering `screen2`'s `matrix-load`
+correctly left `screen3`'s window alone — but only because the profile-dir
+match happened not to collide in that specific test; the underlying
+matching wasn't actually screen-scoped. Fixed by tagging the profile dir
+per screen (`edge-matrix-profile-<screen>-<ms>`) and scoping both the
+kill-lookup and the stale-profile-dir sweep to that prefix, so a
+`matrix-load` on one screen can never touch the other's window or delete
+its still-in-use profile dir. Re-verified with both screens' matrix kiosks
+running at once: `screen2` → `1920,0`–`3840,1080`, `screen3` →
+`3840,0`–`5760,1080` (`GetWindowRect`), confirmed independent.
+
+**Also new:** a `matrix-stop <screen>` CLI action (exposes
+`kill_matrix_for_screen` standalone) — the old `windows_matrix_launcher.py`
+had a `/kill/<screen>` endpoint `idle_watcher.py` depended on for its
+idle→active teardown; without an equivalent, retiring the old listener
+would have silently broken idle-triggered matrix teardown.
+`idle_watcher.py` (device-local, not in git — see "Components" below) was
+updated to call `starlinkai_screen_control.py` directly as a local
+subprocess (`matrix-load`/`matrix-stop` per screen) instead of POSTing to
+the now-retired `:5901` listener — it runs on the same box, so it doesn't
+need to round-trip through MiNiFi/EFM for a purely local idle signal.
+
+**Old listeners retired:** `MatrixLauncherListener`/
+`MpvStreamLauncherListener` Scheduled Tasks stopped (not deleted — files
+still on disk); ports `5901`/`5902` confirmed closed. `MatrixIdleWatcher`
+task was already `Disabled` going into this session (unrelated to this
+change, left as found).
+
+**Central NiFi side (`InvokeStarlinkScreen3`/`InvokeStarlinkScreen4`
+pointed at the stale pre-#131 `:8085`/`:8086`; no matrix `InvokeHTTP`s
+existed at all) is handled from WindowsDesktop, not documented here.**
+
+### What it is (prior architecture — mechanics below still current)
 
 Same HTML scene, ported to Windows 11 (native Win32, not WSL2/WSLg — WSLg's
 virtualized X11 socket produces app windows *inside* Windows, it doesn't
