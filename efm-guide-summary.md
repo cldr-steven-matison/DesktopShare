@@ -26,16 +26,12 @@ field-partials (Ch13 Sparkplug binary; Ch18 gallery still accumulating).
 | **Blended, status-weighted** | ~18 / 21 | ~88% |
 | **Issue mailbox** | 94 of 108 closed | ~87% |
 
-Open guide issues: [#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121) (editorial pass, tracker for the field-gated items),
+Open guide issues: 
+
+[#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121) (editorial pass, tracker for the field-gated items),
 [#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122) (Ch10 k8s introspection + Ch4 SSL validation),
 [#123](https://github.com/cldr-steven-matison/DesktopShare/issues/123) (Ch21 Java S2S metrics),
-[#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59) (close-plan epic),
-[#73](https://github.com/cldr-steven-matison/DesktopShare/issues/73) (consistency / publish-readiness),
-[#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92) (Ch16 blog · review),
-[#106](https://github.com/cldr-steven-matison/DesktopShare/issues/106) (Ch12/13/20 epic),
-[#109](https://github.com/cldr-steven-matison/DesktopShare/issues/109) (Ch20 live assembly),
-[#69](https://github.com/cldr-steven-matison/DesktopShare/issues/69) (Ch19 fold). Upstream:
-[#56](https://github.com/cldr-steven-matison/DesktopShare/issues/56) (MicroFi engine bug, worked around).
+
 
 ## Metric counts
 

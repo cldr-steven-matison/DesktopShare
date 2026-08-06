@@ -3,7 +3,7 @@
 *by Steven Matison*
 
 > **The published guide lives in → https://github.com/cldr-steven-matison/EdgeFlowManager**
-> (extracted 2026-08-05). All chapters, figures, and runnable artifacts are there, with its
+> All chapters, figures, and runnable artifacts are there, with its
 > `README.md` as the reader entry point and single source of truth for the guide's structure.
 > **Do all guide work in EdgeFlowManager** — DesktopShare's `guide/` is only a redirect stub.
 >
@@ -20,9 +20,6 @@ MiNiFi agent on a Jetson, a Windows box over Tailscale, a Kubernetes pod with no
 exist in which build, managing custom processors and resources, and getting a flow from a designer
 canvas onto a device that keeps changing its IP. Every chapter marked ✅ points at a source doc and a
 flow that actually ran on real hardware.
-
-> **Close plan → [#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59)** is the
-> authoritative to-do list for finishing. This tracker stays the per-chapter status of record.
 
 ## Status legend
 
@@ -59,27 +56,6 @@ flow that actually ran on real hardware.
 | **19** ✅ | Yes | EFM + NVIDIA Jetson use case | Field-validated (live §7 test on the Jetson; class + agent-row screenshots embedded). Fold tracked by **#69** (`status:todo`, open). Export: `files/efm/WindowsDesktop-TensorRT.json`. |
 | **20** 🟡 | **Partial** | SparkPlug Demo — Xiao · Nano · NiFi | Chapter narrative done (trimmed to the pure end-to-end demo; protocol/broker content moved to Ch13). **Live cross-device assembly not done — #109** (`status:in-progress`). Hard blocker: Site-to-Site into production `mynifi-0` needs a `Nifi` CR patch + prod-pod restart (human approval); XIAO power-on also outstanding. Exports: `files/efm/MicroFi.json`, `NvidiaNanoSparkPlug.json`. |
 | **21** ✅ | Yes | Metrics & Observability | Done. Layer 1 (EFM actuator) + Layer 2 C++ publisher (Jetson + Windows) into the shared CSO Prometheus/Grafana stack. Java Layer 2 conclusively blocked — a platform limit (no standalone Prometheus reporting-task NAR; C2 `UPDATE_PROPERTIES` denylisted), not open-ended. |
-
-## What's left
-
-The guide is extracted and largely complete. Open guide work (live issues):
-
-- **[#121](https://github.com/cldr-steven-matison/DesktopShare/issues/121)** — full editorial review pass (this pass): capitalization normalized to Title Case guide-wide; Ch4–7/12/13/15 prose fixes; Ch8 & Ch16 rewrites; **Part IV re-themed → "MiNiFi on Kubernetes"** (new Ch10 k8s-pods, old Ch10+11 S2S merged into Ch11); skill carved out to [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi). Stays open as the tracker for the field-gated items below.
-- **[#122](https://github.com/cldr-steven-matison/DesktopShare/issues/122)** — Ch10 field work: live `KubernetesPod`/`KubernetesPodJava` introspection + Ch4 SSL/Record-Reader FQCN validation (`device:WindowsDesktop`).
-- **[#123](https://github.com/cldr-steven-matison/DesktopShare/issues/123)** — Ch21 field work: Java Layer-2 metrics via Java Site-to-Site back to NiFi (`device:WindowsDesktop`).
-- **[#59](https://github.com/cldr-steven-matison/DesktopShare/issues/59)** — EPIC: finish the guide (close plan); the authoritative to-do list.
-- **[#73](https://github.com/cldr-steven-matison/DesktopShare/issues/73)** — guide-wide consistency + publish-readiness pass.
-- **[#109](https://github.com/cldr-steven-matison/DesktopShare/issues/109)** — Ch20 live end-to-end SparkPlug assembly (blocked on S2S into `mynifi-0` + XIAO power-on).
-- **[#106](https://github.com/cldr-steven-matison/DesktopShare/issues/106)** — Ch12 / Ch13 / Ch20 epic.
-- **[#92](https://github.com/cldr-steven-matison/DesktopShare/issues/92)** — Ch16 blog: add content (`status:review`).
-- **[#69](https://github.com/cldr-steven-matison/DesktopShare/issues/69)** — Ch19 fold (`status:todo`).
-- **[#56](https://github.com/cldr-steven-matison/DesktopShare/issues/56)** — `Session::transfer()` fan-out bug, open upstream in `steven-matison/MicroFi` (worked around in Ch12).
-
-Adjacent / future: **[#75](https://github.com/cldr-steven-matison/DesktopShare/issues/75)** native NiFi processor guide · **[#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76)** NiFi/MiNiFi build-automation & release-vote system · **[#116](https://github.com/cldr-steven-matison/DesktopShare/issues/116)** adopt Site-to-Site on WindowsDesktop.
-
-> **Incoming:** a new `SensorClass` agent class and a new physical device for the IoT/edge demo
-> stacks. Not checked in yet (see `CLAUDE-CHECKIN.md`) — when it lands, revisit Ch19–20's device
-> assignment; it may take over or extend the Jetson's role.
 
 ## Guide structure
 
