@@ -93,7 +93,7 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 
 | Axis | State | % |
 |---|---|---|
-| **Field/build validation** | ~18 of 21 "Yes" (Partial: Ch13, Ch20; Ch18 scaffolded) | ~86% |
+| **Field/build validation** | 17 of 21 "Yes" (Partial: Ch13, Ch16, Ch20; Ch18 scaffolded) | ~81% |
 | **Published prose** | 21 of 21 chapters folded into EdgeFlowManager | 100% |
 | **Blended, status-weighted** | ~19 / 21 | ~90% |
 | **Issue mailbox** | 94 of 108 closed | ~87% |
