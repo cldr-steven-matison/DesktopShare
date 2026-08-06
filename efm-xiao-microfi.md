@@ -647,6 +647,32 @@ the sketch" plan is now genuinely the fallback rather than the primary path — 
 still whether `PublishMQTT` (unbuilt, `P0` on MicroFi's roadmap) is close enough to wait for before
 committing to one path for real telemetry-to-Kafka work.
 
+## Orphaned "failed to update" EFM alert cleared — 2026-08-06 (WindowsDesktop, issue #126)
+
+MicroFi's live agent (`microfi_1`) is healthy — `ONLINE`, heartbeating, its flow actually applied
+and running — but EFM's own operation-tracking table showed **every single operation it ever
+recorded for this agent as `FAILED`**: 24/24 `UPDATE`/`DESCRIBE` rows, all timing out after ~6
+minutes, going back to 2026-07-29. Root cause: MicroFi's firmware never POSTs to
+`/efm/api/c2-protocol/acknowledge` (a known, accepted design choice — see "What the array
+requires" above, "the ack is implicit"). That implicit-ack behavior is enough for EFM to treat the
+*agent* as caught up (heartbeat `flowInfo.flowId` matches the published flow), but EFM's separate
+per-operation bookkeeping still waits for an explicit ack and times out every time — comparison
+query against other classes (`StarlinkAI`, `WindowsDesktop`, `NvidiaNanoSparkPlug`) confirms they
+get real `DONE` rows, so this is MicroFi-specific, not a general EFM behavior.
+
+This is the same class of stale-row problem the `nifi-and-ai` skill just got updated to document
+(`operation`/`bulk_operation` surviving past an agent's real state) — applied here to a live,
+functioning agent rather than a deleted one. Cleared the resulting "agents failed to update"
+dashboard alert: `DELETE FROM operation WHERE target_agent_id='microfi_1' AND state='FAILED'` (24
+rows) and `DELETE FROM bulk_operation WHERE agent_class_id='MicroFi' AND current_state='FAILED'`
+(19 rows), against EFM's `efm` database on `ssb-postgresql.cld-streaming.svc`. Agent confirmed
+still `ONLINE` immediately after.
+
+**This will recur on any future push to MicroFi** — the ack timeout isn't fixed, just the
+backlog. Cleaning it up again is the same two `DELETE`s; a real fix needs MicroFi's firmware to
+actually POST to `/acknowledge`, which is out of scope here (firmware-architecture decision, not
+an EFM-side bug).
+
 ## GetGPIO resolved, ListenHTTP shipped — 2026-08-04 (WindowsDesktop, issues #58/#26)
 
 The XIAO moved from StarlinkAI to WindowsDesktop (SSH into StarlinkAI's WSL2 over Tailscale to pull

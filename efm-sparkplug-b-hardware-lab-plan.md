@@ -1,6 +1,6 @@
 # Real hardware producing genuine Sparkplug B — lab plan (#126)
 
-**Status: 🟡 Concrete library + integration path identified 2026-08-06 on WindowsDesktop, field-run not yet done. Reassigned to `device:StarlinkAI` — the XIAO ESP32-S3 this needs is physically plugged into that host's front USB, not reachable from here.**
+**Status: 🟡 Firmware written and build-verified 2026-08-06 on WindowsDesktop; flash/verify not yet done. Ownership is `device:WindowsDesktop`, not StarlinkAI — Steven corrected this on #126: the physical XIAO is plugged into this host now (it moved here 2026-08-04 for the MicroFi work, `efm-xiao-microfi.md`), not StarlinkAI's front USB. The earlier reassignment below is stale.**
 
 Companion to [`ch13-efm-and-sparkplug-mqtt.md`](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/ch13-efm-and-sparkplug-mqtt.md)'s
 "Field Validation — What's Confirmed and What Isn't" section, and to `efm-xiao.md` (the live Arduino
@@ -106,3 +106,57 @@ Once run, report on #126 with:
 - Update `ch13-efm-and-sparkplug-mqtt.md`'s "Field Validation" section to move this from "Designed,
   not yet field-run" to "Confirmed, field-run" — or document exactly what blocked it, per this
   guide's convention of not blurring the two.
+
+## Firmware written + build-verified, blocked on physical flash — 2026-08-06 (WindowsDesktop)
+
+**`EmbeddedSparkplugNode` used as planned, no fallback needed.** No real blocker hit against the
+library itself.
+
+- Pulled the live `~/xiao-telemetry/{xiao-telemetry.ino,secrets.h}` from StarlinkAI over the
+  existing SSH relay (`CLAUDE-CHECKIN.md`'s WSL2-side SSH, set up 2026-08-04) — the sketch source
+  never moved with the physical board on 2026-08-04, it was still sitting on StarlinkAI's
+  filesystem. `secrets.h` confirms `WIFI_SSID "ATTyjuHfEi"` — already the same network
+  WindowsDesktop's MicroFi work used, so no WiFi reconfiguration was actually needed, just
+  recovering the file.
+- Ported to a PlatformIO project (`framework = arduino`, board `seeed_xiao_esp32s3`) rather than
+  `arduino-cli` — this host has PlatformIO already installed and working for MicroFi;
+  `arduino-cli` isn't on this Windows host at all. **Reused the same 2MB-flash lesson MicroFi's
+  field validation already paid for on this exact physical chip** (`efm-xiao-microfi.md`,
+  2026-07-29 entry): the stock `seeed_xiao_esp32s3` board file assumes 8MB. Fixed with
+  `board_upload.flash_size`/`board_build.flash_size = 2MB` and
+  `board_build.partitions = bare_minimum_2MB.csv` (a table bundled with the Arduino ESP32 core,
+  purpose-sized for a real 2MB chip — no custom CSV needed this time).
+- Added `EmbeddedSparkplugNode` + its `BasicTag` dependency as git `lib_deps` (matches the plan's
+  prediction — no registry publish needed). Wired a second, additive publish leg per the
+  Integration Plan: existing plain-JSON publish to `test/sensor/data` is untouched; a
+  `SparkplugNodeConfig` (`group_id: XiaoTelemetry`, `node_id: XiaoESP32-01`) drives
+  `tickSparkplugNode()` every loop, publishing NBIRTH/NDATA on `spBv1.0/XiaoTelemetry/N.../XiaoESP32-01`
+  over the same already-connected `PubSubClient`. One tag, `Sensors/Temperature`, bound to the same
+  `temperatureRead()` value the JSON leg already reports — real internal-temp data on both legs, not
+  a synthetic value. NBIRTH-before-NDATA and sequence numbering are entirely the library's own job
+  (`tickSparkplugNode`'s state machine) — nothing hand-rolled, confirming the plan's assumption.
+  NCMD/rebirth-request handling intentionally not wired — out of scope per this plan's own "explicitly
+  out of scope" section (producer only).
+- **Build succeeds clean**: `platformio run -e xiao_esp32s3` — Flash 37.1% (721,501 / 1,945,600
+  bytes), RAM 13.6%. (`EmbeddedSparkplugNode`'s own C source throws a few internal
+  incompatible-pointer-type warnings on this GCC — pre-existing in the library, not from anything
+  here, and non-fatal.) Compile-only; nothing flashed yet, see below.
+- Code lives at `C:\Users\tunas\xiao-telemetry-sparkplug\` on WindowsDesktop — same device-local,
+  not-committed convention as the original sketch (`secrets.h` inside it, gitignored-equivalent by
+  convention, never pushed).
+
+**Blocked before Task 1 (chip pin / flash): the physical XIAO isn't plugged into WindowsDesktop
+right now.** `Get-PnpDevice` shows its USB entries (`VID_303A&PID_1001`, MAC `e0:72:a1:fb:fd:04` —
+confirmed same unit as every prior field validation) in `CM_PROB_PHANTOM` (Code 45 — "not
+currently connected"), and `esptool --port COM5 chip-id` can't open the port at all. This is
+consistent with EFM still showing `microfi_1` heartbeating today (`last_seen` 2026-08-06
+17:54:57) — MicroFi's WiFi heartbeat doesn't need the USB link, only flashing does, so the board
+is evidently powered and running its current MicroFi firmware somewhere, just not connected to
+this host's USB right now. **Needs Steven to physically plug the board into WindowsDesktop before
+Task 1 (chip-id pin) and the flash/verify tasks can run.**
+
+Tasks 2 (EFM/MQTT reachability, N/A here — this leg doesn't touch EFM at all) through 6
+(power-cycle) don't apply the same way as MicroFi's checklist; the remaining real work once the
+board is connected is: flash this build, watch serial for `Sparkplug: published NBIRTH`/`NDATA`
+lines, confirm `ConsumeMQTTIIoT` decodes it on the NiFi side, and confirm the plain-JSON leg is
+still untouched — exactly the report-back checklist above.
