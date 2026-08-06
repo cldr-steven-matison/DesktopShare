@@ -471,7 +471,88 @@ to the actual HTTP response. Basic parsing skips that entirely.)
 
 ## Windows implementation (WindowsDesktop / MINI-Gaming-G1)
 
-### What it is
+**Update 2026-08-06 (#130) — the `KubernetesPod` HTTP bridge for screen2 is
+retired.** Central NiFi's `InvokeGamingPCScreen2`/`InvokeGamingPCMatrixScreen2`
+now call a **native Windows MiNiFi Java agent** directly
+(`http://host.docker.internal:8082`/`:8081`) instead of hopping through the
+`minifi-agent-k8s-java` pod's `ListenHTTP-StreamLoad`/`ListenHTTP-MatrixLoad`
+→ `ExecuteScript` → `host.docker.internal:5902`/`:5903` chain. See "Native
+agent architecture" below for the new shape; the persistent
+`mpv_stream_launcher.py`/`windows_matrix_launcher.py` Scheduled-Task
+listeners described in the rest of this section are what the new agent's
+`ExecuteStreamCommand` script replaces the *listening* role of — mpv's own
+lazy-launch/IPC mechanics are unchanged and still exactly as documented below,
+just invoked from a different caller.
+
+### Native agent architecture (2026-08-06, issue #130)
+
+A `WindowsDesktop` EFM class (Java, agent runs via `run-minifi.bat`/
+`bin\minifi.sh`, **not** installed as a Windows service — a plain process
+under a real login has real desktop/GUI access; a `LocalSystem` service lands
+in Session 0 with none) hosts two `HandleHttpRequest → EvaluateJsonPath →
+ExecuteStreamCommand → HandleHttpResponse` pairs:
+
+- **Port 8082** (`mpv-load screen2 <streamer>`) — extracts `$.streamer` from
+  the POST body, runs
+  `python.exe C:\minifi-manual\windows_screen_control.py mpv-load screen2 <streamer>`.
+- **Port 8081** (`matrix-load screen2`) — runs
+  `... windows_screen_control.py matrix-load screen2`.
+
+Both ports keep the same request shape (`POST /streamChatListener`,
+`{"streamer": "..."}` for the load case) the old pod bridge used, so central
+NiFi's `InvokeHTTP`s only needed a URL change, not a payload change.
+
+**`files/windows_screen_control.py`** (repo-tracked, deployed to
+`C:\minifi-manual\`) is a stateless port of `mpv_stream_launcher.py`'s
+`ensure_mpv_running`/`send_ipc`/`confirm_playing` and
+`windows_matrix_launcher.py`'s `launch_screen` — invoked fresh per
+`ExecuteStreamCommand` trigger instead of running as an always-on HTTP
+server. The key design problem this solves: **there's no in-memory `_running`
+dict to answer "is mpv already running" across invocations**, since each
+trigger is a brand-new process. The fix is to derive it from OS state instead
+of tracking it:
+
+- **"Is mpv running" is answered by attempting the real IPC round-trip**
+  (`get_property idle-active` over the named pipe), not by checking whether
+  the pipe file exists. **`os.path.exists()`/PowerShell's `Test-Path` both
+  give false negatives on a live Windows named pipe** — confirmed empirically
+  during this build: a pipe a .NET `Directory.GetFiles` enumeration could see
+  was invisible to both. A pre-check gate using either one caused a real
+  duplicate-mpv-launch bug (two `mpv.exe` processes both trying to own
+  `--input-ipc-server=\\.\pipe\mpv-screen2`) during testing — exactly the
+  flashing/stacking regression this design has to avoid. Fixed by trying the
+  IPC round-trip directly and catching failure, no pre-check.
+- **mpv's real PID (for `SetWindowPos`/`ShowWindow` calls) is resolved via
+  `Get-CimInstance Win32_Process` matching the `--input-ipc-server=...`
+  pipe name in the command line** — again, state read from the OS, not
+  remembered across calls.
+- **Coexistence (mpv↔matrix mutual teardown)** no longer needs a
+  cross-process HTTP call (the old `_best_effort_post` to the other
+  listener's `/stop`/`/kill`) — each action just directly resolves and
+  kills the other side's process via the same OS-state technique.
+
+Verified live (2026-08-06): cold launch, reconnect-without-relaunch on a
+second `mpv-load` (same PID across 4 consecutive calls — 1 cold start + 3
+reconnects, both success and channel-offline-failure paths), `mpv-stop`,
+`matrix-load` tearing down mpv and launching a clean Edge kiosk, and the
+reverse (`mpv-load` tearing down a running matrix kiosk) — then confirmed
+end-to-end through the real deployed agent (`HandleHttpRequest` →
+`ExecuteStreamCommand` → `HandleHttpResponse`, real HTTP round-trip) and
+finally through **real Twitch chat** `!load screen2 <streamer>` /
+`!matrix screen2`.
+
+**Deploying/redeploying this class:** get the agent-deployer command from
+EFM's `generateCommand` API only (never hand-built, never a copy-edited prior
+command — see `agent/incident-rules.md` "EFM agent deployment"). Install to a
+clean directory (e.g. `C:\minifi-windowsdesktop-java\`), not
+`C:\WINDOWS\system32`. No elevation needed — this agent is deliberately not a
+service.
+
+### Prior architecture (superseded 2026-08-06, kept for context)
+
+What follows was the original design (2026-07-25) and is **still exactly how
+`mpv_stream_launcher.py`/`windows_matrix_launcher.py` themselves work** — only
+the caller changed, not mpv/Edge's own launch/IPC mechanics.
 
 Ported from StarlinkAI's implementation above, close to verbatim as
 expected (`claude-screen.md`'s own earlier "Next steps" note predicted this).
