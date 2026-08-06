@@ -41,6 +41,25 @@ Dropping a skill into a *foreign* repo (one without this hook) still works the o
 `cp -r skills/<name> ~/.claude/skills/`. Claude loads it the next session and pulls the
 deeper `references/` material only when the task needs it.
 
+### Publishing `nifi-and-ai` to the public repo
+
+The skill is mirrored publicly at **[cldr-steven-matison/NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi)**
+so anyone can `git clone https://github.com/cldr-steven-matison/NiFiandAi ~/.claude/skills/nifi-and-ai`.
+DesktopShare's `skills/nifi-and-ai/` is the **source of truth**; the public repo is a downstream mirror.
+
+Push local changes out with:
+
+```bash
+bash skills/publish-skill.sh          # repo -> public only; syncs SKILL.md + references/, preserves the public README
+```
+
+The script only ever copies DesktopShare → NiFiandAi, never the reverse (same safety model as
+`sync-skills.sh`). **The public copy carries no internal content** — no device/class names, internal
+paths, issue numbers, or topology. Keep it that way: anything added to `skills/nifi-and-ai/` must be
+safe to publish, because `publish-skill.sh` pushes it verbatim. Publishing is **manual** on purpose
+(one command after a committed skill change); wiring it to fire automatically would need a git/settings
+hook, which we've deliberately not done — a public push should be a deliberate act, not a side effect.
+
 ### Which `CLAUDE.md` rules govern NiFi work (this repo)
 
 The skill is *technique*. The always-apply *policy* that governs NiFi work lives in this repo's `CLAUDE.md` and `agent/incident-rules.md` — it is **not** duplicated into the skill. The portions specifically tied to the `nifi-and-ai` space:

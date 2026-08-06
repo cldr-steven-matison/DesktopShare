@@ -58,25 +58,25 @@ curl -L \
 
 The Windows MSI **bundles** the Python scripting extension but as **Feature Level 2** (`CM_C_python_script_extension`) — optional, not selected by the EFM deployer. Symptom without it: `Could not instantiate: PythonScriptExecutor` every 30s.
 
-**Field-verified 2026-07-27 (WindowsDesktop, class `WindowsDesktopCpp`):** administrative extract works without elevation and still unpacks the Level-2 DLL:
+**Field-verified on Windows (a parallel C++ agent class):** administrative extract works without elevation and still unpacks the Level-2 DLL:
 
 ```powershell
 # Download MSI, then extract ALL payload (no service):
 msiexec /a C:\minifi\minifi.msi TARGETDIR=C:\minifi\extract /quiet
 # minifi_native.pyd is a CustomAction mklink to the python DLL — copy if no elevation:
 Copy-Item ...\extensions\minifi-python-script-extension.dll ...\extensions\minifi_native.pyd
-# Configure C2 for a *parallel* class (do not reuse a live Java WindowsDesktop class), run bin\minifi.exe
+# Configure C2 for a *parallel* class (do not reuse a live Java agent's class), run bin\minifi.exe
 ```
 
 Elevated alternative: `msiexec /i minifi.msi ADDLOCAL=ALL INSTALLPYTHONDIR=C:\Python314 INSTALL_ROOT=C:\minifi`.  
-Do **not** install from `C:\WINDOWS\system32`. Full recipe: DesktopShare `efm-binaries-windows-python.md` / `efm-executescript.md` Path D.
+Do **not** install from `C:\WINDOWS\system32`.
 
 ## 6. `ExecuteScript` availability across builds
 
 | Build | ExecuteScript | Notes |
 |---|---|---|
 | Stock C++ image (`apacheminificpp` / vendor `:latest`) | ❌ | Production-minimal processor set (74, field-verified). No scripting. |
-| C++ MSI + extract/`ADDLOCAL=ALL` | ✅ | Field-verified Windows 2026-07-27 (`WindowsDesktopCpp`). See §5. |
+| C++ MSI + extract/`ADDLOCAL=ALL` | ✅ | Field-verified on Windows. See §5. |
 | CEM MiNiFi Java tarball (EFM-staged 2.24.08.0-19) | ❌ | No scripting NAR — only `ExecuteProcess`. |
 | Source-built C++ with `-DENABLE_PYTHON_SCRIPTING=ON -DENABLE_LUA_SCRIPTING=ON` | ✅ | Multi-stage Dockerfile from Apache source at the matching tag. |
 
@@ -95,7 +95,7 @@ grep -oE '"[A-Za-z]+Service\.[a-zA-Z]+"' /tmp/efm_main.js | sort -u            #
 Confirmed working contract:
 - `GET /efm/api/designer/client-identifier` → `{"clientId": "<uuid>"}` — required in every write's `revision.clientId`.
 - `GET /efm/api/designer/flows/summaries` → one entry per agent class with `identifier` / `rootProcessGroupIdentifier`; `GET .../flows/{id}` for the full live flow doc. **Read this before editing — it's ground truth over any doc or memory.**
-- `POST .../process-groups/{pgId}/processors` — create. Body: `{"revision":{"version":0,"clientId":...},"componentConfiguration":{"componentType":"PROCESSOR","type":"<fqcn>","bundle":{...},"name":...,"position":{...},"properties":{...},"autoTerminatedRelationships":[...]},"requestId":"<uuid>"}`. Properties can be set in this one call. **Before you send the `position`:** on an EFM Designer build, row pitch is **300** (not the NiFi 200) and branch/column pitch **~600–900** (not ~300–480), and a linear chain is **vertical** (constant x, `y += 300`) — a `(0,0)→(400,0)` sideways pair is the flagged-bad shape that landed cramped twice ([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)). State your intended shape + pitch and match it against [`layout.md`](layout.md) §"Per-shape placement rules" first; the `guard.sh` PreToolUse hook will prompt you to do exactly this on the `POST`.
+- `POST .../process-groups/{pgId}/processors` — create. Body: `{"revision":{"version":0,"clientId":...},"componentConfiguration":{"componentType":"PROCESSOR","type":"<fqcn>","bundle":{...},"name":...,"position":{...},"properties":{...},"autoTerminatedRelationships":[...]},"requestId":"<uuid>"}`. Properties can be set in this one call. **Before you send the `position`:** on an EFM Designer build, row pitch is **300** (not the NiFi 200) and branch/column pitch **~600–900** (not ~300–480), and a linear chain is **vertical** (constant x, `y += 300`) — a `(0,0)→(400,0)` sideways pair is the flagged-bad shape that repeatedly lands cramped. State your intended shape + pitch and match it against [`layout.md`](layout.md) §"Per-shape placement rules" first; a PreToolUse hook can prompt you to do exactly this on the `POST`.
 - `POST .../connections` — same envelope, `componentConfiguration:{componentType:"CONNECTION",source:{id,type:"PROCESSOR",groupId},destination:{...},selectedRelationships:[...],bends:[]}`.
 - `PUT .../processors/{id}` — update, same shape; `revision.version` must match current.
 - `GET .../flows/{id}/validate` → `{"validationErrors":[]}` — confirm empty before publishing.
@@ -112,7 +112,7 @@ Confirmed working contract:
 
 Canvas layout is not an EFM-specific concern — it's the same discipline for every programmatic build, whether through the EFM Designer API or the NiFi REST API, because both use the same `position:{x,y}` model. The full technique (coordinate model, grounded constants, per-shape placement rules, worked example) and the honest caveat that it still needs a manual tidy pass live in **[`layout.md`](layout.md)**.
 
-**Read `layout.md` before the first `POST .../processors`, not after the build reads cramped.** This pointer existing as a section title wasn't enough — two fresh EFM builds (`PlaygroundCpp`, `PlaygroundJava`) skipped it and landed at the NiFi pitch anyway ([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)). The fix hardened the call site itself: the pitch numbers are now inlined on the processor-create bullet in §7 above, and the `guard.sh` PreToolUse hook (rule 5) prompts on any processor-create/update carrying a `position` to state shape + pitch and match `layout.md` before the call lands. Treat that prompt as the reminder to actually open `layout.md`, not a box to click through.
+**Read `layout.md` before the first `POST .../processors`, not after the build reads cramped.** This pointer existing as a section title wasn't enough — fresh EFM builds skip it and land at the NiFi pitch anyway. The fix hardens the call site itself: inline the pitch numbers on the processor-create bullet in §7 above, and wire a PreToolUse hook to prompt on any processor-create/update carrying a `position` to state shape + pitch and match `layout.md` before the call lands. Treat that prompt as the reminder to actually open `layout.md`, not a box to click through.
 
 ## 9. EFM Resource Manager API
 
@@ -129,9 +129,9 @@ When an agent's `ListenHTTP` works locally but hangs from another machine, check
 - The listener is bound to `0.0.0.0`, not `127.0.0.1` — `netstat -ano | findstr :<port>` (Windows) / `ss -ltn` (Linux).
 - The host firewall allows the port on the interface the remote machine arrives on. A firewall rule scoped to one profile (e.g. Windows `Private`) won't cover a VPN/overlay adapter that lands on `Public`; widen the rule's profile or add an interface-specific one.
 
-## 11. A K8s `KubernetesPod`-class agent can go silently dark — and if it's a bare pod, restarting it isn't a one-liner
+## 11. A K8s MiNiFi agent can go silently dark — and if it's a bare pod, restarting it isn't a one-liner
 
-Real incident: a pod's MiNiFi agent (`KubernetesPod` class) had **not heartbeated to EFM in 6 days** — `last_seen` in Postgres' `agent` table was stale, but the pod itself showed `Running 1/1`, 0 restarts, and its already-deployed flow kept working the whole time (MiNiFi C++ doesn't need EFM once a flow is deployed — only *new* pushes need a live heartbeat channel). Query `agent.last_seen`/`agent.agent_state` directly (per §"Query Postgres, not the REST heuristics" elsewhere in this doc) before assuming an EFM-side push will actually reach a live pod — a `200` from the resource-manager/flow-publish API only means EFM accepted the write, not that any agent received it.
+Real incident: a pod's MiNiFi agent had **not heartbeated to EFM in 6 days** — `last_seen` in Postgres' `agent` table was stale, but the pod itself showed `Running 1/1`, 0 restarts, and its already-deployed flow kept working the whole time (MiNiFi C++ doesn't need EFM once a flow is deployed — only *new* pushes need a live heartbeat channel). Query `agent.last_seen`/`agent.agent_state` directly (per §"Query Postgres, not the REST heuristics" elsewhere in this doc) before assuming an EFM-side push will actually reach a live pod — a `200` from the resource-manager/flow-publish API only means EFM accepted the write, not that any agent received it.
 
 **Fixing it isn't a simple restart if the pod is bare** (no `Deployment`/`StatefulSet`/`ReplicaSet` owner — check with `kubectl get pod ... -o jsonpath='{.metadata.ownerReferences}'`, empty means bare). `kubectl delete` on a bare pod does not get it rescheduled. Before deleting: save the exact original manifest from the `kubectl.kubernetes.io/last-applied-configuration` annotation (`kubectl get pod ... -o json`, pull that annotation, it's the full `kubectl apply`-able JSON) — this is what lets `kubectl apply` bring it back identically, deployer-curl args (including the agent's `agentIdentifier`) included, so it re-registers as the *same* EFM agent record rather than a new one.
 
@@ -149,7 +149,7 @@ This blocks configuring the processor's properties through the Designer: `.../va
 
 ## 13. `InvokeHTTP` in a `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` pair: a 5xx from the target can hang the client for 30+ seconds, or forever
 
-Two compounding gotchas, found building `NvidiaNanoJava`'s streamChat/matrix pairs (#84) by copying an existing working pair (`/classify`, #46) as a template:
+Two compounding gotchas, found building a Jetson Java agent's HTTP-proxy pairs by copying an existing working pair (a `/classify` proxy) as a template:
 
 1. **The `Retry` relationship (status 500-599) is not auto-terminated and easy to leave wired back to the processor itself** (a self-loop looks harmless when copying an existing template, since the working template only ever exercised the 2xx path). With no other destination, a flowfile routed to `Retry` loops forever — the client waiting on `HandleHttpResponse` never gets an answer, no matter how generous `InvokeHTTP`'s own socket timeouts are set. **Route `Retry` to the same terminal `HandleHttpResponse` as `No Retry`/`Failure`** (one connection can carry all three relationships) unless a real automatic-retry loop is actually wanted.
 

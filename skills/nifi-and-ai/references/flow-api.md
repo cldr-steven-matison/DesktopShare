@@ -60,11 +60,11 @@ curl -sk --cert client.crt --key client.key -X PUT \
   -d '{"id":"'$NEW_PG_ID'","state":"RUNNING"}'
 ```
 
-**Positioning:** the `positionX`/`positionY` above place the PG; the `position` on each processor inside the uploaded JSON places the components. Pick these deliberately — a build with careless positions is functionally correct but unreadable on the canvas. Before you commit the `position` values, state the flow shape + pitch and match them against the per-shape rules in [`layout.md`](layout.md) (NiFi REST builds use row pitch 200 / branch ±300; the EFM Designer numbers are larger — don't cross them up). This isn't optional politeness: skipping it landed two EFM builds cramped ([#47](https://github.com/cldr-steven-matison/DesktopShare/issues/47)), and the `guard.sh` PreToolUse hook now prompts for this self-check on any processor-create/update carrying a `position`.
+**Positioning:** the `positionX`/`positionY` above place the PG; the `position` on each processor inside the uploaded JSON places the components. Pick these deliberately — a build with careless positions is functionally correct but unreadable on the canvas. Before you commit the `position` values, state the flow shape + pitch and match them against the per-shape rules in [`layout.md`](layout.md) (NiFi REST builds use row pitch 200 / branch ±300; the EFM Designer numbers are larger — don't cross them up). This isn't optional politeness: skipping it lands EFM builds cramped, and a PreToolUse hook can prompt for this self-check on any processor-create/update carrying a `position`.
 
 ## 4. Downloading a flow definition (the reverse direction — keeping exports current)
 
-Checked-in flow-definition JSON (`flows/*.json`, `streamers/*.json` in `cso-operator-app`, or wherever a repo snapshots its NiFi flows) goes stale the moment someone hand-edits the live PG via the UI or the API — which is the normal way these flows evolve. Treat re-exporting as a habitual close-out step after any live-build session that touches a flow with a checked-in export, not something you only do when asked.
+Checked-in flow-definition JSON (`flows/*.json`, or wherever a repo snapshots its NiFi flows) goes stale the moment someone hand-edits the live PG via the UI or the API — which is the normal way these flows evolve. Treat re-exporting as a habitual close-out step after any live-build session that touches a flow with a checked-in export, not something you only do when asked.
 
 ```bash
 # Find the PG's real runtime ID first (its instanceIdentifier, not the version-control

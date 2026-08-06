@@ -15,7 +15,7 @@ This is the standard way to expose a NiFi flow as a synchronous REST endpoint.
 HandleHttpRequest → HandleHttpResponse (200, immediate ack) → …rest of the flow
 ```
 
-That gives fire-and-forget latency for the caller while the real work continues behind it — the same profile as the MiNiFi C++ router below, but by choice rather than by limitation, and reversible per flow when you *do* want to hold the connection and return a real payload. Confirmed on the MiNiFi Java agent (issue #55): a POST returned a real 200 in ~84ms and the FlowFile independently reached the next processor afterward — the response genuinely flushes before downstream work has to finish, not just before it starts.
+That gives fire-and-forget latency for the caller while the real work continues behind it — the same profile as the MiNiFi C++ router below, but by choice rather than by limitation, and reversible per flow when you *do* want to hold the connection and return a real payload. Confirmed on the MiNiFi Java agent: a POST returned a real 200 in ~84ms and the FlowFile independently reached the next processor afterward — the response genuinely flushes before downstream work has to finish, not just before it starts.
 
 ## MiNiFi C++ fire-and-forget router
 
@@ -31,7 +31,7 @@ ListenHTTP (:8080, /contentListener)
 The HTTP caller gets an empty 200 immediately; the real reply lands on a response Kafka topic keyed by `request_id`, which the caller consumes separately.
 
 **Real bugs this pattern hides:**
-- **`ListenHTTP` `Batch Size`/`Buffer Size` default to `5/5`.** A single request never fires the buffer-full path and is silently dropped (`buffer is NOT full 1/5` in the log). Set both to `1`. **A `1/1 buffer is NOT full ... was dropped` line after that is not proof of a real drop by itself** — a controlled count-at-both-ends test (sender count vs. what actually reached the process behind it) on a `1.26.02` agent found the warning fires on every request while 20/20 were delivered and processed normally. Don't diagnose this leg by grepping the log for `was dropped`; count at both ends. See issue #54.
+- **`ListenHTTP` `Batch Size`/`Buffer Size` default to `5/5`.** A single request never fires the buffer-full path and is silently dropped (`buffer is NOT full 1/5` in the log). Set both to `1`. **A `1/1 buffer is NOT full ... was dropped` line after that is not proof of a real drop by itself** — a controlled count-at-both-ends test (sender count vs. what actually reached the process behind it) on a `1.26.02` agent found the warning fires on every request while 20/20 were delivered and processed normally. Don't diagnose this leg by grepping the log for `was dropped`; count at both ends.
 - **`InvokeHTTP`'s `HTTP Method` persists as `GET`** even when you meant `POST`, unless you explicitly set the field. Verify the persisted value, not your intent.
 - **`PublishKafka`'s `Known Brokers` must be the external broker port** when the agent is outside the cluster, not the in-cluster `9092`.
 - **`EvaluateJsonPath` for a field on a JSON object is `$.request_id`**, not `$[0]` (that's array-index for a top-level array).
@@ -54,7 +54,7 @@ Embed + store: ConsumeKafka new_documents  → embed → <vector-store> upsert
 
 When the task is "poll something, check a condition per item, then act," the shape is a chain of stock processors — **not** one custom Python processor running its own timer/state/decision loop internally (rule 9 in `SKILL.md` explains why: a monolith gives up per-stage queues, provenance, mid-flow inspection, and can leak a background thread that outlives NiFi's lifecycle).
 
-The shipped shape (from `StreamersApp`'s live-streamer poll):
+The shipped shape (a periodic live-streamer poll → per-item fan-out):
 
 ```
 GenerateFlowFile (timer)  → InvokeHTTP (fetch the roster/list)

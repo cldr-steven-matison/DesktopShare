@@ -42,7 +42,7 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 | **`CLAUDE.md`** | Session-start instructions every device reads first — what to check, the universal rules, and where things live. |
 | **`CLAUDE-CHECKIN.md`** | The device roster. Each machine checks in with its specs, OS, running services, and per-device paths and port-forwards. |
 | **`agent/`** | Device-agnostic working rules shared by all sessions: `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. |
-| **`skills/nifi-and-ai/`** | A shareable Claude skill — the playbook for building NiFi / MiNiFi / EFM flows. Drop it into `.claude/skills/` and Claude loads it automatically on those tasks (see `skills/README.md`). |
+| **`skills/nifi-and-ai/`** | A shareable Claude skill — the playbook for building NiFi / MiNiFi / EFM flows. Drop it into `.claude/skills/` and Claude loads it automatically on those tasks (see `skills/README.md`). Published publicly as [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi); push changes out with `skills/publish-skill.sh`. |
 
 ---
 
@@ -66,6 +66,8 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 
 | Project | Link | Purpose |
 |---------|------|---------|
+| **EdgeFlowManager** | [GitHub Repo](https://github.com/cldr-steven-matison/EdgeFlowManager) | The published *Complete Guide to Edge Flow Management* — chapters, EFM/MiNiFi flow exports, and figures |
+| **NiFiandAi** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFiandAi) | The public `nifi-and-ai` Claude skill — the sanitized playbook for building NiFi / MiNiFi / EFM flows (synced from `skills/nifi-and-ai/` via `skills/publish-skill.sh`) |
 | **ClouderaStreamingOperators** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) | Terminal commands, YAML configs, and Helm values used in the blog |
 | **ClouderaOperatorYAML** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaOperatorYAML) | Other YAML examples for Cloudera Streaming Operators (Kafka, Flink, NiFi) on Kubernetes (not CSO above) |
 | **NiFi-Templates** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi-Templates) | NiFi flow definition file templates and dataflow examples |
