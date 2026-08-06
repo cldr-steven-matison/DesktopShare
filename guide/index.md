@@ -6,5 +6,5 @@ This guide now lives in its own repository:
 
 The chapters, figures, and runnable artifacts that used to live under `guide/`, `files/efm*`, and the
 EFM screenshots in `images/` have all moved to that repo. This DesktopShare repo keeps the internal
-source and planning docs (the tracker `Complete Guide to Edge Flow Management.md`, `efm-guide-summary.md`,
+source and planning docs (the tracker `Complete Guide to Edge Flow Management.md`,
 and the `efm-*` / `minifi-*` source docs) as the working record.
