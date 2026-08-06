@@ -245,9 +245,11 @@ zero regressions.**
 
 ## Status
 
+**2026-08-06 (#131/#133): consolidated onto a single `StarlinkAI` class.** The C++ `StarlinkAI` (Twitch stream-screen control) and this doc's `StarlinkAIJava` (Lemonade router) were merged into one Java agent under a recreated `StarlinkAI` class — the flow described below was ported in via EFM's `flows/export`/`flows/import`, the old C++ agent stopped/disabled, and `StarlinkAIJava`'s agent + class deleted from EFM. Everything below that refers to `StarlinkAIJava` now runs under `StarlinkAI` instead; install path is `C:\Users\tunas\efm-agent\StarlinkAI-java\minifi-2.24.08.0-19\`, still port `8090`. The architecture, flow build, and endpoint behavior described below are unchanged — only the class name and install path moved.
+
 **Done:**
 - [x] Tailscale, Lemonade Server (5 models loaded, Vulkan GPU offload confirmed), JDK 21, MiNiFi Java agent all installed and running on `TunaStarlink`
-- [x] `StarlinkAIJava` EFM class online, heartbeating
+- [x] `StarlinkAI` EFM class online, heartbeating (consolidated 2026-08-06, formerly `StarlinkAIJava`)
 - [x] Unified 3-processor pass-through flow built, validated, published
 - [x] Root-caused and fixed the timeout bug (`Socket Read Timeout` 15s default → 10 min)
 - [x] Chat confirmed working end-to-end with real content, real synchronous answer
