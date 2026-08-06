@@ -47,7 +47,7 @@ flow that actually ran on real hardware.
 | **10** ✅ | Yes | MiNiFi C++ & Java as K8s pods | Done. |
 | **11** ✅ | Yes | Site-to-Site — MiNiFi to NiFi on K8s | Done |
 | **12** 🟡 | Yes | EFM and MicroFi | Done. WIP |
-| **13** 🟡 | **Partial** | EFM and SparkPlug MQTT | WIP |
+| **13** 🟡 | **Partial** | EFM and SparkPlug MQTT | WIP — real hardware now confirmed producing genuine Sparkplug B ([#126](https://github.com/cldr-steven-matison/DesktopShare/issues/126), 2026-08-06); remaining gaps are rebirth-request and edge-side decode, both still simulator-only |
 | **14** 🟡 | Yes | NiFi and AI Skill — EFM Portion | Done. WIP |
 | **15** ✅📝 | Yes | How to AI with NiFi and Python | Done. Blog published. |
 | **16** 🟡 | Partial | How to AI with MiNiFi | WIP |

@@ -1,6 +1,12 @@
 # Real hardware producing genuine Sparkplug B — lab plan (#126)
 
-**Status: 🟡 Firmware written and build-verified 2026-08-06 on WindowsDesktop; flash/verify not yet done. Ownership is `device:WindowsDesktop`, not StarlinkAI — Steven corrected this on #126: the physical XIAO is plugged into this host now (it moved here 2026-08-04 for the MicroFi work, `efm-xiao-microfi.md`), not StarlinkAI's front USB. The earlier reassignment below is stale.**
+**Status: ✅ Confirmed, field-run, 2026-08-06 on WindowsDesktop.** Real hardware (the Seeed XIAO
+ESP32-S3 Sense) publishing genuine Sparkplug B `NBIRTH`/`NDATA`, independently verified via NiFi
+provenance and Kafka delivery — see the dated section near the bottom of this doc for the full
+report. `ch13-efm-and-sparkplug-mqtt.md`'s Field Validation section updated to match. Ownership
+was `device:WindowsDesktop`, not StarlinkAI — Steven corrected this on #126: the physical XIAO
+was plugged into this host (it moved here 2026-08-04 for the MicroFi work,
+`efm-xiao-microfi.md`), not StarlinkAI's front USB. The earlier reassignment below is stale.
 
 Companion to [`ch13-efm-and-sparkplug-mqtt.md`](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/ch13-efm-and-sparkplug-mqtt.md)'s
 "Field Validation — What's Confirmed and What Isn't" section, and to `efm-xiao.md` (the live Arduino
@@ -106,6 +112,73 @@ Once run, report on #126 with:
 - Update `ch13-efm-and-sparkplug-mqtt.md`'s "Field Validation" section to move this from "Designed,
   not yet field-run" to "Confirmed, field-run" — or document exactly what blocked it, per this
   guide's convention of not blurring the two.
+
+## Confirmed, field-run — 2026-08-06 (WindowsDesktop)
+
+**The board was unplugged from this host when this pass started, then physically replugged by
+Steven mid-session** — the "blocked on physical flash" state below was real and short-lived, not
+hypothetical. Once reconnected (`Get-PnpDevice` cleared from `CM_PROB_PHANTOM`/Code 45 back to
+`OK`), `esptool chip-id` re-confirmed the same unit (MAC `e0:72:a1:fb:fd:04`) before flashing.
+
+**First flash attempt: `Sparkplug: NBIRTH publish FAILED` on every tick, plain-JSON leg
+unaffected.** Real bug, not a config issue: `PubSubClient`'s default `MQTT_MAX_PACKET_SIZE` is
+256 bytes, smaller than the encoded NBIRTH payload (the node's own `bdSeq`/`Rebirth`/`Scan Rate`
+tags plus ours). `publish()` silently returns `false` over that limit — the library kept remaking
+the same NBIRTH payload forever since `spnOnPublishNBIRTH()` is only called on a successful
+publish. Fixed with `mqttClient.setBufferSize(SPARKPLUG_PAYLOAD_BUFFER_SIZE)` (PubSubClient 2.8
+supports this at runtime, no rebuild-the-library-with-a-different-`#define` needed) called once in
+`setup()`.
+
+**Reflashed clean, both legs confirmed live on real hardware via serial:**
+```
+Sparkplug: node ready, NBIRTH=spBv1.0/XiaoTelemetry/NBIRTH/XiaoESP32-01 NDATA=spBv1.0/XiaoTelemetry/NDATA/XiaoESP32-01
+MQTT: connected
+Sparkplug: published NBIRTH (213 bytes) -> spBv1.0/XiaoTelemetry/NBIRTH/XiaoESP32-01
+publish test/sensor/data -> {"device_id":"XiaoESP32-01","temperature":42.8,"humidity":null,"timestamp":1786055524}: ok
+Sparkplug: published NDATA (27 bytes) -> spBv1.0/XiaoTelemetry/NDATA/XiaoESP32-01
+```
+The plain-JSON leg published on every tick throughout, unchanged in shape from before this work —
+confirms the additive-not-destructive goal held.
+
+**Independent verification on the NiFi side (not the firmware's own serial log), via live
+provenance against `mynifi-0`:**
+- `ConsumeMQTTIIoT`'s processor status showed 21 real `FlowFilesOut` in the status window
+  immediately after the flash — genuine new traffic, not stale counters.
+- A provenance `RECEIVE` event on `ConsumeMQTTIIoT` for `mqtt.topic =
+  spBv1.0/XiaoTelemetry/NDATA/XiaoESP32-01`, `fileSize: 27 bytes` — exact match to the serial log.
+  **Routed via the `Message` relationship, not `parse.failure`** — NiFi's own Sparkplug B parser
+  validated the payload as real, spec-compliant protobuf, not just "bytes arrived."
+- A `SEND` provenance event on `PublishKafka-SparkplugTelemetry` confirms delivery to
+  `PLAINTEXT://my-cluster-kafka-bootstrap.cld-streaming.svc:9092/sparkplug_telemetry` — same
+  topic/broker the `pysparkplug` simulator already proved reachable, now hit by real hardware.
+- **Read the actual decoded content, not just "no error":** pulled the raw bytes NiFi sent to
+  Kafka for both messages via `/nifi-api/provenance-events/{id}/content/output`. The NBIRTH bytes
+  contain the literal ASCII metric names `bdSeq`, `Node Control/Rebirth`, `Node Control/Scan Rate`,
+  and **`Sensors/Temperature`** — the exact tag this firmware defines, proving the birth
+  certificate is structurally correct, not corrupted or empty. The NDATA bytes decode (scanning for
+  a little-endian float32) to `42.79999923706055` at the metric-value offset — matching the JSON
+  leg's `42.8` from the same tick exactly. Real sensor data, correctly encoded, correctly parsed.
+
+**Checklist, in full:**
+- Library used: `EmbeddedSparkplugNode`, exactly as planned — no fallback needed, no real blocker
+  hit against the library itself (only the unrelated `PubSubClient` buffer-size bug above).
+- Exact topics: `spBv1.0/XiaoTelemetry/NBIRTH/XiaoESP32-01`, `spBv1.0/XiaoTelemetry/NDATA/XiaoESP32-01`.
+- `ConsumeMQTTIIoT` decode: confirmed via relationship routing + raw decoded content, above.
+- Plain-JSON leg (`test/sensor/data`): confirmed unmodified and still working, above.
+- Reaches `sparkplug_telemetry` in Kafka the same way the simulator's did: confirmed via `SEND`
+  provenance `transitUri`, above.
+- `ch13-efm-and-sparkplug-mqtt.md`'s Field Validation section updated: done, in the same commit as
+  this entry.
+
+**One side effect worth flagging**: this reflash overwrote MicroFi's firmware on the same physical
+unit. `microfi_1`'s EFM heartbeat will go stale/offline from here — expected, not a regression;
+the board can only run one firmware at a time, and this was a deliberate reflash per this plan, not
+an accidental one. Its EFM class/agent record itself is untouched (nothing deleted), so
+re-flashing MicroFi back later would just resume the same registration.
+
+**NCMD/rebirth-request handling was not wired**, per this plan's own explicit out-of-scope note —
+the device is a producer only. That, and edge-side Sparkplug B decode, remain the two open items
+in the chapter's Field Validation section.
 
 ## Firmware written + build-verified, blocked on physical flash — 2026-08-06 (WindowsDesktop)
 
