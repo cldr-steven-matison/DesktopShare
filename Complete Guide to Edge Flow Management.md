@@ -57,6 +57,23 @@ flow that actually ran on real hardware.
 | **20** 🟡 | **Partial** | SparkPlug Demo — Xiao · Nano · NiFi | WIP |
 | **21** 🟡 | Yes | Metrics & Observability | WIP |
 
+## Close plan — v2 ([EPIC #137](https://github.com/cldr-steven-matison/DesktopShare/issues/137))
+
+The v1 close plan (#59, written 2026-07-31) is done and closed — stale by the time it closed, since everything in it shipped. **[EPIC #137](https://github.com/cldr-steven-matison/DesktopShare/issues/137)** is the active plan: demos-first — finish the demos, wire the live flows through to observability, complete the `nifi-and-ai` skill, land the Nvidia Nano and Sparkplug B demos. Each 🟡 WIP chapter and its gating work-stream:
+
+| WIP Ch | Gating work-stream (child issue) |
+|---|---|
+| 12 EFM and MicroFi | F · MicroFi-1/2/3 ([#134](https://github.com/cldr-steven-matison/DesktopShare/issues/134)) — **stays open until the full R&D lands; capstone chapter collecting all final flows, custom processors, and custom Python** |
+| 13 EFM and SparkPlug MQTT | A · Sparkplug B end-to-end ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) |
+| 14 NiFi and AI Skill | D · complete + publicly sync the skill ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141)) |
+| 16 How to AI with MiNiFi | D · complete skill + How to AI with MiNiFi ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141)) |
+| 18 Sample gallery | A · SparkPlug card ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) + promote Ch10/11 S2S cards |
+| 19 EFM + NVIDIA Jetson | B · Nano → observability ([#139](https://github.com/cldr-steven-matison/DesktopShare/issues/139)) |
+| 20 SparkPlug Demo | A · Sparkplug B end-to-end ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) |
+| 21 Metrics & Observability | C · observability completeness ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) |
+
+Work-stream **E** ([#142](https://github.com/cldr-steven-matison/DesktopShare/issues/142)) hardens the already-done Ch17 live-stream path (repoint central NiFi's `TwitchChatBot` to StarlinkAI's new `:8091–8094`). Housekeeping done 2026-08-10: #123 (Java S2S metrics) and #126 (real-hardware Sparkplug B) closed — both were complete but still open.
+
 ## Guide structure
 
 The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](https://github.com/cldr-steven-matison/EdgeFlowManager#table-of-contents)** — the published table of contents. It is the single source of truth; this tracker deliberately does not duplicate it (that duplication is what drifted and had to be fixed under #111).
@@ -96,7 +113,7 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 | **Field/build validation** | 17 of 21 "Yes" (Partial: Ch13, Ch16, Ch20; Ch18 scaffolded) | ~81% |
 | **Published prose** | 21 of 21 chapters folded into EdgeFlowManager | 100% |
 | **Blended, status-weighted** | ~19 / 21 | ~90% |
-| **Issue mailbox** | 94 of 108 closed | ~87% |
+| **Issue mailbox** | 114 of 129 closed (2026-08-10; +2 closed #123/#126, +6 open Close Plan v2 EPIC/children) | ~88% |
 
 ## Metric counts
 
