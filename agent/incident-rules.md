@@ -12,6 +12,7 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
   - Or PUT the full entity with the real sensitive values re-supplied inline in the same call.
   - Check every processor's property descriptors for `sensitive: true` before any full-entity PUT, regardless of what the edit is for — `validationStatus: VALID` never proves a sensitive value is real.
 - **Live flow.json is truth. Docs lag.** Before editing a running PG, dump the live flow and read what's actually there. Don't rely on a memory or doc that says "the processor is configured X" — read the flow.
+- **Load the `nifi-and-ai` skill before the first live write to a NiFi/EFM system in a session — a clean prior task on a *different* system doesn't cover it.** (2026-08-11, issue #136/#142: after cleanly rebuilding StarlinkAI's EFM flow via the EFM Flow Designer API, went straight into editing central NiFi's live `TwitchChatBot` PG on the same momentum, without loading the skill for that system. Broke skill rule 8, "build new logic in its own new, finite Process Group — never inline inside a live one": wired new processors directly into the running shared PG instead of an isolated one. Steven caught it mid-edit.) EFM device-class flows and central NiFi's shared PGs are different risk classes — check the skill per system, every session, not once per session.
 
 ## EFM agent deployment
 

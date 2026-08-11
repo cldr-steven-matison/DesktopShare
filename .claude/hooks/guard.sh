@@ -27,6 +27,16 @@
 #      — finishing is the ordered ritual commit->push->comment(sha)->flip
 #      (device-comms.md "Finishing an issue"); a dirty flip strands the work and the
 #      comment's sha points at nothing pushed. Fails open (no git / no upstream).
+#   8. Never let a live write (POST/PUT/DELETE) to /nifi-api/ or /efm/api/ land
+#      before the nifi-and-ai skill has been loaded THIS session. Same failure shape
+#      as the claim-before-work problem below: prose in CLAUDE.md/incident-rules.md
+#      saying "load the skill first" was skipped anyway (2026-08-11, issue #136/#142
+#      — a live central-NiFi edit went out on the momentum of an earlier, DIFFERENT
+#      NiFi-adjacent task in the same session, wiring new logic directly into a
+#      running shared PG, violating the skill's own rule 8). Fixed the same way rule
+#      A below was fixed: the hook writes its own marker when it sees Skill(nifi-and-ai)
+#      go by, and blocks a live write while that marker is absent — no reliance on the
+#      model remembering. See lib-device.sh ds_nifi_skill_marker.
 #
 # Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
 # Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
@@ -96,6 +106,21 @@ case "$tool" in
     fi
     exit 0
     ;;
+  Skill)
+    # Rule 8's write side: a Skill(nifi-and-ai) call touches its own marker so the
+    # Bash-side check below can see it, without asking the model to remember to.
+    skill_name="$(printf '%s' "$payload" | jq -r '.tool_input.skill // ""' 2>/dev/null)"
+    case "$skill_name" in
+      nifi-and-ai|*:nifi-and-ai)
+        if command -v ds_nifi_skill_marker >/dev/null 2>&1; then
+          nifi_marker="$(ds_nifi_skill_marker)"
+          mkdir -p "$(dirname "$nifi_marker")" 2>/dev/null || true
+          : > "$nifi_marker" 2>/dev/null || true
+        fi
+        ;;
+    esac
+    exit 0
+    ;;
 esac
 
 # Everything below is Bash-only.
@@ -140,6 +165,23 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
     done
   fi
   exit 0
+fi
+
+# 8. Live write to /nifi-api/ or /efm/api/ without the nifi-and-ai skill loaded
+# this session. Matches a write verb (-X POST/PUT/DELETE, or a body flag implying
+# one) alongside a NiFi/EFM API path. Deliberately narrow to curl-style direct API
+# calls (the exact shape of the 2026-08-11 incident) — a kubectl-exec'd script that
+# talks to the API internally isn't caught by this string match, so it's not a
+# substitute for actually loading the skill, only a backstop for the common path.
+# A plain GET (no write verb/body) is never blocked — rule 1 in the skill itself
+# wants live-state read BEFORE any edit, so investigation must stay unblocked.
+if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/' \
+   && printf '%s' "$cmd" | grep -Eq -- '-X *['"'"'"]?(POST|PUT|DELETE)|--data|--data-binary|(^|[[:space:]])-d[[:space:]]'; then
+  nifi_marker=""
+  command -v ds_nifi_skill_marker >/dev/null 2>&1 && nifi_marker="$(ds_nifi_skill_marker)"
+  if [ -z "$nifi_marker" ] || [ ! -f "$nifi_marker" ]; then
+    emit_ask "Live write to /nifi-api/ or /efm/api/ detected, but the nifi-and-ai skill hasn't been loaded this session (agent/incident-rules.md 'NiFi flow edits': load it before the first live write, not after — a clean prior task on a DIFFERENT system this same session doesn't cover it, 2026-08-11 issue #136/#142). Load it first: Skill(nifi-and-ai). If you've already loaded it and this is a false trigger, approve."
+  fi
 fi
 
 # 1. Live-service redeploy / restart hazards (break in-flight NiFi InvokeHTTP).

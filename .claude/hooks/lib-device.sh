@@ -9,6 +9,11 @@
 #      guard.sh writes an issue number here when the model opens a still-todo issue;
 #      the claim command clears it; Trigger B (edit/mutation) asks while it is
 #      non-empty; checkin.sh clears any stale marker at session start.
+#   3. ds_nifi_skill_marker — path to the nifi-and-ai-loaded marker file. guard.sh
+#      touches this ITSELF when it sees a Skill(nifi-and-ai) call go by (same
+#      "remove the model from the loop" shape as the claim marker — see guard.sh
+#      rule 8's comment); a live NiFi/EFM write is blocked while it's absent.
+#      checkin.sh clears it at session start so a stale one can't survive.
 
 # Echo the space-separated device label(s) for the current host (empty if unmapped).
 ds_device_labels() {
@@ -28,6 +33,13 @@ ds_device_labels() {
 # Echo the path to the claim-pending marker file (under the project's .claude dir).
 ds_claim_marker() {
   echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.claim-pending"
+}
+
+# Echo the path to the nifi-and-ai-skill-loaded marker file (under the project's
+# .claude dir). Written by guard.sh itself on a Skill(nifi-and-ai) call, cleared by
+# checkin.sh at session start.
+ds_nifi_skill_marker() {
+  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.nifi-skill-loaded"
 }
 
 # Echo EVERY issue number in a command string that follows `gh issue <verb>`,

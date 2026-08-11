@@ -31,6 +31,16 @@ if command -v ds_claim_marker >/dev/null 2>&1; then
   rm -f "$(ds_claim_marker)" 2>/dev/null || true
 fi
 
+# Same for the nifi-and-ai-skill-loaded marker (guard.sh rule 8) — a skill load
+# from a prior session must not let this session skip loading it again before its
+# own first live NiFi/EFM write (2026-08-11, issue #136/#142: skipped the skill
+# entirely on a live central-NiFi edit off the momentum of an earlier, unrelated
+# NiFi task in the same session — this marker exists so THAT session boundary is
+# also enforced, not just cross-session).
+if command -v ds_nifi_skill_marker >/dev/null 2>&1; then
+  rm -f "$(ds_nifi_skill_marker)" 2>/dev/null || true
+fi
+
 out=""
 
 # 1. Pull first (device-comms.md rule 1).
