@@ -2,7 +2,7 @@
 
 Let's stand up a fresh Cloudera Public Cloud (CDP) Enviornment on AWS with [`cdp-tf-quickstarts`](https://github.com/cloudera-labs/cdp-tf-quickstarts), enable the Iceberg REST Catalog embedded in the DataLake HMS, and prove end-to-end external reads from OSS Spark, AWS Athena, Snowflake, AWS EMR Spark — plus NiFi and Flink/SSB.  
 
-> **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix): **OSS Spark from the minikube/K8s cluster ✅ validated**; **NiFi**, **Flink/SSB**, Athena, Snowflake, EMR next — wired into the existing CSO/CFM/CSA work streams. Iceberg MCP Server (Impala) also validated. Design confirmed against a colleague's live-run runbook. No driving issue yet.
+> **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix): **OSS Spark (in minikube K8s), AWS EMR Spark, and the Iceberg MCP Server (Impala) all ✅ validated**; **NiFi** de-risked and building (native `RESTCatalogService` + `PutIceberg` on `mynifi`); **Flink/SSB**, Athena, Snowflake next — wired into the existing CSO/CFM/CSA work streams. Redeploy automation now also assigns the required env resource roles. Design confirmed against a colleague's live-run runbook. No driving issue yet.
 
 This is our reproducible rebuild of the Iceberg REST Catalog API Runbook for CDP Public Cloud Runtime 7.3.2 runbook.  We will deploy the environment from scratch, add the compute Data Hub the runbook assumes, and re-verify every external consumer engine — including **EMR Spark, not yet live-verified**. It complements [`cloudera-iceberg-to-athena-plan.md`](cloudera-iceberg-to-athena-plan.md) and corrects that to be validated doc's note that "REST Catalog doesn't reach Athena" — the runbook live-verified Athena-for-Spark via the REST Catalog on 2026-07-25.
 
@@ -166,11 +166,11 @@ curl -sk -H "Authorization: Bearer ${JWT}" \
 | Engine | Approach | Status |
 | :---- | :---- | :---- |
 | **OSS Spark / PyIceberg (from K8s)** | K8s Job (`apache/spark:3.5.3`, `spark-submit --master local[*]`) in the `minikube` cluster; `--packages iceberg-spark-runtime-3.5_2.12:1.5.2,iceberg-aws-bundle:1.5.2`; catalog `type=rest`, pre-fetched Knox JWT as `.token`, `X-Iceberg-Access-Delegation: vended-credentials`, `io-impl=S3FileIO`, `client.region=us-east-2`. | ✅ **validated 2026-08-11** |
-| **NiFi** | Data-plane example against `poc_uc2.airlines`: `InvokeHTTP` chain (Knox OAuth token → REST calls), and/or a `PutIceberg`/query flow. Ties into the `nifi-and-ai` skill + `cfm-streaming` NiFi. | planned |
+| **NiFi** | On `mynifi` (`cfm-streaming`): `InvokeHTTP` query chain, **and** native write via `CdpOauth2AccessTokenProviderControllerService` → `com.cloudera.nifi.services.iceberg.RESTCatalogService` → `PutIceberg`. Isolated PG `IcebergRestCatalogDemo`. | 🟡 de-risked — building |
 | **Flink / SSB** | Register an Iceberg **REST** catalog in SSB (`'catalog-type'='rest'`, `'uri'=<REST base>`, bearer token) and query `poc_uc2.airlines`. Ties into the `cld-streaming` CSA/SSB stack. | planned |
 | **AWS Athena** | Athena for Spark; base URI without `/v1/`, pre-fetched JWT, `X-Iceberg-Access-Delegation: vended-credentials`, explicit `client.region`. Needs knox SG `0.0.0.0/0`. | runbook-verified — reproduce |
 | **Snowflake** | Catalog Integration `TYPE = BEARER` + pre-fetched JWT (native `TYPE=OAUTH` breaks — Knox emits `expires_in` as epoch-millis). Needs a Snowflake account + SG `0.0.0.0/0`. | runbook-verified — reproduce |
-| **AWS EMR Spark** | Instance-profile trust → policy → service role → EMR Spark job. | **net-new verification** |
+| **AWS EMR Spark** | Single-node `emr-7.2.0` cluster (public subnet, default roles); Spark `local[*]` step, same REST-catalog config as OSS Spark; JWT injected over SSH (no secret in S3/step args). | ✅ **validated 2026-08-11 (first-ever)** |
 
 ### OSS Spark from K8s — ✅ validated 2026-08-11
 
@@ -199,6 +199,23 @@ count(*) → 3
 ```
 
 **Findings:** (1) the container ran **Java 11** and worked fine — the runbook's Java-17 pin is a *macOS-local* SecurityManager quirk, irrelevant in-cluster. (2) the `minikube` profile was **down** (Docker daemon stopped) and had to be started first. (3) the catalog `uri` omits `/v1/` (the client appends it), and the JWT goes in `.token` — Iceberg's built-in single-step OAuth won't reach Knox's 2-step endpoint. Artifacts: `k8s/query-airlines.py`, `k8s/spark-iceberg-job.yaml`.
+
+### AWS EMR Spark — ✅ validated 2026-08-11 (first-ever)
+
+The runbook never live-verified EMR; this build did. Single-node `emr-7.2.0` cluster in a **public** subnet (the `public` deployment template has no NAT/private subnets), default EMR roles, `srm-iceberg-keypair`. Ran the identical REST-catalog Spark config as OSS Spark via `spark-submit --master local[*]`.
+
+- **Secret hygiene:** the JWT is fetched fresh on the Mac and **injected over SSH** into the remote `spark-submit` env — never written to S3 or EMR step args (both of those were correctly blocked by safety guardrails).
+- **Networking:** added only the **primary node's `/32`** to the knox SG:443 (not `0.0.0.0/0`), and my `/32` to the EMR master SG:22 for SSH. Revoked the EMR `/32` on teardown.
+- **Result:** `SHOW NAMESPACES IN cdp` → `default, information_schema, poc_uc2, sys`; `SELECT * FROM cdp.poc_uc2.airlines` → AA/DL/UA (3 rows). Cluster torn down after.
+- Artifacts: `emr/query-emr.py`, `emr/run-iceberg.sh` (self-fetch JWT variant for a future S3-hosted step).
+
+### NiFi (mynifi) — 🟡 de-risked, building
+
+- **Access:** `mynifi` uses mTLS + nginx ingress; the minikube ingress has **no `--enable-ssl-passthrough`** (terminates TLS, drops the client cert → 401) and `port-forward` fails (NiFi binds the pod FQDN, not loopback). Working path: an **isolated in-cluster helper pod** (`nifi-client`, `cfm-streaming`) with the operator mTLS cert `kubectl cp`'d in, hitting `https://mynifi-web.cfm-streaming.svc.cluster.local:8443/nifi-api` directly — no shared-infra changes.
+- **Components confirmed present** in this CFM image: processors `PutIceberg`, `com.cloudera.nifi.processors.iceberg.PutIcebergCDC`; controller services `HadoopCatalogService`, `HiveCatalogService`, `JdbcCatalogService`, **`com.cloudera.nifi.services.iceberg.RESTCatalogService`**; OAuth2 providers incl. **`CdpOauth2AccessTokenProviderControllerService`**.
+- **Write architecture:** `CdpOauth2AccessTokenProviderControllerService` (Knox `client_credentials` → JWT) → `RESTCatalogService` (`Catalog URI` = `…/cdp-datashare-access/iceberg-rest`, `OAuth2 Access Token Provider` = the CDP provider) → `PutIceberg` (`catalog-service`, `catalog-namespace=poc_uc2`, `table-name`, `record-reader`=JsonTreeReader). This is why NiFi's Iceberg processors *can* target the Knox REST catalog natively (the runbook's single-step-OAuth caveat is handled by the CDP OAuth2 provider). Client secret via a **Parameter Context** (skill rule 2), never a literal processor property.
+- **Query path:** `GenerateFlowFile → InvokeHTTP` (POST Knox token) `→ EvaluateJsonPath → InvokeHTTP` (GET `/iceberg-rest/v1/namespaces`).
+- **Status:** isolated PG `IcebergRestCatalogDemo` created. **Next:** author + upload the flow-definition JSON, enable the CS chain, start, test the write, export the flow JSON.
 
 ## Iceberg MCP Server — AI/agent access via Impala
 
