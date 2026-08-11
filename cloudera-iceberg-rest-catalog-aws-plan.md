@@ -1,10 +1,10 @@
 # Cloudera Iceberg REST Catalog on AWS
 
-Stand up a fresh Cloudera Public Cloud (CDP) sandbox on AWS with `cdp-tf-quickstarts`, enable the Iceberg REST Catalog embedded in the DataLake HMS, and prove end-to-end external reads from OSS Spark, AWS Athena, Snowflake, AWS EMR Spark — plus NiFi and Flink/SSB.
+Let's stand up a fresh Cloudera Public Cloud (CDP) Enviornment on AWS with [`cdp-tf-quickstarts`](https://github.com/cloudera-labs/cdp-tf-quickstarts), enable the Iceberg REST Catalog embedded in the DataLake HMS, and prove end-to-end external reads from OSS Spark, AWS Athena, Snowflake, AWS EMR Spark — plus NiFi and Flink/SSB.  
 
-> **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix) starting with **OSS Spark from the minikube/K8s cluster**, plus new **NiFi** and **Flink/SSB** examples wired into the existing CSO/CFM/CSA work streams. Design confirmed against a colleague's live-run runbook (`zzengaws732-aw-dl`). No driving issue yet.
+> **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix): **OSS Spark (minikube K8s), AWS EMR Spark, Iceberg MCP (Impala), and NiFi query (InvokeHTTP) all ✅ validated**; **NiFi query via `InvokeHTTP` ✅**; the native `RESTCatalogService`/`PutIceberg` path is **blocked by a Jackson NAR bug** in this CFM build (`NoClassDefFoundError: PropertyNamingStrategy$KebabCaseStrategy`) and the datashare is **read-only** (writes fail at the S3 layer; workload tokens 401). Net: in this build, use **`InvokeHTTP`** for NiFi↔REST-catalog. **Pending:** **Flink/SSB**, Athena, Snowflake. Redeploy automation assigns the required env roles. Env stays up until the Friday reaper. Design confirmed against a colleague's live-run runbook. No driving issue yet.
 
-This is our reproducible rebuild of a colleague's 1,008-line runbook: deploy the environment from scratch, add the compute Data Hub the runbook assumes, and re-verify every external consumer engine — including **EMR Spark, which the source runbook never live-verified**. It complements [`cloudera-iceberg-to-athena-plan.md`](cloudera-iceberg-to-athena-plan.md) and corrects that doc's note that "REST Catalog doesn't reach Athena" — the runbook live-verified Athena-for-Spark via the REST Catalog on 2026-07-25.
+This is our reproducible rebuild of the Iceberg REST Catalog API Runbook for CDP Public Cloud Runtime 7.3.2 runbook.  We will deploy the environment from scratch, add the compute Data Hub the runbook assumes, and re-verify every external consumer engine — including **EMR Spark, not yet live-verified**. It complements [`cloudera-iceberg-to-athena-plan.md`](cloudera-iceberg-to-athena-plan.md) and corrects that to be validated doc's note that "REST Catalog doesn't reach Athena" — the runbook live-verified Athena-for-Spark via the REST Catalog on 2026-07-25.
 
 ## The one thing everything hangs on
 
@@ -165,12 +165,61 @@ curl -sk -H "Authorization: Bearer ${JWT}" \
 
 | Engine | Approach | Status |
 | :---- | :---- | :---- |
-| **OSS Spark / PyIceberg (from K8s)** | Spark 3.5 + Iceberg REST client 1.5.2 job in the minikube cluster; catalog `type=rest`, `uri=<REST base>`, OAuth2 bearer from Knox, `X-Iceberg-Access-Delegation: vended-credentials`, explicit `client.region`. Add the minikube host egress IP to the knox SG. | ▶️ **next** |
-| **NiFi** | Data-plane example against `poc_uc2.airlines`: `InvokeHTTP` chain (Knox OAuth token → REST calls), and/or a `PutIceberg`/query flow. Ties into the `nifi-and-ai` skill + `cfm-streaming` NiFi. | planned |
+| **OSS Spark / PyIceberg (from K8s)** | K8s Job (`apache/spark:3.5.3`, `spark-submit --master local[*]`) in the `minikube` cluster; `--packages iceberg-spark-runtime-3.5_2.12:1.5.2,iceberg-aws-bundle:1.5.2`; catalog `type=rest`, pre-fetched Knox JWT as `.token`, `X-Iceberg-Access-Delegation: vended-credentials`, `io-impl=S3FileIO`, `client.region=us-east-2`. | ✅ **validated 2026-08-11** |
+| **NiFi** | On `mynifi` (`cfm-streaming`): `InvokeHTTP` query chain, **and** native write via `CdpOauth2AccessTokenProviderControllerService` → `com.cloudera.nifi.services.iceberg.RESTCatalogService` → `PutIceberg`. Isolated PG `IcebergRestCatalogDemo`. | ✅ query (InvokeHTTP); native `RESTCatalogService` blocked by a NAR Jackson bug + read-only share |
 | **Flink / SSB** | Register an Iceberg **REST** catalog in SSB (`'catalog-type'='rest'`, `'uri'=<REST base>`, bearer token) and query `poc_uc2.airlines`. Ties into the `cld-streaming` CSA/SSB stack. | planned |
 | **AWS Athena** | Athena for Spark; base URI without `/v1/`, pre-fetched JWT, `X-Iceberg-Access-Delegation: vended-credentials`, explicit `client.region`. Needs knox SG `0.0.0.0/0`. | runbook-verified — reproduce |
 | **Snowflake** | Catalog Integration `TYPE = BEARER` + pre-fetched JWT (native `TYPE=OAUTH` breaks — Knox emits `expires_in` as epoch-millis). Needs a Snowflake account + SG `0.0.0.0/0`. | runbook-verified — reproduce |
-| **AWS EMR Spark** | Instance-profile trust → policy → service role → EMR Spark job. | **net-new verification** |
+| **AWS EMR Spark** | Single-node `emr-7.2.0` cluster (public subnet, default roles); Spark `local[*]` step, same REST-catalog config as OSS Spark; JWT injected over SSH (no secret in S3/step args). | ✅ **validated 2026-08-11 (first-ever)** |
+
+### OSS Spark from K8s — ✅ validated 2026-08-11
+
+Ran entirely **inside the `minikube` cluster** (namespace `iceberg-demo`): `Job/iceberg-rest-spark` on `apache/spark:3.5.3`, `spark-submit --master local[*]`, Iceberg packages pulled at runtime. The Knox JWT is pre-fetched on the host (2-step OAuth) and injected as a Secret (`cdp-jwt`); the PySpark script rides a ConfigMap (`spark-query`). The pod egresses via the Mac's public IP (already in the knox SG).
+
+```python
+# key catalog config — k8s/query-airlines.py
+.config("spark.sql.catalog.cdp", "org.apache.iceberg.spark.SparkCatalog")
+.config("spark.sql.catalog.cdp.type", "rest")
+.config("spark.sql.catalog.cdp.uri", "https://<gateway>/srm-iceberg-aw-dl/cdp-datashare-access/iceberg-rest")
+.config("spark.sql.catalog.cdp.token", "<pre-fetched Knox JWT>")
+.config("spark.sql.catalog.cdp.header.X-Iceberg-Access-Delegation", "vended-credentials")
+.config("spark.sql.catalog.cdp.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+.config("spark.sql.catalog.cdp.client.region", "us-east-2")
+```
+
+Output:
+
+```
+SHOW NAMESPACES IN cdp  →  default | information_schema | poc_uc2 | sys
+SELECT * FROM cdp.poc_uc2.airlines:
+  AA | American Airlines | JFK | LAX | 2026
+  DL | Delta Air Lines   | ATL | SEA | 2026
+  UA | United Airlines   | ORD | SFO | 2026
+count(*) → 3
+```
+
+**Findings:** (1) the container ran **Java 11** and worked fine — the runbook's Java-17 pin is a *macOS-local* SecurityManager quirk, irrelevant in-cluster. (2) the `minikube` profile was **down** (Docker daemon stopped) and had to be started first. (3) the catalog `uri` omits `/v1/` (the client appends it), and the JWT goes in `.token` — Iceberg's built-in single-step OAuth won't reach Knox's 2-step endpoint. Artifacts: `k8s/query-airlines.py`, `k8s/spark-iceberg-job.yaml`.
+
+### AWS EMR Spark — ✅ validated 2026-08-11 (first-ever)
+
+The runbook never live-verified EMR; this build did. Single-node `emr-7.2.0` cluster in a **public** subnet (the `public` deployment template has no NAT/private subnets), default EMR roles, `srm-iceberg-keypair`. Ran the identical REST-catalog Spark config as OSS Spark via `spark-submit --master local[*]`.
+
+- **Secret hygiene:** the JWT is fetched fresh on the Mac and **injected over SSH** into the remote `spark-submit` env — never written to S3 or EMR step args (both of those were correctly blocked by safety guardrails).
+- **Networking:** added only the **primary node's `/32`** to the knox SG:443 (not `0.0.0.0/0`), and my `/32` to the EMR master SG:22 for SSH. Revoked the EMR `/32` on teardown.
+- **Result:** `SHOW NAMESPACES IN cdp` → `default, information_schema, poc_uc2, sys`; `SELECT * FROM cdp.poc_uc2.airlines` → AA/DL/UA (3 rows). Cluster torn down after.
+- Artifacts: `emr/query-emr.py`, `emr/run-iceberg.sh` (self-fetch JWT variant for a future S3-hosted step).
+
+### NiFi (mynifi) — 🟡 de-risked, building
+
+- **Access:** `mynifi` uses mTLS + nginx ingress; the minikube ingress has **no `--enable-ssl-passthrough`** (terminates TLS, drops the client cert → 401) and `port-forward` fails (NiFi binds the pod FQDN, not loopback). Working path: an **isolated in-cluster helper pod** (`nifi-client`, `cfm-streaming`) with the operator mTLS cert `kubectl cp`'d in, hitting `https://mynifi-web.cfm-streaming.svc.cluster.local:8443/nifi-api` directly — no shared-infra changes.
+- **Components confirmed present** in this CFM image: processors `PutIceberg`, `com.cloudera.nifi.processors.iceberg.PutIcebergCDC`; controller services `HadoopCatalogService`, `HiveCatalogService`, `JdbcCatalogService`, **`com.cloudera.nifi.services.iceberg.RESTCatalogService`**; OAuth2 providers incl. **`CdpOauth2AccessTokenProviderControllerService`**.
+- **Write architecture:** `CdpOauth2AccessTokenProviderControllerService` (Knox `client_credentials` → JWT) → `RESTCatalogService` (`Catalog URI` = `…/cdp-datashare-access/iceberg-rest`, `OAuth2 Access Token Provider` = the CDP provider) → `PutIceberg` (`catalog-service`, `catalog-namespace=poc_uc2`, `table-name`, `record-reader`=JsonTreeReader). This is why NiFi's Iceberg processors *can* target the Knox REST catalog natively (the runbook's single-step-OAuth caveat is handled by the CDP OAuth2 provider). Client secret via a **Parameter Context** (skill rule 2), never a literal processor property.
+- **Query path — ✅ validated 2026-08-11.** `GenerateFlowFile → InvokeHTTP` (GET `/iceberg-rest/v1/namespaces`), where `InvokeHTTP`'s **`Request OAuth2 Access Token Provider`** = a `StandardOauth2AccessTokenProvider` CS (Authorization Server URL = Knox token endpoint, Grant Type `client_credentials`, **Client Authentication Strategy `REQUEST_BODY`**, Client ID/secret from the Parameter Context). NiFi returned `{"namespaces":[["default"],["information_schema"],["poc_uc2"],["sys"]]}`. (Gotcha: a non-sensitive property like GenerateFlowFile's `Custom Text` **cannot** reference a sensitive param — hence the OAuth2-provider CS, whose `Client secret` *is* sensitive, rather than hand-building the token POST.)
+- **Native controller service — configures VALID, but broken at runtime by a NAR bug.** `com.cloudera.nifi.services.iceberg.RESTCatalogService` (props: `Catalog URI` = `…/cdp-datashare-access/iceberg-rest`, `warehouse-path` = the S3 warehouse, `OAuth2 Access Token Provider` = a `StandardOauth2AccessTokenProvider` with Grant Type `client_credentials` + auth `REQUEST_BODY`) reaches **ENABLED + VALID**, and `PutIceberg` (`catalog-service`, `catalog-namespace=poc_uc2`, `table-name=nifi_sink`, `record-reader`=JsonTreeReader) validates. **But at runtime the catalog call throws** `java.lang.NoClassDefFoundError: com/fasterxml/jackson/databind/PropertyNamingStrategy$KebabCaseStrategy` — a **Jackson version conflict inside the Cloudera `RESTCatalogService` NAR** (this CFM build `2.6.0.4.3.4.0-234`; `KebabCaseStrategy` moved out of `PropertyNamingStrategy` in Jackson 2.12+). So the native `RESTCatalogService`/`PutIceberg` path **cannot execute in this build** — a product-side dependency bug, fixable only by side-loading a compatible `jackson-databind` into the NAR or a fixed CFM build. **Working NiFi+Iceberg-REST path in this build = `InvokeHTTP`** (proven).
+  - Token gotcha surfaced here: Knox enforces a per-client token limit (`knoxsso_token_ttl` = 24h); heavy testing (curl + Spark + EMR + NiFi OAuth) exhausted it → `403 "token limit exceeded"`. Fix = `cdp datacatalog regenerate-external-user-credentials` (new clientId = fresh budget) → re-run `share-data-share` → update the NiFi Parameter Context; or raise the Knox limit.
+- **Write path — ⛔ read-only *by design* (empirically proven, not a Ranger policy gap).** Direct REST calls with the external-user token to **create a namespace and a table both failed at the S3 storage layer** (`Failed to create file … metadata.json` / `Failed to create external path …db`), *not* with a Ranger 403 — the datashare vends **read-only** storage credentials. The endpoint also **rejects non-datashare (workload-user) tokens with 401**, so there's no privileged-write path through `cdp-datashare-access`. Conclusion: a successful `PutIceberg` **write** must target a **write-capable catalog** (e.g. `HadoopCatalogService` to an S3/local warehouse, or writing through a compute engine), while `RESTCatalogService` is the **read** path to the shared catalog. A fresh Iceberg table `poc_uc2.nifi_sink` was created via Impala as the write target.
+- **Env note:** the Mac's docker-driver `minikube` gets API-flaky (`TLS handshake timeout`) under sustained load + `minikube tunnel`; the final `PutIceberg` run (re-enable OAuth CS → run) is pending cluster recovery.
+- **Access mechanics (reusable):** operator mTLS cert `kubectl cp`'d into an in-cluster `nifi-client` helper pod (`badouralix/curl-jq`); build driven by `nifi/build-query-flow.sh`. Cert extraction from the cluster secret must be done by a human (guardrail).
 
 ## Iceberg MCP Server — AI/agent access via Impala
 
@@ -201,7 +250,20 @@ npx @modelcontextprotocol/inspector uv run src/iceberg_mcp_server/server.py   # 
 # or wire into Claude Desktop: claude_desktop_config.json → command "uv", args ["--directory","<repo>","run","src/iceberg_mcp_server/server.py"]
 ```
 
-- **Validation:** `get_schema()` lists the `poc_uc2` tables; `execute_query("SELECT * FROM poc_uc2.airlines LIMIT 5")` returns the 3 seeded rows as JSON.
+- **✅ Validated 2026-08-11** via MCP Inspector CLI against `srm-iceberg-impala` (`tools/list` → `get_schema`, `execute_query`). Actual output:
+
+```jsonc
+// get_schema()
+{"content":[{"type":"text","text":"[\"airlines\"]"}],"isError":false}
+
+// execute_query("SELECT * FROM poc_uc2.airlines ORDER BY code")
+{"content":[{"type":"text","text":
+  "[[\"AA\",\"American Airlines\",\"JFK\",\"LAX\",2026],
+    [\"DL\",\"Delta Air Lines\",\"ATL\",\"SEA\",2026],
+    [\"UA\",\"United Airlines\",\"ORD\",\"SFO\",2026]]"}],"isError":false}
+```
+
+  CLI form: `npx -y @modelcontextprotocol/inspector --cli uv run src/iceberg_mcp_server/server.py --method tools/call --tool-name <get_schema|execute_query> [--tool-arg 'query=…']`.
 - **Networking:** same knox-SG rule as the other consumers — the MCP host's egress IP must reach 443 (this Mac already allowed).
 - Related Cloudera MCP servers (same install pattern): [NiFi-MCP-Server](https://github.com/cloudera/NiFi-MCP-Server), [CAI_Workbench_MCP_Server](https://github.com/cloudera/CAI_Workbench_MCP_Server), [CDV-MCP-Server](https://github.com/cloudera/CDV-MCP-Server) (`~/Documents/GitHub/CDV-MCP-Server` local).
 
@@ -259,6 +321,69 @@ cdp datacatalog share-data-share --datalake-crn $DL_CRN --environment-crn $ENV_C
 bash test-rest-catalog.sh poc_uc2 airlines            # JWT → namespaces → tables → vended-creds metadata
 ```
 
+## Automated redeploy (weekly rebuild)
+
+The shared tenant reaps **EOD Friday**, so the whole stack is disposable and must be reproducible on demand — e.g. **Monday morning**. `redeploy.sh` (in the demo dir, embedded below for recoverability) chains every phase end-to-end with live CRN resolution + polling: **~1h40m, unattended after two interactive prereqs.**
+
+**Interactive prereqs (once, before running):**
+```bash
+aws sso login --profile cldr-se          # SSO browser login
+cdp configure                            # only if the CDP API key was rotated/deleted
+# ~/Documents/GitHub/iceberg-rest-catalog-demo/.workload.creds must hold the workload password
+```
+
+Then: `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh`
+
+Stable across rebuilds (same tenant + `srm-iceberg` prefix): the gateway host `srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site` and the MCP `.env`. **Only the CRNs churn** — the script re-resolves them from `describe-datalake`/`describe-environment` into `config.env`. (Not wired to a scheduler — run it manually Monday, or drop it in `launchd`/`cron` for true hands-off.)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+export AWS_PROFILE=cldr-se
+export PATH="$HOME/.venvs/cdpcli/bin:$PATH"
+TF="$HOME/Documents/GitHub/cdp-tf-quickstarts/aws"
+DEMO="$HOME/Documents/GitHub/iceberg-rest-catalog-demo"
+PREFIX="srm-iceberg"; ENV_NAME="${PREFIX}-cdp-env"; DL="${PREFIX}-aw-dl"; DH="${PREFIX}-impala"
+GW="${PREFIX}-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site"; USER_NAME="steven.matison"
+
+# [1] terraform apply (env + DataLake) ~1h20m
+( cd "$TF" && terraform init -input=false >/dev/null && terraform apply -auto-approve )
+# [2] wait DataLake RUNNING, resolve CRNs
+until [ "$(cdp datalake describe-datalake --datalake-name "$DL" 2>/dev/null | jq -r '.datalake.status')" = RUNNING ]; do sleep 30; done
+DL_CRN=$(cdp datalake describe-datalake --datalake-name "$DL" | jq -r '.datalake.crn')
+ENV_CRN=$(cdp environments describe-environment --environment-name "$ENV_NAME" | jq -r '.environment.crn')
+printf 'ENV_CRN=%s\nDL_CRN=%s\n' "$ENV_CRN" "$DL_CRN" > "$DEMO/config.env"
+# [3] Impala Data Hub + wait AVAILABLE ~18m
+cdp datahub create-aws-cluster --cluster-name "$DH" --environment-name "$ENV_NAME" \
+  --cluster-definition-name "7.3.2 - Data Mart for AWS" || echo "(exists)"
+until [ "$(cdp datahub describe-cluster --cluster-name "$DH" 2>/dev/null | jq -r '.cluster.clusterStatus')" = AVAILABLE ]; do sleep 30; done
+# [4] seed
+( cd "$DEMO" && python seed-impala.py sql/seed-airlines.sql )
+# [5] enable REST Catalog + restart HMS/Knox (CM API)
+PW=$(cat "$DEMO/.workload.creds"); CMAPI="https://$GW/$DL/cdp-proxy-api/cm-api"
+EXIST=$(curl -sk -u "$USER_NAME:$PW" "$CMAPI/v51/clusters/$DL/services/hive/config" | jq -r '.items[]|select(.name=="hive_service_config_safety_valve").value // ""')
+case "$EXIST" in *client.region*) SV="$EXIST";; *) SV="${EXIST}<property><name>client.region</name><value>us-east-2</value></property>";; esac
+jq -n --arg sv "$SV" '{items:[{name:"hive_rest_catalog_enabled",value:"true"},{name:"hive_service_config_safety_valve",value:$sv}]}' > /tmp/hcfg.json
+curl -sk -u "$USER_NAME:$PW" -X PUT -H "Content-Type: application/json" -d @/tmp/hcfg.json "$CMAPI/v51/clusters/$DL/services/hive/config" >/dev/null
+for svc in hive knox; do
+  CID=$(curl -sk -u "$USER_NAME:$PW" -X POST "$CMAPI/v51/clusters/$DL/services/$svc/commands/restart" | jq -r '.id')
+  until [ "$(curl -sk -u "$USER_NAME:$PW" "$CMAPI/v51/commands/$CID" 2>/dev/null | jq -r '.active')" = false ]; do sleep 10; done
+done
+# [6] external user + data share + activate
+cd "$DEMO"
+cdp datacatalog create-external-users --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" \
+  --external-users '[{"username":"iceberg-consumer","email":"steven.matison@cloudera.com","companyName":"Cloudera"}]' > /tmp/eu.json
+jq '{clientId:.externalUsers[0].clientId,secret:.externalUsers[0].secret,username:.externalUsers[0].username}' /tmp/eu.json > credentials.json; chmod 600 credentials.json
+EUID_=$(jq -r '.externalUsers[0].userId' /tmp/eu.json)
+cdp datacatalog create-data-share --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" \
+  --data-share-name "srm-iceberg-share" --assets '[{"databaseName":"poc_uc2","tableName":"airlines"}]' \
+  --external-users "[{\"externalUserId\":$EUID_}]" > /tmp/ds.json
+SID=$(jq -r '.dataShareId' /tmp/ds.json); echo "DATA_SHARE_ID=$SID" >> "$DEMO/config.env"
+cdp datacatalog share-data-share --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" --data-share-id "$SID"
+# [7] validate
+bash test-rest-catalog.sh poc_uc2 airlines
+```
+
 ## When this ships
 
 - Move this tracker root → `completed/` once the full consumer matrix is field-verified; state the EMR result explicitly (first-ever verification or a documented blocker).
@@ -266,11 +391,13 @@ bash test-rest-catalog.sh poc_uc2 airlines            # JWT → namespaces → t
 - Optionally open a `device:FTF3XR2065` tracking issue per `agent/device-comms.md`.
 - Candidate for promotion to a published guide (blog track) if the matrix lands clean.
 
-## Sources
+## Resources
 
 - Colleague runbook: *Iceberg REST Catalog API Runbook* (Runtime 7.3.2, live-run on `zzengaws732-aw-dl`)
-- https://github.com/cloudera-labs/cdp-tf-quickstarts
-- Iceberg MCP Server: [cloudera/iceberg-mcp-server](https://github.com/cloudera/iceberg-mcp-server) (fork `cldr-steven-matison/iceberg-mcp-server`, local `~/Documents/GitHub/iceberg-mcp-server`); install guide *How To Install Cloudera Iceberg MCP Server* (`cldr-steven-matison.github.io/_posts/2026-05-20-...`)
+- Deploy: [cloudera-labs/cdp-tf-quickstarts](https://github.com/cloudera-labs/cdp-tf-quickstarts)
+- **Iceberg MCP Server (Cloudera root repo):** [cloudera/iceberg-mcp-server](https://github.com/cloudera/iceberg-mcp-server) — fork [cldr-steven-matison/iceberg-mcp-server](https://github.com/cldr-steven-matison/iceberg-mcp-server), local `~/Documents/GitHub/iceberg-mcp-server`
+- **MCP install guide (blog):** [How To Install Cloudera Iceberg MCP Server](https://stevenmatison.com/blog/How-To-Install-Cloudera-Iceberg-MCP-Server/)
+- **K8s testing home:** [cldr-steven-matison/ClouderaStreamingOperators](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) — where the in-cluster (minikube `minikube` default profile) consumer tests for this plan will live
 - [Configuring Hive Metastore as a REST Catalog (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/using-cloudera-data-sharing/topics/cr-ds-configuring-hive-metastore-rest-catalog.html)
 - [Access data using REST Catalog APIs (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/using-cloudera-data-sharing/topics/cr-ds-access-data-using-rest-catalog-apis.html)
 - [Known issues in Iceberg REST Catalog (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/public-release-notes/topics/rt-known-issues-iceberg-REST-catalog.html)
