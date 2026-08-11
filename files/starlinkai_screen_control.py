@@ -303,13 +303,17 @@ def cmd_matrix_stop(screen):
 def main():
     args = sys.argv[1:]
     try:
+        # Accepts either the historical 2/3-arg calls or a uniform 3-arg call
+        # (action, screen, streamer) with streamer="" for the non-load actions —
+        # the latter is what the consolidated single-endpoint EFM flow (#136)
+        # sends, since it always fills a fixed 3-slot Command Arguments template.
         if len(args) == 3 and args[0] == "mpv-load":
             result = cmd_mpv_load(args[1], args[2])
-        elif len(args) == 2 and args[0] == "mpv-stop":
+        elif len(args) in (2, 3) and args[0] == "mpv-stop":
             result = cmd_mpv_stop(args[1])
-        elif len(args) == 2 and args[0] == "matrix-load":
+        elif len(args) in (2, 3) and args[0] == "matrix-load":
             result = cmd_matrix_load(args[1])
-        elif len(args) == 2 and args[0] == "matrix-stop":
+        elif len(args) in (2, 3) and args[0] == "matrix-stop":
             result = cmd_matrix_stop(args[1])
         else:
             result = {"ok": False, "error": f"bad args: {args!r}"}
