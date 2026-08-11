@@ -201,7 +201,20 @@ npx @modelcontextprotocol/inspector uv run src/iceberg_mcp_server/server.py   # 
 # or wire into Claude Desktop: claude_desktop_config.json → command "uv", args ["--directory","<repo>","run","src/iceberg_mcp_server/server.py"]
 ```
 
-- **Validation:** `get_schema()` lists the `poc_uc2` tables; `execute_query("SELECT * FROM poc_uc2.airlines LIMIT 5")` returns the 3 seeded rows as JSON.
+- **✅ Validated 2026-08-11** via MCP Inspector CLI against `srm-iceberg-impala` (`tools/list` → `get_schema`, `execute_query`). Actual output:
+
+```jsonc
+// get_schema()
+{"content":[{"type":"text","text":"[\"airlines\"]"}],"isError":false}
+
+// execute_query("SELECT * FROM poc_uc2.airlines ORDER BY code")
+{"content":[{"type":"text","text":
+  "[[\"AA\",\"American Airlines\",\"JFK\",\"LAX\",2026],
+    [\"DL\",\"Delta Air Lines\",\"ATL\",\"SEA\",2026],
+    [\"UA\",\"United Airlines\",\"ORD\",\"SFO\",2026]]"}],"isError":false}
+```
+
+  CLI form: `npx -y @modelcontextprotocol/inspector --cli uv run src/iceberg_mcp_server/server.py --method tools/call --tool-name <get_schema|execute_query> [--tool-arg 'query=…']`.
 - **Networking:** same knox-SG rule as the other consumers — the MCP host's egress IP must reach 443 (this Mac already allowed).
 - Related Cloudera MCP servers (same install pattern): [NiFi-MCP-Server](https://github.com/cloudera/NiFi-MCP-Server), [CAI_Workbench_MCP_Server](https://github.com/cloudera/CAI_Workbench_MCP_Server), [CDV-MCP-Server](https://github.com/cloudera/CDV-MCP-Server) (`~/Documents/GitHub/CDV-MCP-Server` local).
 
@@ -259,6 +272,69 @@ cdp datacatalog share-data-share --datalake-crn $DL_CRN --environment-crn $ENV_C
 bash test-rest-catalog.sh poc_uc2 airlines            # JWT → namespaces → tables → vended-creds metadata
 ```
 
+## Automated redeploy (weekly rebuild)
+
+The shared tenant reaps **EOD Friday**, so the whole stack is disposable and must be reproducible on demand — e.g. **Monday morning**. `redeploy.sh` (in the demo dir, embedded below for recoverability) chains every phase end-to-end with live CRN resolution + polling: **~1h40m, unattended after two interactive prereqs.**
+
+**Interactive prereqs (once, before running):**
+```bash
+aws sso login --profile cldr-se          # SSO browser login
+cdp configure                            # only if the CDP API key was rotated/deleted
+# ~/Documents/GitHub/iceberg-rest-catalog-demo/.workload.creds must hold the workload password
+```
+
+Then: `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh`
+
+Stable across rebuilds (same tenant + `srm-iceberg` prefix): the gateway host `srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site` and the MCP `.env`. **Only the CRNs churn** — the script re-resolves them from `describe-datalake`/`describe-environment` into `config.env`. (Not wired to a scheduler — run it manually Monday, or drop it in `launchd`/`cron` for true hands-off.)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+export AWS_PROFILE=cldr-se
+export PATH="$HOME/.venvs/cdpcli/bin:$PATH"
+TF="$HOME/Documents/GitHub/cdp-tf-quickstarts/aws"
+DEMO="$HOME/Documents/GitHub/iceberg-rest-catalog-demo"
+PREFIX="srm-iceberg"; ENV_NAME="${PREFIX}-cdp-env"; DL="${PREFIX}-aw-dl"; DH="${PREFIX}-impala"
+GW="${PREFIX}-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site"; USER_NAME="steven.matison"
+
+# [1] terraform apply (env + DataLake) ~1h20m
+( cd "$TF" && terraform init -input=false >/dev/null && terraform apply -auto-approve )
+# [2] wait DataLake RUNNING, resolve CRNs
+until [ "$(cdp datalake describe-datalake --datalake-name "$DL" 2>/dev/null | jq -r '.datalake.status')" = RUNNING ]; do sleep 30; done
+DL_CRN=$(cdp datalake describe-datalake --datalake-name "$DL" | jq -r '.datalake.crn')
+ENV_CRN=$(cdp environments describe-environment --environment-name "$ENV_NAME" | jq -r '.environment.crn')
+printf 'ENV_CRN=%s\nDL_CRN=%s\n' "$ENV_CRN" "$DL_CRN" > "$DEMO/config.env"
+# [3] Impala Data Hub + wait AVAILABLE ~18m
+cdp datahub create-aws-cluster --cluster-name "$DH" --environment-name "$ENV_NAME" \
+  --cluster-definition-name "7.3.2 - Data Mart for AWS" || echo "(exists)"
+until [ "$(cdp datahub describe-cluster --cluster-name "$DH" 2>/dev/null | jq -r '.cluster.clusterStatus')" = AVAILABLE ]; do sleep 30; done
+# [4] seed
+( cd "$DEMO" && python seed-impala.py sql/seed-airlines.sql )
+# [5] enable REST Catalog + restart HMS/Knox (CM API)
+PW=$(cat "$DEMO/.workload.creds"); CMAPI="https://$GW/$DL/cdp-proxy-api/cm-api"
+EXIST=$(curl -sk -u "$USER_NAME:$PW" "$CMAPI/v51/clusters/$DL/services/hive/config" | jq -r '.items[]|select(.name=="hive_service_config_safety_valve").value // ""')
+case "$EXIST" in *client.region*) SV="$EXIST";; *) SV="${EXIST}<property><name>client.region</name><value>us-east-2</value></property>";; esac
+jq -n --arg sv "$SV" '{items:[{name:"hive_rest_catalog_enabled",value:"true"},{name:"hive_service_config_safety_valve",value:$sv}]}' > /tmp/hcfg.json
+curl -sk -u "$USER_NAME:$PW" -X PUT -H "Content-Type: application/json" -d @/tmp/hcfg.json "$CMAPI/v51/clusters/$DL/services/hive/config" >/dev/null
+for svc in hive knox; do
+  CID=$(curl -sk -u "$USER_NAME:$PW" -X POST "$CMAPI/v51/clusters/$DL/services/$svc/commands/restart" | jq -r '.id')
+  until [ "$(curl -sk -u "$USER_NAME:$PW" "$CMAPI/v51/commands/$CID" 2>/dev/null | jq -r '.active')" = false ]; do sleep 10; done
+done
+# [6] external user + data share + activate
+cd "$DEMO"
+cdp datacatalog create-external-users --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" \
+  --external-users '[{"username":"iceberg-consumer","email":"steven.matison@cloudera.com","companyName":"Cloudera"}]' > /tmp/eu.json
+jq '{clientId:.externalUsers[0].clientId,secret:.externalUsers[0].secret,username:.externalUsers[0].username}' /tmp/eu.json > credentials.json; chmod 600 credentials.json
+EUID_=$(jq -r '.externalUsers[0].userId' /tmp/eu.json)
+cdp datacatalog create-data-share --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" \
+  --data-share-name "srm-iceberg-share" --assets '[{"databaseName":"poc_uc2","tableName":"airlines"}]' \
+  --external-users "[{\"externalUserId\":$EUID_}]" > /tmp/ds.json
+SID=$(jq -r '.dataShareId' /tmp/ds.json); echo "DATA_SHARE_ID=$SID" >> "$DEMO/config.env"
+cdp datacatalog share-data-share --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" --data-share-id "$SID"
+# [7] validate
+bash test-rest-catalog.sh poc_uc2 airlines
+```
+
 ## When this ships
 
 - Move this tracker root → `completed/` once the full consumer matrix is field-verified; state the EMR result explicitly (first-ever verification or a documented blocker).
@@ -266,11 +342,13 @@ bash test-rest-catalog.sh poc_uc2 airlines            # JWT → namespaces → t
 - Optionally open a `device:FTF3XR2065` tracking issue per `agent/device-comms.md`.
 - Candidate for promotion to a published guide (blog track) if the matrix lands clean.
 
-## Sources
+## Resources
 
 - Colleague runbook: *Iceberg REST Catalog API Runbook* (Runtime 7.3.2, live-run on `zzengaws732-aw-dl`)
-- https://github.com/cloudera-labs/cdp-tf-quickstarts
-- Iceberg MCP Server: [cloudera/iceberg-mcp-server](https://github.com/cloudera/iceberg-mcp-server) (fork `cldr-steven-matison/iceberg-mcp-server`, local `~/Documents/GitHub/iceberg-mcp-server`); install guide *How To Install Cloudera Iceberg MCP Server* (`cldr-steven-matison.github.io/_posts/2026-05-20-...`)
+- Deploy: [cloudera-labs/cdp-tf-quickstarts](https://github.com/cloudera-labs/cdp-tf-quickstarts)
+- **Iceberg MCP Server (Cloudera root repo):** [cloudera/iceberg-mcp-server](https://github.com/cloudera/iceberg-mcp-server) — fork [cldr-steven-matison/iceberg-mcp-server](https://github.com/cldr-steven-matison/iceberg-mcp-server), local `~/Documents/GitHub/iceberg-mcp-server`
+- **MCP install guide (blog):** [How To Install Cloudera Iceberg MCP Server](https://stevenmatison.com/blog/How-To-Install-Cloudera-Iceberg-MCP-Server/)
+- **K8s testing home:** [cldr-steven-matison/ClouderaStreamingOperators](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) — where the in-cluster (minikube `minikube` default profile) consumer tests for this plan will live
 - [Configuring Hive Metastore as a REST Catalog (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/using-cloudera-data-sharing/topics/cr-ds-configuring-hive-metastore-rest-catalog.html)
 - [Access data using REST Catalog APIs (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/using-cloudera-data-sharing/topics/cr-ds-access-data-using-rest-catalog-apis.html)
 - [Known issues in Iceberg REST Catalog (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/public-release-notes/topics/rt-known-issues-iceberg-REST-catalog.html)
