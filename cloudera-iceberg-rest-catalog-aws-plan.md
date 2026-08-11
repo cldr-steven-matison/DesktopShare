@@ -172,6 +172,39 @@ curl -sk -H "Authorization: Bearer ${JWT}" \
 | **Snowflake** | Catalog Integration `TYPE = BEARER` + pre-fetched JWT (native `TYPE=OAUTH` breaks — Knox emits `expires_in` as epoch-millis). Needs a Snowflake account + SG `0.0.0.0/0`. | runbook-verified — reproduce |
 | **AWS EMR Spark** | Instance-profile trust → policy → service role → EMR Spark job. | **net-new verification** |
 
+## Iceberg MCP Server — AI/agent access via Impala
+
+A second, complementary access path to the *same* Iceberg tables: the [Cloudera Iceberg MCP Server](https://github.com/cloudera/iceberg-mcp-server) gives LLMs/agents **read-only** access — but **through Impala SQL over Knox, not the REST Catalog OAuth flow**. So `srm-iceberg` demonstrates two doors to the same data: the **REST Catalog** (Spark/Athena/Snowflake/Flink, Phase 5) and **Impala + MCP** (Claude Desktop / LangChain / any MCP client). Because it rides Impala, it reuses the `srm-iceberg-impala` Data Hub from Phase 2 — **no new infra**.
+
+- **Repo (local fork):** `~/Documents/GitHub/iceberg-mcp-server` — `origin` = `cldr-steven-matison/iceberg-mcp-server`, `upstream` = `cloudera/iceberg-mcp-server`. Python 3.13+, `uv`, `fastmcp` + `impyla`. Tools: `get_schema()` and `execute_query(query)`. Full local-install walkthrough: the blog post *How To Install Cloudera Iceberg MCP Server* (2026-05-20).
+- **`.env` for our env** (points at the Data Hub Impala coordinator):
+
+```bash
+IMPALA_HOST=srm-iceberg-impala-master0.srm-iceb.a465-9q4k.cloudera.site
+IMPALA_PORT=443
+IMPALA_USER=steven.matison
+IMPALA_PASSWORD=<workload password>          # gitignored / vault, never the repo
+IMPALA_DATABASE=poc_uc2
+IMPALA_HTTP_PATH=srm-iceberg-impala/cdp-proxy-api/impala   # Data Hub path — NOT the CDW default 'cliservice'
+IMPALA_AUTH_MECHANISM=LDAP
+IMPALA_USE_HTTP_TRANSPORT=true
+IMPALA_USE_SSL=true
+```
+
+> **Finding vs. the blog:** the 2026-05-20 post targets a **CDW** Virtual Warehouse, whose `httpPath` is `cliservice`. Ours is a **Data Hub** Impala, so `IMPALA_HTTP_PATH` must be `srm-iceberg-impala/cdp-proxy-api/impala` (the exact value `seed-impala.py` already uses). Everything else matches.
+
+- **Run / test:**
+
+```bash
+cd ~/Documents/GitHub/iceberg-mcp-server && set -a; source .env; set +a
+npx @modelcontextprotocol/inspector uv run src/iceberg_mcp_server/server.py   # MCP Inspector in browser
+# or wire into Claude Desktop: claude_desktop_config.json → command "uv", args ["--directory","<repo>","run","src/iceberg_mcp_server/server.py"]
+```
+
+- **Validation:** `get_schema()` lists the `poc_uc2` tables; `execute_query("SELECT * FROM poc_uc2.airlines LIMIT 5")` returns the 3 seeded rows as JSON.
+- **Networking:** same knox-SG rule as the other consumers — the MCP host's egress IP must reach 443 (this Mac already allowed).
+- Related Cloudera MCP servers (same install pattern): [NiFi-MCP-Server](https://github.com/cloudera/NiFi-MCP-Server), [CAI_Workbench_MCP_Server](https://github.com/cloudera/CAI_Workbench_MCP_Server), [CDV-MCP-Server](https://github.com/cloudera/CDV-MCP-Server) (`~/Documents/GitHub/CDV-MCP-Server` local).
+
 ## Dormant / rebuilt-sandbox recovery drill
 
 After idle time nothing in Phase 4 works on the first try even when the service is healthy — it's environment drift. Work **top-down**:
@@ -183,7 +216,7 @@ After idle time nothing in Phase 4 works on the first try even when the service 
 
 ## Verification (definition of done)
 
-A full `SELECT * FROM poc_uc2.airlines` returns all rows **through the REST Catalog**, using IDBroker-vended STS credentials, from **each** consumer — OSS Spark (from K8s), NiFi, Flink/SSB, Athena, Snowflake, EMR. EMR is the one path expected to need real debugging (no prior green run).
+A full `SELECT * FROM poc_uc2.airlines` returns all rows from **each** consumer: **through the REST Catalog** (IDBroker-vended STS creds) for OSS Spark (from K8s), NiFi, Flink/SSB, Athena, Snowflake, and EMR; and **through Impala** for the Iceberg MCP Server. EMR is the one path expected to need real debugging (no prior green run).
 
 ## Command history (this build)
 
@@ -237,6 +270,7 @@ bash test-rest-catalog.sh poc_uc2 airlines            # JWT → namespaces → t
 
 - Colleague runbook: *Iceberg REST Catalog API Runbook* (Runtime 7.3.2, live-run on `zzengaws732-aw-dl`)
 - https://github.com/cloudera-labs/cdp-tf-quickstarts
+- Iceberg MCP Server: [cloudera/iceberg-mcp-server](https://github.com/cloudera/iceberg-mcp-server) (fork `cldr-steven-matison/iceberg-mcp-server`, local `~/Documents/GitHub/iceberg-mcp-server`); install guide *How To Install Cloudera Iceberg MCP Server* (`cldr-steven-matison.github.io/_posts/2026-05-20-...`)
 - [Configuring Hive Metastore as a REST Catalog (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/using-cloudera-data-sharing/topics/cr-ds-configuring-hive-metastore-rest-catalog.html)
 - [Access data using REST Catalog APIs (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/using-cloudera-data-sharing/topics/cr-ds-access-data-using-rest-catalog-apis.html)
 - [Known issues in Iceberg REST Catalog (7.3.2)](https://docs.cloudera.com/runtime/7.3.2/public-release-notes/topics/rt-known-issues-iceberg-REST-catalog.html)
