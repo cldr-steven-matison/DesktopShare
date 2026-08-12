@@ -10,8 +10,8 @@ device realistically its own small research track rather than one flow reused th
 
 | Unit | Class | Agent ID | MAC | IP | Track |
 |---|---|---|---|---|---|
-| #1 | `MicroFi-1` | `microfi-e072a1fbfd04` | `e0:72:a1:fb:fd:04` | 192.168.1.198 | **Sparkplug Sensor Emit** — running the telemetry flow (`GenerateFlowFile → PublishMQTT` to `test/sensor/data`, `ListenHTTP` on `:8095/test` parked) |
-| #2 | `MicroFi-2` | `microfi-14c19f421924` | `14:c1:9f:42:19:24` | 192.168.1.200 | **Camera/Mic** — boot-default graph |
+| #1 | `MicroFi-1` | `microfi-e072a1fbfd04` | `e0:72:a1:fb:fd:04` | 192.168.1.198 | **Sparkplug Sensor Emit** — running the telemetry flow (`GenerateFlowFile → PublishMQTT` to `test/sensor/data`, `ListenHTTP` on `:8095/test` parked); on the full `feature/capture-image` build since 2026-08-12 |
+| #2 | `MicroFi-2` | `microfi-14c19f421924` | `14:c1:9f:42:19:24` | 192.168.1.200 | **Camera/Mic** — live camera flow (`CaptureImage → PublishMQTT`: VGA JPEG every 10s to `microfi2/camera/jpg`, metadata JSON to `microfi2/camera/meta`) |
 | #3 | `MicroFi-3` | `microfi-ac276ea84ce0` | `ac:27:6e:a8:4c:e0` | 192.168.1.201 | **Inbound Trigger Events** (LED control, action-dispatch, custom-processor home) — boot-default graph |
 
 Units are Sharpie-numbered on the back of their WiFi antennas; all three stay plugged into
@@ -47,7 +47,7 @@ construction. A flow-definition backup of the pre-migration class lives at
   confounds whatever you were testing. Construct unopened, clear both lines, then open:
   `s = serial.Serial(); s.port='COMx'; s.dtr = False; s.rts = False; s.open()`.
 
-## Firmware build layout (MicroFi fork, `feature/get-gpio`)
+## Firmware build layout (MicroFi fork, `feature/capture-image` tip; stack: `feature/set-gpio` → `feature/c2-ack` → `fix/flow-reapply-teardown` → `feature/capture-image`)
 
 - **`partitions_8mb.csv`** — OTA-preserving: nvs/otadata/phy_init + 2×2MB app slots +
   ~3.9MB LittleFS. Current firmware is ~1.1MB → ~52% of a slot with all 6 processors; roughly
@@ -76,17 +76,44 @@ construction. A flow-definition backup of the pre-migration class lives at
 - Flow port between classes: `GET /efm/api/designer/{class}/flows/export` →
   `POST /efm/api/designer/{class}/flows/import`, then `.../flows/{id}/validate` (expect empty)
   and `.../flows/{id}/publish`. Verified end-to-end for the `MicroFi-1` migration.
-- MicroFi never POSTs `/acknowledge` (implicit-ack design): every `operation` row for a MicroFi
-  agent stays non-DONE forever, and a class-wide publish leaves its `bulk_operation` row at
-  `NEW`. Cosmetic; cleanup is the recurring SQL pass (see the EFM operations manual).
+- MicroFi POSTs an explicit `/acknowledge` after every `UPDATE/configuration` apply (firmware
+  branch `feature/c2-ack`, 2026-08-12, [#148](https://github.com/cldr-steven-matison/DesktopShare/issues/148)):
+  `{"operationId": …, "operationState": {"state": "FULLY_APPLIED"|"NOT_APPLIED", "details": …}}`
+  to `CONFIG_MICROFI_C2_ACK_URL`. EFM maps FULLY_APPLIED→DONE, anything else→FAILED — verified
+  live on MicroFi-3 (operation and `bulk_operation` rows both went DONE on publish, zero SQL).
+  The body deliberately omits `agentInfo`/`deviceInfo`/`flowInfo` — any of those makes EFM also
+  process the ack as a heartbeat. The old "implicit ack via heartbeat flowId match" README claim
+  is disproven — EFM 2.3.1 times unacknowledged operations out to FAILED. **All three units run
+  `feature/c2-ack` as of 2026-08-12 evening** — ack verified live on MicroFi-3 and MicroFi-1
+  (operation + `bulk_operation` rows DONE on publish, zero SQL).
+- **Flow re-apply teardown is fixed** ([#150](https://github.com/cldr-steven-matison/DesktopShare/issues/150),
+  fork branch `fix/flow-reapply-teardown`, 2026-08-12): `ProcessorDescriptor` grew an optional
+  `on_stop` hook the engine calls on the outgoing graph before every rebuild — ListenHTTP stops
+  its httpd (releasing the port) and deletes its inbox queue, PublishMQTT/CaptureImage stop and
+  destroy their esp-mqtt clients. Verified with back-to-back republishes to MicroFi-3, no reset.
+  MQTT-side teardown verified live on MicroFi-1's telemetry flow (republish with no reset:
+  clean client stop/reconnect, zero EOF churn, op DONE). **All three units run post-teardown
+  builds as of 2026-08-12 late evening** — the reset-after-publish rule is retired; it only
+  ever applies to a unit somehow running a pre-`fix/flow-reapply-teardown` build (the leak
+  shape: port conflict, duplicate MQTT client-id fight, heap death under WiFi churn — how
+  MicroFi-3 went MISSING on 2026-08-12).
+- **Every MQTT-owning processor on one device needs a distinct Client ID** — esp-mqtt's default
+  id is MAC-derived, so two clients on one unit collide and the broker kicks the older session
+  on every connect. The camera flow sets `microfi2-cam` / `microfi2-meta` explicitly.
 
 ## Architectural ceilings (per-flow, unchanged)
 
 - No Python/scripting/EL, ever — compile-time static processor registry. Adding any capability
   is a firmware rebuild + reflash.
-- Processor registry (6 shipped): `GenerateFlowFile`, `LogAttribute`, `PublishMQTT` (minimal
+- Processor registry (8 shipped): `GenerateFlowFile`, `LogAttribute`, `PublishMQTT` (minimal
   props, no TLS), `UpdateAttribute` (4 literal slots), `ListenHTTP` (fire-and-forget only),
-  `GetGPIO` (read-only, BOOT/GPIO0). `RouteOnAttribute` deferred — no EL engine exists.
+  `GetGPIO` (read-only, BOOT/GPIO0), `SetGPIO` (write, LED trigger), `CaptureImage` (OV2640
+  JPEG → broker-direct MQTT + metadata FlowFile; needs the 8MB octal PSRAM enabled 2026-08-12).
+  `RouteOnAttribute` deferred — no EL engine exists.
+- **FlowFile content is a 256-byte inline buffer** (`kInlineContentBytes`, copied by value
+  through queues and the engine stack) — binary payloads like JPEGs can never ride the chain;
+  a media processor publishes bytes broker-direct and emits a metadata FlowFile instead
+  (`CaptureImage` is the pattern).
 - `kMaxFlowNodes=4` — silent-drop cap on total processors per flow graph (WARN log only).
 - `Session::transfer()` matches the first relationship binding — one downstream consumer per
   relationship, or the second consumer silently starves.
@@ -112,13 +139,27 @@ sketch overwrite each other.
 
 ### MicroFi-2 — Camera/Mic
 
-Genuinely new territory — no MiNiFi binary-ingestion pattern proven anywhere in this array.
+**Camera leg live 2026-08-12** — first pic retrieved off the pipeline the same evening.
+`CaptureImage` (fork branch `feature/capture-image`, `src/processors/capture_image.cpp`):
+OV2640 via `espressif/esp32-camera`, frame buffer in the 8MB octal PSRAM, JPEG published
+broker-direct (VGA ~13–60KB frames), metadata FlowFile (seq/bytes/dims/topic JSON) into the
+normal chain. Live EFM-published flow: `CaptureImage-Cam` (VGA, q12, every 10 ticks,
+`microfi2/camera/jpg`, client `microfi2-cam`) → `PublishMQTT-Meta` (`microfi2/camera/meta`,
+client `microfi2-meta`). Retrieval: `mosquitto_sub -h 192.168.1.121 -t microfi2/camera/jpg -C 1 > frame.jpg`.
 
-- New MicroFi processor candidates: `CaptureImage`/`GetCameraFrame` (JPEG via `esp32-camera`)
-  emitting a FlowFile with binary content.
-- `PublishMQTT` likely can't carry a JPEG without a buffer-size bump
-  (`mqttClient.setBufferSize(...)` — same gotcha hit on the Sparkplug leg); PSRAM-vs-heap
-  tradeoffs need scoping before committing to an MQTT-out design.
+**Kafka leg live 2026-08-12 late evening** — central NiFi PG `MicroFi2CameraBridge` (root canvas,
+export: `files/MicroFi2CameraBridge.json`): `ConsumeMQTT-MicroFi2Camera` (broker
+`tcp://mosquitto.mqtt.svc.cluster.local:1883`, filter `microfi2/camera/#`, client
+`nifi-microfi2-camera`) → `PublishKafka-MicroFi2Camera` (`my-cluster-kafka-bootstrap.cld-streaming.svc:9092`,
+topic `${mqtt.topic:replaceAll('/', '.')}` — auto-created `microfi2.camera.jpg` +
+`microfi2.camera.meta`, key `${mqtt.topic}`), failure → `LogKafkaFailure` (10-min expiry
+self-queue). Verified end-to-end: JPEG magic `ff d8 ff e0` and metadata JSON consumed from the
+Kafka topics. Full path: OV2640 → CaptureImage (EFM flow) → Mosquitto → NiFi → Kafka.
+
+Remaining track ideas:
+
+- The binary-over-FlowFile question is settled — it can't (256-byte inline content); the
+  broker-direct + metadata-FlowFile split is the pattern.
 - **Alternative to MQTT-out**: POST the JPEG to the Jetson's proven `/classify` endpoint
   (`NvidiaNanoJava`, `:8090`, p50 132ms — see `efm-nvidia-nano-inference.md`) for synchronous
   classification. Needs an outbound-HTTP processor, which MicroFi doesn't have — real new work

@@ -40,6 +40,12 @@ kubectl exec -n $NS $PG_POD -- psql -U postgres -d efm -c \
 - `agent.last_seen` / `agent_state` (ONLINE/MISSING) is the real online/offline registry. There
   is no "list agents" REST endpoint in EFM 2.3.1; anything reconstructing agent lists from
   `/efm/api/operations` + `/efm/api/events` breaks the moment that table bloats.
+- **`agent_state` is the liveness signal — `last_seen` is not a heartbeat clock.** Observed
+  2026-08-12 (#148): EFM 2.3.1 only writes `last_seen` on a *material* change (registration,
+  flow/manifest change, state transition), not on every processed heartbeat — MicroFi agents
+  heartbeating HTTP-200 every 30s sat with `last_seen` frozen at boot for 3+ hours while
+  `agent_state` stayed correctly ONLINE (and flipped MISSING on real silence). A stale
+  `last_seen` next to `ONLINE` means a quiet, healthy agent — don't diagnose it as dead.
 - `GET /efm/api/agents/{id}` can freeze on a stale snapshot across real heartbeats and reboots.
   To confirm an agent actually received a flow push, read the agent's own log/serial output.
 - The "Updated Agents" dashboard badge is bound to the class's newest `bulk_operation` row,
@@ -66,8 +72,10 @@ grep -oE '"[A-Za-z]+Service\.[a-zA-Z]+"' /tmp/efm_main.js | sort -u
 EFM's `operation` table has **no automatic retention**. A crash-looping agent (~1 reconnect/5s)
 writes thousands of rows in hours and hangs `/efm/api/operations` outright (60s+ timeouts),
 which also breaks EFM's own UI views built on it. Separately, agents that never POST
-`/acknowledge` (all MicroFi devices — implicit-ack design) leave every operation row non-DONE
-forever. Both mean this cleanup is **recurring, not one-time**.
+`/acknowledge` leave every operation row non-DONE forever. MicroFi acked nothing until
+2026-08-12 ([#148](https://github.com/cldr-steven-matison/DesktopShare/issues/148) — firmware
+`feature/c2-ack` acks explicitly, live on all three units), so any agent still on pre-ack
+firmware and any future non-acking agent make this cleanup **recurring, not one-time**.
 
 Survey first:
 
