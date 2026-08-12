@@ -66,8 +66,11 @@ grep -oE '"[A-Za-z]+Service\.[a-zA-Z]+"' /tmp/efm_main.js | sort -u
 EFM's `operation` table has **no automatic retention**. A crash-looping agent (~1 reconnect/5s)
 writes thousands of rows in hours and hangs `/efm/api/operations` outright (60s+ timeouts),
 which also breaks EFM's own UI views built on it. Separately, agents that never POST
-`/acknowledge` (all MicroFi devices — implicit-ack design) leave every operation row non-DONE
-forever. Both mean this cleanup is **recurring, not one-time**.
+`/acknowledge` leave every operation row non-DONE forever. MicroFi acked nothing until
+2026-08-12 ([#148](https://github.com/cldr-steven-matison/DesktopShare/issues/148) — firmware
+`feature/c2-ack` now acks explicitly; live on MicroFi-3, MicroFi-1/2 pending their next
+reflash), so pre-ack MicroFi firmware and any future non-acking agent still make this cleanup
+**recurring, not one-time**.
 
 Survey first:
 

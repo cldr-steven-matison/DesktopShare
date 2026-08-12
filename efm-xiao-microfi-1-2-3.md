@@ -47,7 +47,7 @@ construction. A flow-definition backup of the pre-migration class lives at
   confounds whatever you were testing. Construct unopened, clear both lines, then open:
   `s = serial.Serial(); s.port='COMx'; s.dtr = False; s.rts = False; s.open()`.
 
-## Firmware build layout (MicroFi fork, `feature/get-gpio`)
+## Firmware build layout (MicroFi fork, `feature/c2-ack`)
 
 - **`partitions_8mb.csv`** — OTA-preserving: nvs/otadata/phy_init + 2×2MB app slots +
   ~3.9MB LittleFS. Current firmware is ~1.1MB → ~52% of a slot with all 6 processors; roughly
@@ -76,9 +76,16 @@ construction. A flow-definition backup of the pre-migration class lives at
 - Flow port between classes: `GET /efm/api/designer/{class}/flows/export` →
   `POST /efm/api/designer/{class}/flows/import`, then `.../flows/{id}/validate` (expect empty)
   and `.../flows/{id}/publish`. Verified end-to-end for the `MicroFi-1` migration.
-- MicroFi never POSTs `/acknowledge` (implicit-ack design): every `operation` row for a MicroFi
-  agent stays non-DONE forever, and a class-wide publish leaves its `bulk_operation` row at
-  `NEW`. Cosmetic; cleanup is the recurring SQL pass (see the EFM operations manual).
+- MicroFi POSTs an explicit `/acknowledge` after every `UPDATE/configuration` apply (firmware
+  branch `feature/c2-ack`, 2026-08-12, [#148](https://github.com/cldr-steven-matison/DesktopShare/issues/148)):
+  `{"operationId": …, "operationState": {"state": "FULLY_APPLIED"|"NOT_APPLIED", "details": …}}`
+  to `CONFIG_MICROFI_C2_ACK_URL`. EFM maps FULLY_APPLIED→DONE, anything else→FAILED — verified
+  live on MicroFi-3 (operation and `bulk_operation` rows both went DONE on publish, zero SQL).
+  The body deliberately omits `agentInfo`/`deviceInfo`/`flowInfo` — any of those makes EFM also
+  process the ack as a heartbeat. The old "implicit ack via heartbeat flowId match" README claim
+  is disproven — EFM 2.3.1 times unacknowledged operations out to FAILED. **MicroFi-1/2 still run
+  pre-ack firmware until their next natural reflash**; until then their publishes still leave
+  FAILED rows (cleanup: the recurring SQL pass in the EFM operations manual).
 
 ## Architectural ceilings (per-flow, unchanged)
 
