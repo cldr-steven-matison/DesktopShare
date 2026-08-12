@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink-session-extra
+  namespace: cld-streaming
+rules:
+- apiGroups: [""]
+  resources: ["services","pods","configmaps","endpoints"]
+  verbs: ["get","list","watch","create","update","patch","delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink-session-extra
+  namespace: cld-streaming
+subjects:
+- kind: ServiceAccount
+  name: flink
+  namespace: cld-streaming
+roleRef:
+  kind: Role
+  name: flink-session-extra
+  apiGroup: rbac.authorization.k8s.io

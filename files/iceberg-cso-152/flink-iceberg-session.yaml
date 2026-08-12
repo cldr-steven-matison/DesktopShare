@@ -1,0 +1,19 @@
+# Flink session cluster on the iceberg-lab profile, using the custom
+# flink-extended:...-iceberg image (iceberg-flink-runtime-1.20-1.7.2 +
+# iceberg-aws-bundle-1.7.2 + flink-shaded-hadoop-2-uber-2.8.3-10.0 in /opt/flink/lib).
+# JM=2g is required (1g OOMKills the embedded sql-client). Needs the RBAC in flink-session-rbac.yaml.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: iceberg-sql
+  namespace: cld-streaming
+spec:
+  image: container.repository.cloudera.com/cloudera/flink-extended:1.20.1-csaop1.5.0-b275-iceberg
+  imagePullPolicy: IfNotPresent
+  flinkVersion: v1_20
+  serviceAccount: flink
+  jobManager: {resource: {memory: "2048m", cpu: 0.5}}
+  taskManager: {resource: {memory: "2048m", cpu: 0.5}}
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "2"
+    rest.flamegraph.enabled: "false"
