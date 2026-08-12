@@ -147,6 +147,15 @@ normal chain. Live EFM-published flow: `CaptureImage-Cam` (VGA, q12, every 10 ti
 `microfi2/camera/jpg`, client `microfi2-cam`) → `PublishMQTT-Meta` (`microfi2/camera/meta`,
 client `microfi2-meta`). Retrieval: `mosquitto_sub -h 192.168.1.121 -t microfi2/camera/jpg -C 1 > frame.jpg`.
 
+**Kafka leg live 2026-08-12 late evening** — central NiFi PG `MicroFi2CameraBridge` (root canvas,
+export: `files/MicroFi2CameraBridge.json`): `ConsumeMQTT-MicroFi2Camera` (broker
+`tcp://mosquitto.mqtt.svc.cluster.local:1883`, filter `microfi2/camera/#`, client
+`nifi-microfi2-camera`) → `PublishKafka-MicroFi2Camera` (`my-cluster-kafka-bootstrap.cld-streaming.svc:9092`,
+topic `${mqtt.topic:replaceAll('/', '.')}` — auto-created `microfi2.camera.jpg` +
+`microfi2.camera.meta`, key `${mqtt.topic}`), failure → `LogKafkaFailure` (10-min expiry
+self-queue). Verified end-to-end: JPEG magic `ff d8 ff e0` and metadata JSON consumed from the
+Kafka topics. Full path: OV2640 → CaptureImage (EFM flow) → Mosquitto → NiFi → Kafka.
+
 Remaining track ideas:
 
 - The binary-over-FlowFile question is settled — it can't (256-byte inline content); the
