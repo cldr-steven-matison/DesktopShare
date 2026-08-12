@@ -30,21 +30,12 @@ When a device joins the roster, add its `device:*` label (see `agent/device-comm
 **Skill sync is now automatic** (2026-07-29): the SessionStart hook runs `skills/sync-skills.sh`
 after each `git pull`, re-installing any skill whose committed git tree hash differs from the
 `~/.claude/skills/` copy. This retired the old "copy by hand, a stale local copy silently wins"
-trap — you no longer have to note a re-sync here or remember to `cp`. The log below is kept as
-history; new skill changes just land on every device's next pull automatically. (Editing a skill
-and want it live before committing? Run `bash skills/sync-skills.sh` by hand.)
+trap — you no longer have to note a re-sync here or remember to `cp`. (Editing a skill and want
+it live before committing? Run `bash skills/sync-skills.sh` by hand.)
 
-- **2026-07-24 — `nifi-and-ai` updated (layout overhaul + file rename).** Canvas-layout guidance was sharpened into a real technique and its home was renamed `references/human-touch-followups.md` → `references/layout.md`. Because a file was **renamed**, a plain `cp -r` over an existing install leaves the stale old file behind — remove the old dir first:
-  ```bash
-  rm -rf ~/.claude/skills/nifi-and-ai && cp -r skills/nifi-and-ai ~/.claude/skills/
-  ```
-  Installed & current on **FTF3XR2065 (Mac)** as of 2026-07-24.
-- **2026-07-24 (same day, later) — `layout.md` gained a new "Inserting a new node into an existing connection" section.** Real incident: building `WatchlistChatJoiner`'s `BuildJoinedEvent`, Claude placed it at the midpoint between two existing processors' y-values instead of preserving the column's established row pitch — compressed one hop, desynced it from a parallel column that shared rows with it. Fixed live on canvas + added the rule so it doesn't repeat. Re-synced on **WindowsDesktop** as of 2026-07-24 — this device had never picked up the earlier rename either (still had the old `human-touch-followups.md`), both caught up in the same pass. Other devices: still re-sync on next pull.
-- **2026-07-24 (same day, later still) — `flow-api.md` gained a new §4 "Downloading a flow definition."** Documents the re-export-to-keep-current workflow (`GET /process-groups/{id}/download`, pretty-print before committing, confirmed no credential leakage) after `cso-operator-app`'s checked-in flow exports had gone weeks stale. Sections 4-6 renumbered to 5-7 — check any external notes citing the old `§5`/`§6` by number. `SKILL.md`'s reference table and the top-level `skills/README.md` summary both updated to mention it. Re-synced on **WindowsDesktop**. **Standing rule going forward: any `nifi-and-ai` skill change gets its own separate commit**, never bundled with unrelated work in the same commit.
-- **2026-07-25 — `minifi-efm.md` gained a new §11 on recovering a `KubernetesPod`-class agent whose EFM heartbeat has gone dark.** Real incident on `minifi-agent-k8s-gaming` (6 days silent, bare pod with no Deployment/StatefulSet owner, asset-sync race after restart, IP changes on every restart). `SKILL.md`'s reference table updated. Re-synced on **WindowsDesktop** as of 2026-07-25.
-- **2026-07-25 (same day, later) — Rule 2's GET-then-PUT check tightened to a concrete step: verify `descriptors[...].sensitive` on any processor before a full-entity PUT, not just ones already known to hold credentials.** Re-synced on **WindowsDesktop** as of 2026-07-25.
-- **2026-07-27 — `nifi-and-ai` hygiene + reinforcement pass.** `SKILL.md` rules 8 & 9 rewritten as tight imperatives (war-stories compressed to a one-clause *why*), and a new "A redeploy can break a live flow" note added — it reinforces the deploy/restart policy that lives in `agent/incident-rules.md` rather than duplicating it. `references/layout.md` de-cluttered (dated post-mortems dropped, all coordinates kept, "Steven" → "a human"); `references/flow-api.md` inline date stripped. No behavioral rule text moved out of the skill. Re-synced on **FTF3XR2065 (Mac)** as of 2026-07-27. Other devices: re-sync on next pull.
-- **2026-07-29 — `references/minifi-efm.md` device-name normalization.** §5's field-verified note now names the device by its canonical EFM-class name (`MINI-Gaming-G1` → **WindowsDesktop**), matching the repo-wide device-naming cleanup (call the device by its EFM class — StarlinkAI / WindowsDesktop / NvidiaNano — not its hostname). No behavioral rule change. Re-synced on **FTF3XR2065 (Mac)** as of 2026-07-29. Other devices: re-sync on next pull.
+The old per-device re-sync log that lived here (2026-07-24 → 2026-07-29) was retired 2026-08-12 —
+auto-sync made per-device tracking obsolete. Per-change skill history lives in git:
+`git log --oneline -- skills/`.
 
 ## Template
 
@@ -112,8 +103,8 @@ and want it live before committing? Run `bash skills/sync-skills.sh` by hand.)
 ## WindowsDesktop (Windows gaming PC, hostname MINI-Gaming-G1)
 
 - **Role**: EFM/minikube host — runs the `cld-streaming` cluster (NiFi, EFM, Kafka/Strimzi, vLLM, cso-operator-app); the control-plane counterpart StarlinkAI's MiNiFi agent will call into over Tailscale
-- **Checked in**: 2026-07-17
-- **Claude Code version**: 2.1.212
+- **Checked in**: 2026-07-17 (re-verified 2026-08-12 — git/python/kubectl/minikube versions below still current)
+- **Claude Code version**: 2.1.228 (2026-08-12)
 
 ### Hardware
 - CPU: 13th Gen Intel(R) Core(TM) i9-13900HK
