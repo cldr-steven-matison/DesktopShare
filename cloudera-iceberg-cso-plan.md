@@ -39,6 +39,8 @@ The working, reproducible pattern — a plain HTTP call to the REST Catalog with
 
 This chain generalizes to any REST Catalog endpoint (`/v1/namespaces/{ns}/tables`, `/v1/.../tables/{t}` load-table, etc.) by swapping the `InvokeHTTP` URL — the OAuth provider is reused unchanged. **This is the recommended NiFi↔REST-catalog path in this CFM build.**
 
+![NiFi PG IcebergRestCatalogDemo — Trigger (GenerateFlowFile) → ListNamespaces (InvokeHTTP) → output; Response FlowFile queued](/images/nifi-iceberg-rest-catalog-demo-pg.png)
+
 ### Native `RESTCatalogService` / `PutIceberg` — configures VALID, blocked at runtime (⛔ NAR Jackson bug)
 
 - **Components confirmed present** in this CFM image: processors `PutIceberg`, `com.cloudera.nifi.processors.iceberg.PutIcebergCDC`; controller services `HadoopCatalogService`, `HiveCatalogService`, `JdbcCatalogService`, **`com.cloudera.nifi.services.iceberg.RESTCatalogService`**; OAuth2 providers incl. **`CdpOauth2AccessTokenProviderControllerService`**.

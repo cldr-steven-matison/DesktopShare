@@ -158,6 +158,8 @@ cdp datahub create-aws-cluster --cluster-name srm-iceberg-impala \
 
 Seed via `seed-impala.py` (impyla, HTTP+SSL, LDAP workload auth; endpoint from `describe-cluster`). Workload password from `.workload.creds` (gitignored) or `$WORKLOAD_PASSWORD`, never the repo. Table DDL is Impala `STORED BY ICEBERG`, so it lands in HMS and the REST Catalog can serve it.
 
+![srm-iceberg-cdp-env — Available, US East (Ohio) us-east-2; srm-iceberg-impala Data Hub Running (7.3.2 Data Mart)](/images/srm-iceberg-cdp-env.png)
+
 ## Phase 3 — Enable the REST Catalog
 
 ✅ **Done 2026-08-11 — driven entirely through the CM API over Knox** (no UI clicks). The runbook's UI flow maps to these concrete keys/calls:
@@ -172,6 +174,10 @@ Seed via `seed-impala.py` (impyla, HTTP+SSL, LDAP workload auth; endpoint from `
 - `create-data-share --external-users` wants **`externalUserId`** as an **integer** (the `userId` field, e.g. `13`) — **not** `clientId` as the runbook's Path A example implies.
 - `share-data-share` requires **`--environment-crn`** in addition to `--datalake-crn --data-share-id`; returns `{"success": true}`.
 - CM API base is `…/cdp-proxy-api/cm-api/v51/…` (no `/api/` segment — Knox rewrites); HTTP basic with the workload user, which had CM admin.
+
+![Data Catalog → Share details — srm-iceberg-share, Shared; asset poc_uc2.airlines (Iceberg Table); 1 asset / 1 user](/images/cdp-data-catalog-srm-iceberg-share.png)
+
+![srm-iceberg-share summary — Shared, 1 asset, 1 user](/images/cdp-data-catalog-srm-iceberg-share-summary.png)
 
 ## Phase 4 — Validate the REST Catalog API
 
@@ -243,6 +249,12 @@ The runbook never live-verified EMR; this build did. Single-node `emr-7.2.0` clu
 - **Result:** `SHOW NAMESPACES IN cdp` → `default, information_schema, poc_uc2, sys`; `SELECT * FROM cdp.poc_uc2.airlines` → AA/DL/UA (3 rows). Cluster torn down after.
 - Artifacts: `emr/query-emr.py`, `emr/run-iceberg.sh` (self-fetch JWT variant for a future S3-hosted step).
 
+![EMR console — cluster srm-iceberg-emr (emr-7.2.0) in Waiting / Ready to run steps](/images/emr-clusters-list.png)
+
+![EMR instance groups — single Primary (MASTER), On-Demand, Running](/images/emr-instance-groups.png)
+
+![EMR cluster summary — emr-7.2.0, Spark 3.5.1, primary-node public DNS, Waiting](/images/emr-cluster-summary.png)
+
 ### AWS Athena (for Apache Spark) — ✅ validated 2026-08-12
 
 `Spark_primary` workgroup (PySpark engine v3, us-east-2). Calculation sets the same REST-catalog config as OSS Spark via `spark.conf.set` on Athena's pre-initialized `spark` session, then queries `cdp.poc_uc2.airlines`.
@@ -253,6 +265,10 @@ The runbook never live-verified EMR; this build did. Single-node `emr-7.2.0` clu
 - **Submission gotcha:** `--calculation-configuration CodeBlock=<inline>` fails on multi-line Python — pass a JSON payload (`{"CodeBlock": …}`) via `file://`.
 - **Teardown (post-run):** knox SG `0.0.0.0/0:443` rule revoked (back to Mac `/32`); all Spark sessions terminated (DPU cost stops); imported console notebook deleted (removes the baked JWT). The `Spark_primary` workgroup persists at no idle cost — reused next run, not rebuilt like the EMR cluster.
 - Artifacts: `athena/query-athena.py` (CLI calculation), `athena/query-athena.ipynb` (console notebook for screenshots).
+
+![Athena for Apache Spark notebook before run — config cell (Knox JWT redacted) + query cells](/images/iceberg-rest-athena-notebook-cells.png)
+
+![Athena for Apache Spark notebook after run — namespaces (default/information_schema/poc_uc2/sys), airlines AA/DL/UA, count 3](/images/iceberg-rest-athena-notebook-results.png)
 
 ## Iceberg MCP Server — AI/agent access via Impala
 
