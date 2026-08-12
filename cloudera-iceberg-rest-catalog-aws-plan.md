@@ -200,7 +200,7 @@ curl -sk -H "Authorization: Bearer ${JWT}" \
 
 ## Phase 5 — Consumer matrix
 
-🟡 **Started 2026-08-11 with OSS Spark run from the minikube/K8s cluster** (not the laptop). This matrix covers the runbook's external engines; the **NiFi and Flink/SSB** streaming consumers moved to [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md).
+🟡 **Started 2026-08-11 with OSS Spark run from the minikube/K8s cluster** (not the laptop). This matrix covers the runbook's external engines; the **NiFi and Flink/SSB** streaming consumers moved to [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md) — where (issue #149, 2026-08-12) NiFi `InvokeHTTP` reads are ✅, the NiFi native `RESTCatalogService` block is root-caused with the fix built, and the Flink/SSB jar gap is identified; both live builds are deferred to a dedicated minikube profile (#152).
 
 > ⚠️ **Networking prerequisite for anything outside this Mac:** the client's public **egress IP must be in the DataLake `*-knox-sg`** on 443. The minikube host and EMR have (mostly) stable IPs → add their `/32`. Serverless Athena/Snowflake egress from non-fixed AWS IPs → require `0.0.0.0/0` or PrivateLink.
 

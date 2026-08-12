@@ -2,7 +2,7 @@
 
 The **streaming-engine spinoff** of [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md). That plan stands up the live REST Catalog and evaluates the runbook's external consumers (OSS Spark, EMR, Athena, Snowflake) plus the Impala/MCP door. **This plan covers the two CSO streaming consumers** — **NiFi** (CFM) and **Flink/SSB** (CSA) — reaching the *same* REST Catalog from the `cld-streaming`/`cfm-streaming` minikube stack.
 
-> **Status (2026-08-12):** **NiFi query via `InvokeHTTP` ✅ validated** — this is the working "how to use REST Catalog APIs from NiFi" path. The native `RESTCatalogService`/`PutIceberg` path **configures VALID but is blocked at runtime by a Jackson NAR bug** in this CFM build (`NoClassDefFoundError: PropertyNamingStrategy$KebabCaseStrategy`), and the datashare is **read-only** (writes fail at the S3 layer). **Flink/SSB: planned** — evaluate registering an Iceberg REST catalog in SSB. No driving issue yet.
+> **Status (2026-08-12, issue #149):** **NiFi query via `InvokeHTTP` ✅ validated** — the working "how to use REST Catalog APIs from NiFi" path. The native `RESTCatalogService`/`PutIceberg` path **configures VALID but throws at runtime** — now **root-caused live and the fix built + link-verified** (jackson NAR; details below), but the live swap is **deferred to a dedicated NiFi-only minikube** (the default `minikube` profile is a long-lived shared cluster — a ~1 GB NAR + restart on the single OOM-prone NiFi pod isn't appropriate there). **Flink/SSB: gap identified** — the Flink `lib/` ships **no `iceberg-flink-runtime`/`iceberg-aws-bundle`**; adding them needs a session restart, so it's likewise **deferred to a fresh SSB setup in the other profile**. Both deferrals tracked in **#152**; the separate CDP-PC-7.3.2 fast-track leg is **#151**.
 
 ## Read the AWS plan first — the shared foundation lives there
 
@@ -41,12 +41,20 @@ This chain generalizes to any REST Catalog endpoint (`/v1/namespaces/{ns}/tables
 
 ![NiFi PG IcebergRestCatalogDemo — Trigger (GenerateFlowFile) → ListNamespaces (InvokeHTTP) → output; Response FlowFile queued](/images/nifi-iceberg-rest-catalog-demo-pg.png)
 
-### Native `RESTCatalogService` / `PutIceberg` — configures VALID, blocked at runtime (⛔ NAR Jackson bug)
+### Native `RESTCatalogService` / `PutIceberg` — root-caused + fix built (⛔ jackson NAR bug; live swap deferred to a dedicated profile)
 
 - **Components confirmed present** in this CFM image: processors `PutIceberg`, `com.cloudera.nifi.processors.iceberg.PutIcebergCDC`; controller services `HadoopCatalogService`, `HiveCatalogService`, `JdbcCatalogService`, **`com.cloudera.nifi.services.iceberg.RESTCatalogService`**; OAuth2 providers incl. **`CdpOauth2AccessTokenProviderControllerService`**.
-- **Intended write architecture:** `CdpOauth2AccessTokenProviderControllerService` (Knox `client_credentials` → JWT) → `RESTCatalogService` (`Catalog URI` = `…/cdp-datashare-access/iceberg-rest`, `warehouse-path` = the S3 warehouse, `OAuth2 Access Token Provider` = the CDP/Standard provider) → `PutIceberg` (`catalog-service`, `catalog-namespace=poc_uc2`, `table-name`, `record-reader`=JsonTreeReader). The CDP OAuth2 provider is what *should* have handled the runbook's single-step-OAuth caveat.
-- **What actually happens:** `RESTCatalogService` reaches **ENABLED + VALID** and `PutIceberg` validates — **but at runtime the catalog call throws** `java.lang.NoClassDefFoundError: com/fasterxml/jackson/databind/PropertyNamingStrategy$KebabCaseStrategy`. This is a **Jackson version conflict inside the Cloudera `RESTCatalogService` NAR** (CFM build `2.6.0.4.3.4.0-234`; `KebabCaseStrategy` moved out of `PropertyNamingStrategy` in Jackson 2.12+). A product-side dependency bug — fixable only by side-loading a compatible `jackson-databind` into the NAR or by a fixed CFM build.
-- **Knox token-limit gotcha (surfaced here):** Knox enforces a per-client token limit (`knoxsso_token_ttl` = 24h); heavy testing (curl + Spark + EMR + NiFi OAuth) exhausted it → `403 "token limit exceeded"`. Fix = `cdp datacatalog regenerate-external-user-credentials` (new clientId = fresh budget) → re-run `share-data-share` → update the NiFi Parameter Context; or raise the Knox limit.
+- **Intended write architecture:** `CdpOauth2AccessTokenProviderControllerService` (Knox `client_credentials` → JWT) → `RESTCatalogService` (`Catalog URI` = `…/cdp-datashare-access/iceberg-rest`, `warehouse-path` = the S3 warehouse, `OAuth2 Access Token Provider` = the CDP/Standard provider) → `PutIceberg` (`catalog-service`, `catalog-namespace=poc_uc2`, `table-name`, `record-reader`=JsonTreeReader).
+- **Root cause (confirmed live, 2026-08-12).** `RESTCatalogService` reaches **ENABLED + VALID**, but any catalog call throws. The live stack pins the throw site:
+  ```
+  IcebergCatalogFactory.create (IcebergCatalogFactory.java:61)
+  PutIceberg.loadCatalog (PutIceberg.java:343)  →  PutIceberg.doOnTrigger
+  Caused by: ClassNotFoundException: com.fasterxml.jackson.databind.PropertyNamingStrategy$KebabCaseStrategy
+  ```
+  The thrower is **`nifi-iceberg-processors-nar`** (not the services-nar): it bundles `iceberg-core-1.5.2.7.3.1.800-74` **and** `jackson-databind-2.20.1`. Iceberg 1.5.2's REST serializers reference the **pre-2.15 nested class** `PropertyNamingStrategy$KebabCaseStrategy`, which Cloudera's jackson 2.20.1 bump **removed** (it moved to `PropertyNamingStrategies$*`). CFM build `2.6.0.4.3.4.0-234`. This is a product-side dependency conflict.
+- **Fix — built + link-verified.** Additively inject the two legacy nested classes (`KebabCaseStrategy` + its superclass `PropertyNamingStrategyBase`) from `jackson-databind-2.14.3` back into the 2.20.1 jar — everything else stays 2.20 (zero impact on existing consumers), and `javap` confirms the injected classes link against 2.20's outer `PropertyNamingStrategy`. Artifacts + recipe: `iceberg-rest-catalog-demo/nifi/jackson-fix/` (`jackson-databind-2.20.1-patched.jar`, the two `.class` files, `build-jackson-fix.sh`).
+- **Why the live swap is deferred (not done on this cluster).** The runtime jar is the shared, **ephemeral** `work/nar-lib/jackson-databind-2.20.1.jar` (40 NARs symlink it); this build has **no hot NAR reload** (`POST /controller/reload-nars` → 404); the running NAR classloader **caches** the jar index (an in-place edit needs a restart to take); a restart **resets `work/`** from the image (reverting the fix); and the rebuilt processors NAR is **~1 GB** (bundles the full AWS SDK + hive/hadoop) → pushing a duplicate onto the single OOM-prone NiFi pod is unsafe. So the deploy (initContainer/postStart patch of `nar-lib`, or a fixed image) belongs on a dedicated NiFi-only minikube — **#152**.
+- **Knox token-limit gotcha:** Knox enforces a per-client token limit (`knoxsso_token_ttl` = 24h); heavy testing (curl + Spark + EMR + NiFi OAuth) exhausted it → `403 "token limit exceeded"`. Fix = `cdp datacatalog regenerate-external-user-credentials` (new clientId = fresh budget) → re-run `share-data-share` → update the NiFi Parameter Context; or raise the Knox limit.
 
 ### Write path — read-only *by design* (empirically proven, not a Ranger gap)
 
@@ -62,26 +70,39 @@ Direct REST calls with the external-user token to **create a namespace and a tab
 - **Build scripts:** `~/Documents/GitHub/iceberg-rest-catalog-demo/nifi/` (`build-query-flow.sh` drove the validated query path).
 - **Env note:** the Mac's docker-driver `minikube` gets API-flaky (`TLS handshake timeout`) under sustained load + `minikube tunnel` — give it a breather between bursts.
 
-## Flink / SSB (CSA) — planned
+## Flink / SSB (CSA) — gap identified (2026-08-12); live build deferred to a fresh profile
 
-Evaluate registering an Iceberg **REST** catalog in SSB and querying `poc_uc2.airlines`, tying into the `cld-streaming` CSA/SSB stack.
+Registering an Iceberg **REST** catalog in SSB and querying `poc_uc2.airlines`, tying into the `cld-streaming` CSA/SSB stack.
 
-- **Approach:** SQL Stream Builder catalog of `'type'='iceberg'`, `'catalog-type'='rest'`, `'uri'=<REST base>`, bearer token (pre-fetched Knox JWT — SSB/Flink's built-in single-step OAuth likely won't reach Knox's 2-step endpoint, same caveat as Spark/NiFi), plus `client.region=us-east-2` and `X-Iceberg-Access-Delegation: vended-credentials` to match the working Spark config.
-- **Open questions to resolve when building:** whether the Flink Iceberg REST catalog connector accepts a raw bearer token vs. a client-credentials config (mirror the Spark `.token` approach if not); read-only applies here too — expect the same S3-layer write block as NiFi.
-- **Status:** not yet attempted. Reuses the same knox-SG networking and the live env from the AWS plan.
+- **Gap (confirmed live).** The Flink JobManager and taskmanager `/opt/flink/lib/` ship **no `iceberg-flink-runtime` and no `iceberg-aws-bundle`** — only the `s3-fs-hadoop` plugin (Flink's own `s3a://` filesystem, **not** Iceberg's `S3FileIO`). Image `flink-extended:1.20.1-csaop1.5.0-b275`; the `ssb-session-admin` FlinkDeployment has empty `volumes`/`initContainers` and no `pipeline.classpaths`. So the Iceberg REST catalog can't be instantiated until the jars are on the Flink classpath.
+- **Jars needed:** `iceberg-flink-runtime-1.20-1.5.4.jar` + `iceberg-aws-bundle-1.5.4.jar` (Iceberg **1.5.4** to match the catalog's 1.5.2 lineage; not 1.6.x).
+- **Why deferred (not done on this cluster).** `/opt/flink/lib` is baked into the image → `kubectl cp` + restart would reset it; the proper add (custom image or FlinkDeployment podTemplate initContainer) **restarts the shared session cluster and kills the running jobs** (`ssb-5196` `Simple_Select`, `ssb-5209` `K8s_Select`, both `restart-strategy: none`). This long-lived shared profile shouldn't be disrupted for innovation → do it on a fresh SSB setup in the other profile — **#152**.
+- **Register + query (mirror the validated Spark REST config):**
+  ```sql
+  CREATE CATALOG srm_iceberg_aws WITH (
+    'type'='iceberg', 'catalog-type'='rest',
+    'uri'='https://srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-aw-dl/cdp-datashare-access/iceberg-rest',
+    'warehouse'='s3a://srm-iceberg-buk-081550c7/data/warehouse/tablespace/external/hive/',
+    'token'='<pre-fetched Knox JWT>', 'header.X-Iceberg-Access-Delegation'='vended-credentials',
+    'io-impl'='org.apache.iceberg.aws.s3.S3FileIO', 'client.region'='us-east-2');
+  USE CATALOG srm_iceberg_aws; USE poc_uc2; SELECT * FROM airlines;  -- expect 3 rows
+  ```
+- **Open questions for the build:** whether the Flink Iceberg REST connector accepts a raw bearer `token` vs. a client-credentials config (mirror Spark's `.token` if not), and whether `header.X-Iceberg-Access-Delegation` is forwarded — **fallback:** set explicit `s3.access-key-id/secret-access-key/session-token` from the load-table vended creds (the live load-table returns exactly those keys + `client.region`). Read-only applies here too — expect the same S3-layer write block as NiFi.
+- **Access:** SSB UI `ssb-mve:8082`, SSB SQL engine `ssb-sse:18121`, Flink JM REST `ssb-session-admin-rest:8081` (no existing port-forward pane). Reuses the same knox-SG networking + live env from the AWS plan.
 
 ## Verification (definition of done — streaming leg)
 
 `SELECT`-equivalent reads of `poc_uc2.airlines` return all 3 rows **through the REST Catalog** from:
 
-- **NiFi** — ✅ via `InvokeHTTP` (namespaces/tables/load-table). *(Native `RESTCatalogService` read is blocked by the NAR bug; `PutIceberg` write needs a write-capable catalog.)*
-- **Flink/SSB** — ⬜ pending.
+- **NiFi** — ✅ via `InvokeHTTP` (namespaces/tables/load-table). Native `RESTCatalogService` read is **root-caused + fix built/verified** (jackson NAR); live swap deferred to a dedicated profile (#152). The flow definition (both the working `InvokeHTTP` path and the native-catalog path) is exported to `files/nifi-iceberg-rest-catalog-demo.flow.json`.
+- **Flink/SSB** — ⬜ gap identified (missing Iceberg jars); live build deferred to a fresh profile (#152).
 
 ## When this ships
 
-- This tracker rides alongside the AWS plan. When the streaming legs land (or are documented as blocked), fold the outcome back into the AWS plan's consumer-matrix summary and cross-link.
-- The NiFi native-catalog Jackson NAR bug is a candidate to file upstream / with the CFM team.
-- Candidate content for the NiFi/streaming guide track once the `InvokeHTTP` pattern and (if unblocked) the SSB path are clean.
+- This tracker rides alongside the AWS plan. Both streaming legs are now documented (NiFi native root-caused + fix built; Flink/SSB gap identified), with the live builds deferred to a dedicated profile (**#152**).
+- The NiFi native-catalog jackson NAR bug (`iceberg-core-1.5.2` vs `jackson-databind-2.20.1`, missing `PropertyNamingStrategy$KebabCaseStrategy`) is a candidate to file with the CFM team — the additive two-class fix in `jackson-fix/` is the minimal repro/patch.
+- Candidate content for the NiFi/streaming guide track once the `InvokeHTTP` pattern and (once #152 lands) the native-catalog + SSB paths are clean.
+- Driving issue: **#149**. Follow-ups: **#152** (dedicated-profile NiFi jackson + SSB jars), **#151** (CDP-PC-7.3.2 fast-track, the separate leg).
 
 ## Resources
 
