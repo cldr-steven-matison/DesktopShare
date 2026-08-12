@@ -12,3 +12,8 @@
 /files/heygen-srm-poc/
 /geekom-g1/
 /overlays/
+# Session byproducts — never content, safe to ignore everywhere. __pycache__ is
+# Python bytecode; *:Zone.Identifier is the NTFS "downloaded from the internet"
+# alternate-data-stream crumb WSL surfaces as a literal file.
+__pycache__/
+*:Zone.Identifier
