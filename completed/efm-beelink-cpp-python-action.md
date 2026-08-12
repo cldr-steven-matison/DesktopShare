@@ -21,6 +21,22 @@ Companion deep dives (already on `main`):
 
 ---
 
+## Resolution (closed 2026-08-11)
+
+Every ExecuteScript-Python smoke actually run in this doc **passed** — Path D on WindowsDesktop
+(process mode + service + `ADDLOCAL=ALL`), and the 2026-07-28 disposable-class run on StarlinkAI
+itself. The only unfinished piece was enabling it on StarlinkAI's *production* C++ agent, deferred
+2026-07-30 (issue #36) pending a service restart + drain plan.
+
+That production C++ agent no longer exists. StarlinkAI consolidated onto a single **Java** MiNiFi
+agent (class `StarlinkAI`) on 2026-08-06 (#131), and the old C++ Windows service (`Apache NiFi
+MiNiFi`) was deleted entirely on 2026-08-09. StarlinkAI now runs directly on Windows as a plain
+background process (`StarlinkAI-MiNiFi-AutoStart` scheduled task), no separate launcher service.
+The deferred Python-on-C++ work is moot, not completed — closing this out as historical record of
+what was already proven, filed under `completed/`.
+
+---
+
 ## Context you need before touching the box
 
 ### What Grok proved on WindowsDesktop (2026-07-27)

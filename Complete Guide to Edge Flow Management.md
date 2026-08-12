@@ -72,7 +72,7 @@ The v1 close plan (#59, written 2026-07-31) is done and closed — stale by the 
 | 20 SparkPlug Demo | A · Sparkplug B end-to-end ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) |
 | 21 Metrics & Observability | C · observability completeness ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) |
 
-Work-stream **E** ([#142](https://github.com/cldr-steven-matison/DesktopShare/issues/142)) hardens the already-done Ch17 live-stream path (repoint central NiFi's `TwitchChatBot` to StarlinkAI's new `:8091–8094`). Housekeeping done 2026-08-10: #123 (Java S2S metrics) and #126 (real-hardware Sparkplug B) closed — both were complete but still open.
+Work-stream **E** ([#142](https://github.com/cldr-steven-matison/DesktopShare/issues/142)) hardens the already-done Ch17 live-stream path (repoint central NiFi's `TwitchChatBot` to StarlinkAI's consolidated `:8096` screen/matrix endpoint, #136). Housekeeping done 2026-08-10: #123 (Java S2S metrics) and #126 (real-hardware Sparkplug B) closed — both were complete but still open.
 
 ## Guide structure
 

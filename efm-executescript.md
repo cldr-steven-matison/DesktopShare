@@ -140,7 +140,7 @@ One option remains open:
 
 Both ran **side-by-side with Java** MiNiFi on class `WindowsDesktop` (left ONLINE). Eval class used for the C++ canvas: **`WindowsDesktopCpp`** (agent id `40eb2f92-94c5-4478-beed-7060e41c9d7f`). Agent classes can host mixed runtimes; the parallel class was evaluation-only so the Java designer canvas stayed clean.
 
-StarlinkAI re-confirm (2026-07-30, issue #36): **not confirmed — blocked.** The live production agent (`C:\Users\tunas\efm-agent\nifi-minifi-cpp`, service `Apache NiFi MiNiFi`, agent `6e6707f3-89ce-4e86-9f3e-b09e301e81e7`, ONLINE, class `StarlinkAI`) has only the generic `minifi-script-extension.dll` in `extensions\` — no `minifi-python-script-extension.dll`, and `minifi_native.pyd` exists but is a **0-byte** stub, not a real link to the DLL. This is the same "Feature Level 2, `ADDLOCAL=ALL` never selected" gap the MSI facts below describe: this box was never installed with the Python feature. C2 itself is healthy (heartbeating, no connectivity issue). No live-flow change or service restart was made this pass — checked via read-only `powershell.exe` calls (from WSL2) and the EFM API only, per explicit instruction not to touch the production Lemonade-routing agent. Fixing this needs an admin MSI extract for the real DLL + a production service restart, which requires a drain plan for the live routing flow (issue #25 is open on this same flow right now) — deferred to a dedicated pass. Checklist: **`efm-beelink-cpp-python-action.md`** (prefer production class `StarlinkAI`).
+StarlinkAI re-confirm (2026-07-30, issue #36): **not confirmed — blocked**, and now **moot**. The live production agent (`C:\Users\tunas\efm-agent\nifi-minifi-cpp`, service `Apache NiFi MiNiFi`, agent `6e6707f3-89ce-4e86-9f3e-b09e301e81e7`, ONLINE, class `StarlinkAI`) had only the generic `minifi-script-extension.dll` in `extensions\` — no `minifi-python-script-extension.dll`, and `minifi_native.pyd` existed but was a **0-byte** stub, not a real link to the DLL. Same "Feature Level 2, `ADDLOCAL=ALL` never selected" gap the MSI facts below describe. **Closed, not fixed:** StarlinkAI consolidated onto a single Java MiNiFi agent (class `StarlinkAI`) 2026-08-06 (#131), and that C++ Windows service was deleted entirely 2026-08-09 — no admin MSI extract or service restart was ever done, the production target for this fix no longer exists. Checklist (closed, filed under `completed/`): **`completed/efm-beelink-cpp-python-action.md`**.
 
 ### MSI facts (1.26.02-b30 x64)
 
@@ -289,7 +289,7 @@ LogAttribute:
 
 Java agent under `WindowsDesktop` stayed ONLINE throughout.
 
-Companions: `efm-binaries-windows-python.md`, `efm-binaries.md` § Windows Python, `efm-beelink-cpp-python-action.md`.
+Companions: `efm-binaries-windows-python.md`, `efm-binaries.md` § Windows Python, `completed/efm-beelink-cpp-python-action.md` (closed — StarlinkAI moved to Java, see resolution note above).
 
 ### GUI automation from ExecuteScript on Windows — Session 0 kills it in service mode (2026-07-28)
 
@@ -372,7 +372,7 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 
 **Actually open**, ordered by how close each is to done:
 
-1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D verified on WindowsDesktop (`WindowsDesktopCpp`): process-mode **and** Windows service + `ADDLOCAL=ALL`; Python 3.14.4; smoke `python.smoke=windows-cpp-executescript-ok`. **StarlinkAI re-check (2026-07-30, #36): still not working.** Production agent confirmed missing `minifi-python-script-extension.dll` (only the generic `minifi-script-extension.dll` is present) and has a 0-byte `minifi_native.pyd`. Needs an admin-extract MSI reinstall (`ADDLOCAL=ALL`) + a production service restart with a drain plan for the live Lemonade flow — not done this pass, left for a dedicated session.
+1. ~~**[Windows C++] Confirm ExecuteScript actually runs.**~~ **Done 2026-07-27** — Path D verified on WindowsDesktop (`WindowsDesktopCpp`): process-mode **and** Windows service + `ADDLOCAL=ALL`; Python 3.14.4; smoke `python.smoke=windows-cpp-executescript-ok`. **StarlinkAI re-check (2026-07-30, #36): confirmed missing on the C++ production agent, and now closed rather than fixed** — StarlinkAI moved off C++ entirely onto a single Java MiNiFi agent (2026-08-06, #131) and that C++ Windows service was deleted (2026-08-09), so the admin-extract MSI reinstall + drain-planned service restart this item called for is no longer applicable to anything live. Not an open task.
 2. ~~**[Java] Decide the Java scripting story.**~~ **Done 2026-07-27** — see `efm-windows-java-minifi.md`'s "SOLVED" section: `nifi-scripting-nar`/`nifi-kafka-nar`/`nifi-kafka-3-service-nar` built from the exact-matching source tarball and dropped into the agent's autoload dir, no restart needed. `ExecuteScript` runs real **Groovy** (no Jython/Python in this build) on both `KubernetesPodJava` and the real `WindowsDesktop` agent, manifest goes 114 → 122. This line in this doc was stale as of 2026-07-28 (issue #4) — cross-check `efm-windows-java-minifi.md` before repeating "Java is shell-only" anywhere else, that's no longer accurate for this lab's staged tarball.
 3. **[Persistence] Persist the injected tarballs + `java/windows` leaf into `~/efm-binaries/staging/`** so the next EFM PVC rebuild doesn't silently drop scripting (open follow-up already noted in `efm-windows-java-minifi.md`).
 4. **[Windows GUI automation] Session 0 vs. Session 1 for any `ExecuteScript`/`ExecuteStreamCommand` that launches a visible window.** Confirmed 2026-07-28 (issue #4, see the new subsection above under Path D) — a Windows-service agent (`LocalSystem`) can run the script and even spawn the target process, but the window is never visible/discoverable since Session 0 has no interactive desktop; a process-mode or interactive-logon agent (Session 1) works cleanly. Anyone building a similar on-device UI-driving flow on Windows should default to process-mode (or a service running under a real interactive account, not `LocalSystem`) from the start rather than rediscovering this.
@@ -395,7 +395,7 @@ Restart durability now has infrastructure behind it: the `efm-resources` PVC exi
 
 - `efm-binaries.md` — the binary staging tree + the extra-extensions injection recipe (Path A) + Windows MSI/ADDLOCAL section
 - `efm-binaries-windows-python.md` — Windows Path D history + G1 verified recipes (process + service)
-- `efm-beelink-cpp-python-action.md` — StarlinkAI checklist to re-confirm Path D on `StarlinkAI`
+- `completed/efm-beelink-cpp-python-action.md` — StarlinkAI's Path D checklist (closed 2026-08-11 — StarlinkAI moved to a single Java agent, C++ retired)
 - `efm-windows-java-minifi.md` — the CEM Java field verification (114 stock, 122 after the scripting/Kafka NAR drop-in — SOLVED 2026-07-27)
 - `minifi-playground-cpp-processors.md` — the C++ stock catalog and the four fix paths in processor terms
 - `minifi-playground-java-processors.md` — Java patterns and footprint tradeoffs

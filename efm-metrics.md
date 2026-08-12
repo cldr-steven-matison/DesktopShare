@@ -337,8 +337,9 @@ via `cso-operator-app`'s `/api/efm/agents`, which reads EFM's Postgres registry 
   `C:\Users\tunas\minifi-java\minifi-2.24.08.0-19`. Agent id `eeb8cd53-656e-4dc2-b1d0-8b025cb2fd19`
   (`c2.agent.identifier` in `minifi.properties`, matches EFM).
 - **`WindowsDesktopCpp` (C++)** — MiNiFi C++ `1.26.02` (Cloudera build), the same line as
-  NvidiaNano/StarlinkAI, running as the `Apache NiFi MiNiFi` Windows service. Install root
-  `C:\Windows\System32\nifi-minifi-cpp`. Agent id (fallback)
+  NvidiaNano (and formerly StarlinkAI, before it consolidated onto a single Java agent 2026-08-06
+  and had its C++ service deleted 2026-08-09), running as the `Apache NiFi MiNiFi` Windows service.
+  Install root `C:\Windows\System32\nifi-minifi-cpp`. Agent id (fallback)
   `ea11f1bb-89cc-11f1-a204-c48b66d5e900`.
 
 **Layer 1 (EFM server metrics) confirmed on this host's own `cld-streaming` cluster** — same

@@ -68,7 +68,7 @@ C:\minifi\install-service-addlocal.ps1
 C:\minifi\fix-service-c2.ps1
 ```
 
-**Result on WindowsDesktop:** service `Apache NiFi MiNiFi` Running/Automatic; Python ExecuteScript smoke passed again (`python.smoke=windows-cpp-executescript-ok`). Tree landed under `C:\WINDOWS\system32\nifi-minifi-cpp` (Admin `$PWD` trap). Unattended/non-elevated msiexec still **exit 1625**. Full how-to: `efm-executescript.md` § Path D. StarlinkAI: `efm-beelink-cpp-python-action.md`.
+**Result on WindowsDesktop:** service `Apache NiFi MiNiFi` Running/Automatic; Python ExecuteScript smoke passed again (`python.smoke=windows-cpp-executescript-ok`). Tree landed under `C:\WINDOWS\system32\nifi-minifi-cpp` (Admin `$PWD` trap). Unattended/non-elevated msiexec still **exit 1625**. Full how-to: `efm-executescript.md` § Path D. StarlinkAI: `completed/efm-beelink-cpp-python-action.md` (closed — StarlinkAI moved to a single Java agent, C++ retired 2026-08-09).
 
 ---
 

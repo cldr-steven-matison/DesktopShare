@@ -248,6 +248,15 @@ caller, same as #130.
 
 ### Native agent architecture (2026-08-06, issue #133)
 
+**Superseded 2026-08-11 (issue #136):** the four separate ports below were
+consolidated into a single endpoint on `:8096`, with
+`starlinkai_screen_control.py`'s `main()` moved to a uniform 3-arg
+(`action`/`screen`/`streamer`) dispatch. See `beelink-starlink-efm-ai.md`'s
+2026-08-11 entry for the current port map. The pipeline shape
+(`HandleHttpRequest`/`ExecuteStreamCommand`/`HandleHttpResponse`) and the
+mpv/Edge launch mechanics described below are otherwise unchanged — this
+section is left as the historical record of what #133 built.
+
 Four new `HandleHttpRequest`/`ExecuteStreamCommand`/`HandleHttpResponse`
 pipelines added to the existing `StarlinkAI` EFM class canvas (alongside
 the untouched Lemonade AI flow on `:8090`/`:8095` — see
@@ -353,7 +362,9 @@ without touching native MiNiFi C++'s broken Python `ExecuteScript` support
   `POST /matrix` and `POST /kill` (no screen name) remain as aliases for
   `screen2`, kept only so the existing `idle_watcher.py` calls (see below)
   and any already-wired external caller keep working unchanged. Registered
-  as Scheduled Task `MatrixLauncherListener`.
+  as Scheduled Task `MatrixLauncherListener` — **stopped 2026-08-06, see the
+  "Old listeners retired" note above; described here as built, not as
+  currently running.**
 - `C:\minifi-manual\idle_watcher.py` — polls `GetLastInputInfo`/`GetTickCount`
   every 2s, 2-minute threshold (`IDLE_THRESHOLD_MS`, same default as the
   Jetson). Idle detection is desktop-wide (`GetLastInputInfo` has no
