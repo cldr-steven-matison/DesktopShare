@@ -42,6 +42,10 @@ construction. A flow-definition backup of the pre-migration class lives at
 - Serial capture (boot log incl. reset): pyserial open with `dtr=False`, pulse `rts` — the
   bootloader, partition table, LittleFS mount, WiFi join, and heartbeat lines are the ground
   truth for agent health; EFM's REST agent view can freeze on stale snapshots.
+- **To watch serial *without* rebooting the device**: a plain `serial.Serial('COMx', ...)` open
+  asserts DTR/RTS and trips the ESP32 auto-reset circuit — it silently reboots the unit and
+  confounds whatever you were testing. Construct unopened, clear both lines, then open:
+  `s = serial.Serial(); s.port='COMx'; s.dtr = False; s.rts = False; s.open()`.
 
 ## Firmware build layout (MicroFi fork, `feature/get-gpio`)
 
@@ -128,9 +132,17 @@ Genuinely new territory — no MiNiFi binary-ingestion pattern proven anywhere i
 
 Builds on the proven fire-and-forget `ListenHTTP`. Ascending complexity:
 
-1. **`ListenHTTP → SetGPIO` LED trigger** — needs a new `SetGPIO`/`PulseGPIO` write processor
-   (only read-only `GetGPIO` exists). Small, contained; proves the
-   build→flash→EFM-push loop before the harder devices. **Do this first across all tracks.**
+1. ~~`ListenHTTP → SetGPIO` LED trigger~~ **Done 2026-08-12, LED confirmed by eye.** New
+   `SetGPIO` processor (`src/processors/set_gpio.cpp`, fork branch `feature/set-gpio`):
+   `INPUT_REQUIRED`, props `GPIO Pin` / `Pin Level` (`from-content` default — parses
+   `1/0/on/off/high/low/toggle` from FlowFile content — or fixed `high/low/toggle`) /
+   `Invert` (for active-low hardware). Live flow on the device: `ListenHTTP-LED` (`:8095`,
+   `/led`) → `SetGPIO-UserLED` (pin 21 = onboard LED, active-low, `Invert=true`):
+   `curl -X POST -d toggle http://192.168.1.201:8095/led`. Firmware 52.7% of the app slot
+   with 7 processors. This proved the full loop: new processor → build → flash → EFM
+   auto-registers the new manifest (new *name* ⇒ new manifest id, no rename trick needed;
+   re-pin the palette mapping to the new id) → Designer-API flow build → publish → C2 push →
+   hardware responds.
 2. **Inbound HTTP dispatch to different actions** — no `RouteOnAttribute`/EL, so branching is
    either separate `ListenHTTP` + flow per action (one-relationship-one-consumer constraint) or
    a minimal predicate evaluator that was scoped elsewhere but never built.
