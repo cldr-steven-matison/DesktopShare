@@ -2,9 +2,7 @@
 
 Let's stand up a fresh Cloudera Public Cloud (CDP) Enviornment on AWS with [`cdp-tf-quickstarts`](https://github.com/cloudera-labs/cdp-tf-quickstarts), enable the Iceberg REST Catalog embedded in the DataLake HMS, and prove end-to-end external reads from OSS Spark, AWS Athena, Snowflake, and AWS EMR Spark.  
 
-> **Scope note:** the **NiFi and Flink/SSB** streaming-engine work spun off to [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md) (CSO / CFM / CSA) — including the working "REST Catalog APIs from NiFi via `InvokeHTTP`" pattern and the deferred SSB evaluation. This plan stays focused on the runbook's external consumers.
-
-> **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix): **OSS Spark (minikube K8s), AWS EMR Spark, and Iceberg MCP (Impala) all ✅ validated**. **Pending:** **Athena, Snowflake.** Redeploy automation assigns the required env roles. Env stays up until the Friday reaper. Design confirmed against a colleague's live-run runbook. No driving issue yet.
+> **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix): **OSS Spark (minikube K8s), AWS EMR Spark, AWS Athena (for Spark), and Iceberg MCP (Impala) all ✅ validated**. **Pending:** **Snowflake.** Redeploy automation assigns the required env roles. Env stays up until the Friday reaper. Design confirmed against a colleague's live-run runbook. No driving issue yet.
 
 This is our reproducible rebuild of the Iceberg REST Catalog API Runbook for CDP Public Cloud Runtime 7.3.2 runbook.  We will deploy the environment from scratch, add the compute Data Hub the runbook assumes, and re-verify every external consumer engine — including **EMR Spark, not yet live-verified**. It complements [`cloudera-iceberg-to-athena-plan.md`](cloudera-iceberg-to-athena-plan.md) and corrects that to be validated doc's note that "REST Catalog doesn't reach Athena" — the runbook live-verified Athena-for-Spark via the REST Catalog on 2026-07-25.
 
@@ -72,6 +70,41 @@ End-to-end from an empty AWS account to a validated Iceberg REST Catalog: **~2h 
 | External user | `iceberg-consumer` (clientId `9d4ec573-…`, `userId=13`); secret in gitignored `credentials.json` |
 | Data share | `srm-iceberg-share` (id `1`, `isShared=true`, 1 asset / 1 user) |
 | Working dir | `~/Documents/GitHub/iceberg-rest-catalog-demo` (scripts; creds/keys gitignored) |
+
+## Daily startup — the env auto-stops overnight ⚠️
+
+The shared SE sandbox **auto-stops idle environments overnight** (distinct from the Friday *reaper* which deletes). So most mornings the whole stack is found `ENV_STOPPED` / DataLake `STOPPED` / Data Hub `STOPPED`, and **nothing in Phase 4/5 works until it's restarted**. This is a daily ritual, not a rebuild — the infra still exists, it's just powered down. Full teardown recovery is the separate weekly [Automated redeploy](#automated-redeploy-weekly-rebuild).
+
+Every morning, in order (they're strictly sequential — each waits on the previous):
+
+```bash
+export PATH="$HOME/.venvs/cdpcli/bin:$PATH"; export AWS_PROFILE=cldr-se
+# 0. AWS SSO token expires overnight too — interactive browser login (run yourself)
+aws sso login --profile cldr-se
+
+# 1. start the environment → brings the DataLake up with it  (~20–40m)
+cdp environments start-environment --environment-name srm-iceberg-cdp-env
+until [ "$(cdp datalake describe-datalake --datalake-name srm-iceberg-aw-dl | jq -r '.datalake.status')" = RUNNING ]; do sleep 30; done
+
+# 2. Data Hub start is REJECTED until the DataLake is RUNNING (400 INVALID_ARGUMENT) — so it comes second  (~10m)
+cdp datahub start-cluster --cluster-name srm-iceberg-impala
+until [ "$(cdp datahub describe-cluster --cluster-name srm-iceberg-impala | jq -r '.cluster.clusterStatus')" = AVAILABLE ]; do sleep 30; done
+
+# 3. CRNs churn on every stop/start — re-resolve into config.env before any datacatalog call
+DL_CRN=$(cdp datalake describe-datalake --datalake-name srm-iceberg-aw-dl | jq -r '.datalake.crn')
+ENV_CRN=$(cdp environments describe-environment --environment-name srm-iceberg-cdp-env | jq -r '.environment.crn')
+printf 'ENV_CRN=%s\nDL_CRN=%s\n' "$ENV_CRN" "$DL_CRN" > ~/Documents/GitHub/iceberg-rest-catalog-demo/config.env
+
+# 4. sanity — REST Catalog reachable end-to-end
+bash ~/Documents/GitHub/iceberg-rest-catalog-demo/test-rest-catalog.sh poc_uc2 airlines
+```
+
+Gotchas that bite specifically after a stop/start (not on a fresh build):
+- **Data Hub start fails while the DataLake is still coming up** — `400 INVALID_ARGUMENT … 'Datalake is stopped'`. Don't fire it early; wait for DataLake `RUNNING`.
+- **CRNs are regenerated** — stale `DL_CRN`/`ENV_CRN` → `502 could not read configuration for [datalake:<crn>]`. Always re-resolve (step 3).
+- **External-user credential / share** may need `cdp datacatalog regenerate-external-user-credentials` → `share-data-share` re-run if `test-rest-catalog.sh` returns `401`/`{"identifiers":[]}` (see [Dormant recovery drill](#dormant--rebuilt-sandbox-recovery-drill)).
+- **Athena/Snowflake also need the knox SG re-widened** if the security group rules were reverted on the prior teardown.
+- Athena doesn't need the Impala Data Hub (reads go straight through the REST Catalog); start it only when a consumer needs Impala/MCP.
 
 ## Phase 0 — Prerequisites & entitlement gate
 
@@ -168,11 +201,10 @@ curl -sk -H "Authorization: Bearer ${JWT}" \
 | Engine | Approach | Status |
 | :---- | :---- | :---- |
 | **OSS Spark / PyIceberg (from K8s)** | K8s Job (`apache/spark:3.5.3`, `spark-submit --master local[*]`) in the `minikube` cluster; `--packages iceberg-spark-runtime-3.5_2.12:1.5.2,iceberg-aws-bundle:1.5.2`; catalog `type=rest`, pre-fetched Knox JWT as `.token`, `X-Iceberg-Access-Delegation: vended-credentials`, `io-impl=S3FileIO`, `client.region=us-east-2`. | ✅ **validated 2026-08-11** |
-| **AWS Athena** | Athena for Spark; base URI without `/v1/`, pre-fetched JWT, `X-Iceberg-Access-Delegation: vended-credentials`, explicit `client.region`. Needs knox SG `0.0.0.0/0`. | runbook-verified — reproduce |
+| **AWS Athena** | Athena for Apache Spark (`Spark_primary` PySpark v3 workgroup, us-east-2); same REST-catalog config as OSS Spark set via `spark.conf.set`, JWT baked into the calculation. Needs knox SG `0.0.0.0/0`. | ✅ **validated 2026-08-12** |
 | **Snowflake** | Catalog Integration `TYPE = BEARER` + pre-fetched JWT (native `TYPE=OAUTH` breaks — Knox emits `expires_in` as epoch-millis). Needs a Snowflake account + SG `0.0.0.0/0`. | runbook-verified — reproduce |
 | **AWS EMR Spark** | Single-node `emr-7.2.0` cluster (public subnet, default roles); Spark `local[*]` step, same REST-catalog config as OSS Spark; JWT injected over SSH (no secret in S3/step args). | ✅ **validated 2026-08-11 (first-ever)** |
 
-> **NiFi & Flink/SSB** (the CSO streaming consumers) tracked separately in [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md): NiFi query via `InvokeHTTP` ✅; native `RESTCatalogService` blocked by a NAR Jackson bug; Flink/SSB planned.
 
 ### OSS Spark from K8s — ✅ validated 2026-08-11
 
@@ -211,9 +243,16 @@ The runbook never live-verified EMR; this build did. Single-node `emr-7.2.0` clu
 - **Result:** `SHOW NAMESPACES IN cdp` → `default, information_schema, poc_uc2, sys`; `SELECT * FROM cdp.poc_uc2.airlines` → AA/DL/UA (3 rows). Cluster torn down after.
 - Artifacts: `emr/query-emr.py`, `emr/run-iceberg.sh` (self-fetch JWT variant for a future S3-hosted step).
 
-### NiFi & Flink/SSB — moved
+### AWS Athena (for Apache Spark) — ✅ validated 2026-08-12
 
-The NiFi (`InvokeHTTP` query path ✅, native `RESTCatalogService` blocked by a Jackson NAR bug, read-only write finding) and Flink/SSB (planned) detail now lives in [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md).
+`Spark_primary` workgroup (PySpark engine v3, us-east-2). Calculation sets the same REST-catalog config as OSS Spark via `spark.conf.set` on Athena's pre-initialized `spark` session, then queries `cdp.poc_uc2.airlines`.
+
+- **Result:** `SHOW NAMESPACES IN cdp` → `default, information_schema, poc_uc2, sys`; `SELECT * FROM cdp.poc_uc2.airlines` → AA/DL/UA (3 rows); `count = 3`.
+- **Networking:** Athena for Spark egresses from an AWS-managed VPC (no fixed IP) → knox SG opened `0.0.0.0/0:443` for the run, revoked after.
+- **Secret hygiene:** fresh Knox JWT (2-step OAuth) baked into the calculation code at submit time; token TTL ~10h; template stripped to `__CDP_JWT__` in the repo.
+- **Submission gotcha:** `--calculation-configuration CodeBlock=<inline>` fails on multi-line Python — pass a JSON payload (`{"CodeBlock": …}`) via `file://`.
+- **Teardown (post-run):** knox SG `0.0.0.0/0:443` rule revoked (back to Mac `/32`); all Spark sessions terminated (DPU cost stops); imported console notebook deleted (removes the baked JWT). The `Spark_primary` workgroup persists at no idle cost — reused next run, not rebuilt like the EMR cluster.
+- Artifacts: `athena/query-athena.py` (CLI calculation), `athena/query-athena.ipynb` (console notebook for screenshots).
 
 ## Iceberg MCP Server — AI/agent access via Impala
 
