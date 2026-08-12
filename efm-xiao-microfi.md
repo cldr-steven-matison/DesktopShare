@@ -189,7 +189,18 @@ this doc opened with.
 Warning! Flash memory size mismatch detected. Expected 4MB, found 2MB!
 ```
 This specific XIAO unit's physical flash is **2MB**, not the 8MB this doc's hardware section
-assumed for "XIAO ESP32-S3." `partitions_4mb.csv`'s `littlefs` partition is declared
+assumed for "XIAO ESP32-S3."
+
+> **Correction (2026-08-12, issue #134 phase-1 triage):** the physical flash is **8MB after
+> all** — `esptool flash-id` reads JEDEC `c8 4017` (GigaDevice GD25Q64, 64Mbit) directly off
+> this unit's chip, identical on all three XIAO units and matching the official Sense spec. The
+> "found 2MB" upload warning above remains unexplained but is superseded by the direct JEDEC
+> read. The 2MB-safe work below (`partitions_2mb.csv`, `esp32s3-2mb` env) is *safe but
+> unnecessarily tight* — the conclusions drawn from "2MB physical" (out-of-bounds LittleFS
+> risk, SD-overflow as a necessity, the ~97% capacity ceiling) no longer hold. See
+> `efm-xiao-microfi-1-2-3.md` phase-1 triage.
+
+`partitions_4mb.csv`'s `littlefs` partition is declared
 `0x1A0000`-`0x400000` (ending exactly at the 4MB boundary) — **roughly 2MB of that declared range
 doesn't exist on this chip.** Task 7 pushes a flow, which MicroFi persists to
 `/littlefs/.flowdef`; Task 8's power-cycle test depends on the same filesystem. Most SPI NOR flash
