@@ -5,7 +5,7 @@ The **streaming-engine spinoff** of [`cloudera-iceberg-rest-catalog-aws-plan.md`
 > **Status (2026-08-12, issue #149):** **NiFi query via `InvokeHTTP` ✅ validated** — the working "how to use REST Catalog APIs from NiFi" path. The native `RESTCatalogService`/`PutIceberg` path **configures VALID but throws at runtime** — root-caused live and the fix built + link-verified (jackson NAR; details below). **Flink/SSB: gap identified** — the Flink `lib/` ships **no `iceberg-flink-runtime`/`iceberg-aws-bundle`**. Both deferred to a dedicated profile — done in **#152**; the separate CDP-PC-7.3.2 fast-track leg is **#151**.
 >
 > **Update (2026-08-12, issue #152 — dedicated `iceberg-lab` profile, both legs live-built from scratch):**
-> - **NiFi jackson fix ✅ validated.** Patched jar baked into a custom `cfm-nifi-k8s:…-234-jacksonfix` image (every `jackson-databind-2.20.1.jar` in the image replaced — durable since `work/` is image rootfs, not a volume). On that image the `NoClassDefFoundError: PropertyNamingStrategy$KebabCaseStrategy` is **gone** (0 occurrences); at the same throw site (`IcebergCatalogFactory.create:61`) execution now advances ~110 lines deeper into `RESTCatalog.initialize → RESTSessionCatalog.initialize:171`. Native end-to-end then hits a **separate, newly-surfaced** issue — `NullPointerException` in `org.apache.iceberg.util.EnvironmentUtil.resolveAll:39` (a null catalog-property value) — not the jackson bug. (Follow-up.)
+> - **NiFi jackson fix ✅ validated.** Patched jar baked into a custom `cfm-nifi-k8s:…-234-jacksonfix` image (every `jackson-databind-2.20.1.jar` in the image replaced — durable since `work/` is image rootfs, not a volume). On that image the `NoClassDefFoundError: PropertyNamingStrategy$KebabCaseStrategy` is **gone** (0 occurrences); at the same throw site (`IcebergCatalogFactory.create:61`) execution now advances ~110 lines deeper into `RESTCatalog.initialize → RESTSessionCatalog.initialize:171`. Native end-to-end then hit a **separate, newly-surfaced** `NullPointerException` in `org.apache.iceberg.util.EnvironmentUtil.resolveAll:39` — **now resolved.** Root cause was a **null OAuth token**, not a null warehouse (warehouse is `required`+`NON_BLANK`, so it can't be null once the CS enables): `initRestCatalog` only `containsKey`-guards the token *service*, never the token *string*, so a null token NPEs in Iceberg 1.5.2's un-guarded `resolveAll`. The token was null because the Knox OAuth2 provider couldn't mint one — a **per-user Knox JWT quota** exhaustion (`403 token limit exceeded`) plus a wedged `KnoxOAuth` CS instance. Fix: fresh external user `iceberg-consumer-nifi` (id 14, new quota) + delete/recreate the provider as `KnoxOAuth2`. `PutIceberg` now **connects, authenticates, and initializes the REST catalog**, hitting only the legitimate `NoSuchTableException` — the CDP datashare is read-only by design (see Work stream B for the write path). CFM robustness-bug candidate: `initRestCatalog` should null-guard the token before Iceberg's un-guarded `resolveAll`.
 > - **Flink/SSB Iceberg REST ✅ fully validated — `SELECT * FROM poc_uc2.airlines` returns all 3 rows.** Custom `flink-extended:…-b275-iceberg` image adds `iceberg-flink-runtime-1.20-1.7.2` + `iceberg-aws-bundle-1.7.2` **+ `flink-shaded-hadoop-2-uber-2.8.3-10.0`** to `/opt/flink/lib`; SSB repointed via `ssb-config` `kubernetes.app.docker-image`. `CREATE CATALOG` / `SHOW DATABASES` (default, information_schema, poc_uc2, sys) / `SHOW TABLES` (airlines) / `SELECT` all succeed. S3 read worked through the `X-Iceberg-Access-Delegation: vended-credentials` header — no explicit-creds fallback needed. (Version correction: **1.7.2**, not 1.5.4 — Flink 1.20 has no `iceberg-flink-runtime-1.20` before Iceberg 1.7.0; REST is wire-compatible with the 1.5.2 server lineage.)
 
 ## Read the AWS plan first — the shared foundation lives there
@@ -74,6 +74,46 @@ Direct REST calls with the external-user token to **create a namespace and a tab
 - **Build scripts:** `~/Documents/GitHub/iceberg-rest-catalog-demo/nifi/` (`build-query-flow.sh` drove the validated query path).
 - **Env note:** the Mac's docker-driver `minikube` gets API-flaky (`TLS handshake timeout`) under sustained load + `minikube tunnel` — give it a breather between bursts.
 
+## Work stream B — write-capable round-trip: create a NiFi Iceberg data source, then read it back
+
+> **Separate work stream from the AWS airlines datashare.** Everything above is the **read consumer** path against CDP's `cdp-datashare-access` endpoint, which is **read-only by design** (§"Write path — read-only *by design*"). This stream proves the **other half**: that `PutIceberg` + `RESTCatalogService` **commit normally** against a *write-capable* catalog + identity, and then closes the loop by **reading the same table back through the same NiFi data source**. It does **not** touch the CDP datashare. Driving issue: native-integration guide **#75** (the read-half native processor is **#154**, `GetIceberg`). Built on the `iceberg-lab` profile, where the jackson NAR fix is already validated (**#152**).
+
+### Why a write needs a different door than the airlines read
+
+The read-only wall is **CDP's consumer share model, not the processor/CS** — `RESTCatalogService` is fully write-capable against any spec-compliant catalog where (a) the identity is authorized to `createTable`/commit and (b) FileIO holds write creds. The two endpoints differ end to end:
+
+| | `cdp-datashare-access` consumer endpoint (airlines stream) | Write-capable catalog (this stream) |
+| :-- | :-- | :-- |
+| Identity | External user (Knox OAuth2 JWT), data-sharing-only | Owned catalog creds (Option A) **or** workload/Kerberos user (Option B) |
+| Authorization | Data Share grant — `listNamespaces`/`listTables`/`loadTable` only | Full read/write/DDL (`createTable`, commit, schema evolution) |
+| Cloud creds | **Vended read-only STS** (`GetObject`/`ListBucket`) via `X-Iceberg-Access-Delegation` | Standing write creds — MinIO key (A) or IDBroker→IAM role w/ `PutObject` (B) |
+| Write result | Fails at the S3 layer (`create metadata.json` denied) — by design | Commits: data + `metadata.json` written, table pointer swapped |
+
+(The native `PutIceberg` also needed the jackson fix **#152** *and* a non-null OAuth token — the `EnvironmentUtil.resolveAll` NPE seen on the datashare path was a null token from an exhausted-quota provider, resolved on `iceberg-lab`; against a write-capable catalog the token is either a static bearer or unused entirely.)
+
+### The data source — one `RESTCatalogService`, used for both directions
+
+The elegance of the demo: a **single** `RESTCatalogService` controller service (the "data source") is referenced by **both** `PutIceberg` (write) and the read processor. Pick a write-capable backend for it:
+
+- **Option A — self-hosted write-capable REST catalog (recommended; fully owned, zero external dependency).** Stand up `apache/iceberg-rest` (the reference fixture) — or Polaris / Lakekeeper / Nessie — plus **MinIO** (S3-compatible) in the `iceberg-lab` namespace. `RESTCatalogService`: `Catalog URI` = the in-cluster `iceberg-rest` service, `warehouse-path` = `s3://warehouse/`, S3 endpoint override = MinIO, creds = the MinIO access/secret (write-capable). OAuth not required (static token or none). This is the fastest green and the cleanest guide example.
+- **Option B — CDP-native write (sanctioned datalake path).** Point at the **authoritative datalake catalog** (HMS / datalake Iceberg REST) with a **`KerberosUserService`** workload identity whose IDBroker mapping grants an IAM role with `PutObject` on the warehouse. Writes land on the real datalake table; an airlines-style datashare would then reflect them read-only to consumers — the "producer writes, consumer reads" narrative. Heavier: needs a workload/machine user, Ranger `INSERT`/`CREATE` on the target DB, and an IDBroker mapping. (Exact datalake REST path vs. plain HMS Thrift `:9083` to be confirmed live against `srm-iceberg-aw-dl`.)
+
+### Step 1 — create the data source & write (`PutIceberg`)
+
+- Controller services: the shared **`RESTCatalogService`** (above) + a **`JsonTreeReader`** (or Avro/CSV reader).
+- Flow: `GenerateFlowFile` (emit N JSON records) → **`PutIceberg`** (`catalog-service` = the `RESTCatalogService`, `catalog-namespace`, `table-name`, `record-reader` = the reader).
+- `PutIceberg` creates the table (Option A/B both allow `createTable`) and commits the rows. **Green =** a committed snapshot + data/`metadata.json` under the warehouse.
+
+### Step 2 — read-only from the **same** data source
+
+- Reuse the **same** `RESTCatalogService` instance — the whole point of the stream: one data source, both directions.
+- Read via the custom **`GetIceberg`** processor (**#154**) once built; **interim**, use the validated `InvokeHTTP` load-table + scan pattern (§"How to use REST Catalog APIs from NiFi") against the same catalog URI.
+- **Green =** the N records written in Step 1 come back.
+
+### Definition of done (work stream B)
+
+On `iceberg-lab`, a single `RESTCatalogService` data source where `PutIceberg` writes N records to a fresh table and a read (`GetIceberg`, or `InvokeHTTP` interim) returns the same N — proving the full round-trip and that the datashare read-only ceiling was CDP's consumer model, **not** `RESTCatalogService`. Then this becomes the write⇄read worked example for the native-integration guide (**#75**).
+
 ## Flink / SSB (CSA) — gap identified (2026-08-12); live build deferred to a fresh profile
 
 Registering an Iceberg **REST** catalog in SSB and querying `poc_uc2.airlines`, tying into the `cld-streaming` CSA/SSB stack.
@@ -98,7 +138,7 @@ Registering an Iceberg **REST** catalog in SSB and querying `poc_uc2.airlines`, 
 
 `SELECT`-equivalent reads of `poc_uc2.airlines` return all 3 rows **through the REST Catalog** from:
 
-- **NiFi** — ✅ via `InvokeHTTP` (namespaces/tables/load-table). Native `RESTCatalogService`: jackson NAR fix **validated on the `iceberg-lab` profile** (#152) — `KebabCaseStrategy` `NoClassDefFoundError` gone, catalog construction now succeeds; native end-to-end blocked one layer deeper by a separate `EnvironmentUtil.resolveAll` NPE (follow-up).
+- **NiFi** — ✅ via `InvokeHTTP` (namespaces/tables/load-table). Native `RESTCatalogService`: jackson NAR fix **validated on the `iceberg-lab` profile** (#152) — `KebabCaseStrategy` `NoClassDefFoundError` gone, catalog construction succeeds; the follow-on `EnvironmentUtil.resolveAll` NPE (null OAuth token / exhausted Knox quota) is **also resolved** — `PutIceberg` now connects/authenticates/initializes the REST catalog and reaches the legitimate `NoSuchTableException` (datashare is read-only by design; the write path is **Work stream B**).
 - **Flink/SSB** — ✅ **validated on the `iceberg-lab` profile** (#152): `SELECT * FROM poc_uc2.airlines` returns all 3 rows through the REST Catalog, after adding `iceberg-flink-runtime-1.20-1.7.2` + `iceberg-aws-bundle-1.7.2` + `flink-shaded-hadoop-2-uber-2.8.3-10.0` to `/opt/flink/lib` and repointing SSB's session image.
 
 ## When this ships
@@ -106,6 +146,7 @@ Registering an Iceberg **REST** catalog in SSB and querying `poc_uc2.airlines`, 
 - This tracker rides alongside the AWS plan. Both streaming legs are now documented (NiFi native root-caused + fix built; Flink/SSB gap identified), with the live builds deferred to a dedicated profile (**#152**).
 - The NiFi native-catalog jackson NAR bug (`iceberg-core-1.5.2` vs `jackson-databind-2.20.1`, missing `PropertyNamingStrategy$KebabCaseStrategy`) is a candidate to file with the CFM team — the additive two-class fix in `jackson-fix/` is the minimal repro/patch.
 - Candidate content for the NiFi/streaming guide track once the `InvokeHTTP` pattern and (once #152 lands) the native-catalog + SSB paths are clean.
+- **Work stream B (write-capable round-trip)** is the write⇄read counterpart to the read-only airlines stream — create a NiFi `RESTCatalogService` data source, `PutIceberg` write, read back from the same source. Feeds the native-integration guide **#75** (read half = `GetIceberg`, **#154**).
 - Driving issue: **#149**. Follow-ups: **#152** (dedicated-profile NiFi jackson + SSB jars), **#151** (CDP-PC-7.3.2 fast-track, the separate leg).
 
 ## Resources
