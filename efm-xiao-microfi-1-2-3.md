@@ -83,9 +83,16 @@ construction. A flow-definition backup of the pre-migration class lives at
   live on MicroFi-3 (operation and `bulk_operation` rows both went DONE on publish, zero SQL).
   The body deliberately omits `agentInfo`/`deviceInfo`/`flowInfo` — any of those makes EFM also
   process the ack as a heartbeat. The old "implicit ack via heartbeat flowId match" README claim
-  is disproven — EFM 2.3.1 times unacknowledged operations out to FAILED. **MicroFi-1/2 still run
-  pre-ack firmware until their next natural reflash**; until then their publishes still leave
-  FAILED rows (cleanup: the recurring SQL pass in the EFM operations manual).
+  is disproven — EFM 2.3.1 times unacknowledged operations out to FAILED. **All three units run
+  `feature/c2-ack` as of 2026-08-12 evening** — ack verified live on MicroFi-3 and MicroFi-1
+  (operation + `bulk_operation` rows DONE on publish, zero SQL).
+- **Reset the device after publishing to a MicroFi that runs `ListenHTTP` or `PublishMQTT`**
+  ([#150](https://github.com/cldr-steven-matison/DesktopShare/issues/150)): a live flow re-apply
+  rebuilds the graph without freeing the old instances — the old httpd keeps the port
+  (`httpd_start failed`), old+new MQTT clients fight over one client id (connect/EOF loop), and
+  the leaked heap plus a WiFi drop can spiral into `xQueueCreate failed`/malloc-fail death
+  (how MicroFi-3 went MISSING on 2026-08-12). A fresh boot primes the persisted flow once and
+  is always clean.
 
 ## Architectural ceilings (per-flow, unchanged)
 
