@@ -33,6 +33,8 @@ If the live state disagrees with a doc, surface that — don't quietly conform t
 
 Every plan that touches infra or code closes with a "when this ships, update `<the.md file>`" step. It's not optional — a plan that works but doesn't update its DesktopShare doc leaves the next session working from a stale spec, and we've paid for that more than once.
 
+The trigger is a plan landing or an explicit wrap-up. During rapid iterative sessions (test → tweak → test), doc and session-history updates are **opt-in** — don't append changelog entries mid-iteration unless asked.
+
 For EFM-guide work specifically, that includes the master plan: whenever an issue advances a chapter, update the `Complete Guide to Edge Flow Management.md` status tracker in the same pass and keep its **Issues** column linked to the driving issue(s). The tracker is the live chapter↔issue correlation — see `device-comms.md` §"Working an issue" step 4.
 
 ## Publishing a blog post end-to-end (to the live blog repo)
