@@ -10,7 +10,7 @@ device realistically its own small research track rather than one flow reused th
 
 | Unit | Class | Agent ID | MAC | IP | Track |
 |---|---|---|---|---|---|
-| #1 | `MicroFi-1` | `microfi-e072a1fbfd04` | `e0:72:a1:fb:fd:04` | 192.168.1.198 | **Sparkplug Sensor Emit** — running the telemetry flow (`GenerateFlowFile → PublishMQTT` to `test/sensor/data`, `ListenHTTP` on `:8095/test` parked) |
+| #1 | `MicroFi-1` | `microfi-e072a1fbfd04` | `e0:72:a1:fb:fd:04` | 192.168.1.198 | **Sparkplug Sensor Emit** — running the telemetry flow (`GenerateFlowFile → PublishMQTT` to `test/sensor/data`, `ListenHTTP` on `:8095/test` parked); on the full `feature/capture-image` build since 2026-08-12 |
 | #2 | `MicroFi-2` | `microfi-14c19f421924` | `14:c1:9f:42:19:24` | 192.168.1.200 | **Camera/Mic** — live camera flow (`CaptureImage → PublishMQTT`: VGA JPEG every 10s to `microfi2/camera/jpg`, metadata JSON to `microfi2/camera/meta`) |
 | #3 | `MicroFi-3` | `microfi-ac276ea84ce0` | `ac:27:6e:a8:4c:e0` | 192.168.1.201 | **Inbound Trigger Events** (LED control, action-dispatch, custom-processor home) — boot-default graph |
 
@@ -91,10 +91,12 @@ construction. A flow-definition backup of the pre-migration class lives at
   `on_stop` hook the engine calls on the outgoing graph before every rebuild — ListenHTTP stops
   its httpd (releasing the port) and deletes its inbox queue, PublishMQTT/CaptureImage stop and
   destroy their esp-mqtt clients. Verified with back-to-back republishes to MicroFi-3, no reset.
-  **The old rule — reset the device after a publish — still applies to any unit running a
-  pre-teardown build** (old instances leak: port conflict, duplicate MQTT client-id fight, heap
-  death under WiFi churn — how MicroFi-3 went MISSING on 2026-08-12). As of 2026-08-12 evening
-  that's MicroFi-1 only (flashed `feature/c2-ack` before the fix; roll at next reflash).
+  MQTT-side teardown verified live on MicroFi-1's telemetry flow (republish with no reset:
+  clean client stop/reconnect, zero EOF churn, op DONE). **All three units run post-teardown
+  builds as of 2026-08-12 late evening** — the reset-after-publish rule is retired; it only
+  ever applies to a unit somehow running a pre-`fix/flow-reapply-teardown` build (the leak
+  shape: port conflict, duplicate MQTT client-id fight, heap death under WiFi churn — how
+  MicroFi-3 went MISSING on 2026-08-12).
 - **Every MQTT-owning processor on one device needs a distinct Client ID** — esp-mqtt's default
   id is MAC-derived, so two clients on one unit collide and the broker kicks the older session
   on every connect. The camera flow sets `microfi2-cam` / `microfi2-meta` explicitly.
