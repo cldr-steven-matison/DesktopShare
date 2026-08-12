@@ -247,7 +247,7 @@ The runbook never live-verified EMR; this build did. Single-node `emr-7.2.0` clu
 - **Secret hygiene:** the JWT is fetched fresh on the Mac and **injected over SSH** into the remote `spark-submit` env — never written to S3 or EMR step args (both of those were correctly blocked by safety guardrails).
 - **Networking:** added only the **primary node's `/32`** to the knox SG:443 (not `0.0.0.0/0`), and my `/32` to the EMR master SG:22 for SSH. Revoked the EMR `/32` on teardown.
 - **Result:** `SHOW NAMESPACES IN cdp` → `default, information_schema, poc_uc2, sys`; `SELECT * FROM cdp.poc_uc2.airlines` → AA/DL/UA (3 rows). Cluster torn down after.
-- Artifacts: `emr/query-emr.py`, `emr/run-iceberg.sh` (self-fetch JWT variant for a future S3-hosted step).
+- Reproduce: ad-hoc run, no committed scripts — the PySpark body is identical to `k8s/query-airlines.py`, launched via the EMR block in [Command history](#command-history-this-build).
 
 ![EMR console — cluster srm-iceberg-emr (emr-7.2.0) in Waiting / Ready to run steps](/images/emr-clusters-list.png)
 
@@ -368,6 +368,40 @@ cdp datacatalog share-data-share --datalake-crn $DL_CRN --environment-crn $ENV_C
 
 # --- Phase 4: validate ---
 bash test-rest-catalog.sh poc_uc2 airlines            # JWT → namespaces → tables → vended-creds metadata
+
+# --- Phase 5: consumers (all region us-east-2; each needs a fresh 2-step-OAuth JWT) ---
+JWT=$(curl -sk -X POST -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET" \
+  "https://<gateway>/srm-iceberg-aw-dl/cdp-datashare-access/knoxtoken/api/v2/token" | jq -r .access_token)
+
+#  OSS Spark on minikube (namespace iceberg-demo) — Mac IP already in knox SG
+kubectl create namespace iceberg-demo
+kubectl -n iceberg-demo create secret generic cdp-jwt --from-literal=token="$JWT"
+kubectl -n iceberg-demo create configmap spark-query --from-file=query-airlines.py=k8s/query-airlines.py
+kubectl -n iceberg-demo apply -f k8s/spark-iceberg-job.yaml   # apache/spark:3.5.3, spark-submit local[*]
+kubectl -n iceberg-demo logs -f job/iceberg-rest-spark        # → namespaces, AA/DL/UA, count 3
+
+#  AWS EMR Spark (single-node emr-7.2.0, public subnet, default roles) — torn down after
+aws emr create-cluster --release-label emr-7.2.0 --applications Name=Spark --use-default-roles \
+  --instance-count 1 --ec2-attributes KeyName=srm-iceberg-keypair,SubnetId=<public-subnet>
+aws ec2 authorize-security-group-ingress --group-id <knox-sg> --protocol tcp --port 443 --cidr <emr-primary-ip>/32
+ssh -i srm-iceberg-keypair.pem hadoop@<emr-primary-dns> \
+  "CDP_JWT=$JWT spark-submit --master local[*] --packages <iceberg-pkgs> query-emr.py"   # JWT over SSH, never S3/step args
+aws ec2 revoke-security-group-ingress --group-id <knox-sg> ... ; aws emr terminate-clusters --cluster-ids <j-id>
+
+#  AWS Athena for Apache Spark (Spark_primary workgroup) — SG widened for the run, reverted after
+aws ec2 authorize-security-group-ingress --group-id <knox-sg> \
+  --ip-permissions 'IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges=[{CidrIp=0.0.0.0/0}]'
+sed "s|__CDP_JWT__|$JWT|" athena/query-athena.py > /tmp/calc.py
+jq -n --rawfile code /tmp/calc.py '{CodeBlock:$code}' > /tmp/calc.json    # inline CodeBlock= breaks on multiline py
+SID=$(aws athena start-session --work-group Spark_primary \
+  --engine-configuration '{"CoordinatorDpuSize":1,"MaxConcurrentDpus":2,"DefaultExecutorDpuSize":1}' | jq -r .SessionId)
+CALC=$(aws athena start-calculation-execution --session-id "$SID" \
+  --calculation-configuration file:///tmp/calc.json | jq -r .CalculationExecutionId)
+aws athena get-calculation-execution --calculation-execution-id "$CALC"    # poll → COMPLETED
+aws s3 cp "$(aws athena get-calculation-execution --calculation-execution-id "$CALC" | jq -r .Result.StdOutS3Uri)" -
+aws athena terminate-session --session-id "$SID"                           # stop DPU cost
+aws ec2 revoke-security-group-ingress --group-id <knox-sg> --security-group-rule-ids <sgr-id>
 ```
 
 ## Automated redeploy (weekly rebuild)
@@ -432,13 +466,6 @@ cdp datacatalog share-data-share --datalake-crn "$DL_CRN" --environment-crn "$EN
 # [7] validate
 bash test-rest-catalog.sh poc_uc2 airlines
 ```
-
-## When this ships
-
-- Move this tracker root → `completed/` once the full consumer matrix is field-verified; state the EMR result explicitly (first-ever verification or a documented blocker).
-- Update [`cloudera-iceberg-to-athena-plan.md`](cloudera-iceberg-to-athena-plan.md) to cross-link and correct its "REST Catalog doesn't reach Athena" note.
-- Optionally open a `device:FTF3XR2065` tracking issue per `agent/device-comms.md`.
-- Candidate for promotion to a published guide (blog track) if the matrix lands clean.
 
 ## Resources
 
