@@ -40,13 +40,14 @@ The blog is the Minimal Mistakes Jekyll theme on `cldr-steven-matison.github.io`
 lands in the blog repo `_posts/` needs the theme's front matter and closer, or it renders wrong.
 Author these into the DesktopShare draft from the start — don't bolt them on at publish time.
 
-**`guide/ch*.md` chapter files are the exception** (policy, #72/#73, 2026-08-03). They are read
-through [`guide/index.md`](../guide/index.md) on GitHub, not published standalone to `_posts/`, so
-they carry **no** Jekyll front matter and **no** closer slug — a plain `# Chapter N: Title` H1 and
-GitHub-flavored Markdown only. Callouts in chapters use inline blockquotes (`> **⚠️ …**`), not the
-`{: .notice--danger}` class (that class needs the Jekyll theme to render). The front-matter and
-notice-class rules below apply to the chapter's **corresponding `blog/` draft** when it publishes,
-not to the `guide/` file itself.
+**EFM-guide chapter files are the exception** (policy, #72/#73, 2026-08-03; chapters live in the
+[`EdgeFlowManager`](https://github.com/cldr-steven-matison/EdgeFlowManager) repo since 2026-08-05 —
+DesktopShare's `guide/` is a redirect stub). Chapters are read through the guide index on GitHub,
+not published standalone to `_posts/`, so they carry **no** Jekyll front matter and **no** closer
+slug — a plain `# Chapter N: Title` H1 and GitHub-flavored Markdown only. Callouts in chapters use
+inline blockquotes (`> **⚠️ …**`), not the `{: .notice--danger}` class (that class needs the Jekyll
+theme to render). The front-matter and notice-class rules below apply to the chapter's
+**corresponding `blog/` draft** when it publishes, not to the chapter file itself.
 
 ### Front matter
 
