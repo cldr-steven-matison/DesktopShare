@@ -1,0 +1,81 @@
+QueryIceberg 1.0.3-SNAPSHOT — live pushdown proof, WindowsDesktop cfm-streaming/mynifi-0, 2026-08-13
+Rig: iceberg-demo ns (tabulario iceberg-rest + MinIO), demo.flights = 120,000 rows / 12 monthly
+partitions / 12 data files / 12 manifests (one append per month), demo.airlines = 3 rows.
+Attributes read off the queued FlowFiles of the QueryIcebergDemo PG after one trigger per processor.
+
+### query=pruned   (QueryFlights: SELECT carrier_code, origin, dest, dep_delay FROM flights WHERE flight_month = '2026-03')
+  record.count = 10000
+  iceberg.table.name = flights
+  iceberg.pushdown.filter = ref(name="flight_month") == "2026-03"
+  iceberg.pushdown.columns = carrier_code,origin,dest,dep_delay,flight_month
+  iceberg.scan.result.data.files = 1
+  iceberg.scan.skipped.data.files = 0
+  iceberg.scan.skipped.data.manifests = 11
+  → partition pruning at the MANIFEST layer: 11 of 12 manifests never opened, 1 of 12 data
+    files planned. skipped.data.files counts only files skipped within scanned manifests,
+    which is why it reads 0 here (and ≥1 in the unpartitioned unit-test table).
+
+### query=delayed   (QueryFlights: SELECT * FROM flights WHERE dep_delay > 45 AND carrier_code = 'AA')
+  record.count = 2470
+  iceberg.table.name = flights
+  iceberg.pushdown.filter = (ref(name="dep_delay") > 45 and ref(name="carrier_code") == "AA")
+  iceberg.pushdown.columns = flight_id,carrier_code,flight_num,origin,dest,flight_month,dep_delay,distance
+  iceberg.scan.result.data.files = 12
+  iceberg.scan.skipped.data.files = 0
+  iceberg.scan.skipped.data.manifests = 0
+  → filter pushed; no file skipped because every monthly file's dep_delay/carrier_code stats
+    span the predicate (honest result — stats pruning needs disjoint ranges).
+
+### query=carrier_stats   (QueryFlights: SELECT carrier_code, COUNT(*) AS flights, AVG(dep_delay) AS avg_delay FROM flights GROUP BY carrier_code)
+  record.count = 8
+  iceberg.table.name = flights
+  iceberg.pushdown.filter =
+  iceberg.pushdown.columns = carrier_code,dep_delay
+  iceberg.scan.result.data.files = 12
+  iceberg.scan.skipped.data.files = 0
+  iceberg.scan.skipped.data.manifests = 0
+  → projection pushdown: the scan reads 2 of 8 columns; Calcite aggregates on top.
+    Group counts sum to exactly 120,000.
+
+### query=airlines_all   (QueryAirlines: SELECT * FROM airlines)
+  record.count = 3
+  iceberg.table.name = airlines
+  iceberg.pushdown.filter =
+  iceberg.pushdown.columns = carrier_code,airline_name,country
+  iceberg.scan.result.data.files = 1
+  → GetIceberg parity check (AA/DL/UA).
+
+### carrier_stats FlowFile content (verbatim)
+[ {
+  "carrier_code" : "AA",
+  "flights" : 14873,
+  "avg_delay" : 16
+}, {
+  "carrier_code" : "B6",
+  "flights" : 15203,
+  "avg_delay" : 15
+}, {
+  "carrier_code" : "AF",
+  "flights" : 15108,
+  "avg_delay" : 16
+}, {
+  "carrier_code" : "WN",
+  "flights" : 15093,
+  "avg_delay" : 16
+}, {
+  "carrier_code" : "DL",
+  "flights" : 14975,
+  "avg_delay" : 16
+}, {
+  "carrier_code" : "UA",
+  "flights" : 14767,
+  "avg_delay" : 16
+}, {
+  "carrier_code" : "LH",
+  "flights" : 14980,
+  "avg_delay" : 15
+}, {
+  "carrier_code" : "BA",
+  "flights" : 15001,
+  "avg_delay" : 16
+} ]

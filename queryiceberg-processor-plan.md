@@ -1,8 +1,9 @@
 # QueryIceberg — native SQL-with-pushdown NiFi processor (implementation plan)
 
-> **Status: plan for off-device execution.** Designed on the Mac (planning machine); the build,
-> unit tests, and live deploy are to be executed on the device that owns the
-> `nifi-geticeberg-bundle` and the datashare-wired NiFi. Issue: cldr-steven-matison/DesktopShare#156.
+> **Status: in execution on WindowsDesktop (2026-08-13).** Designed on the Mac (planning machine);
+> picked up by WindowsDesktop per the #156 handoff comment — build + unit tests + local-rig live
+> proof on `cfm-streaming/mynifi-0`, then `files/issue-156/` assets back to the Mac for the
+> datashare/iceberg-lab leg. Issue: cldr-steven-matison/DesktopShare#156.
 > Native-processor series parent: #75. Predecessor: #154 (`GetIceberg`).
 
 ## Context
@@ -92,6 +93,13 @@ returns a dynamic descriptor (value = SQL, EL = ENVIRONMENT, `NON_BLANK` validat
 adds/removes a `Relationship` named after the property. `getRelationships()` = `REL_FAILURE` + all
 dynamic relationships. `customValidate` may parse each SQL via Calcite `SqlParser` for early feedback.
 
+**`catalog.` prefix (execution delta, 2026-08-13):** GetIceberg's dynamic props are *catalog
+overrides* (the local rig needs `s3.endpoint`, `io-impl`, keys, region — the tabulario fixture
+doesn't vend them), which collides with dynamic-props-as-SQL. Resolution: a dynamic property named
+`catalog.<key>` is stripped of the prefix and passed to `IcebergCatalogFactory` as a catalog
+property — it creates **no** relationship and is skipped by SQL validation. Every other dynamic
+property is a SQL route. On the CDP datashare no `catalog.*` props are needed (config is vended).
+
 **`onTrigger`:**
 1. `catalog = new IcebergCatalogFactory(cs, dynamicCatalogProps).create()`; `table = catalog.loadTable(ns.table)`.
 2. Build the full `RecordSchema` via `IcebergToRecordConverter.toRecordSchema(table.schema())`.
@@ -177,13 +185,39 @@ separate Parquet files with distinct per-file value ranges) so a filter can actu
   the processor appears in the UI before wiring.
 - Keep the CFM services API `provided` (do not bundle it) — same as GetIceberg.
 
+## Local prove-out rig + larger dataset (execution delta, 2026-08-13)
+
+Per the #156 pickup comment ("viable larger data set and better examples, use local iceberg to
+prove out"): the `iceberg-demo` namespace was deleted 2026-08-12, so the rig is rebuilt from
+`nifi-geticeberg-bundle/test-rig/` (`iceberg-rest-rig.yaml` + `seed-airlines-job.yaml`), plus a
+new **`seed-flights-job.yaml`**: deterministic pyiceberg job creating **`demo.flights`** —
+~120k rows, `PartitionSpec` identity on a **string** `flight_month` (`'2026-01'`…`'2026-12'`),
+seeded as 12 monthly appends (~10k rows each) → one Parquet file per month. `flight_month` is a
+string on purpose: date/timestamp pushdown is out of v1 scope, so the partition-pruning demo
+predicate must be a pushable type. Columns: `flight_id long, carrier_code string, flight_num int,
+origin string, dest string, flight_month string, dep_delay int, distance int`.
+
+Live demo queries (`QueryIcebergDemo` PG on mynifi-0, each its own relationship):
+
+- `pruned` — `SELECT carrier_code, origin, dest, dep_delay FROM flights WHERE flight_month = '2026-03'` → expect only 1 of 12 data files planned. **Measured live 2026-08-13:** the pruning
+  lands at the *manifest* layer — `iceberg.scan.skipped.data.manifests = 11`,
+  `iceberg.scan.result.data.files = 1` (each monthly append wrote its own manifest, so the
+  partition filter skips 11 whole manifests before file granularity; `skipped.data.files` counts
+  only files skipped *within* scanned manifests, which is why it reads 0 here and ≥1 in the
+  unpartitioned unit-test table).
+- `delayed` — `SELECT * FROM flights WHERE dep_delay > 45 AND carrier_code = 'AA'` (stats-based pruning)
+- `carrier_stats` — `SELECT carrier_code, COUNT(*) AS flights, AVG(dep_delay) AS avg_delay FROM flights GROUP BY carrier_code`
+- `airlines_all` — `SELECT * FROM airlines` (3-row parity check vs. GetIceberg)
+
 ## Verification / Definition of Done (for the executing session)
 
 1. `mvn clean install -Denforcer.skip=true` green; `TestQueryIceberg` passes incl. the skip-proof test.
 2. Deploy the version-bumped NAR to the confirmed live NiFi pod; `QueryIceberg` loads (hot-load ~10s).
-3. Green live run on the datashare REST catalog: at least a `SELECT ... WHERE ...` and a
-   `COUNT(*)/GROUP BY` against `poc_uc2.airlines`, each on its own relationship, with
-   `iceberg.pushdown.filter` and the `iceberg.scan.*` counters populated on the output FlowFiles.
+3. **WindowsDesktop leg (DONE 2026-08-13):** green live run on the local rig — the four demo
+   queries above, each on its own relationship, with `iceberg.pushdown.filter` and the
+   `iceberg.scan.*` counters populated (`pruned`: 11/12 manifests skipped, 1/12 data files planned). **Mac leg (after `files/issue-156/` handoff):**
+   the same `SELECT ... WHERE ...` + `COUNT(*)/GROUP BY` against `poc_uc2.airlines` on the
+   datashare REST catalog via iceberg-lab (no `catalog.*` props needed — datashare vends config).
 4. (Follow-on, #75 series) Add the QueryIceberg worked-example section to
    `blog/How to Build a Native NiFi Processor in Java.md` + `blog/nifi-native-processor-guide.md`,
    matching the GetIceberg format (Symptom → anatomy → pushdown wiring → TestRunner → SPI note →
