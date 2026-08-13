@@ -1,8 +1,11 @@
 ---
 layout: single
 title: "How to Build a Native NiFi Processor in Java (the Read Side of Iceberg)"
+excerpt: "NiFi's Iceberg bundle is write-only. So I built GetIceberg — a native Java/NAR read processor that plugs the same RESTCatalogService and returns real rows from a CDP Data Share table."
 date: 2026-08-13
 classes: wide
+header:
+  teaser: "/assets/images/GetIceberg.png"
 categories:
   - blog
 tags:
