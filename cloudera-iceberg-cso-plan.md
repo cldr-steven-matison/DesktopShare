@@ -78,7 +78,14 @@ Direct REST calls with the external-user token to **create a namespace and a tab
 
 > **Separate work stream from the AWS airlines datashare.** Everything above is the **read consumer** path against CDP's `cdp-datashare-access` endpoint, which is **read-only by design** (§"Write path — read-only *by design*"). This stream proves the other half: `PutIceberg` + `RESTCatalogService` **commit normally** against a write-capable catalog + identity, then close the loop by **reading the same table back through the same NiFi data source**. It does **not** touch the CDP datashare. Driving issue: **#151** (test NiFi & Flink on K8s against CDP PC 7.3.2). The read-half native processor `GetIceberg` (**#154**) then feeds the native-integration guide **#75**. Built on the `iceberg-lab` profile, where the jackson NAR fix is already validated (**#152**).
 >
-> **Status:** runbook ready; **execution pending** on the device running `iceberg-lab`. No live writes performed yet.
+> **Status:** runbook ready; **BLOCKED at the read-only gate (2026-08-12)** — see finding below. No live writes performed.
+>
+> **Live finding (2026-08-12, read-only gate, #151).** The gate is **RED**: this datalake exposes **no workload-authenticated Iceberg REST producer endpoint**. Confirmed against `srm-iceberg-aw-dl` (CM 7.13.2 / runtime 7.3.2) via CM-API (workload basic auth on `cdp-proxy-api/cm-api`, reachable). The Knox topology descriptors are definitive:
+> - **`cdp-datashare-access`** — the *only* topology exposing an `ICEBERG-REST` service (+ a `KNOXTOKEN` mint), and it's the read-only external-user data-sharing endpoint (rejects workload tokens 401, vends read-only creds — §"Write path").
+> - **`cdp-proxy-api`** (PAM/basic auth) — fronts HIVE, IMPALA, CM-API, NIFI… but **no `ICEBERG-REST`** (probing `…/cdp-proxy-api/iceberg-rest/v1/config` → 404).
+> - **`cdp-proxy-token`** (token-based) — HIVE + IMPALA only, and hosts **no `KNOXTOKEN` service** (so `…/cdp-proxy-token/knoxtoken/…` → 404; there is no workload-token mint here). HMS serves the catalog at servlet `icecli`:8090, but Knox only maps it into `cdp-datashare-access`.
+>
+> So a **REST-catalog** write is not available on this datalake for the workload user. The native `PutIceberg` write to Cloudera should therefore go through a **Cloudera catalog service against the real datalake** — `HiveCatalogService` (HMS) or `HadoopCatalogService` (datalake S3 warehouse) — not a REST catalog. Exact reachability of HMS/S3 from the lab is the next thing to establish (#151). Probe script (read-only): `iceberg-rest-catalog-demo/nifi/write-native/probe-authoritative-endpoint.sh`.
 
 ### The write needs a different door than the airlines read
 
