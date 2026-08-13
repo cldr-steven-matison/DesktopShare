@@ -16,13 +16,13 @@ Data Share / `iceberg-lab` run against `poc_uc2.airlines`, plus the #75 guide wo
 
 ## Source / rebuild (NAR is >100MB — rebuild, don't transfer, same as #154)
 
-- Code: `NiFi2-Processor-Playground/nifi-geticeberg-bundle` — `QueryIceberg` is the 2nd processor
+- Code: `NiFi2-Processor-Playground/nifi-iceberg-read-bundle` — `QueryIceberg` is the 2nd processor
   in the existing bundle. New: `QueryIceberg.java`, `sql/IcebergTable.java`
   (`ProjectableFilterableTable` — the pushdown seam), `sql/IcebergEnumerator.java`,
   `sql/RexToIcebergExpression.java`, `TestQueryIceberg.java` (8 tests incl. a
   pushdown-skips-files proof), `test-rig/seed-flights-job.yaml`. Version `1.0.3-SNAPSHOT`
   (always bump before a redeploy — NiFi won't re-register a same-version NAR).
-- Build: `mvn clean install -Denforcer.skip=true` → `nifi-geticeberg-nar/target/*.nar` (~124MB).
+- Build: `mvn clean install -Denforcer.skip=true` → `nifi-iceberg-read-nar/target/*.nar` (~124MB).
 - Deploy: `kubectl cp -c nifi <nar> <ns>/<nifi-pod>:/opt/nifi/nifi-current/data/extensions/` —
   hot-load ~10s, no restart.
 
@@ -49,7 +49,7 @@ Data Share / `iceberg-lab` run against `poc_uc2.airlines`, plus the #75 guide wo
 ## The local rig (reproducible on the Mac's minikube too)
 
 ```bash
-cd NiFi2-Processor-Playground/nifi-geticeberg-bundle/test-rig
+cd NiFi2-Processor-Playground/nifi-iceberg-read-bundle/test-rig
 kubectl apply -f iceberg-rest-rig.yaml       # iceberg-demo ns: tabulario/iceberg-rest + MinIO
 kubectl apply -f seed-airlines-job.yaml      # demo.airlines — 3 rows
 kubectl apply -f seed-flights-job.yaml       # demo.flights — 120k rows, 12 monthly partitions/files

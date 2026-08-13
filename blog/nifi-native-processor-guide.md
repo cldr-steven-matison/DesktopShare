@@ -1,6 +1,6 @@
 # How to Build a Complete Native NiFi Processor (Java / NAR)
 
-**The Java/NAR entry in the custom-processor blog series (alongside the two Python posts). Status: ✅ complete — Java/NAR focus per [#75](https://github.com/cldr-steven-matison/DesktopShare/issues/75). Worked example is the native `GetIceberg` read processor ([#154](https://github.com/cldr-steven-matison/DesktopShare/issues/154)), field-proven reading a live CDP Data Share table end to end on CFM `2.6.0.4.3.4.0-234`. Source bundle: [`nifi-geticeberg-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-geticeberg-bundle). The blog cut is [#155](https://github.com/cldr-steven-matison/DesktopShare/issues/155).**
+**The Java/NAR entry in the custom-processor blog series (alongside the two Python posts). Status: ✅ complete — Java/NAR focus per [#75](https://github.com/cldr-steven-matison/DesktopShare/issues/75). Worked example is the native `GetIceberg` read processor ([#154](https://github.com/cldr-steven-matison/DesktopShare/issues/154)), field-proven reading a live CDP Data Share table end to end on CFM `2.6.0.4.3.4.0-234`. Source bundle: [`nifi-iceberg-read-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-iceberg-read-bundle). The blog cut is [#155](https://github.com/cldr-steven-matison/DesktopShare/issues/155).**
 
 A *native* NiFi processor is Java compiled into a NAR and loaded by NiFi 2.x — a first-class processor type with its own annotations, properties, relationships, controller-service access, and JVM-speed `onTrigger`. That's a different thing from the Python-scripted path (a `.py` file the Python bridge hot-reloads), which the series already covers in the two Python blog posts. Everything Python has a worked example; the Java side had only an archetype scaffold that does `session.transfer(flowFile, REL_SUCCESS)` and a `// TODO implement`. This doc closes that gap with a *real* processor: **`GetIceberg`**, the read counterpart to NiFi's stock write-only `PutIceberg`. It plugs into the same `RESTCatalogService` controller service the stock bundle uses, scans an Iceberg table through the Iceberg API, and emits the rows through a configurable Record Writer — proven returning three airline rows from a CDP Data Share table with no `InvokeHTTP` glue.
 
@@ -69,14 +69,14 @@ my-custom-nifi-bundle/
 **Port an existing bundle — how `GetIceberg` was actually built.** When a stock processor already does half of what you need, copying it beats starting empty. `GetIceberg` was built by taking NiFi's `PutIceberg` source, renaming everything `Put`→`Get`, ripping out the *put* guts (Kerberos/UGI wrapping, `RecordReader`, task writers, commit retries) and dropping in *get* guts (`catalog.loadTable` → `IcebergGenerics.read(table)` → Iceberg-to-NiFi record conversion → Record Writer). The result keeps the stock bundle's module layout, its `success`/`failure` relationship surface, and its controller-service contract — so on the canvas the read side and the write side look like siblings, which is the whole point.
 
 Either way, two files are load-bearing and easy to forget:
-- The **SPI registration** file `META-INF/services/org.apache.nifi.processor.Processor` must contain the fully-qualified class name. For the worked example that's the single line `org.apache.nifi.processors.iceberg.GetIceberg`. No entry → NiFi never sees the processor even if the NAR loads.
+- The **SPI registration** file `META-INF/services/org.apache.nifi.processor.Processor` must contain the fully-qualified class name — one class per line. For the worked example it starts as the single line `org.apache.nifi.processors.iceberg.GetIceberg` (the `QueryIceberg` processor added later in this guide is a second line). No entry → NiFi never sees the processor even if the NAR loads.
 - The **NAR module** (`packaging=nar`) is what NiFi consumes; the processors module is just the JAR it wraps.
 
 ---
 
 ## Processor anatomy
 
-The whole processor is in [`GetIceberg.java`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/nifi-geticeberg-processors/src/main/java/org/apache/nifi/processors/iceberg/GetIceberg.java). Here's every piece that matters.
+The whole processor is in [`GetIceberg.java`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/nifi-iceberg-read-processors/src/main/java/org/apache/nifi/processors/iceberg/GetIceberg.java). Here's every piece that matters.
 
 ### Class-level annotations — behavior the framework enforces
 
@@ -206,7 +206,7 @@ The contract that keeps you out of trouble: a source processor `session.create()
 
 ## The controller-service side — a catalog factory with two deliberate divergences
 
-`onTrigger` calls `loadCatalog(context)`, which hands the controller service and the dynamic properties to [`IcebergCatalogFactory`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/nifi-geticeberg-processors/src/main/java/org/apache/nifi/processors/iceberg/catalog/IcebergCatalogFactory.java). This is a read-oriented port of CFM's factory (REST and HADOOP only), and it diverges from the stock factory in exactly two places — both of which I earned the hard way debugging the native path (#152):
+`onTrigger` calls `loadCatalog(context)`, which hands the controller service and the dynamic properties to [`IcebergCatalogFactory`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/nifi-iceberg-read-processors/src/main/java/org/apache/nifi/processors/iceberg/catalog/IcebergCatalogFactory.java). This is a read-oriented port of CFM's factory (REST and HADOOP only), and it diverges from the stock factory in exactly two places — both of which I earned the hard way debugging the native path (#152):
 
 ```java
 private Catalog initRestCatalog(IcebergCatalogService catalogService) {
@@ -238,7 +238,7 @@ private Catalog initRestCatalog(IcebergCatalogService catalogService) {
 
 ## Unit-test with TestRunner
 
-`nifi-mock` is in the processors-module POM, so the processor is testable without a running NiFi — and without CDP credentials, because the test drives a **local `HadoopCatalog`** over a `@TempDir` warehouse. [`TestGetIceberg`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/nifi-geticeberg-processors/src/test/java/org/apache/nifi/processors/iceberg/TestGetIceberg.java) seeds the same three airlines the datashare table has (`AA`/`DL`/`UA`) into a real Parquet-backed Iceberg table, then asserts the read:
+`nifi-mock` is in the processors-module POM, so the processor is testable without a running NiFi — and without CDP credentials, because the test drives a **local `HadoopCatalog`** over a `@TempDir` warehouse. [`TestGetIceberg`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/nifi-iceberg-read-processors/src/test/java/org/apache/nifi/processors/iceberg/TestGetIceberg.java) seeds the same three airlines the datashare table has (`AA`/`DL`/`UA`) into a real Parquet-backed Iceberg table, then asserts the read:
 
 ```java
 @Test
@@ -278,14 +278,53 @@ public void testMissingTableRoutesToFailure() throws Exception {   // Table Name
 
 ---
 
+## Measure it — a coverage plugin, and a gate
+
+"Three tests pass" and "the tests hit the code that matters" are different claims. A coverage plugin closes the gap: it tells you *which* lines the suite actually executes, so the branches you forgot show up as red instead of hiding behind a green build. Wire [JaCoCo](https://www.jacoco.org/jacoco/) into the processors module and it writes a report every test run — then make it a gate so coverage can't quietly rot.
+
+```xml
+<plugin>
+  <groupId>org.jacoco</groupId>
+  <artifactId>jacoco-maven-plugin</artifactId>
+  <version>0.8.13</version>
+  <executions>
+    <execution><id>prepare-agent</id>
+      <goals><goal>prepare-agent</goal></goals></execution>
+    <execution><id>report</id><phase>test</phase>
+      <goals><goal>report</goal></goals></execution>
+    <execution><id>check</id><phase>verify</phase>
+      <goals><goal>check</goal></goals>
+      <configuration><rules><rule>
+        <element>BUNDLE</element>
+        <limits><limit>
+          <counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.80</minimum>
+        </limit></limits>
+      </rule></rules></configuration>
+    </execution>
+  </executions>
+</plugin>
+```
+
+`prepare-agent` instruments the JVM the tests run in; the `test`-phase `report` writes HTML/XML/CSV under `target/site/jacoco/` (open `index.html` and drill into a class to see line-by-line hits); the `verify`-phase `check` **fails the build** if bundle line coverage drops below 80%. `mvn clean verify` now runs the tests *and* the gate:
+
+```
+[INFO] --- jacoco:0.8.13:check (check) @ nifi-iceberg-read-processors ---
+[INFO] All coverage checks have been met.
+[INFO] BUILD SUCCESS
+```
+
+Two lessons the report taught that the green checkmark didn't. First, **write the tests through the real engine, not around it** — the SQL-to-Iceberg pushdown translator went from barely-covered to well-covered not by hand-constructing parse trees but by driving more `SELECT`s (comparisons, `IN`, `BETWEEN`, `IS NULL`, `LIKE`, `AND`/`OR`/`NOT`, and the non-pushable predicates that must fall back to a residual filter) through `TestRunner` and letting Calcite build the trees. Second, **exclude what you can't honestly test, out loud**: the catalog factory's REST branch needs a live endpoint and a real OAuth token, so it's an explicit `<exclude>` on the gate with a comment saying why — an excluded line is a stated decision, not a silent miss. The type converter, by contrast, has no excuse to be uncovered — every scalar, the timestamp-with/without-zone split, binary/fixed, and struct/list/map recursion are all reachable in-process, so the target for it is 100%.
+
+---
+
 ## Build the NAR
 
 ```bash
-cd nifi-geticeberg-bundle
+cd nifi-iceberg-read-bundle
 mvn clean install -Denforcer.skip=true     # runs the TestGetIceberg HadoopCatalog tests (3 rows)
 ```
 
-`-Denforcer.skip=true` sidesteps the parent bundle's dependency-convergence enforcer, which trips on the archetype's default BOM resolution — not a real problem for a single-processor bundle. The artifact lands at `nifi-geticeberg-nar/target/nifi-geticeberg-nar-1.0.2-SNAPSHOT.nar`.
+`-Denforcer.skip=true` sidesteps the parent bundle's dependency-convergence enforcer, which trips on the archetype's default BOM resolution — not a real problem for a single-processor bundle. The artifact lands at `nifi-iceberg-read-nar/target/nifi-iceberg-read-nar-1.0.2-SNAPSHOT.nar`.
 
 Two things about this NAR are specific to a controller-service processor and worth understanding, because they're the parts that only bite in the field.
 
@@ -316,7 +355,7 @@ mvn install:install-file -Dfile=nifi-iceberg-services-api.jar \
   -Dpackaging=jar -DgeneratePom=true
 ```
 
-Then repackage the unpacked NAR dir and install it `-Dpackaging=nar` so the `nifi-nar-maven-plugin` doc generator has the parent-NAR interfaces on its classpath (`nifi-iceberg-services-api` + `nifi-record-serialization-service-api` + `nifi-oauth2-provider-api`). Full commands are in the [bundle README](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/README.md).
+Then repackage the unpacked NAR dir and install it `-Dpackaging=nar` so the `nifi-nar-maven-plugin` doc generator has the parent-NAR interfaces on its classpath (`nifi-iceberg-services-api` + `nifi-record-serialization-service-api` + `nifi-oauth2-provider-api`). Full commands are in the [bundle README](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/README.md).
 
 ---
 
@@ -325,7 +364,7 @@ Then repackage the unpacked NAR dir and install it `-Dpackaging=nar` so the `nif
 This CFM build autoloads NARs from `nifi.nar.library.autoload.directory`, which is `./data/extensions`. Copy the NAR straight in — **no PVC, no CR edit, no restart**:
 
 ```bash
-kubectl cp -c nifi nifi-geticeberg-nar/target/nifi-geticeberg-nar-1.0.2-SNAPSHOT.nar \
+kubectl cp -c nifi nifi-iceberg-read-nar/target/nifi-iceberg-read-nar-1.0.2-SNAPSHOT.nar \
   cfm-streaming/mynifi-0:/opt/nifi/nifi-current/data/extensions/
 ```
 
@@ -341,9 +380,9 @@ The NAR hot-loads in ~10 s. Search `GetIceberg` in the palette and it appears. N
 
 The bundle ships a self-contained rig so you can prove the processor before pointing it at anything real:
 
-- [`test-rig/iceberg-rest-rig.yaml`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/test-rig/iceberg-rest-rig.yaml) — `tabulario/iceberg-rest` + MinIO in an `iceberg-demo` namespace.
-- [`test-rig/seed-airlines-job.yaml`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/test-rig/seed-airlines-job.yaml) — a pyiceberg Job seeding `demo.airlines` with the same 3 rows.
-- [`test-rig/build-demo-pg.sh`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-geticeberg-bundle/test-rig/build-demo-pg.sh) — builds the `GetIcebergDemo` PG via the NiFi REST API: `RESTCatalogService` (no OAuth) + `JsonRecordSetWriter` + `GetIceberg` → funnel.
+- [`test-rig/iceberg-rest-rig.yaml`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/test-rig/iceberg-rest-rig.yaml) — `tabulario/iceberg-rest` + MinIO in an `iceberg-demo` namespace.
+- [`test-rig/seed-airlines-job.yaml`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/test-rig/seed-airlines-job.yaml) — a pyiceberg Job seeding `demo.airlines` with the same 3 rows.
+- [`test-rig/build-demo-pg.sh`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/test-rig/build-demo-pg.sh) — builds the `GetIcebergDemo` PG via the NiFi REST API: `RESTCatalogService` (no OAuth) + `JsonRecordSetWriter` + `GetIceberg` → funnel.
 
 The `tabulario` fixture doesn't vend `io-impl`/S3 config through `/v1/config`, so the demo sets them as `GetIceberg` **dynamic properties** (`s3.endpoint`, `s3.path-style-access`, `client.region`) — exactly the escape hatch those dynamic props exist for. Result on CFM `2.6.0.4.3.4.0-234`: one FlowFile, `record.count=3`, a JSON array of the three airlines, provenance `RECEIVE s3://warehouse/demo/airlines`.
 
@@ -356,6 +395,20 @@ Same PG shape, plus the Knox OAuth chain. Three components on the canvas:
 3. **`GetIceberg`** — `Catalog Service` = `CdpRestCatalog`, `Catalog Namespace` = `poc_uc2`, `Table Name` = `airlines`, `Record Writer` = a `JsonRecordSetWriter` → funnel.
 
 No dynamic S3 properties needed here — the datashare vends the S3 read credentials in the `loadTable` response, unlocked by the `X-Iceberg-Access-Delegation: vended-credentials` header the factory always sends. `GetIceberg` on `poc_uc2.airlines` returns a single FlowFile whose content is a JSON array of the three airline rows — the same three rows a Spark or SSB client sees through that catalog, now through a native NiFi processor with no `InvokeHTTP` glue. Flow export: [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](../files/nifi-geticeberg-rest-catalog-demo.flow.json).
+
+---
+
+## A second processor in the same bundle: `QueryIceberg`
+
+`GetIceberg` reads a whole table. On a large table you usually don't want the whole table — you want a `WHERE` and you want the engine to skip the files that can't match. That's the second processor in this bundle, `QueryIceberg`: it reuses everything the read side already established — the same NAR, the same `IcebergCatalogFactory` and `IcebergToRecordConverter`, the same `IcebergCatalogService` and Record Writer, the same `TestRunner` habit — and adds a SQL engine with **Iceberg-native predicate and projection pushdown**. Adding a second processor to a bundle you've already built is cheap: a new class, a second line in the SPI `Processor` file, and (here) one new dependency.
+
+**The QueryRecord shape.** `QueryIceberg` is modelled on NiFi's stock `QueryRecord`: **each user-defined dynamic property is a SQL `SELECT`, and it creates an output relationship of the same name.** A `delayed` property whose value is `SELECT * FROM flights WHERE dep_delay > 45` produces a `delayed` relationship carrying those rows; add a second query property and you get a second relationship, both evaluated per trigger against the one loaded table. One collision has to be resolved in the port: on `GetIceberg` the dynamic properties are *catalog overrides* (`s3.endpoint`, `io-impl`, …), but here dynamic properties are *queries*. The rule is a prefix — a property named `catalog.<key>` (e.g. `catalog.s3.endpoint`) is stripped and passed to the catalog factory and creates no relationship; everything else is a query.
+
+**The pushdown seam is one Calcite interface.** Three engine options exist; only one lets you see the predicate. `nifi-calcite-utils` (what QueryRecord uses) exposes a plain enumerable scan with no filter hook. A full `TranslatableTable` + planner rule can do it but is heavy. The middle path — and the one this processor takes — is to implement Calcite's [`ProjectableFilterableTable`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/nifi-iceberg-read-processors/src/main/java/org/apache/nifi/processors/iceberg/sql/IcebergTable.java), whose single `scan(root, filters, projects)` call hands you the projected column ordinals and a **mutable** list of filter conjuncts. [`RexToIcebergExpression`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/nifi-iceberg-read-processors/src/main/java/org/apache/nifi/processors/iceberg/sql/RexToIcebergExpression.java) translates each conjunct it understands (`= <> < <= > >= IS [NOT] NULL IN`, prefix `LIKE`, and `AND`/`OR`/`NOT` over string, numeric, boolean and decimal columns) into a native Iceberg `Expression`; the table pushes that into the scan and **removes only the conjuncts it pushed** from the list. Calcite evaluates whatever remains as a residual filter, and an [`IcebergEnumerator`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-iceberg-read-bundle/nifi-iceberg-read-processors/src/main/java/org/apache/nifi/processors/iceberg/sql/IcebergEnumerator.java) streams the resulting rows through the converter. The key property: **correctness never depends on the translator being complete.** An untranslatable predicate like `UPPER(carrier) = 'AA'` just stays a residual — the rows still come back right; pushdown only changes *how much data is read*, never *which rows come out*.
+
+**It proves the pruning on the FlowFile.** Every output FlowFile is stamped with the scan metrics Iceberg reports: `iceberg.pushdown.filter` (the expression that reached the scan; empty ⇒ the whole `WHERE` ran as a residual), `iceberg.pushdown.columns` (the projection), and the counters `iceberg.scan.result.data.files`, `iceberg.scan.skipped.data.files` and `iceberg.scan.skipped.data.manifests` — plus `record.count`, `QueryIceberg.query` (which query produced the FlowFile), and the namespace/table. The `test-rig/` grows a `seed-flights-job.yaml` that seeds `demo.flights` — ~120k rows partitioned by a string `flight_month` into twelve monthly files — so a query with `WHERE flight_month = '2026-03'` returns `iceberg.scan.skipped.data.manifests = 11` and `iceberg.scan.result.data.files = 1`: eleven-twelfths of the table pruned at the metadata layer before a single data file is opened, and the same result live on the CDP Data Share. (Note the pruning shows up at the *manifest* layer because each monthly append wrote its own manifest; `skipped.data.files` counts files skipped *within* a scanned manifest, so on this table it reads 0 while `skipped.data.manifests` reads 11.)
+
+The build, deploy, iterate, and upstream-contribution mechanics below are identical — it's the same NAR.
 
 ---
 
@@ -408,7 +461,7 @@ The process, in order:
 
 1. **Discuss on the dev list first.** Subscribe to `dev@nifi.apache.org` and float the idea before writing much. NiFi runs on lazy consensus — pitching early is how you avoid a rejection you could have heard up front. "A read counterpart to `PutIceberg`" is an easy pitch.
 2. **File a JIRA, not a GitHub issue.** NiFi tracks work in the [ASF JIRA `NIFI` project](https://issues.apache.org/jira/projects/NIFI) (e.g. `NIFI-12345`). Request contributor access via the dev list, then file the ticket.
-3. **Branch off `main`, named for the ticket** on your fork of [apache/nifi](https://github.com/apache/nifi). Upstream, `GetIceberg` slots into the *existing* `nifi-iceberg` bundle next to `PutIceberg` — it does **not** keep the standalone `nifi-geticeberg-bundle` layout, and it uses the framework's Iceberg version rather than a self-bundled one (the version conflict that forced self-bundling here is a CFM-packaging problem, not an upstream one).
+3. **Branch off `main`, named for the ticket** on your fork of [apache/nifi](https://github.com/apache/nifi). Upstream, `GetIceberg` slots into the *existing* `nifi-iceberg` bundle next to `PutIceberg` — it does **not** keep the standalone `nifi-iceberg-read-bundle` layout, and it uses the framework's Iceberg version rather than a self-bundled one (the version conflict that forced self-bundling here is a CFM-packaging problem, not an upstream one).
 4. **Pass contrib-check.** `mvn -Pcontrib-check clean install` runs the full suite plus the checkstyle profile — a PR that fails it won't be reviewed. Your `TestRunner` tests must be part of the module.
 5. **Fix up licensing.** Every dependency must be Apache-2.0-compatible (no category-X like GPL). If you add or change one, update `LICENSE`/`NOTICE` in both the module and `nifi-assembly`.
 6. **Open the PR against `apache/nifi`** with the JIRA id in the title and commit message so the ticket and commit link.
@@ -427,7 +480,7 @@ Full detail: the [Apache NiFi Contributor Guide](https://cwiki.apache.org/conflu
 
 ## Source
 
-- [`nifi-geticeberg-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-geticeberg-bundle) — the worked bundle: `GetIceberg.java`, `IcebergCatalogFactory`, `IcebergToRecordConverter`, `TestGetIceberg`, the SPI file, the `test-rig/`, and its own README (the parent-NAR trick + CFM jar bootstrap in field detail).
+- [`nifi-iceberg-read-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-iceberg-read-bundle) — the worked bundle: `GetIceberg.java`, `IcebergCatalogFactory`, `IcebergToRecordConverter`, `TestGetIceberg`, the SPI file, the `test-rig/`, and its own README (the parent-NAR trick + CFM jar bootstrap in field detail).
 - [`cloudera-iceberg-rest-catalog-cso-plan.md`](../cloudera-iceberg-rest-catalog-cso-plan.md) — the three REST-Catalog read paths (`InvokeHTTP`, native `GetIceberg`, Flink/SSB) and the live datashare coordinates; the foundation the worked example reads against.
 - [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](../files/nifi-geticeberg-rest-catalog-demo.flow.json) — the live PG export.
 - `../completed/nifi-minikube-custom-processor.md` — the raw end-to-end recipe (Python + Java NAR), the archetype command, and the `narProvider` CR alternative.

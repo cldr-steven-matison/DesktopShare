@@ -45,13 +45,13 @@ same loaded table. Source semantics like GetIceberg: `@PrimaryNodeOnly`, `@Trigg
 
 ## Bundle facts (verified)
 
-- Bundle: `com.example:nifi-geticeberg-bundle:1.0.2-SNAPSHOT`, parent
+- Bundle: `com.example:nifi-iceberg-read-bundle:1.0.2-SNAPSHOT`, parent
   `org.apache.nifi:nifi-extension-bundles:2.6.0`. `iceberg.version=1.7.2`, `hadoop.version=3.4.1`,
   CFM services API `2.6.0.4.3.4.0-234` (scope `provided`, satisfied at runtime by the parent-NAR
   dep `nifi-iceberg-services-api-nar` declared in the `-nar` module).
-- SPI registration: `nifi-geticeberg-processors/src/main/resources/META-INF/services/org.apache.nifi.processor.Processor`
+- SPI registration: `nifi-iceberg-read-processors/src/main/resources/META-INF/services/org.apache.nifi.processor.Processor`
   currently one line (`...GetIceberg`); add a second line for `...QueryIceberg`.
-- Build: `mvn clean install -Denforcer.skip=true` → `nifi-geticeberg-nar/target/*.nar`.
+- Build: `mvn clean install -Denforcer.skip=true` → `nifi-iceberg-read-nar/target/*.nar`.
 - Deploy (hot-load, no restart): `kubectl cp -c nifi <nar> cfm-streaming/mynifi-0:/opt/nifi/nifi-current/data/extensions/`.
   **NiFi will not re-register a same-version NAR** → bump the bundle version on every redeploy.
 - **Verify live target before deploy** (live state outranks docs): the README says
@@ -60,7 +60,7 @@ same loaded table. Source semantics like GetIceberg: `@PrimaryNodeOnly`, `@Trigg
 
 ## Files
 
-New (all under `nifi-geticeberg-processors/src/main/java/org/apache/nifi/processors/iceberg/`):
+New (all under `nifi-iceberg-read-processors/src/main/java/org/apache/nifi/processors/iceberg/`):
 
 | File | Role |
 |---|---|
@@ -74,7 +74,7 @@ Reused unchanged: `catalog/IcebergCatalogFactory.java`, `converter/IcebergToReco
 
 Modified:
 - `META-INF/services/org.apache.nifi.processor.Processor` — add `QueryIceberg` line.
-- `nifi-geticeberg-processors/pom.xml` — add `org.apache.calcite:calcite-core:1.40.0` (compile/bundled).
+- `nifi-iceberg-read-processors/pom.xml` — add `org.apache.calcite:calcite-core:1.40.0` (compile/bundled).
   `org.apache.iceberg:iceberg-core:1.7.2` is already present (needed for `InMemoryMetricsReporter`,
   `ScanReport`, `ScanMetricsResult` — all in `iceberg-core`).
 - Root `pom.xml` + both module POMs — bump version `1.0.2-SNAPSHOT` → `1.0.3-SNAPSHOT`.
@@ -163,6 +163,8 @@ provably correct through the residual path; date/timestamp pushdown is a documen
 Reuse `HadoopCatalogServiceStub` + a seeder. **Seed across multiple data files** (separate appends →
 separate Parquet files with distinct per-file value ranges) so a filter can actually skip a file.
 
+Original v1 core set (all TestRunner, through the real Calcite engine):
+
 - `testSelectAll` — `SELECT * FROM airlines` → all rows.
 - `testProjection` — `SELECT carrier_code FROM airlines` → only that column present in output.
 - `testFilterEqual` — `WHERE carrier_code = 'AA'` → 1 row.
@@ -175,6 +177,36 @@ separate Parquet files with distinct per-file value ranges) so a filter can actu
 - `testMultipleQueriesRouteToNamedRelationships` — two dynamic properties → two relationships, each
   with its own result.
 - `testBadTableRoutesToFailure` — bad `table-name` → `REL_FAILURE` with `iceberg.query.error`.
+
+### Coverage gate + expanded suite (execution delta, 2026-08-13)
+
+Per the #156 colleague ask ("a code coverage plugin can tell you how much of the real code the tests
+hit; get QueryIceberg to 80%"), the module now carries a **JaCoCo gate** and a coverage-driven suite.
+
+- **Plugin:** `org.jacoco:jacoco-maven-plugin:0.8.13` in `nifi-iceberg-read-processors/pom.xml` —
+  `prepare-agent` → a `test`-phase `report` (HTML/XML/CSV under `target/site/jacoco`) → a
+  `verify`-phase `check` that **fails the build** below a BUNDLE **LINE ≥ 0.80** rule.
+  `IcebergCatalogFactory`'s REST connect path (needs a live catalog endpoint) is `<exclude>`d from the
+  gate; its offline branches are still unit-tested.
+- **Result:** `mvn -Denforcer.skip=true clean verify` (JDK 21) → *"All coverage checks have been
+  met."* → BUILD SUCCESS. Module **line coverage 62.7% → 89.2%** (instructions 61% → 89.3%),
+  **46 tests, 0 failures** (was 8).
+- **What the report drove** — the big lever was the pushdown translator, exercised through SQL, not
+  by hand-building `RexNode`s:
+  - `TestQueryIceberg` 8 → 31 — SQL-driven pushdown cases through TestRunner: integer/long/double/
+    decimal comparisons, `<>` on required vs. nullable columns (residual), `IN`/`NOT IN`, `BETWEEN`,
+    `IS [NOT] NULL`, prefix `LIKE` vs. non-prefix (residual), bare/`= literal` boolean, `AND`/`OR`/
+    `NOT` composites incl. non-pushable → residual, zero-record suppression, invalid-SQL/no-query
+    validation. `RexToIcebergExpression` **19% → 79.3%**.
+  - `TestIcebergToRecordConverter` (new, 5) — every `toDataType`/`toRecordValue` arm (scalars, ts
+    with/without zone, binary/fixed, struct/list/map recursion, nulls). **30% → 100%.**
+  - `TestIcebergCatalogFactory` (new, 5) — both HADOOP construction paths + the REST null/blank-token
+    guards + unsupported-type error, via `AbstractControllerService` stubs. **27% → 78.4%.**
+  - `TestIcebergUtils` (new, 2) — `getConfigurationFromFiles` null path + file parse/trim.
+- **Build recipe** (unchanged from the prior legs): `JAVA_HOME=openjdk@21 mvn -Denforcer.skip=true
+  clean verify`. `enforcer.skip` bypasses the BannedDependencies commons-logging clash; JDK 21 avoids
+  the JEP 486 Hadoop UGI `Subject.getSubject()` break on JDK 24+.
+- Shipped: `NiFi2-Processor-Playground@main` commit `b37d762`.
 
 ## Build / packaging risks to watch
 
@@ -189,7 +221,7 @@ separate Parquet files with distinct per-file value ranges) so a filter can actu
 
 Per the #156 pickup comment ("viable larger data set and better examples, use local iceberg to
 prove out"): the `iceberg-demo` namespace was deleted 2026-08-12, so the rig is rebuilt from
-`nifi-geticeberg-bundle/test-rig/` (`iceberg-rest-rig.yaml` + `seed-airlines-job.yaml`), plus a
+`nifi-iceberg-read-bundle/test-rig/` (`iceberg-rest-rig.yaml` + `seed-airlines-job.yaml`), plus a
 new **`seed-flights-job.yaml`**: deterministic pyiceberg job creating **`demo.flights`** —
 ~120k rows, `PartitionSpec` identity on a **string** `flight_month` (`'2026-01'`…`'2026-12'`),
 seeded as 12 monthly appends (~10k rows each) → one Parquet file per month. `flight_month` is a
@@ -233,14 +265,20 @@ Live demo queries (`QueryIcebergDemo` PG on mynifi-0, each its own relationship)
    - Live-env fix folded in: sandbox Knox token goes stale (`401 Unknown token`) → cycle
      `KnoxOAuth2`+`CdpRestCatalog` (state-only `/run-status`) to force a fresh mint.
    - Proofs: `files/issue-156/mac-leg-live-proof.txt` (airlines), `mac-leg-flights-cdp-proof.txt` (flights).
-5. (Follow-on, #75 series) Add the QueryIceberg worked-example section to
+5. **Coverage gate (DONE 2026-08-13):** JaCoCo wired into `nifi-iceberg-read-processors`, module line
+   coverage 62.7% → 89.2% over 46 tests, `verify`-phase BUNDLE LINE ≥ 0.80 check green. See the
+   "Coverage gate + expanded suite" delta under **Tests** above. `NiFi2-Processor-Playground@main`
+   `b37d762`, noted on #156.
+6. (Follow-on, #75 series) Add the QueryIceberg worked-example section to
    `blog/How to Build a Native NiFi Processor in Java.md` + `blog/nifi-native-processor-guide.md`,
    matching the GetIceberg format (Symptom → anatomy → pushdown wiring → TestRunner → SPI note →
-   build/deploy → "what NOT to do"). Keep chapter-number-free (guide series convention).
+   build/deploy → "what NOT to do"). Keep chapter-number-free (guide series convention). The blogs'
+   coverage beat ("Measure it — the coverage plugin") lands with GetIceberg's testing section — add
+   the JaCoCo POM wiring, the `report`/`verify` gate, and the coverage-driven-test lesson there.
 
 ## References (for the executor)
 
-- Reused code: `nifi-geticeberg-bundle/.../catalog/IcebergCatalogFactory.java`,
+- Reused code: `nifi-iceberg-read-bundle/.../catalog/IcebergCatalogFactory.java`,
   `.../converter/IcebergToRecordConverter.java`.
 - Pushdown table/enumerator reference (projection mechanics, enumerator gotchas):
   NiFi `rel/nifi-1.28.1` `queryrecord/FlowFileTable.java`, `FlowFileEnumerator.java`.
@@ -249,4 +287,4 @@ Live demo queries (`QueryIcebergDemo` PG on mynifi-0, each its own relationship)
 - Calcite 1.40.0 `ProjectableFilterableTable.scan` (mutable-filter contract).
 - Iceberg 1.7.2 `Expressions`, `Scan.metricsReporter`/`planFiles`, `metrics/InMemoryMetricsReporter`,
   `metrics/ScanReport`, `metrics/ScanMetricsResult`.
-- Bundle build/deploy: `nifi-geticeberg-bundle/README.md`.
+- Bundle build/deploy: `nifi-iceberg-read-bundle/README.md`.

@@ -109,14 +109,30 @@ public void testReadsAllRows() throws Exception {
 
 Three tests cover the paths that matter: the happy read (3 rows, right attributes, JSON), a column projection (`Columns=carrier_code` → `AA` present, `American Airlines` absent), and the failure route (`Table Name=does_not_exist` → one FlowFile on `failure` with `iceberg.read.error` set). `HadoopCatalogServiceStub` is a tiny `AbstractControllerService implements IcebergCatalogService` — it proves the controller-service contract without a running NiFi. This is the Java version of the Python rule "prove the skeleton before you ship it."
 
+## Measure it — a coverage plugin, and a gate
+
+"The tests pass" and "the tests hit the code that matters" are different claims, and a coverage plugin is what separates them: it reports which lines the suite actually runs, so the branch you forgot shows up red instead of hiding behind a green build. Add [JaCoCo](https://www.jacoco.org/jacoco/) to the processors module — `prepare-agent` to instrument, a `report` on the `test` phase (HTML/XML/CSV under `target/site/jacoco/`), and a `check` on `verify` that **fails the build** below a bundle line-coverage floor:
+
+```xml
+<execution><id>check</id><phase>verify</phase>
+  <goals><goal>check</goal></goals>
+  <configuration><rules><rule>
+    <element>BUNDLE</element>
+    <limits><limit><counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.80</minimum></limit></limits>
+  </rule></rules></configuration>
+</execution>
+```
+
+Now `mvn clean verify` runs the tests *and* the gate — `All coverage checks have been met. → BUILD SUCCESS`. Two things the report taught that the checkmark didn't. **Drive the tests through the real engine, not around it**: the SQL pushdown path got covered by running more `SELECT`s (`IN`, `BETWEEN`, `IS NULL`, `LIKE`, `AND`/`OR`/`NOT`, plus the non-pushable predicates that must fall back to a residual filter) through `TestRunner` and letting Calcite build the trees — never by hand-assembling parse nodes. And **exclude what you honestly can't test, out loud**: the catalog factory's REST branch needs a live endpoint and a real OAuth token, so it's an explicit `<exclude>` on the gate with a comment — a stated decision, not a silent gap. The type converter has no such excuse, so its target is 100%.
+
 ## Build the NAR — and the classloader trick that makes it drop-in
 
 ```bash
-cd nifi-geticeberg-bundle
+cd nifi-iceberg-read-bundle
 mvn clean install -Denforcer.skip=true     # runs the TestRunner tests: 3 rows
 ```
 
-`-Denforcer.skip=true` sidesteps the parent bundle's dependency-convergence enforcer — not a real problem for a single-processor bundle. The artifact is `nifi-geticeberg-nar/target/nifi-geticeberg-nar-1.0.2-SNAPSHOT.nar`.
+`-Denforcer.skip=true` sidesteps the parent bundle's dependency-convergence enforcer — not a real problem for a single-processor bundle. The artifact is `nifi-iceberg-read-nar/target/nifi-iceberg-read-nar-1.0.2-SNAPSHOT.nar`.
 
 Two things about *this* NAR are the difference between "loads" and "works," and they're the parts that only bite in the field.
 
@@ -151,7 +167,7 @@ mvn install:install-file -Dfile=nifi-iceberg-services-api.jar \
 This CFM build autoloads NARs from `nifi.nar.library.autoload.directory`, which is `./data/extensions`. Copy it straight in:
 
 ```bash
-kubectl cp -c nifi nifi-geticeberg-nar/target/nifi-geticeberg-nar-1.0.2-SNAPSHOT.nar \
+kubectl cp -c nifi nifi-iceberg-read-nar/target/nifi-iceberg-read-nar-1.0.2-SNAPSHOT.nar \
   cfm-streaming/mynifi-0:/opt/nifi/nifi-current/data/extensions/
 ```
 
@@ -172,6 +188,16 @@ The NAR hot-loads in ~10 seconds. Search `GetIceberg` in the palette and it's th
 
 No dynamic S3 properties here — the datashare vends the S3 read credentials in the `loadTable` response, unlocked by that always-on vended-credentials header. `GetIceberg` on `poc_uc2.airlines` returns a single FlowFile whose content is a JSON array of the three airline rows — the same rows a Spark or SSB client sees through that catalog, now through a native NiFi processor with no `InvokeHTTP` glue. Validated on CFM `2.6.0.4.3.4.0-234`.
 
+## A second processor: `QueryIceberg` — SQL with pushdown
+
+`GetIceberg` reads a whole table. The next thing you want on a real table is to *not* read the whole thing — to run a `WHERE` and have the engine skip the files that can't match. That's `QueryIceberg`, the second processor in the same bundle: same NAR, same `IcebergCatalogService`, same Record Writer, but the `onTrigger` body runs SQL through Apache Calcite with the filter pushed down into the Iceberg scan.
+
+It's shaped like NiFi's stock `QueryRecord`: **each dynamic property is a SQL `SELECT`, and its results route to a relationship of the same name.** Add a property named `delayed` with value `SELECT * FROM flights WHERE dep_delay > 45` and you get a `delayed` relationship carrying exactly those rows. (One wrinkle falls out of the port: `GetIceberg` uses plain dynamic properties for catalog overrides, but here those *are* the queries — so on `QueryIceberg` a catalog override is namespaced `catalog.s3.endpoint`, and everything not prefixed `catalog.` is treated as a query.)
+
+The pushdown is the whole point. The table is handed to Calcite as a `ProjectableFilterableTable`, whose single `scan(root, filters, projects)` call hands you the projected column ordinals and a **mutable** list of filter conjuncts. A translator turns each conjunct it understands (`=`, `<>`, `<`, `IN`, `IS NULL`, prefix `LIKE`, `AND`/`OR`/`NOT` over string/numeric/boolean/decimal) into a native Iceberg `Expression`, pushes it into the scan, and **removes only what it pushed** from the list — Calcite evaluates whatever's left as a residual filter. So correctness never depends on the translator being complete: an untranslatable predicate like `UPPER(carrier) = 'AA'` simply stays a residual and the rows still come back right. Pushdown only ever changes *how much data is read*, never *which rows come out*.
+
+And you can watch it work, because every FlowFile is stamped with the scan metrics: `iceberg.pushdown.filter` (what actually reached Iceberg — empty means the whole `WHERE` ran as a residual), `iceberg.pushdown.columns` (the projection), and the counters `iceberg.scan.skipped.data.manifests` / `iceberg.scan.result.data.files`. The `test-rig/` seeds a `demo.flights` table of ~120k rows partitioned by month into twelve files; a query with `WHERE flight_month = '2026-03'` comes back with `iceberg.scan.skipped.data.manifests = 11` and `iceberg.scan.result.data.files = 1` — eleven-twelfths of the table never opened, proven on the FlowFile itself, and identical on the local rig and live on the CDP Data Share.
+
 ## What NOT to do
 
 - **Don't skip the SPI file.** `META-INF/services/org.apache.nifi.processor.Processor` must contain `org.apache.nifi.processors.iceberg.GetIceberg`. No entry = the NAR loads but the processor never appears.
@@ -185,7 +211,7 @@ No dynamic S3 properties here — the datashare vends the S3 read credentials in
 #### 1. Build + test the NAR
 
 ```bash
-cd nifi-geticeberg-bundle
+cd nifi-iceberg-read-bundle
 mvn clean install -Denforcer.skip=true
 ```
 
@@ -204,7 +230,7 @@ mvn install:install-file -Dfile=nifi-iceberg-services-api.jar \
 #### 3. Deploy (hot-load, ~10s, no restart)
 
 ```bash
-kubectl cp -c nifi nifi-geticeberg-nar/target/nifi-geticeberg-nar-1.0.2-SNAPSHOT.nar \
+kubectl cp -c nifi nifi-iceberg-read-nar/target/nifi-iceberg-read-nar-1.0.2-SNAPSHOT.nar \
   cfm-streaming/mynifi-0:/opt/nifi/nifi-current/data/extensions/
 kubectl exec mynifi-0 -n cfm-streaming -c nifi -- ls /opt/nifi/nifi-current/data/extensions/
 ```
@@ -214,14 +240,14 @@ kubectl exec mynifi-0 -n cfm-streaming -c nifi -- ls /opt/nifi/nifi-current/data
 ```bash
 # bump <version> in the bundle + module POMs first, then:
 mvn clean install -Denforcer.skip=true
-kubectl cp -c nifi nifi-geticeberg-nar/target/nifi-geticeberg-nar-<newversion>.nar \
+kubectl cp -c nifi nifi-iceberg-read-nar/target/nifi-iceberg-read-nar-<newversion>.nar \
   cfm-streaming/mynifi-0:/opt/nifi/nifi-current/data/extensions/
 # then repoint the processor instance to the new bundle version in the UI
 ```
 
 ## Resources
 
-- [`nifi-geticeberg-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-geticeberg-bundle) — the full worked bundle: processor, catalog factory, record converter, TestRunner tests, the `test-rig/`, and a README with the field detail.
+- [`nifi-iceberg-read-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-iceberg-read-bundle) — the full worked bundle: processor, catalog factory, record converter, TestRunner tests, the `test-rig/`, and a README with the field detail.
 - [NiFi 2.0 Processor Playground](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground) — Python and Java processors side by side.
 - [Custom Processors with Cloudera Streaming Operators](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/) and [How to AI with NiFi and Python](https://cldr-steven-matison.github.io/blog/How-to-AI-with-NiFi-and-Python/) — the Python path.
 - [Apache NiFi Contributor Guide](https://cwiki.apache.org/confluence/display/NIFI/Contributor+Guide) — if your processor belongs upstream.
