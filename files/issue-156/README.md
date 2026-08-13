@@ -10,7 +10,8 @@ Data Share / `iceberg-lab` run against `poc_uc2.airlines`, plus the #75 guide wo
 | File | What it is |
 |---|---|
 | `QueryIcebergDemo.json` | Flow-definition export of the live `QueryIcebergDemo` PG (2 processors, 2 controller services, 5 funnels). Import via `POST /process-groups/{root}/process-groups/upload`. |
-| `proof-attributes.txt` | The live pushdown proof: per-query FlowFile attributes (pushed filter, pushed columns, scan counters) + the `carrier_stats` output content, captured 2026-08-13. |
+| `proof-attributes.txt` | WindowsDesktop local-rig pushdown proof: per-query FlowFile attributes (pushed filter, pushed columns, scan counters) + the `carrier_stats` output content, captured 2026-08-13. |
+| `mac-leg-live-proof.txt` | **Mac leg — the live CDP Data Share proof** against `poc_uc2.airlines`: `SELECT *`, `WHERE code='AA'` (predicate + projection pushdown), and `GROUP BY dest`, each on its own relationship, proof attributes populated, captured 2026-08-13. |
 
 ## Source / rebuild (NAR is >100MB — rebuild, don't transfer, same as #154)
 
@@ -64,3 +65,24 @@ string on purpose — date predicates are outside v1 pushdown scope), seeded det
    `RESTCatalogService` (#152 Knox OAuth chain), each on its own relationship, proof attributes
    populated.
 3. #75 guide worked-example (QueryIceberg section in both blog docs, GetIceberg format).
+
+## Mac leg — COMPLETE (2026-08-13)
+
+Steps 1 and 2 done live on the `iceberg-lab` profile (`cfm-streaming/mynifi-0`). Full result in
+[`mac-leg-live-proof.txt`](mac-leg-live-proof.txt); summary:
+
+| relationship | query | rows | pushed filter | pushed columns |
+|---|---|---|---|---|
+| `all` | `SELECT * FROM airlines` | 3 | — | all 5 |
+| `filtered` | `SELECT code, description, origin, dest FROM airlines WHERE code = 'AA'` | 1 | `ref(name="code") == "AA"` | 4 of 5 |
+| `by_dest` | `SELECT dest, COUNT(*) AS n FROM airlines GROUP BY dest` | 3 | — | 1 of 5 (`dest`) |
+
+Native predicate + projection pushdown confirmed against the live CDP Data Share REST catalog;
+`failure` empty. Two live findings folded in: the sandbox Knox token had gone stale (fixed by
+cycling `KnoxOAuth2` + `CdpRestCatalog`), and the live `poc_uc2.airlines` schema is
+`code/description/origin/dest/year_id` (not the local rig's `carrier_code/airline_name/country`),
+so the demo queries were corrected to the real columns. `scan.result.data.files=1 / skipped=0` is
+honest for a 3-row single-file table — file/manifest skipping needs a large partitioned table
+(the WindowsDesktop `demo.flights` rig, `proof-attributes.txt`).
+
+Step 3 (#75 guide worked-example) remains as the documented follow-on.

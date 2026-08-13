@@ -1,0 +1,50 @@
+QueryIceberg 1.0.3-SNAPSHOT — LIVE CDP Data Share proof, Mac (FTF3XR2065) leg, 2026-08-13
+Target: iceberg-lab minikube profile, cfm-streaming/mynifi-0, PG IcebergRESTCatalogDemo.
+Catalog: srm-iceberg CDP Public Cloud Data Share REST catalog (poc_uc2.airlines), read via the
+already-ENABLED CdpRestCatalog (RESTCatalogService) -> KnoxOAuth2 chain from #152/#154 — vended
+S3 credentials, no catalog.* props needed on the datashare.
+
+Live table poc_uc2.airlines schema (differs from the WindowsDesktop local-rig demo.airlines):
+  code string, description string, origin string, dest string, year_id int   (3 rows: AA/DL/UA)
+
+Three SQL dynamic properties, each routed to its own relationship; one RUN_ONCE trigger.
+
+### query=all   (SELECT * FROM airlines)
+  record.count = 3
+  iceberg.pushdown.filter =
+  iceberg.pushdown.columns = code,description,origin,dest,year_id
+  iceberg.scan.result.data.files = 1 ; skipped.data.files = 0 ; skipped.data.manifests = 0
+  content = [{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX","year_id":2026},
+             {"code":"DL","description":"Delta Air Lines","origin":"ATL","dest":"SEA","year_id":2026},
+             {"code":"UA","description":"United Airlines","origin":"ORD","dest":"SFO","year_id":2026}]
+
+### query=filtered   (SELECT code, description, origin, dest FROM airlines WHERE code = 'AA')
+  record.count = 1
+  iceberg.pushdown.filter = ref(name="code") == "AA"       <- predicate translated + pushed to Iceberg
+  iceberg.pushdown.columns = code,description,origin,dest   <- projection pushed (dropped year_id)
+  iceberg.scan.result.data.files = 1 ; skipped.data.files = 0 ; skipped.data.manifests = 0
+  content = [{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX"}]
+
+### query=by_dest   (SELECT dest, COUNT(*) AS n FROM airlines GROUP BY dest)
+  record.count = 3
+  iceberg.pushdown.filter =
+  iceberg.pushdown.columns = dest                           <- projection pushed to 1 of 5 columns
+  iceberg.scan.result.data.files = 1 ; skipped.data.files = 0 ; skipped.data.manifests = 0
+  content = [{"dest":"LAX","n":1},{"dest":"SFO","n":1},{"dest":"SEA","n":1}]
+
+### failure relationship: empty.
+
+Notes:
+- Headline: native predicate + projection pushdown works against a live CDP Data Share REST
+  catalog. WHERE code='AA' becomes the Iceberg Expression ref(name="code") == "AA"; each query's
+  scan reads only its referenced columns.
+- scan.result.data.files = 1 / skipped = 0 is honest for a 3-row, single-data-file table (nothing
+  to prune). The metadata-pruning proof (11/12 manifests skipped) is the WindowsDesktop 120k-row
+  demo.flights rig, in proof-attributes.txt — that requires a large partitioned table.
+- Two live-environment findings, both handled: (1) the sandbox Knox token had gone stale
+  (401 "Unknown token") after ~21h; fixed by disable/enable-cycling KnoxOAuth2 + CdpRestCatalog
+  to force a fresh client_credentials mint. (2) The live schema is code/description/origin/dest/
+  year_id, not the local rig's carrier_code/airline_name/country — demo queries corrected to match.
+- Bundle 1.0.3 built on the Mac with tests skipped: JDK 25 only (Homebrew), and Hadoop UGI's
+  Subject.getSubject() throws on JDK 24+ (JEP 486). The 11 unit tests are authoritative-green on
+  WindowsDesktop at the same commit; --release 21 bytecode is unaffected, so the NAR is pod-valid.
