@@ -1,6 +1,6 @@
 # iceberg-cso #152 — dedicated-profile artifacts (NiFi jackson fix + SSB Iceberg REST)
 
-Reusable artifacts from the `iceberg-lab` minikube profile build (issue #152). Live build lineage and coordinates are in the golden-source [`cloudera-iceberg-cso-plan.md`](../../cloudera-iceberg-cso-plan.md). Large jars, Knox creds, and JWTs are intentionally **not** committed — they live in the local (untracked) `iceberg-rest-catalog-demo/`.
+Reusable artifacts from the `iceberg-lab` minikube profile build (issue #152). Live build lineage and coordinates are in the golden-source [`cloudera-iceberg-rest-catalog-cso-plan.md`](../../cloudera-iceberg-rest-catalog-cso-plan.md). Large jars, Knox creds, and JWTs are intentionally **not** committed — they live in the local (untracked) `iceberg-rest-catalog-demo/`.
 
 ## What's here
 

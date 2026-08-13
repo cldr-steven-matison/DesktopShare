@@ -6,8 +6,6 @@ The **streaming-engine spinoff** of [`cloudera-iceberg-rest-catalog-aws-plan.md`
 > - **NiFi via `InvokeHTTP` ✅** — the portable "call the REST Catalog API from NiFi" path (namespaces/tables/load-table).
 > - **NiFi native `GetIceberg` + `RESTCatalogService` ✅** — the custom read processor returns `poc_uc2.airlines` (3 rows) as one FlowFile, after the jackson NAR fix + null-OAuth-token fix both landed (#152).
 > - **Flink/SSB ✅** — `SELECT * FROM poc_uc2.airlines` returns all 3 rows through the REST Catalog.
->
-> Writes are **not** in scope here (datashare is read-only by design); the workload write + Impala round-trip is **#151** in the separate plan.
 
 ## Read the AWS plan first — the shared foundation lives there
 
@@ -109,7 +107,6 @@ All three read `poc_uc2.airlines` through the REST Catalog, using the same Knox 
 - All three REST-Catalog read paths are validated and documented; the native path carries a re-exported flow definition and a committed processor bundle.
 - The NiFi native-catalog jackson NAR bug (`iceberg-core-1.5.2` vs `jackson-databind-2.20.1`, missing `PropertyNamingStrategy$KebabCaseStrategy`) is a candidate to file with the CFM team — the additive two-class fix in `jackson-fix/` is the minimal repro/patch.
 - Candidate content for the NiFi/streaming guide track: the `InvokeHTTP` pattern, the native `GetIceberg` worked example (feeds #75), and the SSB REST SELECT.
-- The **write / round-trip** through the authoritative Impala/HMS catalog is the separate **[#151 plan](cloudera-impala-iceberg-plan.md)**.
 
 ## Resources
 

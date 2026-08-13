@@ -1,6 +1,6 @@
 # Cloudera Iceberg via the Impala / HMS catalog — NiFi PutIceberg + SSB (CSA)
 
-The **write-and-round-trip** counterpart to [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md). That plan is **Iceberg REST Catalog + NiFi + Flink** — reading a CDP Data Share, read-only by design. **This plan is a different concept: Iceberg + NiFi + Flink through the authoritative Cloudera catalog (HMS / Impala), *not* REST.** NiFi `PutIceberg` writes to an Impala-managed Iceberg table via a Cloudera catalog service; Impala and SSB (Flink `catalog-type=hive`) read and write the same table. Keep the two plans separate — the endpoints, identities, and catalog services are different on every axis.
+The **write-and-round-trip** counterpart to [`cloudera-iceberg-rest-catalog-cso-plan.md`](cloudera-iceberg-rest-catalog-cso-plan.md). That plan is **Iceberg REST Catalog + NiFi + Flink** — reading a CDP Data Share, read-only by design. **This plan is a different concept: Iceberg + NiFi + Flink through the authoritative Cloudera catalog (HMS / Impala), *not* REST.** NiFi `PutIceberg` writes to an Impala-managed Iceberg table via a Cloudera catalog service; Impala and SSB (Flink `catalog-type=hive`) read and write the same table. Keep the two plans separate — the endpoints, identities, and catalog services are different on every axis.
 
 > **Status (2026-08-13, issue #151):** scoped + separated from the REST plan. The REST datashare cannot serve a workload write (read-only gate, below), so the write goes through **`HadoopCatalogService`** (datalake S3 warehouse) or **`HiveCatalogService`** (HMS thrift). Live build pending — the `iceberg-lab` profile is ready (jackson fix baked in, #152) and `poc_uc2.nifi_sink` is pre-created via Impala. Env reaps Friday.
 
@@ -82,7 +82,7 @@ On `iceberg-lab`, **NiFi `PutIceberg` (via `HadoopCatalogService`) commits N rec
 
 ## Resources
 
-- REST read counterpart: [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md)
+- REST read counterpart: [`cloudera-iceberg-rest-catalog-cso-plan.md`](cloudera-iceberg-rest-catalog-cso-plan.md)
 - Foundation / env: [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md)
 - SSB `catalog-type=hive` reference jobs: `hol-013-flink-project/SSB-CSP-HOL/`, `Streams-Processing-Hands-on-Lab/module_2.md`
 - NiFi/MiNiFi/EFM patterns: the `nifi-and-ai` skill

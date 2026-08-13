@@ -428,7 +428,7 @@ Full detail: the [Apache NiFi Contributor Guide](https://cwiki.apache.org/conflu
 ## Source
 
 - [`nifi-geticeberg-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-geticeberg-bundle) — the worked bundle: `GetIceberg.java`, `IcebergCatalogFactory`, `IcebergToRecordConverter`, `TestGetIceberg`, the SPI file, the `test-rig/`, and its own README (the parent-NAR trick + CFM jar bootstrap in field detail).
-- [`cloudera-iceberg-cso-plan.md`](../cloudera-iceberg-cso-plan.md) — the three REST-Catalog read paths (`InvokeHTTP`, native `GetIceberg`, Flink/SSB) and the live datashare coordinates; the foundation the worked example reads against.
+- [`cloudera-iceberg-rest-catalog-cso-plan.md`](../cloudera-iceberg-rest-catalog-cso-plan.md) — the three REST-Catalog read paths (`InvokeHTTP`, native `GetIceberg`, Flink/SSB) and the live datashare coordinates; the foundation the worked example reads against.
 - [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](../files/nifi-geticeberg-rest-catalog-demo.flow.json) — the live PG export.
 - `../completed/nifi-minikube-custom-processor.md` — the raw end-to-end recipe (Python + Java NAR), the archetype command, and the `narProvider` CR alternative.
 - The two custom-processor blog posts ([Custom Processors with CSO](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/), [How to AI with NiFi and Python](https://cldr-steven-matison.github.io/blog/How-to-AI-with-NiFi-and-Python/)) — the Python path this guide deliberately does *not* repeat.
