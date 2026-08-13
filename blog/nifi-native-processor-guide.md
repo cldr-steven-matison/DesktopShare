@@ -355,7 +355,7 @@ Same PG shape, plus the Knox OAuth chain. Three components on the canvas:
 2. **`CdpRestCatalog`** — a `RESTCatalogService`: `Catalog URI` = the datashare `…/cdp-datashare-access/iceberg-rest` endpoint, `warehouse-path` = the S3 warehouse, `OAuth2 Access Token Provider` = `KnoxOAuth2`.
 3. **`GetIceberg`** — `Catalog Service` = `CdpRestCatalog`, `Catalog Namespace` = `poc_uc2`, `Table Name` = `airlines`, `Record Writer` = a `JsonRecordSetWriter` → funnel.
 
-No dynamic S3 properties needed here — the datashare vends the S3 read credentials in the `loadTable` response, unlocked by the `X-Iceberg-Access-Delegation: vended-credentials` header the factory always sends. `GetIceberg` on `poc_uc2.airlines` returns a single FlowFile whose content is a JSON array of the three airline rows — the same three rows a Spark or SSB client sees through that catalog, now through a native NiFi processor with no `InvokeHTTP` glue. Flow export: [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](files/nifi-geticeberg-rest-catalog-demo.flow.json).
+No dynamic S3 properties needed here — the datashare vends the S3 read credentials in the `loadTable` response, unlocked by the `X-Iceberg-Access-Delegation: vended-credentials` header the factory always sends. `GetIceberg` on `poc_uc2.airlines` returns a single FlowFile whose content is a JSON array of the three airline rows — the same three rows a Spark or SSB client sees through that catalog, now through a native NiFi processor with no `InvokeHTTP` glue. Flow export: [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](../files/nifi-geticeberg-rest-catalog-demo.flow.json).
 
 ---
 
@@ -428,9 +428,9 @@ Full detail: the [Apache NiFi Contributor Guide](https://cwiki.apache.org/conflu
 ## Source
 
 - [`nifi-geticeberg-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-geticeberg-bundle) — the worked bundle: `GetIceberg.java`, `IcebergCatalogFactory`, `IcebergToRecordConverter`, `TestGetIceberg`, the SPI file, the `test-rig/`, and its own README (the parent-NAR trick + CFM jar bootstrap in field detail).
-- [`cloudera-iceberg-cso-plan.md`](cloudera-iceberg-cso-plan.md) — the three REST-Catalog read paths (`InvokeHTTP`, native `GetIceberg`, Flink/SSB) and the live datashare coordinates; the foundation the worked example reads against.
-- [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](files/nifi-geticeberg-rest-catalog-demo.flow.json) — the live PG export.
-- `completed/nifi-minikube-custom-processor.md` — the raw end-to-end recipe (Python + Java NAR), the archetype command, and the `narProvider` CR alternative.
+- [`cloudera-iceberg-cso-plan.md`](../cloudera-iceberg-cso-plan.md) — the three REST-Catalog read paths (`InvokeHTTP`, native `GetIceberg`, Flink/SSB) and the live datashare coordinates; the foundation the worked example reads against.
+- [`files/nifi-geticeberg-rest-catalog-demo.flow.json`](../files/nifi-geticeberg-rest-catalog-demo.flow.json) — the live PG export.
+- `../completed/nifi-minikube-custom-processor.md` — the raw end-to-end recipe (Python + Java NAR), the archetype command, and the `narProvider` CR alternative.
 - The two custom-processor blog posts ([Custom Processors with CSO](https://cldr-steven-matison.github.io/blog/Custom-Processors-With-Cloudera-Streaming-Operators/), [How to AI with NiFi and Python](https://cldr-steven-matison.github.io/blog/How-to-AI-with-NiFi-and-Python/)) — the Python path this guide deliberately does *not* repeat.
 
 ## Follow-ups
