@@ -1,12 +1,27 @@
-# Waveshare Environment Sensor on the Jetson — diagnosis
+# Waveshare Environment Sensor on the Jetson — the OLED was never dead
 
-**Status: REOPENED (2026-08-13, issue #157)** — moved back out of `completed/`. Waveshare answered
-the support report with a JetPack-6.2 port of their demo, and it contains a mechanism never tried
-here: a `busybox devmem` write to the reset pin's PADCTL pinmux register. That lands directly on
-the "not a stuck reset line" conclusion below, which rests on a `gpioset` test that moved the
-*kernel* GPIO line and may never have reached the physical pin. A board is on hand and a retest is
-staged. Everything below is the 2026-07-30 record and has not yet been revised — read it knowing
-that one of its conclusions is actively in question. See "Retest in progress" at the bottom.
+**Status: SOLVED (2026-08-13, issue #157).** The panel works. Both "DOA" boards were fine all
+along. The SH1106's reset pin (`PY.03`, BCM 24, gpiochip0 line 125) sits behind PADCTL register
+`0x0243d010`, which boots at `0x00000055` — GPIO mode, but **TRISTATE set and a pull-down
+enabled**. The pad cannot drive and is pulled to ground. `OLED_RST` is active-low, so the SH1106
+was held in permanent hardware reset from first power-on, and a controller in reset NACKs on I2C.
+
+The fix is one register write:
+
+```bash
+sudo apt-get install busybox
+sudo busybox devmem 0x0243d010 w 0x000
+```
+
+`0x3c` ACKs immediately after, and the panel renders. This is a JetPack-6/Orin pad-default
+difference from the Jetson Nano the board was designed for — not a hardware fault, on either unit.
+
+**It does not survive a reboot.** PADCTL resets to `0x55` on every boot; see "Not yet done" below.
+
+Everything from "The board" down is the 2026-07-30 diagnostic record, left intact because the
+schematic work, the `U2` measurements and the driver patches are all still good. One of its
+conclusions is wrong and is corrected in place: see **"Retest — confirmed"** near the bottom for
+why the `gpioset` test appeared to rule out the reset line.
 
 *Superseded header, kept for the record — Status: CLOSED (2026-07-30).* The RMA replacement showed
 the identical dead-OLED symptom as the original, I never got the root cause pinned down, and I'm
@@ -164,7 +179,11 @@ revision was never the issue. Two classes of fix, already applied, reusable on t
 2. **Python 3 compat** — `SH1106.py` used Python-2-only `xrange` (4 call sites → `range`) and
    `self.height / 8` (→ `// 8` to stay an int used as a `range()` bound).
 
-## Next steps
+## Next steps *(2026-07-30 — superseded, see "Retest — confirmed" below)*
+
+> **This section is wrong and kept only as the record.** The board was not returned, it is not
+> defective, and the continuity check it recommends is unnecessary — the cause was the tristated
+> `OLED_RST` pad, fixed with one `devmem` write. Item 4 is the only part still live.
 
 Both units are being returned — there's no board left to test on. If a future unit of this SKU (or
 the same problem on a different board) shows up:
@@ -180,7 +199,7 @@ the same problem on a different board) shows up:
    processor and produce readings to Kafka alongside the rest of the Jetson's flow — the
    "environment data into the flow" item in the blog's What's Next.
 
-## Retest in progress (2026-08-13, issue #157)
+## Retest — confirmed (2026-08-13, issue #157)
 
 Waveshare replied to the support report with `Environment_sensor_for_orin_nano_jp62.zip` — a
 JetPack-6.2 port, "tested on Orin NX, worked fine."
@@ -259,17 +278,68 @@ The reconstructions and the salvage script are committed at
 the committed zip in four commands, so none of this has to be re-derived. The truncated zip itself
 is at [`files/Environment_sensor_for_orin_nano_jp62.zip`](files/Environment_sensor_for_orin_nano_jp62.zip).
 
-Still unproven: that clearing TRISTATE actually wakes the panel. The register read explains the
-symptom and removes the reason to believe either unit was DOA, but the board has not been back on
-the header yet. Order of operations when it goes on:
+### Hardware result — the panel lit
 
-1. **Yahboom CubeNano off the header first** — it holds `0x0e` and a live OLED at `0x3c`, so with
-   both boards stacked any `0x3c` result is meaningless. Stop `yahboom_oled.service` before
-   shutdown; the case's power button doesn't reliably hold power off, so pull the plug.
-2. `oled_retest.sh`, then `python3 test.py` — which must *not* print "Continuing without OLED
-   display".
-3. If `0x3c` is still silent with a confirmed `0x000` in PADCTL, the pad theory is dead as well and
-   the continuity check in "Next steps" below is the remaining test.
+Board stacked alone (Yahboom off the header), 2026-08-13. Baseline scan before touching anything,
+which is the clean control the original investigation never had:
+
+```
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+20: -- -- -- -- -- -- -- -- 28 29 -- -- -- -- -- --
+50: -- -- -- 53 -- -- -- -- -- -- -- -- -- -- -- --
+60: -- -- -- -- -- -- -- -- 68 -- -- -- -- -- -- --
+70: -- -- -- -- -- -- 76 --
+```
+
+Four sensors, no `0x0e` (Yahboom really off), no `0x3c`. `0x28` is the same phantom quick-read ACK
+already chased down to bus noise above. Then `sudo busybox devmem 0x0243d010 w 0x000` — and `0x3c`
+appears on the next scan and stays. **The panel lit.**
+
+`test.py` runs the full loop with no errors and zero occurrences of "Continuing without OLED
+display", i.e. the vendor's OLED-absent fallback never fires:
+
+```
+bme280 T&H I2C address:0X76
+TSL2591 Light I2C address:0X29
+UV I2C address:0x53
+feature set:0x3240
+Self Test  :0xd400
+SGP40 VOC I2C address:0X59
+ICM20948 9-DOF I2C address:0X68
+OLED I2C address:0x3c
+```
+
+Live readings, all sane: BME280 969.92 hPa / 30.74 °C / 34.21 %RH, TSL2591 474.70 Lux, LTR390 0 UV
+(indoors), SGP40 28697 raw VOC, SH1106 reporting 128x64 at `0x3c`.
+
+**The SGP40 works too.** An earlier unit's dead SGP40 was half the evidence for the DOA verdict
+above — this one answers fine (`feature set:0x3240`, self-test `0xd400`). It just doesn't ACK a
+plain `i2cdetect` probe, which is expected and not a fault.
+
+Two things surfaced during the run worth keeping:
+
+- **The `sudo` inside `GPIO_setup_1` fails when `test.py` is not run from a real terminal**
+  (`a terminal is required to read the password`). It's unchecked, so the program continues — but
+  it means the pad write silently doesn't happen. Do the `devmem` by hand first, or run from a tty.
+- **`cordy_oled.service` will hijack the panel.** It was still enabled and came back on boot
+  driving `oled_strobe.py` at `0x3c` on bus 7 — so the CORDY CEPT strobe rendered on the *Waveshare*
+  panel, and fought `test.py` for the bus. Note it's `cordy_oled.service`, not `yahboom_oled.service`
+  (which this superseded and disabled — see `completed/nvidianano-oled-cordy-strobe.md`).
+  `sudo systemctl disable --now cordy_oled.service`.
+
+### Not yet done
+
+1. **PADCTL doesn't survive a reboot.** `0x0243d010` returns to `0x55` on every boot, so the panel
+   is dead again until the `devmem` write is repeated. Making it stick wants either a systemd unit
+   that runs before anything touches the display, or a proper device-tree pinmux change. Its own
+   issue.
+2. **Both OLEDs at once.** Yahboom (SSD1306 128x32) and Waveshare (SH1106 128x64) are both strapped
+   to `0x3c` on bus 7, and two devices on one address both ACK and both accept every write — which
+   is exactly the garbled-frame result recorded in "The collision theory" above. `0x3d` is free, and
+   `i2c-0` (header pins 27/28) is nearly empty — only ID EEPROMs at `0x50`/`0x57`. Options: move one
+   panel to `0x3d` via its SA0 strap, jumper one to `i2c-0`, or add a TCA9548A mux. Worth noting the
+   Waveshare now has a working hardware kill switch — drive `PY.03` low and it drops off the bus
+   entirely — but the Yahboom is `rst=None`, so that only silences one direction.
 
 ## Waveshare demo downloads
 
