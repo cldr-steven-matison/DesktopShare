@@ -331,15 +331,49 @@ Two things surfaced during the run worth keeping:
 
 1. **PADCTL doesn't survive a reboot.** `0x0243d010` returns to `0x55` on every boot, so the panel
    is dead again until the `devmem` write is repeated. Making it stick wants either a systemd unit
-   that runs before anything touches the display, or a proper device-tree pinmux change. Its own
-   issue.
-2. **Both OLEDs at once.** Yahboom (SSD1306 128x32) and Waveshare (SH1106 128x64) are both strapped
-   to `0x3c` on bus 7, and two devices on one address both ACK and both accept every write — which
-   is exactly the garbled-frame result recorded in "The collision theory" above. `0x3d` is free, and
-   `i2c-0` (header pins 27/28) is nearly empty — only ID EEPROMs at `0x50`/`0x57`. Options: move one
-   panel to `0x3d` via its SA0 strap, jumper one to `i2c-0`, or add a TCA9548A mux. Worth noting the
-   Waveshare now has a working hardware kill switch — drive `PY.03` low and it drops off the bus
-   entirely — but the Yahboom is `rst=None`, so that only silences one direction.
+   that runs before anything touches the display, or a proper device-tree pinmux change. Tracked as
+   its own issue — and it now takes down the whole dual-display setup below, not just this panel.
+
+## Both OLEDs lit at once (2026-08-13)
+
+Both boards are now stacked — the Waveshare passes the 40-pin header through, so the Yahboom
+CubeNano sits with it. Bus 7 carries `0x0e` (CubeNano MCU), the four Waveshare sensors, and `0x3c`,
+which **both** panels answer to. No address jumper, no second bus reachable through the stack.
+
+They both display useful content anyway, with no hardware modification. The mechanism, the
+SSD1306-safe wake sequence, and the column-offset trap are written up in
+[`files/dual-oled/README.md`](files/dual-oled/); the short version:
+
+The SSD1306 die carries a full 128x64 GDDRAM, but the Yahboom glass is 128x32 driven at multiplex
+32 — so **only pages 0-3 are ever scanned out, and pages 4-7 are real RAM that is never displayed**.
+The SH1106 shows all 8 pages. A write to pages 4-7 therefore reaches the Waveshare alone.
+
+`OLED_RST` is what makes the setup possible: the two controllers need different multiplex settings
+and that command reaches both, so the SH1106 is held in reset — dropped off the bus entirely — while
+the SSD1306 is configured. The same mechanism as the bug at the top of this file, used deliberately.
+
+Not full independence: pages 0-3 are physically shared, so the Yahboom's content also appears on the
+Waveshare's top half. Only the Waveshare's bottom half is truly its own. That's the ceiling for this
+hardware without a mux, an SA0 strap change, or jumpering a panel to `i2c-0` — see below.
+
+`files/dual-oled/both_oleds_live.py` runs it live: clock and temp/RH shared across both panels,
+pressure / lux / UV / VOC on the Waveshare's own half. That closes the "environment data into the
+flow" display half of item 4 in the superseded Next steps above.
+
+### Considered and not taken
+
+`0x3d` is free on bus 7, and `i2c-0` (header pins 27/28, `3160000.i2c`) carries only the ID EEPROMs
+at `0x50`/`0x57`. So the clean fixes remain available if the shared top half ever becomes a problem:
+move one panel to `0x3d` via its SA0 strap, jumper one to `i2c-0`, or add a TCA9548A mux.
+`files/dual-oled/dual_oled.py` is a `luma.oled` harness that works identically under any of those —
+point each panel at its own `(port, address)` and nothing else changes.
+
+**Trimming the Waveshare board was considered and rejected.** It fouls the Orin's fan, and the
+obvious fix was to trim the outer edge of the 40-pin arm. Measured against the known 17.05 mm arm
+width, that strip is not empty: P10's pad row and vias at ~1.2 mm, horizontal trace runs at ~3.1 and
+~4.4 mm, and the 40-pin header solder pads at ~6.0 mm. P10 itself (`5V/GND/SDA/SCL/OLED_RST`) is a
+dead-end breakout — nothing is fed through it, so losing those pads would cost no function — but the
+runs behind it are live. Rethinking the fan is the better trade than cutting a twice-RMA'd board.
 
 ## Waveshare demo downloads
 
