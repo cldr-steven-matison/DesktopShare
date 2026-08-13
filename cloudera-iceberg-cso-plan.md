@@ -74,45 +74,49 @@ Direct REST calls with the external-user token to **create a namespace and a tab
 - **Build scripts:** `~/Documents/GitHub/iceberg-rest-catalog-demo/nifi/` (`build-query-flow.sh` drove the validated query path).
 - **Env note:** the Mac's docker-driver `minikube` gets API-flaky (`TLS handshake timeout`) under sustained load + `minikube tunnel` — give it a breather between bursts.
 
-## Work stream B — write-capable round-trip: create a NiFi Iceberg data source, then read it back
+## Work stream B — write-capable round-trip: NiFi writes to the Cloudera datalake, then reads it back
 
-> **Separate work stream from the AWS airlines datashare.** Everything above is the **read consumer** path against CDP's `cdp-datashare-access` endpoint, which is **read-only by design** (§"Write path — read-only *by design*"). This stream proves the **other half**: that `PutIceberg` + `RESTCatalogService` **commit normally** against a *write-capable* catalog + identity, and then closes the loop by **reading the same table back through the same NiFi data source**. It does **not** touch the CDP datashare. Driving issue: native-integration guide **#75** (the read-half native processor is **#154**, `GetIceberg`). Built on the `iceberg-lab` profile, where the jackson NAR fix is already validated (**#152**).
+> **Separate work stream from the AWS airlines datashare.** Everything above is the **read consumer** path against CDP's `cdp-datashare-access` endpoint, which is **read-only by design** (§"Write path — read-only *by design*"). This stream proves the other half: `PutIceberg` + `RESTCatalogService` **commit normally** against a write-capable catalog + identity, then close the loop by **reading the same table back through the same NiFi data source**. It does **not** touch the CDP datashare. Driving issue: **#151** (test NiFi & Flink on K8s against CDP PC 7.3.2). The read-half native processor `GetIceberg` (**#154**) then feeds the native-integration guide **#75**. Built on the `iceberg-lab` profile, where the jackson NAR fix is already validated (**#152**).
+>
+> **Status:** runbook ready; **execution pending** on the device running `iceberg-lab`. No live writes performed yet.
 
-### Why a write needs a different door than the airlines read
+### The write needs a different door than the airlines read
 
-The read-only wall is **CDP's consumer share model, not the processor/CS** — `RESTCatalogService` is fully write-capable against any spec-compliant catalog where (a) the identity is authorized to `createTable`/commit and (b) FileIO holds write creds. The two endpoints differ end to end:
+The read-only wall is **CDP's consumer share model, not the processor/CS** — `RESTCatalogService` is fully write-capable against any spec-compliant catalog where (a) the identity is authorized to `createTable`/commit and (b) FileIO holds write creds. This stream targets the **authoritative CDP datalake catalog** with a **workload identity** — `steven.matison` over a Knox token, the same identity that already writes `poc_uc2.airlines` via Impala — not the data-sharing external user, and not a self-hosted catalog. S3 write authz flows through **RAZ** / IDBroker.
 
-| | `cdp-datashare-access` consumer endpoint (airlines stream) | Write-capable catalog (this stream) |
+| | `cdp-datashare-access` consumer endpoint (airlines read) | Authoritative datalake catalog (this stream) |
 | :-- | :-- | :-- |
-| Identity | External user (Knox OAuth2 JWT), data-sharing-only | Owned catalog creds (Option A) **or** workload/Kerberos user (Option B) |
-| Authorization | Data Share grant — `listNamespaces`/`listTables`/`loadTable` only | Full read/write/DDL (`createTable`, commit, schema evolution) |
-| Cloud creds | **Vended read-only STS** (`GetObject`/`ListBucket`) via `X-Iceberg-Access-Delegation` | Standing write creds — MinIO key (A) or IDBroker→IAM role w/ `PutObject` (B) |
+| Identity | External user (Knox OAuth2 JWT), data-sharing-only | Workload user `steven.matison` via Knox token |
+| Authorization | Data Share grant — `listNamespaces`/`listTables`/`loadTable` only | Full read/write/DDL (`createTable`, commit) |
+| Cloud creds | **Vended read-only STS** via `X-Iceberg-Access-Delegation` | RAZ / IDBroker write creds for the workload user |
 | Write result | Fails at the S3 layer (`create metadata.json` denied) — by design | Commits: data + `metadata.json` written, table pointer swapped |
 
-(The native `PutIceberg` also needed the jackson fix **#152** *and* a non-null OAuth token — the `EnvironmentUtil.resolveAll` NPE seen on the datashare path was a null token from an exhausted-quota provider, resolved on `iceberg-lab`; against a write-capable catalog the token is either a static bearer or unused entirely.)
+(The native `PutIceberg` also needs the jackson fix **#152** and a non-null OAuth token — the `EnvironmentUtil.resolveAll` NPE seen on the datashare path was a null token from an exhausted-quota provider, resolved on `iceberg-lab`.)
 
-### The data source — one `RESTCatalogService`, used for both directions
+### The plan
 
-The elegance of the demo: a **single** `RESTCatalogService` controller service (the "data source") is referenced by **both** `PutIceberg` (write) and the read processor. Pick a write-capable backend for it:
+**Write target:** a fresh table **`poc_uc2.nifi_write_demo`** in the live `srm-iceberg-aw-dl` datalake (env RUNNING; reaped Friday).
 
-- **Option A — self-hosted write-capable REST catalog (recommended; fully owned, zero external dependency).** Stand up `apache/iceberg-rest` (the reference fixture) — or Polaris / Lakekeeper / Nessie — plus **MinIO** (S3-compatible) in the `iceberg-lab` namespace. `RESTCatalogService`: `Catalog URI` = the in-cluster `iceberg-rest` service, `warehouse-path` = `s3://warehouse/`, S3 endpoint override = MinIO, creds = the MinIO access/secret (write-capable). OAuth not required (static token or none). This is the fastest green and the cleanest guide example.
-- **Option B — CDP-native write (sanctioned datalake path).** Point at the **authoritative datalake catalog** (HMS / datalake Iceberg REST) with a **`KerberosUserService`** workload identity whose IDBroker mapping grants an IAM role with `PutObject` on the warehouse. Writes land on the real datalake table; an airlines-style datashare would then reflect them read-only to consumers — the "producer writes, consumer reads" narrative. Heavier: needs a workload/machine user, Ranger `INSERT`/`CREATE` on the target DB, and an IDBroker mapping. (Exact datalake REST path vs. plain HMS Thrift `:9083` to be confirmed live against `srm-iceberg-aw-dl`.)
+**Coordinates** (from `~/Documents/GitHub/iceberg-rest-catalog-demo/`):
+- DL Knox gateway `srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site`, DL `srm-iceberg-aw-dl`.
+- Workload identity `steven.matison`, password in gitignored `.workload.creds` (present) — same identity that writes via Impala today.
+- Knox token topology `cdp-proxy-token`; CM-API on `cdp-proxy-api` (workload basic auth, read GET safe).
+- HMS Iceberg REST catalog enabled (`hive_rest_catalog_enabled=true`); RAZ enabled → S3 write authorized via Ranger for the workload user.
+- `iceberg-lab` minikube profile, `mynifi-0` in `cfm-streaming`; API via an in-cluster `nifi-client` helper pod (operator mTLS cert `kubectl cp`'d in) → `https://mynifi-web.cfm-streaming.svc.cluster.local:8443/nifi-api` + single-user bearer. jackson fix baked into the running image (#152).
 
-### Step 1 — create the data source & write (`PutIceberg`)
+**Pin down the authoritative endpoint first (read-only curl).** The producer REST path isn't surfaced by `describe-datalake` and is distinct from `cdp-datashare-access`. Mint **one** workload Knox token (`GET .../cdp-proxy-token/knoxtoken/api/v1/token`, basic auth — Knox has a per-user token quota that bit us before, so mint once and reuse), then confirm the endpoint accepts it and vends **write-capable** creds by loading an existing table (`airlines`) and checking the returned `config` / delegation (note whether `X-Iceberg-Access-Delegation: vended-credentials` is needed, as SSB required). If the authoritative endpoint won't accept a workload token or won't vend write creds, stop and report — a Kerberos/HiveCatalog fallback is out of scope for the lab (network-blocked) and a separate decision.
 
-- Controller services: the shared **`RESTCatalogService`** (above) + a **`JsonTreeReader`** (or Avro/CSV reader).
-- Flow: `GenerateFlowFile` (emit N JSON records) → **`PutIceberg`** (`catalog-service` = the `RESTCatalogService`, `catalog-namespace`, `table-name`, `record-reader` = the reader).
-- `PutIceberg` creates the table (Option A/B both allow `createTable`) and commits the rows. **Green =** a committed snapshot + data/`metadata.json` under the warehouse.
+**The data source — one `RESTCatalogService`, used both directions.** `Catalog URI` = the authoritative endpoint, `warehouse-path` = the datalake warehouse (`s3a://srm-iceberg-buk-.../.../hive/`), auth = the workload Knox token (a `StandardOauth2AccessTokenProvider` if Knox drives an OAuth2 grant; otherwise a pre-fetched workload JWT as a static bearer, mirroring SSB's `token=<JWT>`). **Sensitive values go in a Parameter Context — never a literal processor property, never GET-then-PUT a sensitive prop (skill rule 2).**
 
-### Step 2 — read-only from the **same** data source
+**Write:** `GenerateFlowFile` (emit N JSON records) → `PutIceberg` (`catalog-service` = the `RESTCatalogService`, `catalog-namespace=poc_uc2`, `table-name=nifi_write_demo`, `record-reader`=`JsonTreeReader`). If `PutIceberg` can't create the table over REST, pre-create it empty via the proven Impala workload write path (`sql/seed-airlines.sql` pattern). Green = a committed snapshot (new `metadata.json` + data files under the warehouse).
 
-- Reuse the **same** `RESTCatalogService` instance — the whole point of the stream: one data source, both directions.
-- Read via the custom **`GetIceberg`** processor (**#154**) once built; **interim**, use the validated `InvokeHTTP` load-table + scan pattern (§"How to use REST Catalog APIs from NiFi") against the same catalog URI.
-- **Green =** the N records written in Step 1 come back.
+**Read back through the same data source:** load-table `.../v1/namespaces/poc_uc2/tables/nifi_write_demo` through the **same** catalog URI + token (via the custom `GetIceberg` processor **#154** once built, or `InvokeHTTP` interim — §"How to use REST Catalog APIs from NiFi") → the new snapshot is visible through the catalog NiFi just wrote to. Independent cross-check that the rows landed: `SELECT count(*) FROM poc_uc2.nifi_write_demo` via Impala = N.
+
+Build scripts land in `~/Documents/GitHub/iceberg-rest-catalog-demo/nifi/write-native/` (mirror `nifi/build-query-flow.sh`). Progress/results comment on **#151**.
 
 ### Definition of done (work stream B)
 
-On `iceberg-lab`, a single `RESTCatalogService` data source where `PutIceberg` writes N records to a fresh table and a read (`GetIceberg`, or `InvokeHTTP` interim) returns the same N — proving the full round-trip and that the datashare read-only ceiling was CDP's consumer model, **not** `RESTCatalogService`. Then this becomes the write⇄read worked example for the native-integration guide (**#75**).
+On `iceberg-lab`, a single `RESTCatalogService` data source (authoritative CDP datalake catalog, workload identity) where **`PutIceberg` commits N records to `poc_uc2.nifi_write_demo`**, confirmed by (1) a load-table through the **same** catalog URI showing the new table + snapshot and (2) `SELECT count(*)` = N via Impala. This proves NiFi natively writes to Cloudera's authoritative Iceberg catalog with a workload identity — and that the datashare read-only ceiling was CDP's consumer model, **not** `RESTCatalogService`. Once green (tracked under **#151**), it becomes the write⇄read worked example the `GetIceberg` processor (**#154**) demonstrates in the native-integration guide (**#75**).
 
 ## Flink / SSB (CSA) — gap identified (2026-08-12); live build deferred to a fresh profile
 
@@ -146,7 +150,7 @@ Registering an Iceberg **REST** catalog in SSB and querying `poc_uc2.airlines`, 
 - This tracker rides alongside the AWS plan. Both streaming legs are now documented (NiFi native root-caused + fix built; Flink/SSB gap identified), with the live builds deferred to a dedicated profile (**#152**).
 - The NiFi native-catalog jackson NAR bug (`iceberg-core-1.5.2` vs `jackson-databind-2.20.1`, missing `PropertyNamingStrategy$KebabCaseStrategy`) is a candidate to file with the CFM team — the additive two-class fix in `jackson-fix/` is the minimal repro/patch.
 - Candidate content for the NiFi/streaming guide track once the `InvokeHTTP` pattern and (once #152 lands) the native-catalog + SSB paths are clean.
-- **Work stream B (write-capable round-trip)** is the write⇄read counterpart to the read-only airlines stream — create a NiFi `RESTCatalogService` data source, `PutIceberg` write, read back from the same source. Feeds the native-integration guide **#75** (read half = `GetIceberg`, **#154**).
+- **Work stream B (write-capable round-trip)** is the write⇄read counterpart to the read-only airlines stream — a NiFi `RESTCatalogService` data source, `PutIceberg` write to the CDP datalake, read back from the same source. Tracked under **#151** (NiFi/Flink on K8s ↔ CDP PC 7.3.2); the read half `GetIceberg` (**#154**) then feeds the guide **#75**.
 - Driving issue: **#149**. Follow-ups: **#152** (dedicated-profile NiFi jackson + SSB jars), **#151** (CDP-PC-7.3.2 fast-track, the separate leg).
 
 ## Resources
