@@ -254,6 +254,11 @@ Working tree at `~/CubeNano/waveshare_env_sensor/orin_jp62/` — salvaged files 
 the Yahboom board is still on the bus, read PADCTL, write `0x000`, confirm the readback, hold the
 reset line high across an `i2cdetect` rescan, print a verdict.
 
+The reconstructions and the salvage script are committed at
+[`files/waveshare-orin-jp62/`](files/waveshare-orin-jp62/) — its `README.md` rebuilds the tree from
+the committed zip in four commands, so none of this has to be re-derived. The truncated zip itself
+is at [`files/Environment_sensor_for_orin_nano_jp62.zip`](files/Environment_sensor_for_orin_nano_jp62.zip).
+
 Still unproven: that clearing TRISTATE actually wakes the panel. The register read explains the
 symptom and removes the reason to believe either unit was DOA, but the board has not been back on
 the header yet. Order of operations when it goes on:
