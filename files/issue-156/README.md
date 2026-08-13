@@ -12,6 +12,7 @@ Data Share / `iceberg-lab` run against `poc_uc2.airlines`, plus the #75 guide wo
 | `QueryIcebergDemo.json` | Flow-definition export of the live `QueryIcebergDemo` PG (2 processors, 2 controller services, 5 funnels). Import via `POST /process-groups/{root}/process-groups/upload`. |
 | `proof-attributes.txt` | WindowsDesktop local-rig pushdown proof: per-query FlowFile attributes (pushed filter, pushed columns, scan counters) + the `carrier_stats` output content, captured 2026-08-13. |
 | `mac-leg-live-proof.txt` | **Mac leg — the live CDP Data Share proof** against `poc_uc2.airlines`: `SELECT *`, `WHERE code='AA'` (predicate + projection pushdown), and `GROUP BY dest`, each on its own relationship, proof attributes populated, captured 2026-08-13. |
+| `mac-leg-flights-cdp-proof.txt` | **Mac leg — LARGER dataset on CDP.** The 120k-row partitioned `poc_uc2.flights` seeded into CDP via Impala and shared, then queried with QueryIceberg: `WHERE flight_month='2026-03'` prunes **11/12 manifests live on CDP** (1 data file planned). Same metadata-layer pruning the local rig proved, now on the real Data Share. |
 
 ## Source / rebuild (NAR is >100MB — rebuild, don't transfer, same as #154)
 
@@ -84,5 +85,27 @@ cycling `KnoxOAuth2` + `CdpRestCatalog`), and the live `poc_uc2.airlines` schema
 so the demo queries were corrected to the real columns. `scan.result.data.files=1 / skipped=0` is
 honest for a 3-row single-file table — file/manifest skipping needs a large partitioned table
 (the WindowsDesktop `demo.flights` rig, `proof-attributes.txt`).
+
+### Larger dataset on CDP Public Cloud (2026-08-13)
+
+The pushdown proof deserved a table big enough to actually prune, so the 120k-row partitioned
+`flights` table (previously local-rig-only) was seeded **into CDP** and shared:
+
+- Seeded via Impala on the `srm-iceberg-impala` Data Hub (`seed-impala.py` + `sql/seed-flights.sql`):
+  `poc_uc2.flights` = 120,000 rows, Iceberg, `PARTITIONED BY SPEC (flight_month STRING)`, 12 monthly
+  appends → one data file + one manifest per month.
+- Added to `srm-iceberg-share` as an asset (`cdp datacatalog add-assets-to-data-share`: unshare →
+  add → re-share); appeared in the consumer REST-catalog view after ~15–45s.
+- Queried with a second QueryIceberg processor (`QueryFlights`) — full result in
+  [`mac-leg-flights-cdp-proof.txt`](mac-leg-flights-cdp-proof.txt):
+
+| relationship | query | rows | scan result |
+|---|---|---|---|
+| `pruned` | `WHERE flight_month='2026-03'` | 10,000 | **1 data file planned, 11/12 manifests skipped** |
+| `delayed` | `dep_delay>45 AND carrier_code='AA'` | 6,000 | filter pushed; 12 files (stats span) |
+| `carrier_stats` | `GROUP BY carrier_code` | 8 groups (Σ 120k) | projection pushed: 2 of 8 columns |
+
+**Partition pruning at the manifest layer confirmed live on the CDP Data Share REST catalog** —
+the same result the WindowsDesktop local `demo.flights` rig produced, now on real CDP Public Cloud.
 
 Step 3 (#75 guide worked-example) remains as the documented follow-on.

@@ -1,0 +1,55 @@
+QueryIceberg 1.0.3-SNAPSHOT — LARGER dataset on CDP Public Cloud Data Share, Mac leg, 2026-08-13
+Processor "QueryFlights" (2nd QueryIceberg in PG IcebergRESTCatalogDemo, cfm-streaming/mynifi-0,
+iceberg-lab profile) reading poc_uc2.flights through the CdpRestCatalog -> KnoxOAuth2 chain.
+
+This is the live-CDP counterpart to the WindowsDesktop local-rig proof (proof-attributes.txt):
+the 120k-row partitioned flights table is now SEEDED INTO CDP and SHARED, not local-only.
+
+How the table got onto the CDP Data Share:
+- Seeded via Impala on the srm-iceberg-impala Data Hub (seed-impala.py + sql/seed-flights.sql):
+  poc_uc2.flights = 120,000 rows, Iceberg, PARTITIONED BY SPEC (flight_month STRING), 12 monthly
+  appends (10k rows each, '2026-01'..'2026-12') -> one data file + one manifest per month.
+  Rows generated deterministically from a 10k numbers helper (4-way digit cross-join) so no giant
+  VALUES lists; carrier/origin/dest/dep_delay vary by row for meaningful filters + aggregation.
+- Added to data share srm-iceberg-share (id 1) as asset resourceId 2 via
+  cdp datacatalog add-assets-to-data-share (unshare -> add -> re-share). Appeared in the REST
+  catalog consumer view after ~15-45s propagation. No re-grant of external users needed.
+
+Columns: flight_id long, carrier_code string, flight_num int, origin string, dest string,
+         flight_month string, dep_delay int, distance int.
+
+One RUN_ONCE; each SQL dynamic property on its own relationship; failure empty.
+
+### query=pruned   (SELECT carrier_code, origin, dest, dep_delay FROM flights WHERE flight_month = '2026-03')
+  record.count = 10000
+  iceberg.pushdown.filter = ref(name="flight_month") == "2026-03"
+  iceberg.pushdown.columns = carrier_code,origin,dest,dep_delay,flight_month
+  iceberg.scan.result.data.files = 1
+  iceberg.scan.skipped.data.files = 0
+  iceberg.scan.skipped.data.manifests = 11
+  -> PARTITION PRUNING AT THE MANIFEST LAYER, LIVE ON CDP: 11 of 12 manifests never opened,
+     1 of 12 data files planned. Same mechanism the local rig proved, now on the real CDP Data
+     Share REST catalog. (skipped.data.files counts only files skipped WITHIN scanned manifests,
+     which is 0 here because the 11 skipped months are pruned as whole manifests.)
+
+### query=delayed   (SELECT flight_id, carrier_code, dep_delay FROM flights WHERE dep_delay > 45 AND carrier_code = 'AA')
+  record.count = 6000
+  iceberg.pushdown.filter = (ref(name="dep_delay") > 45 and ref(name="carrier_code") == "AA")
+  iceberg.pushdown.columns = flight_id,carrier_code,dep_delay
+  iceberg.scan.result.data.files = 12 ; skipped.data.files = 0 ; skipped.data.manifests = 0
+  -> filter pushed; no skip because every monthly file's dep_delay/carrier stats span the
+     predicate (honest — stats pruning needs disjoint ranges; AA + delays exist in every month).
+
+### query=carrier_stats   (SELECT carrier_code, COUNT(*) AS n, AVG(dep_delay) AS avg_delay FROM flights GROUP BY carrier_code)
+  record.count = 8
+  iceberg.pushdown.filter =
+  iceberg.pushdown.columns = carrier_code,dep_delay
+  iceberg.scan.result.data.files = 12 ; skipped = 0
+  -> projection pushdown: scan reads 2 of 8 columns; Calcite aggregates on top. Groups sum to 120000.
+  content = [{"carrier_code":"AA","n":15000,"avg_delay":41},{"carrier_code":"AS","n":15000,"avg_delay":48},
+             {"carrier_code":"F9","n":15000,"avg_delay":62},{"carrier_code":"B6","n":15000,"avg_delay":41},
+             {"carrier_code":"WN","n":15000,"avg_delay":62},{"carrier_code":"DL","n":15000,"avg_delay":48},
+             {"carrier_code":"UA","n":15000,"avg_delay":55},{"carrier_code":"NK","n":15000,"avg_delay":55}]
+
+Rebuild: sql/seed-flights.sql + seed-impala.py (Impala/workload identity), then
+cdp datacatalog add-assets-to-data-share, then QueryFlights via nifi/build-query-flights.sh.
