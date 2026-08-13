@@ -215,10 +215,25 @@ Live demo queries (`QueryIcebergDemo` PG on mynifi-0, each its own relationship)
 2. Deploy the version-bumped NAR to the confirmed live NiFi pod; `QueryIceberg` loads (hot-load ~10s).
 3. **WindowsDesktop leg (DONE 2026-08-13):** green live run on the local rig — the four demo
    queries above, each on its own relationship, with `iceberg.pushdown.filter` and the
-   `iceberg.scan.*` counters populated (`pruned`: 11/12 manifests skipped, 1/12 data files planned). **Mac leg (after `files/issue-156/` handoff):**
-   the same `SELECT ... WHERE ...` + `COUNT(*)/GROUP BY` against `poc_uc2.airlines` on the
-   datashare REST catalog via iceberg-lab (no `catalog.*` props needed — datashare vends config).
-4. (Follow-on, #75 series) Add the QueryIceberg worked-example section to
+   `iceberg.scan.*` counters populated (`pruned`: 11/12 manifests skipped, 1/12 data files planned).
+4. **Mac leg (DONE 2026-08-13):** built the `1.0.3` NAR on the Mac with `-DskipTests` (JDK 25 only
+   here — Hadoop UGI `Subject.getSubject()` throws on JDK 24+, JEP 486; the 11 tests are
+   authoritative-green on WindowsDesktop at the same commit, and `--release 21` bytecode is
+   pod-valid), hot-loaded onto `iceberg-lab` `cfm-streaming/mynifi-0`, wired into the existing
+   `IcebergRESTCatalogDemo` PG reusing the `CdpRestCatalog` chain (no `catalog.*` props — datashare
+   vends config). **Two processors, both proven live on the CDP Data Share:**
+   - `QueryIceberg` → `poc_uc2.airlines`: `SELECT *`, `WHERE code='AA'` (predicate + projection
+     pushdown, `ref(name="code") == "AA"`), `GROUP BY dest`. NB: the **live `airlines` schema is
+     `code/description/origin/dest/year_id`**, not the local rig's `carrier_code/airline_name/country`.
+   - `QueryFlights` → `poc_uc2.flights`: the 120k-row partitioned table was **seeded into CDP via
+     Impala** (`seed-impala.py` + `sql/seed-flights.sql` in `iceberg-rest-catalog-demo`) and **added
+     to `srm-iceberg-share`** (`cdp datacatalog add-assets-to-data-share`: unshare→add→re-share,
+     ~15–45s propagation). `WHERE flight_month='2026-03'` prunes **11/12 manifests live on CDP**
+     (1 data file planned) — same metadata-layer pruning as the local rig, now on CDP Public Cloud.
+   - Live-env fix folded in: sandbox Knox token goes stale (`401 Unknown token`) → cycle
+     `KnoxOAuth2`+`CdpRestCatalog` (state-only `/run-status`) to force a fresh mint.
+   - Proofs: `files/issue-156/mac-leg-live-proof.txt` (airlines), `mac-leg-flights-cdp-proof.txt` (flights).
+5. (Follow-on, #75 series) Add the QueryIceberg worked-example section to
    `blog/How to Build a Native NiFi Processor in Java.md` + `blog/nifi-native-processor-guide.md`,
    matching the GetIceberg format (Symptom → anatomy → pushdown wiring → TestRunner → SPI note →
    build/deploy → "what NOT to do"). Keep chapter-number-free (guide series convention).
