@@ -46,16 +46,16 @@ flow that actually ran on real hardware.
 | **9** ✅ | Yes | Introduce EFM into the Playground | Done. |
 | **10** ✅ | Yes | MiNiFi C++ & Java as K8s pods | Done. |
 | **11** ✅ | Yes | Site-to-Site — MiNiFi to NiFi on K8s | Done |
-| **12** 🟡 | Yes | EFM and MicroFi | Done. WIP |
-| **13** 🟡 | **Partial** | EFM and SparkPlug MQTT | WIP — real hardware now confirmed producing genuine Sparkplug B ([#126](https://github.com/cldr-steven-matison/DesktopShare/issues/126), 2026-08-06); remaining gaps are rebirth-request and edge-side decode, both still simulator-only |
-| **14** 🟡 | Yes | NiFi and AI Skill — EFM Portion | Done. WIP |
+| **12** 🟡 | Yes | EFM and MicroFi | Prose cleaned (bug count corrected to three). Structural content still WIP — capstone, gated on MicroFi-1/2/3 R&D ([#134](https://github.com/cldr-steven-matison/DesktopShare/issues/134)). |
+| **13** 🟡 | **Partial** | EFM and SparkPlug MQTT | Re-authored: stale "embedded Sparkplug B unsolved" prose corrected (hardware confirmed) and widened to cover both MiNiFi C++ **and** Java. Remaining: MiNiFi Java native decode field-verify ([#163](https://github.com/cldr-steven-matison/DesktopShare/issues/163)); rebirth-request + edge-side C++ decode still simulator-only (deferred). |
+| **14** 🟡 | Yes | NiFi and AI Skill — EFM Portion | Clone-path fixed. Public carve-out revision + skill cross-link still WIP (skill in flux, [#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141)). |
 | **15** ✅📝 | Yes | How to AI with NiFi and Python | Done. Blog published. |
-| **16** 🟡 | Partial | How to AI with MiNiFi | WIP |
-| **17** ✅ | Yes | Edge-AI router case study: StarlinkAI | Done. |
-| **18** 🟡 | Scaffolded | Sample gallery of MiNiFi flows | WIP |
-| **19** 🟡 | Yes | EFM + NVIDIA Jetson use case | WIP |
-| **20** 🟡 | **Partial** | SparkPlug Demo — Xiao · Nano · NiFi | WIP |
-| **21** 🟡 | Yes | Metrics & Observability | WIP |
+| **16** 🟡 | Partial | How to AI with MiNiFi | Prose verified clean. Reframe as HOW-to-use-the-skill guide still WIP ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141)). |
+| **17** ✅ | Yes | Edge-AI router case study: StarlinkAI | Re-authored to the whole-story arc: `StarlinkAIJava`→`StarlinkAI` class rename, unified-flow intro, and the consolidated `:8096` screen/matrix leg added. Complete. |
+| **18** 🟡 | Scaffolded | Sample gallery of MiNiFi flows | Two Site-to-Site cards (Ch11 C++ + Java) added; Entry-7 link + S2S attribution fixed. SparkPlug card still pending, blocked on live wiring ([#167](https://github.com/cldr-steven-matison/DesktopShare/issues/167)). |
+| **19** 🟡 | Yes | EFM + NVIDIA Jetson use case | Re-authored C++→Java: enrollment relabeled historical, current Java flow framed as production, metrics split (C++ validated / Java pending). Remaining: provenance screenshot ([#165](https://github.com/cldr-steven-matison/DesktopShare/issues/165)); Java metrics path + Grafana panel ([#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166)); firewall/scrape ([#139](https://github.com/cldr-steven-matison/DesktopShare/issues/139)). |
+| **20** 🟡 | **Partial** | SparkPlug Demo — Xiao · Nano · NiFi | Prose cleaned: stale "none exists yet" / "not reconfirmed" corrected, committed-export vs live-instance distinction made crisp. Remaining: live `PublishKafka` wiring + re-export ([#164](https://github.com/cldr-steven-matison/DesktopShare/issues/164)); S2S leg blocked on a human decision. |
+| **21** 🟡 | Yes | Metrics & Observability | Intro layer-count fixed. Layer 3 (XIAO/MicroFi panel) + StarlinkAI-over-Tailscale still WIP ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)); Java-agent metrics panel ([#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166)). |
 
 ## Close plan — v2 ([EPIC #137](https://github.com/cldr-steven-matison/DesktopShare/issues/137))
 
@@ -73,6 +73,8 @@ The v1 close plan (#59, written 2026-07-31) is done and closed — stale by the 
 | 21 Metrics & Observability | C · observability completeness ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) |
 
 Work-stream **E** ([#142](https://github.com/cldr-steven-matison/DesktopShare/issues/142)) hardens the already-done Ch17 live-stream path (repoint central NiFi's `TwitchChatBot` to StarlinkAI's consolidated `:8096` screen/matrix endpoint, #136). Housekeeping done 2026-08-10: #123 (Java S2S metrics) and #126 (real-hardware Sparkplug B) closed — both were complete but still open.
+
+**Chapter cleanup + re-author pass (2026-08-14).** Every WIP chapter's stale first-draft prose was corrected against current live/source state and the re-author-ready chapters (Ch13, Ch17, Ch19, Ch20) were brought forward; in-flight sections stay marked pending. Remaining per-chapter demo/field/observability work is now tracked by five new focused issues under this EPIC: [#163](https://github.com/cldr-steven-matison/DesktopShare/issues/163) (Ch13 Java Sparkplug decode), [#164](https://github.com/cldr-steven-matison/DesktopShare/issues/164) (live PublishKafka wire + re-export), [#165](https://github.com/cldr-steven-matison/DesktopShare/issues/165) (Ch19 provenance shot), [#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166) (Java-agent metrics panel), [#167](https://github.com/cldr-steven-matison/DesktopShare/issues/167) (Ch18 SparkPlug card).
 
 ## Guide structure
 
