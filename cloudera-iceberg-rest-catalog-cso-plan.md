@@ -2,9 +2,10 @@
 
 The **streaming-engine spinoff** of [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md). That plan stands up the live REST Catalog and evaluates the runbook's external consumers (OSS Spark, EMR, Athena, Snowflake) plus the Impala/MCP door. **This plan covers the two CSO streaming consumers** — **NiFi** (CFM) and **Flink/SSB** (CSA) — reaching the *same* REST Catalog from the `cld-streaming`/`cfm-streaming` minikube stack. It is a **read** story: the CDP Data Share endpoint is read-only by design. The write/round-trip counterpart through the authoritative Impala/HMS catalog is a **separate concept** — [`cloudera-impala-iceberg-plan.md`](cloudera-impala-iceberg-plan.md) (**#151**).
 
-> **Status (2026-08-13):** **All three REST-Catalog read paths validated on the `iceberg-lab` profile (#152/#154).**
+> **Status (2026-08-14):** **All REST-Catalog read paths validated on the `iceberg-lab` profile (#152/#154/#156).**
 > - **NiFi via `InvokeHTTP` ✅** — the portable "call the REST Catalog API from NiFi" path (namespaces/tables/load-table).
 > - **NiFi native `GetIceberg` + `RESTCatalogService` ✅** — the custom read processor returns `poc_uc2.airlines` (3 rows) as one FlowFile, after the jackson NAR fix + null-OAuth-token fix both landed (#152).
+> - **NiFi native `QueryIceberg` + `RESTCatalogService` ✅** — SQL over an Iceberg table with native predicate/projection pushdown; proven live on `poc_uc2.airlines` and the 120k-row `poc_uc2.flights`, where a partition filter prunes 11/12 manifests on CDP Public Cloud (#156).
 > - **Flink/SSB ✅** — `SELECT * FROM poc_uc2.airlines` returns all 3 rows through the REST Catalog.
 
 ## Read the AWS plan first — the shared foundation lives there
@@ -24,7 +25,7 @@ The live environment, REST Catalog enablement (Phases 0–4), OAuth/JWT flow, re
 
 ## NiFi (mynifi, `cfm-streaming`)
 
-Two read paths against the REST Catalog, both validated. `InvokeHTTP` is the portable, no-dependencies path; native `GetIceberg` is the first-class processor path.
+Three read paths against the REST Catalog, all validated. `InvokeHTTP` is the portable, no-dependencies path; native `GetIceberg` and `QueryIceberg` are the first-class processor paths — full-table read and SQL-with-pushdown, respectively.
 
 ### Path 1 — `InvokeHTTP` (✅ validated 2026-08-11)
 
@@ -57,6 +58,19 @@ The first-class read: a custom `GetIceberg` processor (the read counterpart to s
 - **Jackson NAR bug.** `RESTCatalogService` reaches ENABLED+VALID, but any catalog call threw `ClassNotFoundException: com.fasterxml.jackson.databind.PropertyNamingStrategy$KebabCaseStrategy` at `IcebergCatalogFactory.create:61`. Cause: `nifi-iceberg-processors-nar` bundles `iceberg-core-1.5.2` (which references the pre-2.15 nested class) alongside `jackson-databind-2.20.1` (which removed it). Fix: additively inject the two legacy nested classes back into the 2.20.1 jar (recipe: `iceberg-rest-catalog-demo/nifi/jackson-fix/`). The `nifi-iceberg-read-bundle` sidesteps this entirely by bundling its own Iceberg 1.7.2 + jackson inside the NAR.
 - **Null-OAuth-token NPE.** After the jackson fix, native init hit `NullPointerException` in `EnvironmentUtil.resolveAll:39` — a **null OAuth token** (not a null warehouse): `initRestCatalog` only `containsKey`-guards the token *service*, never the token *string*. The token was null because the Knox OAuth2 provider couldn't mint one — a per-user Knox JWT quota exhaustion (`403 token limit exceeded`) plus a wedged provider CS. Fix: a fresh external user with a new quota + recreate the provider. CFM robustness-bug candidate: null-guard the token before Iceberg's un-guarded `resolveAll`.
 
+### Path 3 — native `QueryIceberg` + `RESTCatalogService` (✅ validated live, #156)
+
+The SQL read: a custom `QueryIceberg` processor — the read counterpart to stock `QueryRecord`, but with **Iceberg-native predicate & projection pushdown**, so a `WHERE` on a partition/stats column prunes files at the metadata layer instead of scanning the whole table and filtering in memory. It reuses `GetIceberg`'s `RESTCatalogService`/`KnoxOAuth2` chain unchanged and ships in the same [`nifi-iceberg-read-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-iceberg-read-bundle) NAR.
+
+- **QueryRecord parity:** each user-defined **dynamic property** is a SQL `SELECT` and creates its own **output relationship** of the same name; all run per trigger against the same loaded table. Source semantics (`@PrimaryNodeOnly`, `INPUT_FORBIDDEN`) like `GetIceberg`.
+- **Engine:** owns a Calcite `ProjectableFilterableTable` (whose `scan(root, filters, projects)` hands us the predicate to push) rather than `nifi-calcite-utils`. Translatable conjuncts become Iceberg `Expressions` and are removed from the filter list; the rest stay Calcite residuals — correctness never depends on translator completeness (worst case: push nothing, behave like a full scan). v1 pushdown scope: `=`, `<>`, `<`, `<=`, `>`, `>=`, `IS [NOT] NULL`, `IN`, prefix `LIKE`, combined with `AND`/`OR`/`NOT`, on string/numeric/boolean columns; projection is always pushed. Date/timestamp pushdown is a documented follow-on.
+- **Pushdown proof (per-output attributes):** `iceberg.pushdown.filter`, `iceberg.pushdown.columns`, `iceberg.scan.result.data.files`, `iceberg.scan.skipped.data.files`, `iceberg.scan.skipped.data.manifests`.
+- **Validated live on the CDP Data Share (Mac leg, #156):**
+  - `QueryIceberg` → `poc_uc2.airlines` — `SELECT *`, `WHERE code='AA'` (predicate + projection pushdown, `ref(name="code") == "AA"`), `GROUP BY dest`. NB: the live `airlines` schema is `code/description/origin/dest/year_id`.
+  - `QueryFlights` → `poc_uc2.flights` — a 120k-row table partitioned by string `flight_month`, seeded into CDP via Impala and added to `srm-iceberg-share`. `WHERE flight_month='2026-03'` prunes **11/12 manifests** (1 data file planned) — metadata-layer partition pruning on CDP Public Cloud, matching the local rig.
+- **Coverage gate:** the module carries a JaCoCo `verify`-phase check (BUNDLE LINE ≥ 0.80); module line coverage 62.7% → 89.2% over 46 tests. Build: `JAVA_HOME=openjdk@21 mvn -Denforcer.skip=true clean verify`.
+- **Detail plan:** [`queryiceberg-processor-plan.md`](queryiceberg-processor-plan.md). Live proofs: [`files/issue-156/mac-leg-live-proof.txt`](files/issue-156/mac-leg-live-proof.txt) (airlines), [`files/issue-156/mac-leg-flights-cdp-proof.txt`](files/issue-156/mac-leg-flights-cdp-proof.txt) (flights).
+
 ### Write path — read-only *by design* (the boundary)
 
 Direct REST calls with the external-user token to **create a namespace/table both failed at the S3 storage layer** (`Failed to create … metadata.json`), **not** with a Ranger 403 — the datashare vends **read-only** storage credentials, and non-datashare (workload) tokens are rejected 401. `RESTCatalogService` is the **read** door to the shared catalog. A workload write is a different endpoint, identity, and catalog service entirely — that's the **[Impala/HMS plan (#151)](cloudera-impala-iceberg-plan.md)**, not this one.
@@ -86,13 +100,14 @@ USE CATALOG srm_iceberg_aws; USE poc_uc2; SELECT * FROM airlines;  -- 3 rows
 - **Validated:** `SHOW DATABASES` (default, information_schema, poc_uc2, sys) / `SHOW TABLES` (airlines) / `SELECT` all succeed; S3 read worked through the vended-credentials header, no explicit-creds fallback needed.
 - **Access:** SSB UI `ssb-mve:8082`, SQL engine `ssb-sse:18121`, Flink JM REST `ssb-session-admin-rest:8081`.
 
-## Reproduce end-to-end — three consumers, one table
+## Reproduce end-to-end — the REST Catalog consumers, one table
 
-All three read `poc_uc2.airlines` through the REST Catalog, using the same Knox `client_credentials` OAuth and the `X-Iceberg-Access-Delegation: vended-credentials` header:
+All four read `poc_uc2.airlines` through the REST Catalog, using the same Knox `client_credentials` OAuth and the `X-Iceberg-Access-Delegation: vended-credentials` header:
 
 1. **NiFi `InvokeHTTP`** — `StandardOauth2AccessTokenProvider` (Knox token endpoint, `REQUEST_BODY`) → `InvokeHTTP` GET on `…/iceberg-rest/v1/…`. Portable, no Iceberg jars needed. Returns the catalog JSON.
 2. **NiFi native `GetIceberg`** — `KnoxOAuth2` provider → `RESTCatalogService` (`CdpRestCatalog`) → `GetIceberg` (`poc_uc2`/`airlines`) → Record Writer. Returns 1 FlowFile of 3 rows. Needs the `nifi-iceberg-read-bundle` NAR (or the jackson-fixed image for stock native processors).
-3. **Flink/SSB** — `CREATE CATALOG … 'catalog-type'='rest'` (SQL above) → `SELECT`. Needs the Iceberg Flink jars on `/opt/flink/lib`.
+3. **NiFi native `QueryIceberg`** — same `KnoxOAuth2` → `CdpRestCatalog` chain → `QueryIceberg` with a dynamic property `airlines_all = SELECT * FROM airlines` (add more dynamic properties for more SQL routes/relationships). Returns 1 FlowFile of 3 rows with the pushdown-proof attributes populated. Same `nifi-iceberg-read-bundle` NAR as `GetIceberg`.
+4. **Flink/SSB** — `CREATE CATALOG … 'catalog-type'='rest'` (SQL above) → `SELECT`. Needs the Iceberg Flink jars on `/opt/flink/lib`.
 
 ## Verification (definition of done — streaming read leg)
 
@@ -100,13 +115,14 @@ All three read `poc_uc2.airlines` through the REST Catalog, using the same Knox 
 
 - **NiFi `InvokeHTTP`** — ✅ (namespaces/tables/load-table).
 - **NiFi native `GetIceberg` + `RESTCatalogService`** — ✅ on `iceberg-lab` (#154): 1 FlowFile of the 3 airlines, after the jackson NAR fix + null-token fix (#152).
+- **NiFi native `QueryIceberg` + `RESTCatalogService`** — ✅ on `iceberg-lab` (#156): SQL over `poc_uc2.airlines` (predicate + projection pushdown) and 11/12-manifest partition pruning on the 120k-row `poc_uc2.flights`.
 - **Flink/SSB** — ✅ on `iceberg-lab` (#152): `SELECT * FROM poc_uc2.airlines` = 3 rows.
 
 ## When this ships
 
-- All three REST-Catalog read paths are validated and documented; the native path carries a re-exported flow definition and a committed processor bundle.
+- All REST-Catalog read paths are validated and documented; the native path (`GetIceberg` + `QueryIceberg`) carries a re-exported flow definition and a committed processor bundle.
 - The NiFi native-catalog jackson NAR bug (`iceberg-core-1.5.2` vs `jackson-databind-2.20.1`, missing `PropertyNamingStrategy$KebabCaseStrategy`) is a candidate to file with the CFM team — the additive two-class fix in `jackson-fix/` is the minimal repro/patch.
-- Candidate content for the NiFi/streaming guide track: the `InvokeHTTP` pattern, the native `GetIceberg` worked example (feeds #75), and the SSB REST SELECT.
+- Candidate content for the NiFi/streaming guide track: the `InvokeHTTP` pattern, the native `GetIceberg` and `QueryIceberg` worked examples (feed #75), and the SSB REST SELECT.
 
 ## Resources
 
