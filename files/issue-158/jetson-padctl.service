@@ -1,0 +1,19 @@
+[Unit]
+Description=Jetson PADCTL fix — untristate PY.03 (BCM 24) so OLED_RST can drive
+Documentation=https://github.com/cldr-steven-matison/DesktopShare/issues/158
+# busybox lives in /usr/bin, so the root filesystem has to be up first.
+After=local-fs.target
+# Everything that drives the pin starts from multi-user.target. Winning that ordering is the whole
+# point of the unit — dual_oled_live.service is named explicitly so the dependency is visible in
+# `systemctl list-dependencies` rather than implied by target ordering alone.
+Before=multi-user.target dual_oled_live.service cordy_oled.service yahboom_oled.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/jetson-padctl-fix.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -39,9 +39,11 @@ at multiplex 64, which is exactly what we want.
 PREREQUISITE
 ------------
 PADCTL 0x0243d010 must be 0x000 or OLED_RST cannot drive. It resets to 0x55 on every boot.
-This script does that write itself; run it from a real terminal so sudo can prompt.
+This script does that write itself; run it from a real terminal so sudo can prompt, or as
+root (which is how dual_oled_live.service runs it at boot -- systemd has no tty to prompt on).
 """
 
+import os
 import subprocess
 import sys
 import time
@@ -132,23 +134,46 @@ SH1106_WAKE = (
 )
 
 
+def devmem(*args):
+    """busybox devmem, via sudo only when we are not already root.
+
+    Under systemd there is no tty for sudo to prompt on, so the service runs as root
+    and must not shell out to sudo at all. `sudo -n` keeps a passwordless run from
+    blocking on a prompt -- there is no NOPASSWD entry on this box."""
+    prefix = [] if os.geteuid() == 0 else ["sudo", "-n"]
+    return subprocess.run(prefix + ["busybox", "devmem"] + list(args),
+                          capture_output=True, text=True)
+
+
+def padctl_service_active():
+    """True when jetson-padctl.service (issue #158) cleared the pad at boot.
+
+    /dev/mem is root:kmem 0640, so a non-root run cannot even read PADCTL to check --
+    but the unit's own success is readable without privilege, and that is the same claim."""
+    r = subprocess.run(["systemctl", "is-active", "--quiet", "jetson-padctl.service"])
+    return r.returncode == 0
+
+
 def pad_writable():
     """PADCTL must be 0x000 or OLED_RST is tristated and cannot drive."""
-    r = subprocess.run(["sudo", "busybox", "devmem", PADCTL],
-                       capture_output=True, text=True)
+    r = devmem(PADCTL)
     if r.returncode != 0:
+        if padctl_service_active():
+            print("  PADCTL not readable without root, but jetson-padctl.service is active")
+            print("  -- the pad was cleared at boot. Continuing.")
+            return True
         print("  ! could not read PADCTL: %s" % r.stderr.strip())
-        print("    run this from a real terminal so sudo can prompt.")
+        print("    install the boot fix (files/issue-158/install.sh), or run as root,")
+        print("    or run from a real terminal with plain `sudo` so it can prompt.")
         return False
     before = r.stdout.strip()
     if int(before, 16) == 0:
         print("  PADCTL %s already 0x000" % PADCTL)
         return True
     print("  PADCTL %s = %s  (TRISTATE set -- OLED_RST cannot drive)" % (PADCTL, before))
-    if subprocess.run(["sudo", "busybox", "devmem", PADCTL, "w", "0x000"]).returncode != 0:
+    if devmem(PADCTL, "w", "0x000").returncode != 0:
         return False
-    after = subprocess.run(["sudo", "busybox", "devmem", PADCTL],
-                           capture_output=True, text=True).stdout.strip()
+    after = devmem(PADCTL).stdout.strip()
     print("  PADCTL now %s" % after)
     return int(after, 16) == 0
 
