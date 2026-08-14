@@ -1,0 +1,76 @@
+Issue #160 — CFM 4.12.0 PLC4X + IIOT on EFM-managed MiNiFi Java — captured evidence
+Environment: minikube profile iceberg-lab; EFM efm:2.3.1.0-2 in cld-streaming;
+agent class KubernetesPodJava, pod minifi-agent-plc4x-java, agent id f470e244-b8b7-4bbb-bb44-aa660f63c62f
+MiNiFi Java framework 2.24.08.0-19; CDF NAR closure 2.6.0.4.12.0.1-9
+
+========================================================================
+1) BEFORE side-load — agent manifest carries zero Cloudera types
+========================================================================
+agent-manifest 9c154000 : total component types: 159 | com.cloudera types: 0
+
+========================================================================
+2) NAR closure re-packed from the CFM 4.12.0 image, closure is consistent
+   (source image: container.repository.cloudera.com/cloudera/cfm-nifi-k8s:3.1.0-b129-nifi_2.6.0.4.12.0.1-9)
+========================================================================
+HAVE  com.cloudera:nifi-cdf-iiot-mqtt-nar:2.6.0.4.12.0.1-9
+   needs org.apache.nifi:nifi-mqtt-nar:2.6.0.4.12.0.1-9
+HAVE  com.cloudera:nifi-cdf-plc4x-api-nar:2.6.0.4.12.0.1-9
+   needs org.apache.nifi:nifi-standard-services-api-nar:2.6.0.4.12.0.1-9
+HAVE  com.cloudera:nifi-cdf-plc4x-processors-nar:2.6.0.4.12.0.1-9
+   needs com.cloudera:nifi-cdf-plc4x-api-nar:2.6.0.4.12.0.1-9
+HAVE  com.cloudera:nifi-cdf-plc4x-services-standard-nar:2.6.0.4.12.0.1-9
+   needs com.cloudera:nifi-cdf-plc4x-api-nar:2.6.0.4.12.0.1-9
+HAVE  org.apache.nifi:nifi-mqtt-nar:2.6.0.4.12.0.1-9
+   needs org.apache.nifi:nifi-standard-shared-nar:2.6.0.4.12.0.1-9
+HAVE  org.apache.nifi:nifi-standard-services-api-nar:2.6.0.4.12.0.1-9
+HAVE  org.apache.nifi:nifi-standard-shared-nar:2.6.0.4.12.0.1-9
+   needs org.apache.nifi:nifi-standard-services-api-nar:2.6.0.4.12.0.1-9
+
+========================================================================
+3) AFTER side-load into extensions/ — 0 -> 5 Cloudera types, no batch failure
+========================================================================
+NarUnpacker: "Unable to load NAR bundles" count = 0
+Extension Type Mapping (agent minifi-app.log):
+    com.cloudera.nifi.plc.services.StandardPLC4XConnectionPool
+    com.cloudera.nifi.plc.processors.ConsumePLC
+    com.cloudera.nifi.plc.processors.FetchPLC
+    com.cloudera.nifi.plc.processors.PutPLC
+    com.cloudera.nifi.processor.iiot.mqtt.ConsumeMQTTIIoT
+agent-manifest 40724309 : total component types: 166 | com.cloudera types: 5
+
+========================================================================
+4) Controller service ENABLES on the agent (the anti-Ghost proof) + drivers register
+========================================================================
+o.a.plc4x.java.DefaultPlcDriverManager Registering driver for Protocol simulated (Simulated PLC4X Datasource)
+o.a.plc4x.java.DefaultPlcDriverManager Registering driver for Protocol s7 (Siemens S7 (Basic))
+o.a.plc4x.java.DefaultPlcDriverManager Registering driver for Protocol opcua (Opcua)
+o.a.plc4x.java.DefaultPlcDriverManager Registering driver for Protocol profinet (Profinet)
+o.a.n.c.s.StandardControllerServiceNode Enabled StandardControllerServiceNode[
+    service=StandardPLC4XConnectionPool[id=b097e578-2714-4a82-ab51-6b8c8600e284], name=PLC4X-Pool, active=true]
+
+GhostControllerService occurrences in agent log: 0
+
+========================================================================
+5) Published flow applied on the agent
+========================================================================
+EFM operation UPDATE configuration -> state: DONE
+StandardPLC4XConnectionPool persisted in the agent's conf/flow.json.gz
+EFM Dashboard: KubernetesPodJava -> Good Health, 1 (1) agent
+
+========================================================================
+6) Findings for a full record-reading PLC flow (FetchPLC / ConsumePLC)
+========================================================================
+- FetchPLC/ConsumePLC require a RecordSetWriter whose service-API version MATCHES the
+  processor's CDF version. The stock JsonRecordSetWriter (nifi-record-serialization-services-nar:
+  2.24.08.0-19) is rejected:
+    'Record Writer' ... JsonRecordSetWriter - 2.24.08.0-19 from org.apache.nifi -
+    nifi-record-serialization-services-nar is not compatible with RecordSetWriterFactory -
+    2.6.0.4.12.0.1-9 from org.apache.nifi - nifi-standard-services-api-nar
+  Fix: also side-load nifi-record-serialization-services-nar:2.6.0.4.12.0.1-9 (exclude META-INF/docs
+  when re-packing from the unpacked work dir, or NarUnpacker throws IOException creating
+  additional-details/<ClassName>).
+- FetchPLC requires PLC register addresses supplied as user-defined dynamic properties ('Address Map').
+- EFM manifest de-dups controller-service types: with both the 2.24 and 4.12 record-serialization
+  NARs loaded, the manifest surfaces JsonRecordSetWriter under only one bundle, so the Designer
+  cannot offer the 4.12 writer as a distinct choice while the stock 2.24 NAR is present in lib/.
+  None of this is a Ghost / NAR-loading failure — the CDF types resolve and the CS enables.

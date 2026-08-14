@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minifi-agent-plc4x-java
+  namespace: cld-streaming
+  labels:
+    app: minifi-agent-plc4x-java
+    issue: "160"
+spec:
+  containers:
+  - name: minifi
+    image: ubuntu:22.04
+    command: ["/bin/bash","-c"]
+    args:
+    - |
+      set -e
+      apt-get update && apt-get install -y curl tar openjdk-21-jre-headless ca-certificates sudo
+      for i in $(seq 1 60); do
+        curl -sf http://efm.cld-streaming.svc:10090/efm/actuator/health && break
+        sleep 5
+      done
+      curl -L -d agentClass=KubernetesPodJava -d agentIdentifier=f470e244-b8b7-4bbb-bb44-aa660f63c62f -d agentType=java -d agentVersion=2.24.08.0-19 -d autoConfigureSecurity=false -d baseUrl=http%3A%2F%2Fefm.cld-streaming.svc%3A10090%2Fefm%2Fapi -d hbPeriod=5000 -d osArch=linux -d serviceName=minifi -d serviceUser=root -d trustSelfSignedCertificates=false http://efm.cld-streaming.svc:10090/efm/api/agent-deployer/script | bash -
+      tail -f /dev/null
+    resources:
+      requests:
+        memory: "768Mi"
+      limits:
+        memory: "1536Mi"

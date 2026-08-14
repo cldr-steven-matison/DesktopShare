@@ -1,0 +1,223 @@
+{
+  "exportableFlowFormat": "V1",
+  "flowContent": {
+    "identifier": "a2a1b035-838d-4244-a20e-3abb5a0521ac",
+    "instanceIdentifier": "c65b5d2e-4b75-4983-8fb9-4975aa7bcdd6",
+    "name": "root",
+    "comments": null,
+    "position": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "processGroups": [],
+    "remoteProcessGroups": [],
+    "processors": [
+      {
+        "identifier": "80b28807-a49e-4520-959c-cd730fb79490",
+        "instanceIdentifier": "e8f0186e-b5b2-4d58-ab1f-110b4e9b5fb1",
+        "name": "FetchPLC",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 300.0
+        },
+        "type": "com.cloudera.nifi.plc.processors.FetchPLC",
+        "bundle": {
+          "group": "com.cloudera",
+          "artifact": "nifi-cdf-plc4x-processors-nar",
+          "version": "2.6.0.4.12.0.1-9"
+        },
+        "properties": {
+          "connection-pool-service": "fed022c9-53f0-48f4-b5b1-67952ce65132",
+          "record-writer": null,
+          "request-timeout": "10 seconds",
+          "schema-cache-size": "1"
+        },
+        "propertyDescriptors": {
+          "connection-pool-service": {
+            "name": "connection-pool-service",
+            "displayName": "Connection Pool Service",
+            "identifiesControllerService": true,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "record-writer": {
+            "name": "record-writer",
+            "displayName": "Record Writer",
+            "identifiesControllerService": true,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "request-timeout": {
+            "name": "request-timeout",
+            "displayName": "Request Timeout",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "schema-cache-size": {
+            "name": "schema-cache-size",
+            "displayName": "Schema Cache Size",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "0 ms",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success",
+          "failure"
+        ],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "a2a1b035-838d-4244-a20e-3abb5a0521ac"
+      }
+    ],
+    "inputPorts": [],
+    "outputPorts": [],
+    "connections": [],
+    "labels": [],
+    "funnels": [],
+    "controllerServices": [
+      {
+        "identifier": "fed022c9-53f0-48f4-b5b1-67952ce65132",
+        "instanceIdentifier": "b097e578-2714-4a82-ab51-6b8c8600e284",
+        "name": "PLC4X-Pool",
+        "comments": null,
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "type": "com.cloudera.nifi.plc.services.StandardPLC4XConnectionPool",
+        "bundle": {
+          "group": "com.cloudera",
+          "artifact": "nifi-cdf-plc4x-services-standard-nar",
+          "version": "2.6.0.4.12.0.1-9"
+        },
+        "properties": {
+          "authentication-strategy": "NO_AUTHENTICATION",
+          "password": null,
+          "transport-location": "127.0.0.1",
+          "max-wait-time": "15 seconds",
+          "protocol-code": "simulated",
+          "min-evictable-idle-time": "30 seconds",
+          "max-total-connections": "8",
+          "transport-code": "tcp",
+          "username": null
+        },
+        "propertyDescriptors": {
+          "authentication-strategy": {
+            "name": "authentication-strategy",
+            "displayName": "Authentication Strategy",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "password": {
+            "name": "password",
+            "displayName": "Password",
+            "identifiesControllerService": false,
+            "sensitive": true,
+            "resourceDefinition": null
+          },
+          "transport-location": {
+            "name": "transport-location",
+            "displayName": "Transport Location",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "max-wait-time": {
+            "name": "max-wait-time",
+            "displayName": "Max Wait Time",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "protocol-code": {
+            "name": "protocol-code",
+            "displayName": "Protocol Name",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "min-evictable-idle-time": {
+            "name": "min-evictable-idle-time",
+            "displayName": "Min Evictable Idle Time",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "max-total-connections": {
+            "name": "max-total-connections",
+            "displayName": "Max Total Connections",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "transport-code": {
+            "name": "transport-code",
+            "displayName": "Transport Name",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "username": {
+            "name": "username",
+            "displayName": "Username",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "controllerServiceApis": [
+          {
+            "type": "com.cloudera.nifi.plc.api.PLC4XConnectionPool",
+            "bundle": {
+              "group": "com.cloudera",
+              "artifact": "nifi-cdf-plc4x-api-nar",
+              "version": "2.6.0.4.12.0.1-9"
+            }
+          }
+        ],
+        "annotationData": null,
+        "scheduledState": null,
+        "bulletinLevel": null,
+        "componentType": "CONTROLLER_SERVICE",
+        "groupIdentifier": "a2a1b035-838d-4244-a20e-3abb5a0521ac"
+      }
+    ],
+    "versionedFlowCoordinates": null,
+    "variables": {},
+    "parameterContextName": "35ac31e8-3dfe-4fc9-bfc7-71a8305b9937",
+    "defaultFlowFileExpiration": null,
+    "defaultBackPressureObjectThreshold": null,
+    "defaultBackPressureDataSizeThreshold": null,
+    "logFileSuffix": null,
+    "flowFileConcurrency": null,
+    "flowFileOutboundPolicy": null,
+    "componentType": "PROCESS_GROUP",
+    "groupIdentifier": null
+  },
+  "parameterContexts": [
+    {
+      "id": "35ac31e8-3dfe-4fc9-bfc7-71a8305b9937",
+      "name": "35ac31e8-3dfe-4fc9-bfc7-71a8305b9937",
+      "parameters": [],
+      "usage": null
+    }
+  ]
+}
