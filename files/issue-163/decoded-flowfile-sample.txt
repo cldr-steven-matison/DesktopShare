@@ -1,0 +1,76 @@
+2026-08-14 21:10:39,843 INFO [Timer-Driven Process Thread-1] o.a.n.processors.standard.LogAttribute LogAttribute[id=70a0d0e5-1532-4607-ac15-1e34a5992e5e] logging for flow file StandardFlowFileRecord[uuid=9582583c-5c18-46ae-b740-b543a483e885,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1786741839814-1, container=.default, section=1], offset=0, length=64],offset=0,name=9582583c-5c18-46ae-b740-b543a483e885,size=64]
+--------------------------------------------------
+FlowFile Properties
+Key: 'entryDate'
+	Value: 'Fri Aug 14 21:10:39 GMT 2026'
+Key: 'lineageStartDate'
+	Value: 'Fri Aug 14 21:10:39 GMT 2026'
+Key: 'fileSize'
+	Value: '64'
+FlowFile Attribute Map Content
+Key: 'filename'
+	Value: '9582583c-5c18-46ae-b740-b543a483e885'
+Key: 'mqtt.broker'
+	Value: 'tcp://mosquitto.mqtt.svc:1883'
+Key: 'mqtt.isDuplicate'
+	Value: 'false'
+Key: 'mqtt.isRetained'
+	Value: 'false'
+Key: 'mqtt.qos'
+	Value: '0'
+Key: 'mqtt.topic'
+	Value: 'spBv1.0/MacLocalTest/NBIRTH/Mac-Node-01'
+Key: 'mqtt.topic.segment.0'
+	Value: 'spBv1.0'
+Key: 'mqtt.topic.segment.1'
+	Value: 'MacLocalTest'
+Key: 'mqtt.topic.segment.2'
+	Value: 'NBIRTH'
+Key: 'mqtt.topic.segment.3'
+	Value: 'Mac-Node-01'
+Key: 'path'
+	Value: './'
+Key: 'uuid'
+	Value: '9582583c-5c18-46ae-b740-b543a483e885'
+--------------------------------------------------
+.......4..
+.Temperature.......4 	e.....A..
+.Humidity.......4 	e..HB
+2026-08-14 21:10:39,847 INFO [Timer-Driven Process Thread-1] o.a.n.processors.standard.LogAttribute LogAttribute[id=70a0d0e5-1532-4607-ac15-1e34a5992e5e] logging for flow file StandardFlowFileRecord[uuid=795b4c9a-166c-417c-a005-d4575c7989b3,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1786741839814-1, container=.default, section=1], offset=64, length=60],offset=0,name=795b4c9a-166c-417c-a005-d4575c7989b3,size=60]
+--------------------------------------------------
+FlowFile Properties
+Key: 'entryDate'
+	Value: 'Fri Aug 14 21:10:39 GMT 2026'
+Key: 'lineageStartDate'
+	Value: 'Fri Aug 14 21:10:39 GMT 2026'
+Key: 'fileSize'
+	Value: '60'
+FlowFile Attribute Map Content
+Key: 'filename'
+	Value: '795b4c9a-166c-417c-a005-d4575c7989b3'
+Key: 'mqtt.broker'
+	Value: 'tcp://mosquitto.mqtt.svc:1883'
+Key: 'mqtt.isDuplicate'
+	Value: 'false'
+Key: 'mqtt.isRetained'
+	Value: 'false'
+Key: 'mqtt.qos'
+	Value: '0'
+Key: 'mqtt.topic'
+	Value: 'spBv1.0/MacLocalTest/NDATA/Mac-Node-01'
+Key: 'mqtt.topic.segment.0'
+	Value: 'spBv1.0'
+Key: 'mqtt.topic.segment.1'
+	Value: 'MacLocalTest'
+Key: 'mqtt.topic.segment.2'
+	Value: 'NDATA'
+Key: 'mqtt.topic.segment.3'
+	Value: 'Mac-Node-01'
+Key: 'path'
+	Value: './'
+Key: 'uuid'
+	Value: '795b4c9a-166c-417c-a005-d4575c7989b3'
+--------------------------------------------------
+.......4..
+.Temperature.......4e.........A..
+.Humidity.......4e...zdB

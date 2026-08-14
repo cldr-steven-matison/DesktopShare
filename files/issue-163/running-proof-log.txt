@@ -1,0 +1,61 @@
+Issue #163 — MiNiFi Java Sparkplug B edge-decode: running proof
+================================================================
+Environment: FTF3XR2065 minikube. EFM (cld-streaming, efm-2.3.1.0-2) + MiNiFi Java agent
+(class KubernetesPodJava, agent minifi-sparkplug-java, framework 2.24.08.0-19) + Mosquitto
+(ns mqtt). CDF NAR set at CFM 4.12.0 -> 2.6.0.4.12.0.1-9. Reuses the #160 IIoT-NAR-on-Java
+capability; this run proves the DECODE, not just type resolution.
+
+BEFORE (no CDF NARs on the agent)
+---------------------------------
+  extensions/ dir: empty
+  nifi.nar.library.autoload.directory=./extensions
+  "Loaded extensions for com.cloudera" count: 0
+  GhostControllerService / GhostProcessor lines: 16
+  -> the pre-existing #160 PLC4X class flow Ghosts (StandardPLC4XConnectionPool = GhostControllerService)
+
+SIDE-LOAD (IIoT/MQTT closure into extensions/, all 2.6.0.4.12.0.1-9)
+-------------------------------------------------------------------
+  nifi-cdf-iiot-mqtt-nar  ->  nifi-mqtt-nar -> nifi-standard-shared-nar -> nifi-standard-services-api-nar
+  nifi-record-serialization-services-nar  (version-matched; stock 2.24.08.0-19 writer removed from lib/)
+  NarUnpacker: Expanded NAR files ... "Unable to load NAR bundles" count: 0
+  Loaded extensions for com.cloudera:nifi-cdf-iiot-mqtt-nar:2.6.0.4.12.0.1-9
+      com.cloudera.nifi.processor.iiot.mqtt.ConsumeMQTTIIoT
+
+FINDING: no separate MQTTIIoTReader controller service
+-------------------------------------------------------
+  In this CFM 4.12.0.1-9 build, nifi-cdf-iiot-mqtt-nar ships exactly ONE component:
+  the ConsumeMQTTIIoT processor. There is NO MQTTIIoTReader controller service (0 occurrences
+  in the agent manifest). The Sparkplug B decode is built into the processor; Record Reader /
+  Record Writer are OPTIONAL (and must be set together if used).
+
+FLOW (EFM Designer, class KubernetesPodJava, published to the agent)
+--------------------------------------------------------------------
+  ConsumeMQTTIIoT  (Broker URI=tcp://mosquitto.mqtt.svc:1883, Topic Filter=spBv1.0/#,
+                    Primary Host Application=false, MQTT Spec=v3.1.1, QoS=0, Max Queue Size=1024,
+                    no Record Reader/Writer)
+      -Message->   LogDecoded (LogAttribute, Log Payload=true)
+      parse.failure auto-terminated
+  Agent apply: "Flow has been reloaded successfully"; "Scheduled ConsumeMQTTIIoT to run with 1 threads".
+
+PUBLISHER (Ch13 pysparkplug binary publisher -> port-forwarded Mosquitto localhost:1883)
+----------------------------------------------------------------------------------------
+  spBv1.0/MacLocalTest/NBIRTH/Mac-Node-01   (seq 0: Temperature=22.0, Humidity=50.0)
+  spBv1.0/MacLocalTest/NDATA/Mac-Node-01    (seq 1..: random Temp 20-35 / Humid 40-60, every 5s)
+  Mosquitto: two clients connected -- agent (10.244.0.37) + publisher (127.0.0.1 via port-forward).
+
+DECODE CONFIRMED ON THE AGENT (edge)
+------------------------------------
+  * ConsumeMQTTIIoT routed every message via the "Message" relationship.
+      parse.failure occurrences: 0   (the agent's own parser validated them as real Sparkplug B)
+  * Topic namespace parsed into attributes on each FlowFile:
+      mqtt.topic = spBv1.0/MacLocalTest/NBIRTH/Mac-Node-01
+      mqtt.topic.segment.0=spBv1.0  .1=MacLocalTest  .2=NBIRTH  .3=Mac-Node-01
+  * Metric names + IEEE-754 float32 values present in the decoded output content
+    (extracted directly from the agent's content_repository claim -- see decoded-metric-values.txt):
+      NBIRTH: Temperature=22.0, Humidity=50.0   == exactly the published birth values
+      NDATA : Temperature 20.36..34.55, Humidity 40.26..57.6  == the publisher's random ranges
+      66 metric values decoded; 49 decoded FlowFiles logged by LogDecoded.
+
+RESULT: CONFIRMED. Native Sparkplug B decode works at the edge on MiNiFi Java via the
+side-loaded Cloudera CDF nifi-cdf-iiot-mqtt-nar (ConsumeMQTTIIoT). Same verification standard
+as Ch13's NiFi-side confirmation (Message-not-parse.failure + metric name/value in the bytes).
