@@ -10,9 +10,9 @@ device realistically its own small research track rather than one flow reused th
 
 | Unit | Class | Agent ID | MAC | IP | Track |
 |---|---|---|---|---|---|
-| #1 | `MicroFi-1` | `microfi-e072a1fbfd04` | `e0:72:a1:fb:fd:04` | 192.168.1.198 | **Sparkplug Sensor Emit** — running the telemetry flow (`GenerateFlowFile → PublishMQTT` to `test/sensor/data`, `ListenHTTP` on `:8095/test` parked); on the full `feature/capture-image` build since 2026-08-12 |
+| #1 | `MicroFi-1` | `microfi-e072a1fbfd04` | `e0:72:a1:fb:fd:04` | 192.168.1.198 | **JSON Telemetry Emit** — telemetry flow (`GenerateFlowFile → PublishMQTT` to `test/sensor/data`, `ListenHTTP` on `:8095/test` parked); payload is `{"device_id":"MicroFi-1"}` since 2026-08-14 (#164) so central NiFi keys Kafka by class identity; on the full `feature/capture-image` build since 2026-08-12 |
 | #2 | `MicroFi-2` | `microfi-14c19f421924` | `14:c1:9f:42:19:24` | 192.168.1.200 | **Camera/Mic** — live camera flow (`CaptureImage → PublishMQTT`: VGA JPEG every 10s to `microfi2/camera/jpg`, metadata JSON to `microfi2/camera/meta`) |
-| #3 | `MicroFi-3` | `microfi-ac276ea84ce0` | `ac:27:6e:a8:4c:e0` | 192.168.1.201 | **Inbound Trigger Events** (LED control, action-dispatch, custom-processor home) — boot-default graph |
+| #3 | `MicroFi-3` | `microfi-ac276ea84ce0` | `ac:27:6e:a8:4c:e0` | 192.168.1.201 | **Sparkplug B Emit** — since 2026-08-14 (#164): `GenerateFlowFile-SpbTick → PublishSparkplug-Telemetry` on the `feature/publish-sparkplug` build, real NBIRTH/NDATA on `spBv1.0/MicroFi/…/MicroFi-3` proven through to Kafka. The prior LED flow (`ListenHTTP-LED → SetGPIO-UserLED`) is backed up at `files/issue-164/microfi3-led-flow-backup.json` for restore |
 
 Units are Sharpie-numbered on the back of their WiFi antennas; all three stay plugged into
 WindowsDesktop front-panel USB (COM5/COM6/COM7 this session — Windows may renumber on replug;
@@ -122,20 +122,47 @@ construction. A flow-definition backup of the pre-migration class lives at
 
 ## Per-device tracks
 
-### MicroFi-1 — Sparkplug Sensor Emit
+### Sparkplug B — DECIDED AND SHIPPED: native `PublishSparkplug` in the unified image (2026-08-14, #164)
 
-Sparkplug B is currently a separate, mutually-exclusive Arduino/PlatformIO sketch
-(`EmbeddedSparkplugNode` + `nanopb`, NBIRTH/NDATA verified decoding in NiFi's
-`ConsumeMQTTIIoT` → Kafka). One firmware image at a time — the MicroFi image and the Arduino
-sketch overwrite each other.
+The firmware-strategy decision landed: **one unified image.** The mutually-exclusive Arduino
+sketch is retired as the Sparkplug path; its field-proven `EmbeddedSparkplugNode`/`BasicTag`/nanopb
+stack (byte-identical copies from the sketch's `.pio/libdeps`) is vendored at `vendor/sparkplug/`
+in the MicroFi fork and driven by a new **`PublishSparkplug`** processor
+(`src/processors/publish_sparkplug.cpp`, branch `feature/publish-sparkplug`). Registry is now
+9 processors; image 58.9% of the 2MB app slot (+~130KB for the Sparkplug stack).
 
-1. **Decide firmware strategy** — the biggest single lift: keep two mutually-exclusive images,
-   or build a native MicroFi `PublishSparkplug` processor (C++, wrapping the proven
-   `EmbeddedSparkplugNode`/`nanopb` path) so Sparkplug becomes an EFM-pushed flow node. Flash
-   headroom is not a factor (~0.9MB free in the app slot).
-2. If built: `GenerateFlowFile` (synthetic sensor value) → `PublishSparkplug` (NBIRTH/NDATA),
-   verified as before (`ConsumeMQTTIIoT` → `PublishKafka` → real decode).
-3. Watch the two engine bugs (`kMaxFlowNodes=4`, single-relationship fan-out) when wiring.
+Live on **MicroFi-3** (not MicroFi-1 — its JSON telemetry leg keeps running): flow
+`GenerateFlowFile-SpbTick (1s) → PublishSparkplug-Telemetry` (broker `mqtt://192.168.1.121:1883`,
+client `microfi3-spb`, group `MicroFi`, scan 5000ms, metric `Sensors/Temperature` from the S3's
+internal temp sensor). Real `NBIRTH` + report-by-exception `NDATA` on
+`spBv1.0/MicroFi/…/MicroFi-3`, proven through `ConsumeMQTTIIoT → PublishKafka` to
+`sparkplug_telemetry` — proof: `files/issue-164/proof-log.txt`.
+
+Processor design facts worth keeping:
+
+- **Edge Node ID defaults to `CONFIG_MICROFI_AGENT_CLASS`** — the device identity in the
+  Sparkplug topic is a derivative of the agent class by construction (`MicroFi-3`).
+- The processor owns **SNTP** (started lazily; ticks return `Again` until the clock is sane so
+  no 1970-timestamped NBIRTH ever goes out) — this firmware had no other NTP consumer.
+- `spnOnMQTTConnected`/`Disconnected` edges run on the **engine task**, not the esp-mqtt event
+  task (the library is not thread-safe against `tick`); the event handler only flips a flag.
+- `on_stop` tears down the esp-mqtt client AND `deleteSparkplugNode` + `deleteTag` — the #150
+  teardown rule extended to the Sparkplug session so a republish can't leak bdSeq state.
+
+Build lessons (both cost a failed build to learn):
+
+- **Never add `.c` sources to the all-C++ `main` component.** PlatformIO's espidf builder merges
+  ESP-IDF's C-only warning flags (e.g. `-Wno-old-style-declaration`, which GCC 15 rejects for
+  C++) into the shared component flags on a CMake reconfigure — every `.cpp` in `main` then fails
+  under `-Werror`. The vendored C stack lives in its own ESP-IDF component
+  (`components/sparkplug/`, sources still under `vendor/sparkplug/`) so C flags stay with C.
+- **A CMakeLists edit in a *new* component doesn't trigger PIO's reconfigure** — a 4-second
+  "rebuild" that ignores your CMake change means it reused cached flags; `touch` the top-level
+  `CMakeLists.txt` to force the re-read.
+- After flashing: the post-flash heartbeat auto-registers the new 9-proc manifest
+  (`agent` table's `agent_manifest_id` is the ground truth — the `agent-classes` REST view kept
+  showing a stale id), then the Designer palette needs the usual re-pin:
+  `PUT /efm/api/agent-class-manifest-config {"agentClassName":"MicroFi-3","agentManifestId":<new>}`.
 
 ### MicroFi-2 — Camera/Mic
 
@@ -169,7 +196,11 @@ Remaining track ideas:
 - Consider whether the media path goes through MiNiFi/EFM at all, or the XIAO acts as a plain
   HTTP client to the Jetson while still registering with EFM for management/heartbeat.
 
-### MicroFi-3 — Inbound Trigger Events
+### MicroFi-3 — Inbound Trigger Events (paused 2026-08-14 — device reassigned to Sparkplug B emit, #164)
+
+The LED flow below is **not live right now**: MicroFi-3 runs the Sparkplug B flow (see the
+Sparkplug section above), and `ListenHTTP-LED → SetGPIO-UserLED` is backed up at
+`files/issue-164/microfi3-led-flow-backup.json` for restore. The track history stands:
 
 Builds on the proven fire-and-forget `ListenHTTP`. Ascending complexity:
 
