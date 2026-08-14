@@ -1,0 +1,26 @@
+### issue-160 — RUNNING FetchPLC proof (simulated PLC4X -> JsonRecordSetWriter 4.12)
+captured 2026-08-14T15:02:04Z from agent minifi-agent-plc4x-java (class KubernetesPodJava)
+
+--- 4.12 JsonRecordSetWriter visible in EFM agent manifest (re-packed NAR kept META-INF/docs/extension-manifest.xml) ---
+active manifest 4fecf7a0-03a3-408e-ae7d-0231ed524e67 (class KubernetesPodJava) exposes exactly one JsonRecordSetWriter:
+  org.apache.nifi.json.JsonRecordSetWriter -> org.apache.nifi:nifi-record-serialization-services-nar:2.6.0.4.12.0.1-9
+(stock 2.24.08.0-19 writer removed from lib/, so FetchPLC's 4.12 RecordSetWriterFactory link resolves cleanly)
+
+--- PLC4X pool enabled (simulated driver, active=true) ---
+2026-08-14 15:00:52,748 INFO [Timer-Driven Process Thread-1] o.a.plc4x.java.DefaultPlcDriverManager Registering driver for Protocol simulated (Simulated PLC4X Datasource)
+2026-08-14 15:00:52,753 INFO [Timer-Driven Process Thread-1] o.a.n.c.s.StandardControllerServiceNode Enabled StandardControllerServiceNode[service=StandardPLC4XConnectionPool[id=b097e578-2714-4a82-ab51-6b8c8600e284], name=PLC4X-Pool, active=true]
+
+--- FetchPLC running: 1 record/sec -> success ---
+2026-08-14 15:02:01,056 INFO [Timer-Driven Process Thread-1] c.cloudera.nifi.plc.processors.FetchPLC FetchPLC[id=e8f0186e-b5b2-4d58-ab1f-110b4e9b5fb1] StandardFlowFileRecord[uuid=1a8c0cf1-d8ea-488c-812e-01130b0d78b0,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1786719652776-1, container=.default, section=1], offset=3269, length=48],offset=0,name=1a8c0cf1-d8ea-488c-812e-01130b0d78b0,size=48] contains 1 records; transferring to 'success'
+2026-08-14 15:02:02,059 INFO [Timer-Driven Process Thread-1] c.cloudera.nifi.plc.processors.FetchPLC FetchPLC[id=e8f0186e-b5b2-4d58-ab1f-110b4e9b5fb1] StandardFlowFileRecord[uuid=34057f2a-b089-4524-9e3b-cd2742b44169,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1786719652776-1, container=.default, section=1], offset=3317, length=49],offset=0,name=34057f2a-b089-4524-9e3b-cd2742b44169,size=49] contains 1 records; transferring to 'success'
+2026-08-14 15:02:03,064 INFO [Timer-Driven Process Thread-1] c.cloudera.nifi.plc.processors.FetchPLC FetchPLC[id=e8f0186e-b5b2-4d58-ab1f-110b4e9b5fb1] StandardFlowFileRecord[uuid=5dcbacd7-d449-41b4-bfaf-6794f10e6f09,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1786719652776-1, container=.default, section=1], offset=3366, length=47],offset=0,name=5dcbacd7-d449-41b4-bfaf-6794f10e6f09,size=47] contains 1 records; transferring to 'success'
+2026-08-14 15:02:04,070 INFO [Timer-Driven Process Thread-1] c.cloudera.nifi.plc.processors.FetchPLC FetchPLC[id=e8f0186e-b5b2-4d58-ab1f-110b4e9b5fb1] StandardFlowFileRecord[uuid=c97746cf-8a81-4809-83cd-600ff78a1d05,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1786719652776-1, container=.default, section=1], offset=3413, length=48],offset=0,name=c97746cf-8a81-4809-83cd-600ff78a1d05,size=48] contains 1 records; transferring to 'success'
+
+--- sample JSON produced by JsonRecordSetWriter 4.12 (RANDOM/value:DINT) ---
+[{"timestamp":1786719721224,"value":-1173022284}]
+[{"timestamp":1786719722227,"value":-1289551691}]
+[{"timestamp":1786719723231,"value":1694600085}]
+[{"timestamp":1786719724234,"value":-1433779823}]
+
+--- Ghost / writer-incompatibility check (expect none) ---
+GhostControllerService + writer-incompat occurrences: 0

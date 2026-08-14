@@ -71,28 +71,69 @@ Enabled StandardControllerServiceNode[service=StandardPLC4XConnectionPool..., na
 - EFM `UPDATE configuration` operation: **DONE**
 - `StandardPLC4XConnectionPool` persisted in the agent's `conf/flow.json.gz`
 
-## Findings for a full record-reading PLC flow
+## Result — FetchPLC actually running against the simulated PLC
 
-Resolving the type and enabling the pool is the fix for #160. To go further and actually *read* a PLC
-with `FetchPLC`/`ConsumePLC`, two more things are needed (neither is a Ghost/NAR-load problem):
+Beyond resolving the type, `FetchPLC` was wired end-to-end and **runs on the agent**, reading the
+simulated PLC4X datasource once per second and serializing each read through the `4.12`
+`JsonRecordSetWriter`. Full excerpts in [`running-proof-log.txt`](running-proof-log.txt); running
+flow export in [`plc4x-flow-running.json`](plc4x-flow-running.json).
+
+```
+Registering driver for Protocol simulated (Simulated PLC4X Datasource)
+Enabled StandardControllerServiceNode[service=StandardPLC4XConnectionPool..., name=PLC4X-Pool, active=true]
+FetchPLC[...] StandardFlowFileRecord[...] contains 1 records; transferring to 'success'   (1/sec)
+```
+
+Sample JSON produced by `JsonRecordSetWriter 2.6.0.4.12.0.1-9` (address `RANDOM/value:DINT`):
+
+```json
+[{"timestamp":1786719721224,"value":-1173022284}]
+[{"timestamp":1786719722227,"value":-1289551691}]
+[{"timestamp":1786719723231,"value":1694600085}]
+```
+- `GhostControllerService` + writer-incompatibility occurrences: **0**
+- active class manifest exposes exactly one `JsonRecordSetWriter` — `2.6.0.4.12.0.1-9`
+
+On the EFM Monitor canvas (`Monitoring Active`, published version 3):
+
+![EFM Flow Designer — Monitoring Active, FetchPLC 2.6.0.4.12.0.1-9 running on KubernetesPodJava](screenshots/shot-4.png)
+
+`FetchPLC`'s task count and bytes read/written climb over the 5-minute window — 25 tasks / 1.17 KB,
+then 85 tasks / 3.99 KB — as it reads the simulated PLC once per second. `IN`/`OUT` show 0 because the
+`success` relationship is auto-terminated (no downstream); the `READ/WRITE` bytes are the records the
+`4.12` writer serializes.
+
+![FetchPLC card — 25 tasks / 1.17 KB read](screenshots/shot-5.png)
+![FetchPLC card — 85 tasks / 3.99 KB read](screenshots/shot-6.png)
+
+### What the running flow needs beyond resolving the type
+
+Neither of these is a Ghost / NAR-load problem — they are ordinary config for reading a PLC:
 
 1. **A version-matched record writer.** The stock `JsonRecordSetWriter`
    (`nifi-record-serialization-services-nar:2.24.08.0-19`) is rejected as *"not compatible with
    RecordSetWriterFactory - 2.6.0.4.12.0.1-9"* — the CDF processor links against the `4.12.0.1-9`
-   service API. Side-load `nifi-record-serialization-services-nar:2.6.0.4.12.0.1-9` too (exclude
-   `META-INF/docs` when re-packing, or `NarUnpacker` throws an IOException on the
-   `additional-details/<ClassName>` dirs).
-2. **PLC register addresses** for `FetchPLC` as user-defined dynamic properties (`Address Map`).
-3. **EFM manifest de-dups controller-service types** — with both the `2.24` and `4.12`
-   record-serialization NARs loaded, the Designer only offers `JsonRecordSetWriter` under one bundle,
-   so it can't pick the `4.12` writer while the stock `2.24` NAR remains in `lib/`.
+   service API. Side-load `nifi-record-serialization-services-nar:2.6.0.4.12.0.1-9`. When re-packing
+   from the image's unpacked work dir, **drop only `META-INF/docs/additional-details`** (it throws an
+   IOException on unpack) and **keep `META-INF/docs/extension-manifest.xml`** — that file is what makes
+   the writer appear in the EFM agent manifest. Dropping all of `META-INF/docs` loads the classes but
+   hides the writer from the Designer.
+2. **PLC register addresses** for `FetchPLC` as user-defined dynamic properties (`Address Map`), e.g.
+   property `value` = `RANDOM/value:DINT`.
+3. **EFM manifest de-dups controller-service types.** With both the `2.24` and `4.12`
+   record-serialization NARs present, the Designer offers `JsonRecordSetWriter` under only one bundle;
+   remove the stock `2.24` NAR from the agent's `lib/` and restart so the `4.12` writer is the one
+   offered.
 
 ## Files here
 
 - [`README.md`](README.md) — this write-up
-- [`proof-log.txt`](proof-log.txt) — captured agent/EFM evidence
+- [`proof-log.txt`](proof-log.txt) — captured agent/EFM evidence (type resolves / CS enables)
+- [`running-proof-log.txt`](running-proof-log.txt) — FetchPLC running: pool active, 1 rec/sec, sample JSON, 0 Ghost
+- [`plc4x-flow-export.json`](plc4x-flow-export.json) — flow at the type-resolves stage
+- [`plc4x-flow-running.json`](plc4x-flow-running.json) — flow with the `4.12` writer wired + `Address Map`, FetchPLC on `1 sec`
 - [`minifi-plc4x-java.yaml`](minifi-plc4x-java.yaml) — the `KubernetesPodJava` agent pod (deployer command baked in)
-- `screenshots/` — EFM Designer + Dashboard captures
+- `screenshots/` — EFM Designer + Dashboard (`shot-1..3`) and the running Monitor canvas (`shot-4..6`)
 
 > The re-packed CDF NARs are proprietary and are **not** committed here; source them from the CFM
 > parcel / the `cfm-nifi-k8s` image as above.
