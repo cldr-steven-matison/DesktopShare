@@ -47,7 +47,9 @@ construction. A flow-definition backup of the pre-migration class lives at
   confounds whatever you were testing. Construct unopened, clear both lines, then open:
   `s = serial.Serial(); s.port='COMx'; s.dtr = False; s.rts = False; s.open()`.
 
-## Firmware build layout (MicroFi fork, `feature/capture-image` tip; stack: `feature/set-gpio` → `feature/c2-ack` → `fix/flow-reapply-teardown` → `feature/capture-image`)
+## Firmware build layout (MicroFi fork; stack tip `feature/agent-liveness-led`: `feature/set-gpio` → `feature/c2-ack` → `fix/flow-reapply-teardown` → `feature/capture-image` → `feature/publish-sparkplug` → `feature/agent-liveness-led`)
+
+- **Agent-liveness LED strobe (2026-08-15, #171, on all three units, confirmed by eye):** `src/liveness_led.cpp` — a FreeRTOS task blinking the GPIO21 user LED (active-low, 1s period) for as long as the agent runs; started *after* every fatal-init gate in `app_main`, so a strobing LED means fully booted. Kconfig `MICROFI_LIVENESS_LED{,_GPIO,_ACTIVE_LOW,_PERIOD_MS}` — retarget/disable per device in `sdkconfig.defaults.microfiN` if a flow-level `SetGPIO` needs pin 21 back (no arbitration exists; last writer wins and a flow apply re-runs `gpio_config`). The **red LED is the BQ25101 charge indicator with no MCU connection** — firmware cannot drive it (Seeed schematic); its plug-in glow is hardware behavior.
 
 - **`partitions_8mb.csv`** — OTA-preserving: nvs/otadata/phy_init + 2×2MB app slots +
   ~3.9MB LittleFS. Current firmware is ~1.1MB → ~52% of a slot with all 6 processors; roughly
