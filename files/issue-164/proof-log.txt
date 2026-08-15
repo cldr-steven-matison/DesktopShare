@@ -1,0 +1,63 @@
+# Issue #164 — SparkPlug PG → Kafka, live end-to-end proof (2026-08-14, WindowsDesktop)
+
+All captures below are real device traffic — no simulated/injected messages.
+Devices: MicroFi-1 (XIAO ESP32-S3, telemetry flow), MicroFi-3 (XIAO ESP32-S3,
+new PublishSparkplug flow on the unified MicroFi firmware, branch
+feature/publish-sparkplug).
+
+## Leg 1 — plain-JSON telemetry (xiao_telemetry)
+
+Path: MicroFi-1 GenerateFlowFile(Custom Text JSON) → PublishMQTT
+      → Mosquitto test/sensor/data
+      → NiFi ConsumeMQTT → ExtractDeviceId (EvaluateJsonPath $.device_id)
+      → PublishKafka-XiaoTelemetry (topic xiao_telemetry, key ${device_id})
+
+MQTT capture (mosquitto_sub -v -t 'test/sensor/data'):
+
+    test/sensor/data {"device_id":"MicroFi-1"}
+    test/sensor/data {"device_id":"MicroFi-1"}
+
+Kafka consume (kafka-console-consumer, print.key=true, key.separator=" | "):
+
+    MicroFi-1 | {"device_id":"MicroFi-1"}
+    MicroFi-1 | {"device_id":"MicroFi-1"}
+    MicroFi-1 | {"device_id":"MicroFi-1"}
+    MicroFi-1 | {"device_id":"MicroFi-1"}
+
+Key = MicroFi-1 — the device_id is a derivative of the agent class, carried in
+the device's own payload and extracted NiFi-side.
+
+(Before the payload change, the same leg was proven with the old static payload
+"MicroFi GenerateFlowFile payload" arriving in Kafka at ~1s cadence — the leg
+was live in both payload generations.)
+
+## Leg 2 — Sparkplug B (sparkplug_telemetry)
+
+Path: MicroFi-3 GenerateFlowFile-SpbTick → PublishSparkplug-Telemetry
+      (NBIRTH/NDATA, bdSeq/seq, group MicroFi, edge node id defaulted from
+      agent class → MicroFi-3)
+      → Mosquitto spBv1.0/#
+      → NiFi ConsumeMQTTIIoT → PublishKafka-SparkplugTelemetry
+      (topic sparkplug_telemetry)
+
+MQTT capture (mosquitto_sub -v -t 'spBv1.0/#', binary protobuf, strings shown):
+
+    spBv1.0/MicroFi/NBIRTH/MicroFi-3
+      bdSeq / Node Control/Rebirth / Node Control/Scan Rate /
+      Sensors/Temperature   (NBIRTH metric declarations)
+    spBv1.0/MicroFi/NDATA/MicroFi-3   (x4 — report-by-exception on the
+      internal temperature metric, 5000 ms scan rate)
+
+Kafka consume (sparkplug_telemetry): 5 records = 1 NBIRTH + 4 NDATA,
+same protobuf payloads. Device identity travels in the Sparkplug topic
+segments; records on this leg carry a null key (open decision — key could be
+derived from mqtt.topic if wanted).
+
+## Live NiFi state at close
+
+SparkPlug PG (all RUNNING, validation VALID):
+  ConsumeMQTT → ExtractDeviceId → PublishKafka-XiaoTelemetry
+  ConsumeMQTTIIoT → PublishKafka-SparkplugTelemetry
+  parse.failure on both consumes → EOL (unchanged)
+
+Re-exported to EdgeFlowManager files/SparkPlug.json in the same pass.
