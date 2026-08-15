@@ -68,7 +68,7 @@ kubectl patch servicemonitor nvidianano-minifi-metrics -n cld-streaming --type m
 
 Network reality check that resolved [#139](https://github.com/cldr-steven-matison/DesktopShare/issues/139)'s old firewall question: cluster→Jetson `:9936` needed **zero** `ufw` changes. The diagnostic that proves it: pre-flow the scrape error was `connection refused` — the host answered and the port was closed. A firewall drop looks like a timeout, not a refusal. Read the error text before touching any firewall.
 
-For a **Windows** scrape target the same is *not* true: Windows Defender Firewall defaults `BlockInbound` and silently drops (the 2026-07-31 Mosquitto/#52 lesson) — a new exporter port on StarlinkAI or the WindowsDesktop agent needs an elevated `netsh advfirewall` allow rule on that host.
+For a **Windows** scrape target the same is *not* true: Windows Defender Firewall defaults `BlockInbound` and silently drops (the 2026-07-31 Mosquitto/#52 lesson) — confirmed again on #170: the WindowsDesktop exporter needed `netsh advfirewall firewall add rule name="MiNiFi Java Metrics 9936" dir=in action=allow protocol=TCP localport=9936` (elevated) before the in-cluster scrape connected. StarlinkAI (#169) will need the same on the Beelink.
 
 ## EFM Layer-1 heartbeat series — semantics that matter
 
@@ -117,6 +117,6 @@ The `bulk_operation` rollup is what the "N agents failed to update" dashboard wi
 ## Open work
 
 - **[#169](https://github.com/cldr-steven-matison/DesktopShare/issues/169) StarlinkAI flow-level exporter** — same fourth-leg pattern on the `StarlinkAI` class; Windows host, so it needs the Beelink-side firewall rule + a reachability decision (LAN vs Tailscale from the cluster).
-- **[#170](https://github.com/cldr-steven-matison/DesktopShare/issues/170) WindowsDesktop-agent flow-level exporter** — same pattern on the `WindowsDesktop` Java class; local host firewall rule (elevated `netsh`, Steven).
+- ~~#170 WindowsDesktop-agent flow-level exporter~~ — **DONE 2026-08-15**: fourth leg live on the `WindowsDesktop` Java class (`:9936`, `powershell.exe -EncodedCommand` host metrics — `cpu_percent`/`mem_total_kb`/`mem_free_kb`), scraped `up=1` through the carried-over `windowsdesktopcpp-minifi-metrics` wiring + `fallbackScrapeProtocol`, WD host row on the fleet board. Windows lessons (now also in Ch21): PowerShell CRLF breaks the Prometheus parser — `[Console]::Out.Write` LF-joined text; the Defender inbound rule (`netsh ... localport=9936`) was mandatory; a WSL curl to the host's own LAN IP is not a valid reachability test in mirrored mode (loopback + Prometheus target status are).
 - **Layer 3 MicroFi heartbeat-storage panel + StarlinkAI-over-Tailscale scrape** — [#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140), observability-last ordering.
 - MicroFi devices stay Layer-1-only by design: no `HandleHttpRequest/Response` pair exists in the ESP32 palette (ListenHTTP is fire-and-forget), so their story is richer heartbeats, not a scrape endpoint.
