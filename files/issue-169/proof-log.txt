@@ -1,0 +1,32 @@
+# issue-169 proof — StarlinkAI flow-level Prometheus exporter (2026-08-14)
+
+== publish ==
+flow e7279817-4072-47a3-a410-75dfd28e381c published v7 at 1786758154183 (dirty:false)
+
+== local scrape (WSL loopback -> Windows-host Java agent :9936) ==
+# TYPE minifi_java_host_cpu_percent gauge
+minifi_java_host_cpu_percent 2
+# TYPE minifi_java_host_mem_total_kb gauge
+minifi_java_host_mem_total_kb 62664572
+# TYPE minifi_java_host_mem_free_kb gauge
+minifi_java_host_mem_free_kb 46649972
+
+== listener binding ==
+
+  TCP    0.0.0.0:9936           0.0.0.0:0              LISTENING       14332
+  TCP    [::]:9936              [::]:0                 LISTENING       14332
+
+
+
+== production legs post-publish ==
+screen-control 8096: HTTP 200
+
+== firewall + external-address verification (2026-08-14, post netsh rule) ==
+Rule "MiNiFi metrics 9936": Enabled, dir=in, action=allow, TCP 9936, profiles Domain+Private+Public
+From the Windows host (Invoke-WebRequest):
+  192.168.1.245:9936/metrics  -> HTTP 200 | minifi_java_host_cpu_percent 14
+  100.110.253.66:9936/metrics -> HTTP 200 | minifi_java_host_cpu_percent 18
+Note: WSL2-side curl to these same addresses fails fast with connection refused — mirrored-mode
+hairpin artifact (loopback 127.0.0.1:9936 works from WSL). Not a listener or firewall problem.
+Note: response carries no Content-Type (byte[] body) — ServiceMonitor needs
+fallbackScrapeProtocol: PrometheusText0.0.4, same as the Jetson target.
