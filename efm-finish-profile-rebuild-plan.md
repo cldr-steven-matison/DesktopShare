@@ -357,3 +357,55 @@ Import dashboards into Grafana (JSON already in the CSO repo):
   iceberg-lab stopped, drop Phase 7 (Schema Registry/Surveyor) first, then consider skipping the
   Flink/Kafka dashboards — the EFM→Grafana shot only strictly needs Phases 1–4 (for the ns/Kafka
   it doesn't even need Kafka), 5 (Postgres only), 6 (optional), 8, 9, 10, 11(EFM monitor only), 12.
+
+---
+
+## As-built — executed 2026-08-14/15 (this ran successfully end-to-end)
+
+The plan ran clean to a live EFM→Grafana chain. Result: **every pod Running**, Prometheus
+`up{job="efm"}=1`, `up{job="mynifi-web"}=1`, Kafka `strimzi-pod-monitor` 3/3 up, **1081 `efm_*`
+series** scraped, and **28 series tagged `agentClass="KubernetesPod"`** (the enrolled MiNiFi
+agent — `efm_heartbeat_count_total`, `efm_heartbeat_lastSeenTime_seconds`,
+`efm_heartbeat_time_seconds`, …). Node sat at **44% memory / 4% CPU** on the 24 GB profile.
+Grafana dashboard **"EFM — Agents & Server (efm-finish)"** (`/d/as58zd`) + the three CSO
+dashboards (Fraud/Flink/Kafka) are imported and live.
+
+Deviations from the plan-as-written, fold these back in for the next rebuild:
+
+1. **Docker VM was already 32 GB** (`MemoryMiB: 32512`) — no bump needed; 26 GB would have been a
+   *downgrade*. Check the current value before changing it.
+2. **`cloudera-creds`** was lifted from the stopped golden `minikube` profile
+   (`kubectl get secret … -o jsonpath='{.data.\.dockerconfigjson}'`) — the Mac's Docker cred store
+   (`credsStore: desktop`) keeps the password out of `~/.docker/config.json`, so it can't be minted
+   from disk. Start golden briefly, copy the secret, stop it.
+3. **`nifi-combined.yaml` conflicts with the operator in CFM 3.0.0-b126.** The operator creates its
+   own `mynifi-web` ingress; the manual `mynifi-ingress` in `nifi-combined.yaml` has the identical
+   host+path, so nginx's admission webhook rejects the operator's ingress and the reconcile
+   **hard-fails before the StatefulSet** (`DESIRED=1 CURRENT=0`, no `mynifi-0`). Fix: **don't apply
+   `nifi-combined.yaml`'s ingress** — apply only its `mynifi-web` Service, or `kubectl delete ingress
+   mynifi-ingress -n cfm-streaming` after the fact and the operator recovers on its next pass.
+4. **EFM needs a `cloudera-registry` pull secret for `container.repo.cloudera.com`** (note: `.repo.`,
+   not `.repository.`) — a *different* host alias than `cloudera-creds`. Built it by reusing the same
+   auth blob from the lifted secret retargeted to `container.repo.cloudera.com` (same Cloudera
+   account, so the token is valid for both hosts). Image: `container.repo.cloudera.com/cloudera/efm:2.3.1.0-2`.
+5. **Agent binaries were already staged on disk** at `~/efm-binaries/staging/binaries/` (arm64 +
+   x86 + java `minifi.tar.gz`). Piped in with `tar -cf - binaries/ | kubectl exec -i $EFM_POD -- tar
+   -xf - -C /opt/efm/efm-2.3.1.0-2/agent-deployer/`. EFM health went UP incl. `db: UP` (Postgres).
+6. **`minifi-agent-pod-arm64.yaml` uses `image: ubuntu:22.04-arm64`, `imagePullPolicy: Never`** — it
+   expects that exact image pre-loaded. Fresh profile → `ErrImageNeverPull`. Fix without editing the
+   manifest: `docker pull ubuntu:22.04 && docker tag ubuntu:22.04 ubuntu:22.04-arm64 && minikube -p
+   efm-finish image load ubuntu:22.04-arm64`, then delete+re-apply the pod. It then apt-installs
+   curl/tar/python3, polls EFM health, and self-enrolls (the hardcoded `agentIdentifier` is fine —
+   fresh EFM DB, no collision).
+7. **CSO dashboard JSONs are Grafana schema-v2** (`elements`/`layout`), which Grafana 13.1.3 rejects
+   on the classic `/api/dashboards/db`. Import via the app-platform API:
+   `POST /apis/dashboard.grafana.app/v2/namespaces/default/dashboards` with body
+   `{"apiVersion":"dashboard.grafana.app/v2","kind":"Dashboard","metadata":{"generateName":"…-"},"spec":<json>}`.
+   The hand-built EFM dashboard (classic schema) imports fine the old way.
+8. **CSA Flink metrics target is down until a Flink *job* runs** — the headless
+   `csa-flink-metrics-service` has no pod endpoints with only the operator + SSB up. Expected; not a
+   blocker for the EFM shot. Run an SSB job if a Flink panel is needed.
+
+Live access this session (port-forwards on `0.0.0.0`, tied to the session shell — make durable via
+the zellij layout if they must survive): EFM `http://localhost:10090/efm/`, Grafana
+`http://localhost:3000` (admin / password via the `admin-secret` command in Phase 8).
