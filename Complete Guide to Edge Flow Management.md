@@ -68,7 +68,7 @@ The v1 close plan (#59, written 2026-07-31) is done and closed — stale by the 
 | 14 NiFi and AI Skill | D · complete + publicly sync the skill ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141)) |
 | 16 How to AI with MiNiFi | D · complete skill + How to AI with MiNiFi ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141)) |
 | 18 Sample gallery | A · SparkPlug card ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) + promote Ch10/11 S2S cards |
-| 19 EFM + NVIDIA Jetson | B · Nano → observability ([#139](https://github.com/cldr-steven-matison/DesktopShare/issues/139)) |
+| 19 EFM + NVIDIA Jetson | B closed 2026-08-15 ([#139](https://github.com/cldr-steven-matison/DesktopShare/issues/139) ✓) — only the provenance screenshot remains ([#165](https://github.com/cldr-steven-matison/DesktopShare/issues/165)) |
 | 20 SparkPlug Demo | A · Sparkplug B end-to-end ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) |
 | 21 Metrics & Observability | C · observability completeness ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) |
 
