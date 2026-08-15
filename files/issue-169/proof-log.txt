@@ -30,3 +30,29 @@ Note: WSL2-side curl to these same addresses fails fast with connection refused 
 hairpin artifact (loopback 127.0.0.1:9936 works from WSL). Not a listener or firewall problem.
 Note: response carries no Content-Type (byte[] body) — ServiceMonitor needs
 fallbackScrapeProtocol: PrometheusText0.0.4, same as the Jetson target.
+
+== cluster-side leg (WindowsDesktop, 2026-08-15) ==
+
+Reachability, tested from an in-cluster busybox pod (the authoritative vantage — Prometheus egresses here):
+  192.168.1.245:9936  -> TIMEOUT after 8s (silent drop on the path; firewall-shaped failure)
+  100.110.253.66:9936 -> HTTP 200, clean exposition
+Decision: Tailscale. Endpoints target = 100.110.253.66.
+
+Applied: files/issue-169/starlinkai-minifi-metrics.yaml
+  Service + Endpoints + ServiceMonitor "starlinkai-minifi-metrics" (cld-streaming),
+  fallbackScrapeProtocol: PrometheusText0.0.4 (responder sends no Content-Type).
+
+First scrape: target discovered but up=0 — lastError: invalid metric type "gauge\r".
+Flow v7's script emitted CRLF (published 7 min before the #170 CRLF lesson was posted).
+Fix: staged the proven #170 script on ExecuteStreamCommand-WinMetrics
+  ($ProgressPreference silent, Measure-Object CPU average, [Console]::Out.Write LF-join),
+  validated clean, published v8 at 1786759810832 with fresh go-ahead.
+
+Post-publish verification (from in-cluster pod):
+  up{service="starlinkai-minifi-metrics"} = 1
+  minifi_java_host_cpu_percent 14 | mem_total_kb 62664572 | mem_free_kb 45844908
+  production listeners post-restart: 8090 connect OK, 8096 connect OK, 9936 connect OK
+
+Fleet dashboard: StarlinkAI row upgraded to Layer2+heartbeat (Scrape stat / CPU % / memory
+panels, job="starlinkai-minifi-metrics"); ConfigMap efm-fleet-dashboard re-applied.
+Flow export in this dir re-exported at v8; EdgeFlowManager files/efm/StarlinkAI.json updated.

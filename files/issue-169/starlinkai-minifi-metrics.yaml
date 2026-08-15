@@ -1,0 +1,51 @@
+# issue-169 — cluster-side scrape wiring for the StarlinkAI (Beelink) flow-level exporter.
+# Target address is the Beelink's TAILSCALE IP: proven empirically 2026-08-15 from an
+# in-cluster pod — LAN 192.168.1.245:9936 times out (silent drop on the path), while
+# 100.110.253.66:9936 returns clean exposition. Mirrors nvidianano-minifi-metrics.
+# fallbackScrapeProtocol is mandatory: the HandleHttpResponse leg sends no Content-Type
+# and Prometheus 3 hard-fails a blank-Content-Type target without it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: starlinkai-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: starlinkai-minifi-metrics
+spec:
+  ports:
+    - name: prometheus
+      port: 9936
+      targetPort: 9936
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: starlinkai-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: starlinkai-minifi-metrics
+subsets:
+  - addresses:
+      - ip: 100.110.253.66
+    ports:
+      - name: prometheus
+        port: 9936
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: starlinkai-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  endpoints:
+    - interval: 15s
+      path: /metrics
+      port: prometheus
+  fallbackScrapeProtocol: PrometheusText0.0.4
+  selector:
+    matchLabels:
+      app: starlinkai-minifi-metrics
