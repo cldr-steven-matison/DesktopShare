@@ -1,6 +1,6 @@
 # NiFi / MiNiFi Release Voting and Build Automation
 
-**Status: 🟡 in-progress — scoped 2026-07-31; tracking issue [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76), device:FTF3XR2065. Human-in-the-loop (NiFi recommends, a human casts the vote); Pony Mail HTTP ingestion; full source builds in scope.**
+**Status: 🟡 in-progress — scoped 2026-07-31; Pony Mail API live-probed 2026-08-14 (JSON shape pinned, open questions #1/#2/#5 resolved — see "Live-probe findings" below). Tracking issue [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76), device:FTF3XR2065. Human-in-the-loop (NiFi recommends, a human casts the vote); Pony Mail HTTP ingestion; full source builds in scope.**
 
 Apache NiFi and MiNiFi releases go through a mailing-list vote: a release manager posts a `[VOTE]` thread pointing at a staged release candidate, and committers verify signatures, checksums, and a build, then reply `+1`/`0`/`-1`. I want NiFi itself to do the legwork — watch the lists, catch the RC threads, verify the artifacts, build from the tagged source, run a release smoke test, and hand me a signed-off recommendation so *casting* the vote is a one-line human decision instead of an afternoon of manual verification. NiFi and MiNiFi are separate systems with separate lists and separate build trees (and MiNiFi itself splits into C++ and Java), so this is really two flows sharing one pipeline shape.
 
@@ -18,6 +18,37 @@ This is a tool built *with* NiFi, not part of the EFM guide — it lives as a st
 
 **Out of scope (the hard boundary):**
 - **NiFi does not cast the vote.** It never emails `+1`/`-1` to an Apache list. Casting is a human action for procedural and etiquette reasons — a binding committer vote is a personal attestation, not something to automate onto a public list. NiFi produces the evidence and the recommendation; the human replies.
+
+## Live-probe findings (2026-08-14)
+
+Probed the public Apache Pony Mail API from the Mac (no droplet needed for the read-only probe). Ground truth that supersedes the original assumptions:
+
+**API shape (open question #1 — resolved).**
+- `GET https://lists.apache.org/api/stats.lua?list=dev&domain=nifi.apache.org&d=lte=1M` — note the split `list=`/`domain=` params (not `list=dev@nifi.apache.org`), and the `d=lte=1M|3M|1y` window selector. Returns `thread_struct[]` (nested; each node `{tid, subject, tsubject, epoch, nest, children[]}`) **and** a flat `emails[]` (`{id, mid, subject, epoch, from, body, message-id, in-reply-to, list}`).
+- **Dedupe key = `tid`** (thread id) from `thread_struct`, or `id` from `emails`. Same hash space.
+- **Email body** (Stage 2): `GET https://lists.apache.org/api/email.lua?id=<FULL_id>` → JSON with full `body`, `permalinks`, `references`, `in-reply-to`. ⚠️ the `id` is the **full 32-char** hash — a truncated id returns the string `Email not found` (HTTP 200, non-JSON), so parse defensively.
+
+**One list, not two (open question #2 — resolved).** `nifi.apache.org` exposes only `issues`, `commits`, `dev`, `users` — **there is no separate MiNiFi list.** MiNiFi C++ RCs vote on `dev@nifi.apache.org` too (e.g. *"[VOTE] Release Apache NiFi MiNiFi C++ 1.0.0, RC2"*). So **Stage 1 watches a single list**; the NiFi-vs-MiNiFi split is done by *subject parsing*, not by list. No MiNiFi-Java RC thread appeared in the last 12 months (MiNiFi Java now ships within the main NiFi release line) — treat the "MiNiFi Java build leg" as unconfirmed until a real thread proves it.
+
+**Subject taxonomy is richer than the plan assumed — Stage 1 routing must be explicit.** A single `[VOTE]`-contains match is far too loose. Live subjects seen:
+- ✅ RC targets: `[VOTE] Release Apache NiFi 2.11.0 (RC1)`, `[VOTE] Release Apache NiFi API 2.9.0 (RC1)`, `[VOTE] Release Apache NiFi MiNiFi C++ 1.0.0 (RC1)`, `[VOTE] Release Apache NiFi NAR Maven Plugin 2.3.0 (RC1)`.
+- ❌ NOT new candidates (must filter out): `Re: [VOTE] …`, `[RESULT][VOTE] …`, `[CANCEL][VOTE] …`, `[VOTE][LAZY] …`, `[VOTE][Lazy Consensus] …`, and policy votes (`[VOTE] Deprecate NiFi Registry`, `[VOTE] Adopt Policy …`).
+- **Rule:** require subject to *start with* `[VOTE] Release Apache NiFi`, exclude `Re:`/`[RESULT]`/`[CANCEL]`/`[LAZY]`, then sub-route on the product token to pick the build leg:
+  | Product token in subject | Build leg | Git source repo |
+  |---|---|---|
+  | `MiNiFi C++` | CMake (ch05 Dockerfile) | `github.com/apache/nifi-minifi-cpp` |
+  | `API` | Maven | **`github.com/apache/nifi-api`** (separate repo!) |
+  | `NAR Maven Plugin` | Maven | `github.com/apache/nifi-maven` |
+  | *(none of the above)* → core | Maven (`./mvnw`) | `github.com/apache/nifi` |
+- **Supersession:** `[CANCEL][VOTE] … (RC1)` kills a previously-surfaced candidate and an `(RC2)` follows. RCs churn fast (2.7.0 went to RC4). Dedup state must key on the *full subject incl. RC number*, not just product+version, and a `[CANCEL]`/`[RESULT]` for a tracked RC should retire it.
+
+**Stage 2 parse targets confirmed (open question #5 — resolved).** RC bodies are labeled-line structured — robust for regex/`EvaluateJsonPath`-after-extract. Real example fields from *[VOTE] Release Apache NiFi API 2.9.0 (RC1)*:
+- Staging dir: `https://dist.apache.org/repos/dist/dev/nifi/nifi-api-2.9.0`
+- `Git Tag: nifi-api-2.9.0-RC1`  ·  `Git Commit ID: af5e64f3…`  ·  GitHub commit link
+- `SHA512: <hash>` for the named `…-source-release.zip`
+- Signing key: `https://people.apache.org/keys/committer/<id>.asc`
+- KEYS file: `https://dist.apache.org/repos/dist/release/nifi/KEYS`
+- Verification guide link (per-product cwiki page)
 
 ## Architecture
 
@@ -40,7 +71,7 @@ Reuse, don't reinvent:
 
 ### Stage 1 — Watch (Pony Mail HTTP)
 
-`GenerateFlowFile` **CRON_DRIVEN** (~every 30 min) → `InvokeHTTP GET` the Apache Pony Mail JSON API for each list, e.g. `https://lists.apache.org/api/stats.lua?list=dev@nifi.apache.org` (and the MiNiFi list) → `SplitJson` to one FlowFile per thread → `EvaluateJsonPath`/`RouteOnContent` matching subject `[VOTE]` + "release" → **dedupe** on thread id (NiFi `DetectDuplicate`, or a distributed-map/state entry keyed on the thread permalink) → emit a "candidate RC" FlowFile carrying the thread id + subject as attributes.
+`GenerateFlowFile` **CRON_DRIVEN** (~every 30 min) → `InvokeHTTP GET https://lists.apache.org/api/stats.lua?list=dev&domain=nifi.apache.org&d=lte=1M` (**one list only** — see live-probe findings) → `SplitJson` on `$.emails[*]` to one FlowFile per email → `EvaluateJsonPath` pulls `subject`/`id`/`epoch` → `RouteOnAttribute` applying the taxonomy rule (starts-with `[VOTE] Release Apache NiFi`, exclude `Re:`/`[RESULT]`/`[CANCEL]`/`[LAZY]`, sub-route on product token) → **dedupe** on the email/thread `id` keyed on the full subject incl. RC number (NiFi `DetectDuplicate` or a state entry), retiring a tracked RC on its `[CANCEL]`/`[RESULT]` → emit a "candidate RC" FlowFile carrying `id` + subject + product-leg as attributes.
 
 **Host:** the **DigitalOcean droplet** (`nifi.sceneserver.net`) — publicly reachable, so it hits the Apache API with no VPN/Tailscale. Keep the droplet flow *light* (no Kafka, no LLM in-flow — it's a 1.9GB box that OOM'd at `-Xmx1g`): match, dedupe, and forward hits via `InvokeHTTP` back to the array for the heavy stages.
 
@@ -84,11 +115,11 @@ Assemble a verdict FlowFile — `{ sigOk, checksumOk, buildOk, smokeOk, notes }`
 
 ## Open questions / blockers
 
-1. **Pony Mail response shape** — must live-probe `stats.lua`/`mbox.lua` to confirm the JSON structure before building the SplitJson/EvaluateJsonPath (this is the first verification step).
-2. **Canonical list names** — confirm the exact MiNiFi list address vs the NiFi `dev@` list, and whether RC threads land on `dev@` for both.
+1. ~~**Pony Mail response shape**~~ — ✅ **resolved 2026-08-14** (live-probe findings): `stats.lua` split params, `thread_struct`/`emails` shape, `email.lua?id=<full-32-char>` for bodies.
+2. ~~**Canonical list names**~~ — ✅ **resolved**: single list `dev@nifi.apache.org`; no separate MiNiFi list; MiNiFi C++ + core + API + NAR-plugin all vote there; MiNiFi-Java leg unconfirmed (no thread in 12 months).
 3. **Droplet RAM** — is the watch flow light enough to co-exist with the droplet's existing NiFi 2.0.0, or does it need its own tiny instance / heap tuning?
 4. **Build-host contention** — a full NiFi source build alongside a live minikube cluster on the same box; decide dedicated windows or a separate build VM.
-5. **KEYS/checksum URL conventions** — confirm per-release URL patterns so Stage 2 parsing is robust.
+5. ~~**KEYS/checksum URL conventions**~~ — ✅ **resolved**: RC bodies carry labeled lines (staging dir, `Git Tag`, `Git Commit ID`, `SHA512`, signing-key `.asc`, KEYS URL); note API/NAR-plugin build from *separate* GitHub repos (`apache/nifi-api`, `apache/nifi-maven`).
 6. **Where the dispatch listener runs** — NiFi flow on the build host vs a standalone shim.
 
 ## Traps to watch
