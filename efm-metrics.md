@@ -30,7 +30,7 @@ Same as the master guide: ✅ done / field-validated · 🟡 in-progress · 🔲
 | MiNiFi C++ native Prometheus publisher (`nifi.metrics.publisher.*`) | Field-validated 2026-07-29 on NvidiaNano (real hardware, systemd-managed agent) — publisher confirmed serving valid Prometheus text on `:9936`. The `nifi.c2.*` property names and port `9092` previously documented here were never correct for this build; see Layer 2 below. On **WindowsDesktopCpp**, the config drop-in was UAC-blocked earlier the same day; **enabled and confirmed live later the same session** with a human at the console approving the one elevation prompt — `95-metrics.properties` written, service restarted, `curl http://127.0.0.1:9936/metrics` returns real `minifi_*` text with `agent_identifier=40eb2f92-94c5-4478-beed-7060e41c9d7f`. Wired into the CSO Prometheus stack as an external target the same session — `up=1`, real per-connection series queryable. | ✅ |
 | MiNiFi Java (`WindowsDesktop` class) metrics — built-in Prometheus endpoint | **Conclusively blocked, both real paths exhausted — issue #41, 2026-07-30.** No drop-in equivalent of the C++ publisher exists, and no standalone Prometheus reporting-task NAR exists anywhere in the exact-matching `2.24.08.0-19` source tree (confirmed by search — Prometheus code lives only inside `nifi-web-api`). Pushing `nifi.web.http.host`/`nifi.web.http.port` through EFM's own C2 `UPDATE_PROPERTIES` (the only remaining channel, since a direct file edit reverts on restart) is denylisted server-side — confirmed live, `operation.state=FAILED` every ~5s for both keys, same denylist behavior as `nifi.python.command` (issue #38). No supported channel exists on this platform combination to expose the *built-in* Prometheus endpoint. See Layer 2 below for full detail. | 🚫 |
 | MiNiFi Java metrics via Site-to-Site relay | **Unblocked and field-validated — issue #123, 2026-08-06 (`s2s-lab`).** The built-in Prometheus endpoint stays blocked, but the agent's metrics reach the operator NiFi over secure Site-to-Site by a different mechanism. Two routes, both proven live: an **EFM-managed** `PutRecord → SiteToSiteReportingRecordSink` (controller service, `nifi-site-to-site-reporting-nar`) relaying host metrics, and an **unmanaged** agent running the full `SiteToSiteMetricsReportingTask` (all JVM/NiFi internal metrics). Both transit into the `from-minifi` input port over mTLS. See Layer 2 below. | ✅ |
-| XIAO/microfi storage metrics in the heartbeat | Design confirmed for the ESP32 class (`efm-xiao-microfi.md`); not yet on a Grafana panel | 🟡 |
+| XIAO/microfi storage metrics in the heartbeat | Field-verified 2026-08-15 (#140): firmware emits `status.microfi.littleFs*` (`CONFIG_MICROFI_STORAGE_METRICS=y` default), but EFM 2.3.1.0-2 drops unknown heartbeat fields (`/efm/api/agents/{id}` has no `microfi` block) and its actuator re-exports nothing from the heartbeat body — the counters exist only on the wire, so no EFM-side panel is buildable. MicroFi fleet rows run on heartbeat-transport series instead; storage counters need device egress (MQTT/Sparkplug → NiFi → Prometheus, → #134) | 🔴 blocked at EFM |
 
 ## Layer 0 — get EFM running (prerequisites + deploy)
 
@@ -511,8 +511,22 @@ receives. That's the right pattern for anything that can't host a scrape endpoin
 rides the channel the agent already maintains, and EFM is the collection point rather than
 Prometheus scraping the device directly.
 
-Getting those heartbeat metrics onto a Grafana panel means going through EFM (Layer 1) rather than
-scraping the device — EFM holds the agent state, Prometheus scrapes EFM. Not yet built.
+The plan was to get those heartbeat metrics onto a Grafana panel by going through EFM (Layer 1) —
+EFM holds the agent state, Prometheus scrapes EFM. **Field-verified 2026-08-15 (#140): that path
+does not exist on EFM 2.3.1.0-2, at two independent points.** (1) EFM deserializes heartbeats into
+a fixed DTO — `GET /efm/api/agents/{agentId}` for a live MicroFi agent returns `uptime`,
+`repositories.flowFile`, `resourceConsumption`, and **no `microfi` block**; the firmware's
+`littleFsUsedBytes`/`littleFsCapacityBytes`/`littleFsFillPercent`/`evictionCount`/`failedWrites`/
+`storedRecords` fields (sent by default, `CONFIG_MICROFI_STORAGE_METRICS=y` in
+`sdkconfig.defaults`) are dropped, not stored. (2) The actuator's only per-agent series are
+heartbeat-transport: `efm_heartbeat_count_total`, `efm_heartbeat_lastSeenTime_seconds`,
+`efm_heartbeat_content_*`, `efm_heartbeat_time_seconds*` — nothing from the payload body is
+re-exported for any agent class. The counters live only on the wire between device and EFM; no
+EFM-polling intermediary can recover them. The MicroFi-1/2/3 fleet-dashboard rows (seconds-since-
+heartbeat, heartbeats/min, avg heartbeat size) are the Layer-3 slice that is real today; putting
+the storage counters on a panel needs either an EFM change (vendor gap) or the device's own egress
+(MicroFi-3 already publishes Sparkplug B → Mosquitto; that road is #134's R&D stream, not this
+doc's wiring).
 
 ## Where this sinks — the CSO Prometheus/Grafana stack
 
