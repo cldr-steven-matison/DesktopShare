@@ -1,0 +1,24 @@
+=== single round trip 2026-08-15T03:52:50Z ===
+{"ok": true, "model": "mobilenetv2-12 (ImageNet-1k, FP16)", "source": "body", "image": {"width": 640, "height": 502}, "predictions": [{"label": "Samoyed", "class_id": 258, "confidence": 0.723496}, {"label": "Pomeranian", "class_id": 259, "confidence": 0.152843}, {"label": "West Highland white terrier", "class_id": 203, "confidence": 0.018687}, {"label": "Great Pyrenees", "class_id": 257, "confidence": 0.011878}, {"label": "collie", "class_id": 231, "confidence": 0.011159}], "preprocess_ms": 110.07, "inference_ms": 43.55}
+--- HTTP 200 in 0.211992s ---
+=== 20-request batch 2026-08-15T03:52:58Z ===
+req1 200 0.075861
+req2 200 0.135643
+req3 200 0.113248
+req4 200 0.110771
+req5 200 0.108483
+req6 200 0.107725
+req7 200 0.111573
+req8 200 0.115207
+req9 200 0.068615
+req10 200 0.114748
+req11 200 0.113099
+req12 200 0.109954
+req13 200 0.109256
+req14 200 0.111467
+req15 200 0.113162
+req16 200 0.111440
+req17 200 0.071285
+req18 200 0.063820
+req19 200 0.061076
+req20 200 0.122363
