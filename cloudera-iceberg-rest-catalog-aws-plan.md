@@ -69,7 +69,7 @@ End-to-end from an empty AWS account to a validated Iceberg REST Catalog: **~2h 
 | Impala Data Hub | `srm-iceberg-impala` — HTTP 443, `httpPath=srm-iceberg-impala/cdp-proxy-api/impala`, LDAP `AuthMech=3` |
 | External user | `iceberg-consumer` (clientId `9d4ec573-…`, `userId=13`); secret in gitignored `credentials.json` |
 | Data share | `srm-iceberg-share` (id `1`, `isShared=true`, 1 asset / 1 user) |
-| Working dir | `~/Documents/GitHub/iceberg-rest-catalog-demo` (scripts; creds/keys gitignored) |
+| Working dir | [`iceberg-rest-catalog-demo`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo) — local `~/Documents/GitHub/iceberg-rest-catalog-demo` (scripts; creds/keys gitignored) |
 
 ## Daily startup — the env auto-stops overnight ⚠️
 
@@ -469,6 +469,7 @@ bash test-rest-catalog.sh poc_uc2 airlines
 
 ## Resources
 
+- **This plan's scripts:** [cldr-steven-matison/iceberg-rest-catalog-demo](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo) — `test-rest-catalog.sh`, `redeploy.sh`, `seed-impala.py`, and the `athena/`, `flink/`, `k8s/`, `nifi/`, `sql/` dirs (creds/keys gitignored)
 - Colleague runbook: *Iceberg REST Catalog API Runbook* (Runtime 7.3.2, live-run on `zzengaws732-aw-dl`)
 - Deploy: [cloudera-labs/cdp-tf-quickstarts](https://github.com/cloudera-labs/cdp-tf-quickstarts)
 - **Iceberg MCP Server (Cloudera root repo):** [cloudera/iceberg-mcp-server](https://github.com/cloudera/iceberg-mcp-server) — fork [cldr-steven-matison/iceberg-mcp-server](https://github.com/cldr-steven-matison/iceberg-mcp-server), local `~/Documents/GitHub/iceberg-mcp-server`
