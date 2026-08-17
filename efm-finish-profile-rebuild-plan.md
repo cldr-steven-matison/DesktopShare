@@ -311,6 +311,8 @@ Import dashboards into Grafana (JSON already in the CSO repo):
 - In Grafana: EFM panel renders the enrolled agent's live metrics → **screenshot for #137**.
 - Confirm the MiNiFi pod shows `status: RUNNING` in the EFM UI (`http://localhost:<fwd>/efm/`).
 
+![EFM — Agents & Server (efm-finish) Grafana dashboard: EFM scrape UP, 1 enrolled agent class, live KubernetesPod agent last-seen 13.2s, ~12 heartbeats/min and sub-6ms heartbeat processing time](images/efm-finish-grafana-agents-server-dashboard.png)
+
 ## Phase 13 — Port-forwards, wrap-up, teardown/restore
 
 - Bring up the canonical port-forward set **profile-scoped** (all `--address 0.0.0.0` per this
