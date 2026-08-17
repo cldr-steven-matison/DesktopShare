@@ -99,17 +99,17 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 
 ## Subplans (source docs → chapter)
 
-- `efm-binaries-blog.md` — Ch2 blog draft
-- `minifi-python-processors.md` — Ch6
+- `completed/efm-binaries-blog.md` — Ch2 blog draft (archived)
+- `completed/minifi-python-processors.md` — Ch6 (archived)
 - MiNiFi Kubernetes Playground repo (`config-java.yml`, `Dockerfile.java`, `minifi-test-java.yaml`) — Ch8 (standalone Java); the `minifi-test-efm-*.yaml` variants — Ch10 (MiNiFi as k8s pods)
-- `minifi-site-to-site.md`, `minifi-site-to-site-lab.md` — Ch11 (merged Site-to-Site)
+- `completed/minifi-site-to-site.md`, `completed/minifi-site-to-site-lab.md` — Ch11 (merged Site-to-Site, archived)
 - `efm-xiao-microfi.md` — Ch12
 - `sparkplug-iott.md` — Ch13
 - `how-to-ai-with-minifi-blog.md` — Ch16 blog draft (subplan archived at `completed/how-to-ai-with-minifi.md`)
 - `beelink-starlink-efm-ai.md` — Ch16/Ch17
-- `minifi-sample-gallery.md` — Ch18
+- `completed/minifi-sample-gallery.md` — Ch18 (archived)
 - `efm-nvidia-jetson-nano.md` — Ch19
-- `sparkplug-demo.md`, `efm-xiao.md` — Ch20
+- `sparkplug-demo.md`, `completed/efm-xiao.md` — Ch20 (`efm-xiao.md` archived)
 - `efm-metrics.md` — Ch21
 
 # EFM Guide — Completion Summary
