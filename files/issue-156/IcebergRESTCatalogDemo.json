@@ -586,7 +586,7 @@
           "comments": "",
           "instanceIdentifier": "fc5793c3-019f-1000-0000-000023449978"
         },
-        "labelIndex": 1,
+        "labelIndex": 0,
         "zIndex": 0,
         "selectedRelationships": [
           "filtered"
@@ -595,7 +595,12 @@
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "0 sec",
         "prioritizers": [],
-        "bends": [],
+        "bends": [
+          {
+            "x": 1880.0,
+            "y": 216.0
+          }
+        ],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
@@ -654,7 +659,7 @@
           "comments": "",
           "instanceIdentifier": "fc704e38-019f-1000-ffff-ffff96ad7de6"
         },
-        "labelIndex": 1,
+        "labelIndex": 0,
         "zIndex": 0,
         "selectedRelationships": [
           "delayed"
@@ -663,7 +668,12 @@
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "0 sec",
         "prioritizers": [],
-        "bends": [],
+        "bends": [
+          {
+            "x": 2341.097900390625,
+            "y": 129.74093627929688
+          }
+        ],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
@@ -688,7 +698,7 @@
           "comments": "",
           "instanceIdentifier": "fc57938c-019f-1000-0000-000008a4825c"
         },
-        "labelIndex": 1,
+        "labelIndex": 0,
         "zIndex": 0,
         "selectedRelationships": [
           "by_dest"
@@ -697,7 +707,12 @@
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "0 sec",
         "prioritizers": [],
-        "bends": [],
+        "bends": [
+          {
+            "x": 1686.867431640625,
+            "y": 143.30552673339844
+          }
+        ],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
@@ -756,7 +771,7 @@
           "comments": "",
           "instanceIdentifier": "fc704e53-019f-1000-ffff-ffff8da52ac3"
         },
-        "labelIndex": 1,
+        "labelIndex": 0,
         "zIndex": 0,
         "selectedRelationships": [
           "failure"
@@ -765,7 +780,12 @@
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "0 sec",
         "prioritizers": [],
-        "bends": [],
+        "bends": [
+          {
+            "x": 2267.014404296875,
+            "y": 310.2542724609375
+          }
+        ],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
@@ -858,7 +878,7 @@
           "comments": "",
           "instanceIdentifier": "fc704e19-019f-1000-0000-00003abc7aa2"
         },
-        "labelIndex": 1,
+        "labelIndex": 0,
         "zIndex": 0,
         "selectedRelationships": [
           "carrier_stats"
@@ -867,7 +887,12 @@
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "0 sec",
         "prioritizers": [],
-        "bends": [],
+        "bends": [
+          {
+            "x": 2464.0,
+            "y": 224.0
+          }
+        ],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
@@ -926,7 +951,7 @@
           "comments": "",
           "instanceIdentifier": "fc5793a7-019f-1000-0000-000017d481ef"
         },
-        "labelIndex": 1,
+        "labelIndex": 0,
         "zIndex": 0,
         "selectedRelationships": [
           "failure"
@@ -935,7 +960,12 @@
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "0 sec",
         "prioritizers": [],
-        "bends": [],
+        "bends": [
+          {
+            "x": 1780.776123046875,
+            "y": 279.99481201171875
+          }
+        ],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
@@ -998,7 +1028,7 @@
         "identifier": "10629e21-67cd-34c1-9b1e-472e4435fb75",
         "instanceIdentifier": "fc5ee631-019f-1000-ffff-ffffe2b22cb3",
         "position": {
-          "x": 1464.0,
+          "x": 1472.0,
           "y": -160.0
         },
         "label": "Works - Read Only - QueryIceberg  \"airlines\"",
@@ -1117,17 +1147,18 @@
           "version": "2.6.0.4.3.4.0-234"
         },
         "properties": {
-          "Refresh Window": "0 s",
-          "SSL Context Service": null,
-          "Authorization Server URL": "https://srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-aw-dl/cdp-datashare-access/knoxtoken/api/v2/token",
-          "Client ID": "c56ba1ff-22cd-451e-a459-468b873ee3ed",
-          "Scope": null,
-          "Username": null,
+          "Client ID": "#{client_id}",
           "Audience": null,
           "proxy-configuration-service": null,
           "Resource": null,
           "Grant Type": "client_credentials",
           "HTTP Protocols": "H2_HTTP_1_1",
+          "Refresh Window": "0 s",
+          "SSL Context Service": null,
+          "Authorization Server URL": "https://srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-aw-dl/cdp-datashare-access/knoxtoken/api/v2/token",
+          "Client secret": "#{client_secret}",
+          "Scope": null,
+          "Username": null,
           "Client Authentication Strategy": "REQUEST_BODY"
         },
         "propertyDescriptors": {
@@ -1687,7 +1718,7 @@
           "name": "client_id",
           "sensitive": false,
           "provided": false,
-          "value": "c56ba1ff-22cd-451e-a459-468b873ee3ed"
+          "value": "254d0d7b-422b-49ad-9302-d749784ec6b0"
         }
       ],
       "inheritedParameterContexts": [],
