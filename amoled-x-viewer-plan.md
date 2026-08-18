@@ -135,6 +135,47 @@ with a custom Python processor only if image resize forces it. The alternative �
 scaling. Decide from the dumped flow, not from this doc. Note this backend runs on the **WindowsDesktop
 array**, while Ember's runs on **StarlinkAI** — the two apps share a launcher, not a backend.
 
+## Built and running locally — 2026-08-18
+
+The board is unplugged, so the deliverable is the same split Ember used: **backend + pixel-true simulator
+now, flash later.** Both are running on WindowsDesktop.
+
+```bash
+cd ~/amoled-x-viewer && ./scripts/run.sh     # -> http://127.0.0.1:8091
+./scripts/test.sh                            # 13-check contract evaluation
+```
+
+App code lives at `~/amoled-x-viewer` (committed locally, `b6991c4`), waiting on the repo to exist before
+it can be pushed. Every `.md` stays here in DesktopShare.
+
+**Evaluation — 13 checks, 13 passed**, against live X, not fixtures:
+
+| Check | Result |
+|---|---|
+| `GET /xviewer/feed` | 10 real posts from **@TunaStreetTest**, live `public_metrics` |
+| `GET /xviewer/img/<id>.jpg` | **368 × 220**, baseline JPEG (not progressive — the S3's ROM tjpgd needs baseline), ~17 KB |
+| unknown media id | 404, not a 500 |
+| `POST /xviewer/action` bad input | 400 |
+| like → unlike | `{'liked': true}` → `{'liked': false}`, state restored on the account |
+| simulator page | 200 |
+
+Media on these posts is video, so the backend serves X's `preview_image_url` and cover-fits it to the
+card slot — centre-cropped, never letterboxed.
+
+**The simulator is the product at this stage.** It renders the exact 368 × 448 panel inside a Brookesia
+shell — home screen with the **X viewer and Ember tiles**, status bar, home indicator — so the tile model
+this issue got wrong twice is now visible rather than described. Swipe L/R moves posts, tap the heart
+lands a real like on X, drag up from the bottom edge returns to the launcher. Deep links `#app` and
+`#app-2` jump straight in for testing.
+
+One real bug the screenshots caught: `.media{display:block}` was overriding the `hidden` attribute, so an
+empty image box rendered alongside the "no media" placeholder. Fixed with an explicit `[hidden]` rule.
+
+**Not built, and not claimed as built:** `firmware/components/x_viewer/` is a skeleton that has never been
+compiled — there's no ESP-IDF on this host and the board is unplugged. Its geometry, contract, and JSON
+are pinned by the verified backend, but the Brookesia class and registration details still need
+reconciling against Ember's actual component, which isn't readable from this account.
+
 ## Phases
 
 **Phase 0 — Brookesia bring-up.** Stand up factory ESP-Brookesia for this exact SKU and flash it; confirm
@@ -167,7 +208,7 @@ for MicroFi, cso-operator-app, and Ember — code in its own repo, planning and 
 
 Home follows Ember's precedent exactly: ESP32 firmware under the **`steven-matison`** account
 (`ember`, `MicroFi`, `esp32-fluidbox`), Cloudera-adjacent work under `cldr-steven-matison`. So
-**`steven-matison/x-viewer`**, named for symmetry with `steven-matison/ember`. **Steven creates it** —
+**`steven-matison/amoled-x-viewer`**. **Steven creates it** —
 this session's GitHub login (`TunaStreetTest`) is a separate personal account in no shared org and cannot
 create repos under either of Steven's, so it needs the repo made and push access granted.
 
@@ -175,7 +216,7 @@ create repos under either of Steven's, so it needs the repo made and push access
 
 Every design question is settled. What remains is access, not decisions:
 
-1. **Create `steven-matison/x-viewer`** and grant `TunaStreetTest` push access.
+1. **Create `steven-matison/amoled-x-viewer`** and grant `TunaStreetTest` push access.
 2. **Grant read access to `steven-matison/ember`** — currently 404 to this login; needed to combine both
    components into the one image Phase 4 delivers.
 
