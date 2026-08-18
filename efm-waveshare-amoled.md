@@ -11,7 +11,7 @@ because it's a different hardware family with a display track ahead of it.
 
 | Fact | Value |
 |---|---|
-| Board | Waveshare ESP32-S3 Touch AMOLED — **exact model/SKU TBD** (rear label not read yet; sizes 1.32″–2.41″ exist and V1/V2 revisions change the display/touch ICs) |
+| Board | Waveshare ESP32-S3 Touch AMOLED, **revision V2** (Steven, 2026-08-18) — **size/SKU still unread**. If it's the 1.8″ (the model #181 calls out with a V1→V2 transition), V2 means the CO5300 display driver, not the V1 SH8601 |
 | Chip | ESP32-S3 (QFN56) rev v0.2, USB-Serial/JTAG mode |
 | PSRAM | 8MB embedded octal (`Embedded PSRAM 8MB (AP_3v3)`) |
 | Flash | 16MB quad (JEDEC mfr `0x20` dev `0x4018`, eFuse "quad (4 data lines)", 3.3V) |
@@ -87,8 +87,9 @@ No flow is published to the class yet — the agent heartbeats with the empty cl
 
 ## Open items
 
-- **Exact model/SKU** — read the rear label. It decides the display driver (CO5300 vs SH8601),
-  touch IC (CST820/FT3168/CST9217), resolution, and which GPIO is safe for the liveness LED.
+- **Exact model size** — revision is V2 (confirmed); the size is what's left to read off the
+  rear label. Together they decide the display driver (CO5300 on the 1.8″ V2), touch IC
+  (CST820/FT3168/CST9217), resolution, and which GPIO is safe for the liveness LED.
 - **Display track** — the AMOLED panel is the whole point of this board; MicroFi has no display
   processor yet. That's a new-processor track like `CaptureImage`/`PublishSparkplug` were,
   sized against the ~0.9MB app-slot headroom.
@@ -98,6 +99,6 @@ No flow is published to the class yet — the agent heartbeats with the empty cl
   `agent_state=ONLINE` + esptool flash hash verification). Capture script staged at
   `C:\Users\tunas\AppData\Local\Temp\amoled_serial.py` (DTR/RTS-safe open, per
   `efm-xiao-microfi-1-2-3.md`).
-- **MicroFi-3 went MISSING 2026-08-18 19:52** — its COM port is gone too; it looks unplugged,
-  likely to free the front-panel USB slot for this board. Its Sparkplug B emit is dark until
-  it's replugged. Flagged, not acted on.
+- ~~MicroFi-3 went MISSING 2026-08-18 19:52~~ **Resolved same evening**: its USB cable had
+  been borrowed for the AMOLED board; replugged on another cable and back ONLINE at 20:30 UTC
+  (Postgres-verified). Sparkplug B emit restored.
