@@ -27,6 +27,23 @@ Because the catalog lives in HMS, the metadata it can serve is exactly what HMS 
 | **Base SDX has no query engine** | DataLake HMS can't run CREATE/INSERT | Add an **Impala Data Hub** post-TF to seed Iceberg tables |
 | **`cdp-tf-quickstarts` deploys env + DataLake only** | Repo has no `cdp_datahub` resource | Data Hub created separately via `cdp datahub create-aws-cluster` / console |
 
+## Deployment template — `public` today, `semi-private` if CDW/Trino will share the env
+
+This build uses `deployment_template = "public"`, and that is correct for a REST-Catalog-only env: the whole Phase 5 consumer matrix (OSS Spark, Athena, Snowflake, EMR) reaches the DataLake Knox gateway over the public internet. Keep `public` when the REST Catalog is all this env does.
+
+**But `public` cannot host a CDW Virtual Warehouse.** CDW/EKS activation needs **private worker subnets**, and the `public` template puts workers on public subnets (`aws/main.tf`: `worker_node_subnets` = public **+** private only under `public`; private-only otherwise). Adding a CDW Trino VW to a `public`-built env is not an in-place change — it means a **destructive teardown + rebuild** of the whole environment. That is exactly what happened to `srm-iceberg` (see [`cloudera-trino-plan.md`](cloudera-trino-plan.md)).
+
+**If this env will also host a Trino VW (or any CDW), build it `semi-private` from the start:**
+
+- `semi-private` gives CDW its private worker subnets (+ NAT / private routing / k8s subnet tags) **while keeping the DataLake's Endpoint Access Gateway public** — so the REST Catalog consumer matrix is unaffected (public Knox front door, private compute behind it). This is not inferred: the module sets `endpoint_access_scheme = "PUBLIC"` for `semi-private` (`terraform-cdp-modules/modules/terraform-cdp-deploy/defaults.tf`). The EAG becomes an internet-facing load balancer in front of the now-private DataLake; the gateway FQDN clients use is unchanged.
+- **The one real trap for the REST Catalog: keep `datalake_scale = "LIGHT_DUTY"` explicit.** The same `defaults.tf` flips the *default* scale to `ENTERPRISE` for any non-`public` template — and `ENTERPRISE` means **HA IDBroker, which breaks credential vending (CDPD-99471)** and kills the REST Catalog `load-table` vended-creds step. The tfvars already pins `LIGHT_DUTY`, so a straight swap of `deployment_template` alone is safe — but never drop that line. Keep `enable_raz = true` and `datalake_version = "7.3.2"` too. Net: the only tfvar you *change* vs. this build is `deployment_template`; the critical part is what you must *not* remove.
+- Under `semi-private`, hosts get no public IPs (`use_public_ips = false`) and the plan grows ~90 → ~108 resources (NAT gateways + private routing) — more AWS cost and a longer apply/destroy. The Phase 5 SG-widening (`<knox-sg>` → `0.0.0.0/0` for Athena/Snowflake, `/32` for EMR) must be **re-resolved from the live env**: the public entry is now the EAG load balancer, so confirm which SG actually fronts 443 before assuming the old `*-knox-sg` id.
+- Then follow `cloudera-trino-plan.md` for CDW activation: `private_load_balancer: true` with explicit **private** subnets for both `aws_lb_subnets` and `aws_worker_subnets`. (The CDW VW's own LB is private, so the Trino endpoint is VPC-internal — separate from the still-public REST Catalog gateway.)
+
+> **One trap that wedges any env regardless of template:** never run `cdp environments initialize-aws-compute-cluster`. It creates an unremovable "default" externalized compute cluster and does nothing for classic CDW (`dw_cluster` provisions its own EKS). Recovery is a full env destroy + rebuild.
+
+The public-EAG and `ENTERPRISE`-default behavior above is confirmed in the module source; the REST Catalog consumer-matrix **re-run** on the rebuilt `semi-private` `srm-iceberg` is still pending, tracked in **#179** (recreate Impala Data Hub → enable REST Catalog → seed → validate).
+
 ## Deployment record (this build)
 
 Fresh environment stood up 2026-08-11 in the shared Cloudera SE sandbox tenant (control plane **us-west-1**).
@@ -132,6 +149,8 @@ Key `terraform.tfvars` values used:
 env_prefix          = "srm-iceberg"   # ≤12 chars → srm-iceberg-cdp-env / srm-iceberg-aw-dl
 aws_region          = "us-east-2"
 deployment_template = "public"        # public EAG → single IDBroker via LIGHT_DUTY
+                                      # ↑ use "semi-private" instead if this env will ALSO host a
+                                      #   CDW Trino VW — see the deployment-template section above
 datalake_scale      = "LIGHT_DUTY"
 datalake_version    = "7.3.2"         # REST Catalog GA
 enable_raz          = true
