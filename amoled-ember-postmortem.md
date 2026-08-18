@@ -6,11 +6,11 @@
 **Board:** Waveshare ESP32-S3 Touch AMOLED 1.8 V2, USB-JTAG `VID 303A:PID 1001`, MAC `1c:db:d4:7b:85:84`, COM6
 **Asked:** a Grok app on the glass. **Delivered:** factory Xiaozhi works; every Grok image I flashed was black.
 
-This is the shareable scoreboard. Numbers come from the session files under
-`~/.grok/sessions/…/01a01697-…/` and the PIO / esptool logs in that session’s
-`terminal/` dir. I do not have an xAI invoice. Token dollars are reconstructed
-from those files and published grok-4.6 list prices. The console bill is the
-source of truth.
+This is the shareable scoreboard. Flash counts come from the session
+`terminal/` logs. The **dollar figure is no longer a range**: it is priced
+from 259 `shell.turn.inference_done` rows in `~/.grok/logs/unified.jsonl`
+for this `sid`, at published grok-4.6 list. The xAI console should match
+within rounding and any team multiplier.
 
 ## Scoreboard
 
@@ -19,6 +19,10 @@ source of truth.
 | User turns | **21** | `updates.jsonl` `user_message_chunk` / unique `promptId` |
 | Distinct things I was asked to do | **18** | compaction “All User Messages” + post-compact turns |
 | Agent tool loops | **241** | `events.jsonl` `loop_started` |
+| Billed model completions | **259** | `unified.jsonl` `shell.turn.inference_done` |
+| grok-4.6 spend (this session) | **$51.86** | 259 completions × list price, see below |
+| Imagine stills (never on the glass) | **$0.10** | 5 × $0.02 `grok-imagine-image` 1K |
+| **Session compute bill** | **~$51.96** | grok-4.6 + Imagine. Pulse calls on `:8088` extra and small |
 | Tool calls started | **454** | `events.jsonl` `tool_started` |
 | PIO builds that failed | **6** | `[FAILED]` in terminal logs |
 | PIO builds that succeeded | **16** | `[SUCCESS]` in terminal logs |
@@ -98,49 +102,52 @@ after the seventh custom flash.
 
 ## Tokens and money
 
-**I do not have the xAI invoice.** What the session recorded:
+The TUI writes every completion to `~/.grok/logs/unified.jsonl` as
+`shell.turn.inference_done` with `prompt_tokens`, `cached_prompt_tokens`,
+`completion_tokens`, `reasoning_tokens`, and `model_elapsed_ms`. This
+session id has **259** of those rows (2026-08-18 20:41Z–23:57Z). Model on
+the wire: **grok-4.6**. `completion_tokens` already includes reasoning
+(`reasoning ≤ completion` on every row).
 
-| Meter | Value |
-|---|---|
-| User turns / `promptId`s | 21 |
-| Agent loops (`loop_started`) | 241 |
-| Peak `_meta.totalTokens` (context occupancy, not a running bill) | 394,048 |
-| Turns whose context was ≥ 200k (long-context price band) | 16 / 21 |
-| Auto-compact | 1, at the 394k peak |
-| Sum of per-turn peak context | 5,192,580 tokens |
+| | Tokens | How it is priced | USD |
+|---|---:|---|---:|
+| Prompt (all completions, includes cache) | **52,732,883** | — | — |
+| of which **cached** | **50,742,016** (96.2 %) | $0.50 / 1M below 200k prompt, $1 / 1M at/above | in mix |
+| of which **uncached** | **1,990,867** | $2 / 1M below 200k, $4 / 1M at/above | in mix |
+| Completion (output, includes 167,930 reasoning) | **197,067** | $6 / 1M below 200k, $12 / 1M at/above | in mix |
+| Completions with `prompt_tokens ≥ 200k` | **142 / 259** | long-context band | — |
+| **grok-4.6, priced per call by that call’s prompt size** | | [list](https://docs.x.ai/developers/models) | **$51.86** |
+| Imagine, 5 stills @ $0.02 (`grok-imagine-image` 1K) | | [list](https://docs.x.ai/developers/pricing) | **$0.10** |
+| **Session total** | | | **$51.96** |
 
-Published grok-4.6 list (2026-08-18, [xAI pricing](https://docs.x.ai/developers/models)):
+Per-call mix (not “all cheap” and not “all long-context”):
 
-| Band | Input | Cached input | Output |
-|---|---:|---:|---:|
-| < 200k | $2 / 1M | $0.50 / 1M | $6 / 1M |
-| ≥ 200k | $4 / 1M | $1 / 1M | $12 / 1M |
+- 117 calls with prompt &lt; 200k → $2 / $0.50 / $6
+- 142 calls with prompt ≥ 200k → $4 / $1 / $12
 
-Two reconstructions. Both assume grok-4.6 high reasoning. Neither is a receipt.
+If reasoning were billed *on top of* completion (it is not — every row has
+`reasoning ≤ completion`), the figure would be $53.28. I am not using that.
 
-**Estimate A — one completion per user turn** (21 calls, context = that turn’s
-peak). 16/21 in the long-context band. Output guessed at 2–12 k/call.
+**Super-AI compute, in the machine’s own units:**
 
-- Input ~5.2 M tokens
-- **~$21 – $45**
+| | |
+|---|---:|
+| Sequential model time (`sum model_elapsed_ms`) | **72.7 minutes** (1.21 h) |
+| Median prompt | 210,755 tokens |
+| p90 prompt | 338,527 tokens |
+| Max prompt | 393,640 tokens |
+| Average uncached tokens / call | 7,687 |
+| Average completion / call | 761 |
+| Average reasoning / call | 648 |
+| Human wall clock | 3 h 14 min |
+| Model-busy fraction of the evening | 72.7 / 194 ≈ **37 %** |
 
-**Estimate B — one completion per agent loop** (241 calls, typical for this
-harness). Average context ~200 k, ~80 % cache hit on later loops in a turn,
-long-context rates on the fat turns.
+`$51.96` bought 72.7 minutes of grok-4.6 and five pictures of a coal. The
+panel stayed black. The Ember `:8088` pulse calls are a separate, cheap
+`grok-4-1-fast-non-reasoning` tab and are not in this $51.86.
 
-- Input on the order of **40–60 M** tokens (mostly cache)
-- Output on the order of **0.5–2 M**
-- **~$50 – $120**
-
-Plus **5 Imagine stills** at ~$0.02–$0.05 each (**~$0.10 – $0.25**), and a
-handful of `grok-4-1-fast-non-reasoning` pulse calls on `:8088` (small).
-
-**Use $50–$120 as the honest range for the Grok 4.6 agent session. Confirm on
-the xAI console.** The cheaper number is only true if inner tool loops were
-not billed as full completions.
-
-What that bought: a simulator that talks to Grok on LAN, and a stack of black
-firmware.
+The xAI console is still the receipt. This is the TUI meter + public list
+price, not a PDF invoice. It replaces the earlier $50–$120 shrug.
 
 ## Lines of slop
 
