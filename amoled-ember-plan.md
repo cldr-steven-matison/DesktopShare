@@ -1,5 +1,10 @@
 # Ember — a Grok pocket instrument for the AMOLED
 
+> **2026-08-18 — failed on the glass.** Grok 4.6 spent 3 h 14 min and seven
+> custom flashes to put Ember on the 1.8″ V2. Every image was black. Factory
+> Xiaozhi still works. Scoreboard, token/$ reconstruction, detours, slop
+> counts: [`amoled-ember-postmortem.md`](amoled-ember-postmortem.md).
+
 **Plan for [issue #184](https://github.com/cldr-steven-matison/DesktopShare/issues/184).**
 Driving device: the #181 Waveshare ESP32-S3 Touch AMOLED V2 (`efm-waveshare-amoled.md`).
 This is **not** the #183 X viewer. #183 is Claude's app (swipe my posts, tap to like).
@@ -59,8 +64,8 @@ Two install shapes, both in [`amoled-x-ember`](https://github.com/steven-matison
 | Slim host (`firmware/main`) | Phone + Ember only. Default for the #181 1.8″ V2. |
 | Drop-in (`firmware/components/ember`) | Copy into factory Brookesia; registry install puts the tile next to Settings / Calculator / AI Chat. |
 
-Default SKU assumption: **1.8″ V2, 368×448, CO5300 + CST820**. Rear-label
-size still unread. Flashing the slim host still darkens the `AMOLED` EFM
+**SKU confirmed 2026-08-18 on this Beelink:** 1.8″ V2 (official
+`FactoryXiaozhi_260601` image lit the panel; CO5300 + CST820). Flashing the slim host still darkens the `AMOLED` EFM
 agent from #181 (`pio run -e amoled -t upload` puts it back). Dropping Ember
 into factory Brookesia and flashing *that* image is how the rest of the
 suite stays.
