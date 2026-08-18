@@ -38,8 +38,21 @@ sessions reach for it on the same evening; a second board would remove the confl
 | Also on board | 6-axis IMU **QMI8658**, RTC **PCF85063**, codec **ES8311**, speaker, mic, microSD |
 | Power | USB-C only, **no battery** — a tethered desk panel, not a handheld. No battery UI, no charge state, no AXP2101 percentage (the chip is there; there's just nothing to measure) |
 
-**Standalone ESP-IDF + LVGL v9 app**, its own repo (`amoled-x-viewer`), its own build and partition
-table. Swipe = LVGL gesture events on a card-per-post layout; heart = a tap target on the card.
+**Standalone ESP-IDF + LVGL v9 app**, its own repo, its own build and partition table. Swipe = LVGL
+gesture events on a card-per-post layout; heart = a tap target on the card.
+
+### Where the code lives vs where the docs live
+
+**Decided 2026-08-18: a new repo for the app; every `.md` stays in DesktopShare.** Same split DesktopShare
+already runs with MicroFi and cso-operator-app — code in its own repo, planning and golden-source docs
+here. So this file stays put and is the spec; the new repo carries firmware only, with a thin `README` in
+it that points back here rather than duplicating the plan.
+
+Home follows the existing precedent: ESP32 firmware lives under the **`steven-matison`** account
+(`MicroFi`, `esp32-fluidbox`), while Cloudera-adjacent work sits under `cldr-steven-matison`. This app is
+personal firmware, so `steven-matison/amoled-x-viewer` is the natural home. **Steven creates it** — the
+session's GitHub login (`TunaStreetTest`) is a separate personal account and cannot create repos under
+either of Steven's, so it needs the repo made and collaborator access granted before it can push.
 
 What the real numbers change:
 
@@ -87,8 +100,17 @@ So the feed is the account's **real timeline with live metrics**. The old worry 
 forcing the feed to come from published-queue tweet ids — is retired to a degraded path if rate limits
 bite.
 
-**Not verified: the like write** (`POST /2/users/:id/likes`). That probe puts a real, publicly visible
-like on the account, so it waits on Steven's go. It gates Phase 3 and nothing earlier. Reversible.
+**Like write verified 2026-08-18** (probe run on Steven's explicit go). Liked the account's own newest
+post, then unliked it to restore state — which also proves the revert path Phase 3's optimistic UI needs:
+
+| Call | Result |
+|---|---|
+| `POST /2/users/:id/likes` | OK — `{'liked': True}` |
+| `DELETE /2/users/:id/likes` | OK — `{'liked': False}` |
+| like count after restore | back to its original value — no residue left on the account |
+
+**So the entire X surface this app needs is proven: read, like, unlike.** No open X API questions remain,
+and nothing about the tier can invalidate a later phase.
 
 ### Backend home — decided at Phase 2, live flow dumped first
 
@@ -113,15 +135,19 @@ are the actual product** — this is the phase worth iterating on.
 on swipe-past-end; images cached. Exit: a post I publish appears on the panel with no reflash.
 
 **Phase 3 — the like.** Tap heart → `POST /amoled/action` → optimistic UI, revert on failure; unlike too.
-Gated on the like-write probe. Exit: a tap on the panel puts a real like on x.com.
+**Unblocked** — like and unlike are both proven against the live account. Exit: a tap on the panel puts a
+real like on x.com.
 
 **Phase 4 — polish.** Idle dim/sleep, a WiFi/connection status pill (no battery pill — there's no
 battery), reconnect handling, doc update with as-built deviations.
 
 ## Open decisions
 
-1. **Repo name/home** — `amoled-x-viewer` as a new repo is the default; it shares no code with MicroFi.
-2. **The like-write probe** — needs an explicit go, because it's a public action on the real account.
+Every design question is now settled. The only thing outstanding is an **access step, not a decision**:
+Steven creates `steven-matison/amoled-x-viewer` and grants `TunaStreetTest` push access.
+
+1. ~~Repo name/home~~ — **decided 2026-08-18**: new repo for the app, all `.md` stays in DesktopShare.
+2. ~~The like-write probe~~ — **run 2026-08-18 on Steven's go**: like and unlike both work, state restored.
 3. ~~SKU size~~ — **answered 2026-08-18**: ESP32-S3-Touch-AMOLED-1.8 V2, CO5300 / 368×448 / CST820.
 4. ~~Which X account~~ — **answered**: @TunaStreetTest (`2036858257877188608`), verified live 2026-08-18.
 5. ~~Firmware repo home / EFM coexistence~~ — **not this issue.** Dedicated firmware per #184's
