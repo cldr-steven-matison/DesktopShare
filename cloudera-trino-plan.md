@@ -2,7 +2,7 @@
 
 This doc covers the build of a Trino Virtual Warehouse on Cloudera Data Warehouse (CDW) running inside a single CDP environment that also serves the Iceberg REST Catalog demo. The playbook (`../trino-demo/provision-trino-vw.yml`) is fully wired.
 
-**Current state (2026-08-18):** The env has been rebuilt as `semi-private` and is RUNNING; CDW activation is still UNRESOLVED. See "Lessons / status" below.
+**Current state (2026-08-18):** CDW + Trino VW is COMPLETE. `srm-trino-vw` is Running on env `srm-iceberg-cdp-env` (3rd build, semi-private). See "Lessons / status" below.
 
 The plan: **tear down the existing `srm-iceberg` env and rebuild it from scratch** as the unified platform (Iceberg REST Catalog + Trino VW on ONE env) using `deployment_template = "semi-private"`. The existing REST demo is destroyed and replaced — there is no separate "unified" prefix and no parallel env.
 
@@ -12,9 +12,9 @@ The plan: **tear down the existing `srm-iceberg` env and rebuild it from scratch
 
 CDW on AWS needs **private worker subnets** and **CDW-ready IAM/subnet tagging**. The previous `srm-iceberg` env used `deployment_template = "public"` (public-subnet-only) — CDW cannot activate on that. At the same time the REST Catalog demo requires `LIGHT_DUTY` scale, a single IDBroker (CDPD-99471 — IDBroker HA breaks credential vending, so never `ENTERPRISE`/`HA`), RAZ enabled, and DataLake version `7.3.2`. All of these must co-exist.
 
-The pivot is `deployment_template = "semi-private"`: private worker subnets for CDW, while keeping `LIGHT_DUTY` / single IDBroker / RAZ intact. The rebuild itself is confirmed working — 108 resources, DataLake RUNNING, private + public subnets present, NAT gateways + private routing + correct k8s subnet tags all verified (2026-08-18). **CDW activation on this rebuilt env is still unresolved** — see "Lessons / status".
+The pivot is `deployment_template = "semi-private"`: private worker subnets for CDW, while keeping `LIGHT_DUTY` / single IDBroker / RAZ intact. The rebuild itself is confirmed working — 108 resources, DataLake RUNNING, private + public subnets present, NAT gateways + private routing + correct k8s subnet tags all verified (2026-08-18). **CDW activation is now confirmed working** — see "Lessons / status".
 
-**Leading hypothesis to test next**: CDW activation requires `private_load_balancer: true`. A known-good CDW cluster in the same tenant uses a private LB + `awsOptions: null`; every failed attempt used `private_load_balancer: false`. This is untested — it is the next thing to try, not a confirmed fix.
+**Confirmed working config**: CDW activation requires `private_load_balancer: true` (PRIVATE load balancer) with explicit private subnets for both `aws_lb_subnets` and `aws_worker_subnets`. A public LB on a semi-private env is rejected at CDW intake (Accepted → Error at ~6 min, no reason surfaced). Omitting subnets fails immediately with `missing AWS activation parameters`.
 
 ---
 
@@ -53,17 +53,19 @@ A CDW-capable CDP environment. The playbook is correct; it just needs a target e
 
 Ran `provision-trino-vw.yml` against `srm-iceberg-cdp-env`. CDW cluster `env-h7s8jn` was accepted (correct subnets / overlay / public LB / resource pool `root.srm-iceberg-cdp-env.cdw`), but EKS/infra bring-up failed into `status: Error`. The API exposed no reason (`statusReason` / `message` both null — reason lives only in the CDW activation event log in the console). The cluster auto-rolled-back; returns 404 now, no manual delete needed. Root cause: public-subnet-only env — CDW/EKS activation requires private worker subnets.
 
-### 2026-08-18 attempt (env rebuilt; CDW still unresolved)
+### 2026-08-18 — 3rd build: CDW + Trino VW CONFIRMED WORKING
 
-`srm-iceberg` was torn down and rebuilt with `deployment_template = "semi-private"` (LIGHT_DUTY / 7.3.2 / RAZ / single IDBroker). Result: 108 resources, DataLake RUNNING. Env CRN: `crn:cdp:...:environment:cf7332a3-5daa-434a-b807-cf964b496870`. Private worker subnets confirmed: `subnet-04f9404b795f4cdc1` / `subnet-0175a5cbcf6f8cd74` / `subnet-07e27fc6a867bc3cd`. Public subnets: `subnet-0d5e7a7ade1789ca6` / `subnet-05ac33faa84796cd0` / `subnet-0a54222130ad9edb2`. NAT gateways, private routing, and k8s subnet tags all verified.
+`srm-iceberg` was torn down and rebuilt a third time with `deployment_template = "semi-private"` (LIGHT_DUTY / 7.3.2 / RAZ / single IDBroker). Result: 108 resources, DataLake RUNNING. Env CRN: `crn:cdp:environments:us-west-1:558bc1d2-8867-4357-8524-311d51259233:environment:2ccc0fd0-c645-4156-9b95-2016d632fb30`. Private subnets: `subnet-0261391108f5e05dc` / `subnet-0da637498c8807337` / `subnet-0fef268632cabe1ee`. NAT gateways, private routing, and k8s subnet tags all verified.
 
-**CDW activation (`dw_cluster`) failed repeatedly**: cluster reaches `Accepted` then flips to `Error` at ~6 min with `statusReason: null`, creates no EKS in-account, never registers in the CDW UI. No reason exposed via `dw describe-cluster`, `dw list-events`, CDP audit log, or UI.
+**CDW activation succeeded**: `private_load_balancer: true` with private subnets for both `aws_lb_subnets` and `aws_worker_subnets` was the fix. CDW cluster `env-xgfnld` reached Running and created its own EKS (`env-xgfnld-dwx-stack-eks`). Database Catalog `srm-iceberg-dbc` and Trino VW `srm-trino-vw` (type `trino`, `r5d.4xlarge`, `iceberg` connector) are all Running. Playbook RECAP: ok=6 changed=2 failed=0.
 
-Two mistakes made during this attempt — do not repeat:
+**Root cause of all prior failures**: `private_load_balancer: false` (public LB) on a semi-private env. CDW intake accepts the request then flips to Error at ~6 min with `statusReason: null` — no diagnostic is surfaced via CLI, UI, or audit log. The LB type is the only variable that changed between the failing attempts and the successful one.
 
-1. **Ran `cdp environments initialize-aws-compute-cluster` — unnecessary, do not repeat.** This is NOT part of the CDW path. It created a "default" externalized compute cluster that (a) did not help CDW and (b) cannot be deleted independently ("default Compute Cluster cannot be deleted by end user; deleted only when the CDP environment is deleted"), wedging the env in `COMPUTE_CLUSTER_CREATION_IN_PROGRESS`. Classic CDW (`dw_cluster`) provisions its own EKS and does not use an externalized compute cluster. **Never run `initialize-aws-compute-cluster` for a CDW/Trino env.**
+Two permanent gotchas confirmed during this work — do not repeat:
 
-2. **Every failed CDW activation used `private_load_balancer: false` (public LB).** A known-good CDW cluster in the same tenant (`env-r6ndqm`, Running) uses `enablePrivateLoadBalancer: true` and `awsOptions: null`. Leading hypothesis: activate CDW with `private_load_balancer: true`. Untested — this is the next thing to try.
+1. **Never run `cdp environments initialize-aws-compute-cluster`.** This is NOT part of the CDW path. It creates a "default" externalized compute cluster that cannot be deleted independently ("default Compute Cluster cannot be deleted by end user; deleted only when the CDP environment is deleted"), wedging the env in `COMPUTE_CLUSTER_CREATION_IN_PROGRESS`. Classic CDW (`dw_cluster`) provisions its own EKS and does not use an externalized compute cluster.
+
+2. **Explicit subnets are required — `awsOptions: null` does NOT work via CLI/Ansible.** Even though a UI-created reference cluster showed `awsOptions: null`, omitting subnets in the playbook fails immediately with `missing AWS activation parameters`. Always pass private subnets explicitly for both `aws_lb_subnets` and `aws_worker_subnets`.
 
 ---
 
@@ -134,40 +136,59 @@ cdp environments describe-environment \
   | jq '.environment.network'
 ```
 
-Record the private subnet IDs here at build time — they replace the three public subnets previously in the playbook. **Current private subnets (2026-08-18 build):** `subnet-04f9404b795f4cdc1` / `subnet-0175a5cbcf6f8cd74` / `subnet-07e27fc6a867bc3cd`.
+Record the private subnet IDs here at build time — they replace the three public subnets previously in the playbook. **Current private subnets (2026-08-18 3rd build):** `subnet-0261391108f5e05dc` / `subnet-0da637498c8807337` / `subnet-0fef268632cabe1ee`.
 
 > **Note:** This rebuild replaces the weekly redeploy going forward. Update `redeploy.sh` (and any weekly reaper rebuild scripts) to use `deployment_template = "semi-private"` — the old `"public"` path is retired.
 
 ---
 
-## Phase T2 — Provision the Trino VW (CDW activation — TO VERIFY)
+## Phase T2 — Provision the Trino VW (CDW activation — CONFIRMED WORKING)
 
-**Status: unresolved as of 2026-08-18.** The env is rebuilt and RUNNING; CDW activation has not yet succeeded. The next attempt should use `private_load_balancer: true` (see hypothesis above and "Lessons / status" below).
+**Status: COMPLETE as of 2026-08-18.** `provision-trino-vw.yml` ran clean (PLAY RECAP ok=6 changed=2 failed=0). CDW cluster `env-xgfnld`, Database Catalog `srm-iceberg-dbc`, and Trino VW `srm-trino-vw` are all Running.
 
-With `srm-iceberg-cdp-env` `AVAILABLE` (rebuilt), update `provision-trino-vw.yml` vars:
+**Working environment (3rd build):**
 
-| var | old (destroyed) value | value to use next |
+- env: `srm-iceberg-cdp-env`, CRN: `crn:cdp:environments:us-west-1:558bc1d2-8867-4357-8524-311d51259233:environment:2ccc0fd0-c645-4156-9b95-2016d632fb30`
+- Private subnets: `subnet-0261391108f5e05dc` (2a), `subnet-0da637498c8807337` (2b), `subnet-0fef268632cabe1ee` (2c). VPC `vpc-04c815b9f35200da1`.
+- CDW cluster: `env-xgfnld` — Running (created its own EKS `env-xgfnld-dwx-stack-eks`).
+
+**Running results:**
+
+| Resource | Name | Status |
 |---|---|---|
-| `env_crn` | `crn:cdp:environments:us-west-1:...:environment:528b...` (destroyed) | `crn:cdp:...:environment:cf7332a3-5daa-434a-b807-cf964b496870` (current build) |
-| `dbc_name` | `srm-iceberg-dbc` | `srm-iceberg-dbc` |
-| `vw_name` | `srm-trino-vw` | `srm-trino-vw` (unchanged) |
-| `vw_size` | `xsmall` | `xsmall` (unchanged) |
-| `aws_lb_subnets` | PUBLIC subnets | **private** subnets (for private LB): `subnet-04f9404b795f4cdc1` / `0175a5cbcf6f8cd74` / `07e27fc6a867bc3cd` |
-| `aws_worker_subnets` | PUBLIC subnets | **private** subnets: same as above |
-| `public_worker_node` | `true` | `false` — workers on private subnets do not need public IPs |
-| `private_load_balancer` | `false` | **`true` — TO VERIFY** (hypothesis: public LB is why CDW activation fails) |
-| `overlay` | `true` | `true` (unchanged — conserves VPC IPs) |
+| CDW cluster | `env-xgfnld` | Running |
+| Database Catalog | `srm-iceberg-dbc` | Running |
+| Trino VW | `srm-trino-vw` | Running |
 
-The rebuilt env CRN is `crn:cdp:...:environment:cf7332a3-5daa-434a-b807-cf964b496870`. Do not reuse the old `528b...` CRN.
+**Endpoints:**
 
-Run the playbook:
+- Trino coordinator: `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site:443`
+- JDBC: `jdbc:trino://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site:443`
+- Hue: `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site`
+
+> **CAVEAT:** The LB is PRIVATE. The Trino endpoint is reachable within the CDP/VPC network path; it is NOT a public endpoint. External/public reachability for a demo may need a follow-up (VPN or bastion). This is a known limitation, not a blocker.
+
+**Confirmed working playbook vars** (`provision-trino-vw.yml` — already updated to this config):
+
+| var | confirmed working value | notes |
+|---|---|---|
+| `env_crn` | `crn:cdp:environments:us-west-1:558bc1d2-8867-4357-8524-311d51259233:environment:2ccc0fd0-c645-4156-9b95-2016d632fb30` | 3rd build CRN |
+| `dbc_name` | `srm-iceberg-dbc` | |
+| `vw_name` | `srm-trino-vw` | `vwType: trino`, `iceberg` connector auto-associated |
+| `aws_lb_subnets` | private subnets: `subnet-0261391108f5e05dc` / `subnet-0da637498c8807337` / `subnet-0fef268632cabe1ee` | MUST be private for private LB |
+| `aws_worker_subnets` | same private subnets | MUST be explicit — `awsOptions: null` fails with CLI/Ansible |
+| `public_worker_node` | `false` | workers on private subnets |
+| `private_load_balancer` | **`true`** | **THE FIX** — public LB on semi-private env is rejected |
+| `overlay` | `true` | conserves VPC IPs |
+
+Run the playbook (for future rebuilds):
 
 ```bash
 source ~/.venvs/clouderacloud/bin/activate
 ansible-playbook provision-trino-vw.yml -v
 ```
 
-Expected chain: CDW cluster `AVAILABLE` → Database Catalog `AVAILABLE` → Trino VW `srm-trino-vw` (type `trino`, `xsmall`) `AVAILABLE`. Each step waits up to 3600s.
+Chain: CDW cluster `AVAILABLE` → Database Catalog `AVAILABLE` → Trino VW `srm-trino-vw` (type `trino`, `r5d.4xlarge`) `AVAILABLE`. Each step waits up to 3600s.
 
 ---
 
@@ -212,9 +233,11 @@ Same auto-stop / Friday-reaper mechanics as the iceberg plan — see `cloudera-i
 
 ## Lessons / status (2026-08-18)
 
-- **Env rebuild is solved.** `semi-private` with LIGHT_DUTY / 7.3.2 / RAZ / single IDBroker works. 108 resources, DataLake RUNNING, private + public subnets, NAT, routing, k8s tags all verified.
-- **CDW activation is still UNRESOLVED.** Every attempt flips to `Error` at ~6 min with `statusReason: null` and creates no EKS in-account. No diagnostic is exposed via CLI or UI. Next test: `private_load_balancer: true` with private LB + worker subnets.
+- **CDW + Trino VW is COMPLETE.** `srm-trino-vw` (type `trino`, `r5d.4xlarge`, `iceberg` connector) is Running. Playbook RECAP: ok=6 changed=2 failed=0.
+- **Root cause of every prior CDW failure: public LB on a semi-private env.** `private_load_balancer: false` causes CDW intake to flip to Error at ~6 min with no surfaced reason. Fix: `private_load_balancer: true` with private subnets for both `aws_lb_subnets` and `aws_worker_subnets`.
+- **Explicit subnets are required.** `awsOptions: null` does not work via CLI/Ansible even though a UI-created reference cluster shows it. Omitting subnets fails immediately with `missing AWS activation parameters`.
 - **Do NOT run `initialize-aws-compute-cluster`.** It creates an unremovable "default" externalized compute cluster (cannot be deleted without destroying the entire env) and does nothing for CDW. If the env gets wedged in `COMPUTE_CLUSTER_CREATION_IN_PROGRESS` from a previous run, a full env destroy + rebuild is the only recovery.
+- **Private LB caveat:** The Trino endpoint is reachable within the CDP/VPC network path; it is NOT a public endpoint. External/public demo access may need a follow-up (VPN or bastion).
 - **REST Catalog completion is tracked separately in issue #179** (recreate Impala Data Hub → enable REST Catalog → seed → validate); it is CDW-independent and can proceed in parallel once the env is stable.
 
 ---
@@ -223,9 +246,9 @@ Same auto-stop / Friday-reaper mechanics as the iceberg plan — see `cloudera-i
 
 | Item | Detail |
 |---|---|
-| **CDW activation: private-LB hypothesis** | Every failed attempt used `private_load_balancer: false`. Known-good cluster in same tenant uses private LB. **TO TEST**: `private_load_balancer: true`, private subnets for both LB and worker. Not yet verified. |
+| **CDW activation: private-LB** | RESOLVED (2026-08-18). `private_load_balancer: true` with private subnets for both LB and worker is the confirmed working config. Public LB on semi-private env is rejected. |
+| **External/public reachability** | The Trino endpoint is private (LB is private). External access for a demo requires VPN or a bastion into the VPC. Not a blocker for internal/CDP-network demos, but a follow-up for any public-facing use case. |
 | **Single IDBroker under semi-private** | Confirmed single IDBroker on 2026-08-18 build. CDPD-99471 safe as long as `semi-private` is used (not `ENTERPRISE`/HA). |
-| **CDW IAM/subnet tagging** | `cdp-tf-quickstarts/aws` emits k8s subnet tags (verified 2026-08-18). Whether CDW-specific IAM tagging is also needed remains unclear — no diagnostic surfaced. May need to inspect a successful peer activation to compare. |
 | **Teardown is destructive; rebuild takes ~1h40m** | The destroy + rebuild replaces the weekly redeploy going forward. `redeploy.sh` / the weekly reaper rebuild must be updated to use `semi-private`. Plan for downtime. |
 | **Trino as seed engine** | Whether the CDW Trino VW can serve the `poc_uc2` seed INSERTs (flights 120k rows) or if Impala is still required. If Impala is needed, that is an additional Phase T1.5 or a Data Hub like the iceberg plan. |
 
