@@ -29,9 +29,14 @@ not. Ember is an ESP-Brookesia launcher app, and X viewer is built the same way:
 The app must not steal the system gesture; see the gesture table below, which is designed around it.
 
 Still not a MicroFi processor — the flow engine's 256-byte FlowFile ceiling and absent display stack rule
-it out, same as for Ember. Flashing Brookesia does take the `AMOLED` EFM agent dark, and
-`pio run -e amoled -t upload` restores it; that MicroFi-vs-Brookesia swap is #181's business and is the
-*only* swap left.
+it out, same as for Ember.
+
+**There is no MicroFi-vs-Brookesia swap. Corrected 2026-08-18 on #181.** An earlier version of this
+paragraph said flashing Brookesia takes the `AMOLED` EFM agent dark and `pio run -e amoled -t upload`
+restores it. That whole-image path wiped the board's factory OS once already and has been deleted from
+MicroFi. The agent now ships *inside* the same Brookesia image as a third drop-in component,
+`firmware/components/microfi_agent/` — so the board runs the launcher, both apps, and the EFM agent on
+one boot. Golden source: [`efm-waveshare-amoled.md`](efm-waveshare-amoled.md).
 
 **The board-contention worry is retracted.** It was an artifact of the standalone-firmware assumption.
 Both apps ship in one image as two tiles, so #183 and #184 do not compete for the board.
