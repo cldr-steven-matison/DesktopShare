@@ -28,8 +28,8 @@ Four channels, three faces, two gestures that matter:
 |---|---|
 | Shake (IMU) or tap the coal | New pulse on this channel |
 | Swipe L / R | `WORLD` · `SCIENCE` · `SPACE` · `YOU` |
-| Swipe up | **WHY** — why a sharp person cares in the next 24h |
-| Swipe down | **TAKE** — Grok's actual opinion |
+| Tap the text | cycle **NOW → WHY → TAKE** |
+| Swipe up from bottom | **Brookesia home** (system; Ember does not steal it) |
 | Long-press the coal | **PAINT** — Imagine forges a 368×448 card (billable; opt-in) |
 
 Idle is almost all pixels off. One living ember at the bottom. Heat of the
@@ -40,17 +40,30 @@ Grok interpreting a live local snapshot, not a news wire.
 
 ## Architecture — same hard calls as #183, different payload
 
-### 1. Dedicated app firmware, not a MicroFi processor
+### 1. Brookesia app, not a replacement OS
 
-Same reasons as `amoled-x-viewer-plan.md`: 256-byte FlowFile ceiling, no display
-stack, every UI tweak would be a firmware rebuild anyway. Ember is a standalone
-**ESP-IDF + LVGL v9** app on the Waveshare BSP
-(`waveshare/esp32_s3_touch_amoled_1_8` ^2.0.3). Default SKU assumption: **1.8″
-V2, 368×448, CO5300 + CST820**. Rear-label size still unread on #181 — if it's
-a different size, only the BSP + resolution change.
+Steven asked for an on-screen icon. Ember is a `systems::phone::App`
+(`ESP_UTILS_REGISTER_PLUGIN_WITH_CONSTRUCTOR`) with a **112×112** launcher
+tile (`img_app_ember`). Brookesia keeps the home grid, status bar, swipe-up-
+to-home, and recents. Ember does not steal the vertical system gesture —
+in-app, tap cycles NOW/WHY/TAKE and swipe L/R changes channel.
 
-While Ember is flashed, the `AMOLED` EFM agent from #181 is dark. Expected.
-`pio run -e amoled -t upload` puts the agent back. No heartbeat-embed in v1.
+Still not a MicroFi processor (same 256-byte / no-display reasons as #183).
+Still a flash — ESP32 has no sideload — but the image is **Brookesia + Ember**,
+not Ember instead of Brookesia.
+
+Two install shapes, both in `~/ember/firmware`:
+
+| Shape | What you get |
+|---|---|
+| Slim host (`firmware/main`) | Phone + Ember only. Default for the #181 1.8″ V2. |
+| Drop-in (`firmware/components/ember`) | Copy into factory Brookesia; registry install puts the tile next to Settings / Calculator / AI Chat. |
+
+Default SKU assumption: **1.8″ V2, 368×448, CO5300 + CST820**. Rear-label
+size still unread. Flashing the slim host still darkens the `AMOLED` EFM
+agent from #181 (`pio run -e amoled -t upload` puts it back). Dropping Ember
+into factory Brookesia and flashing *that* image is how the rest of the
+suite stays.
 
 ### 2. The device never talks to api.x.ai
 
@@ -78,10 +91,11 @@ Pulse shape (device-sized on purpose):
 }
 ```
 
-### 3. App home is `~/ember` on StarlinkAI, not DesktopShare
+### 3. App home is `steven-matison/ember`, not DesktopShare
 
-DesktopShare stays docs. The runnable app — backend, AMOLED simulator, firmware
-— lives at `/home/tunas/ember`. Keys are sourced at launch from
+DesktopShare stays docs. The runnable app — backend, AMOLED simulator, Brookesia
+firmware — lives at [`steven-matison/ember`](https://github.com/steven-matison/ember)
+(clone on StarlinkAI: `/home/tunas/ember`). Keys are sourced at launch from
 `tuna-starlink-app/backend/.env.local` (`XAI_API_KEY`); they are never copied
 into the Ember tree.
 
@@ -94,7 +108,7 @@ is split on purpose:
 |---|---|
 | Backend on StarlinkAI `:8088` | live — Grok + optional Imagine |
 | Pixel-true simulator (`368×448`) | live — same contract, same gestures |
-| ESP-IDF firmware in `~/ember/firmware` | written, unflashed (no IDF on this host, board is elsewhere) |
+| Brookesia app + slim phone host in `~/ember/firmware` | written, unflashed (no IDF on this host, board is elsewhere) |
 | Flash + IMU bring-up | WindowsDesktop follow-up, once SKU is read off the rear label |
 
 The simulator is not a cop-out. It is the same product at the same resolution,
@@ -120,13 +134,12 @@ PSRAM and sets it as the card background.
 1. **Exact SKU** — still unread. Default 1.8″ V2.
 2. **Auto-paint** — off. Imagine is ~$0.02–0.05/image; paint is a deliberate
    long-press, not a side effect of shake.
-3. **Firmware repo** — `~/ember` for now. Promote to its own GitHub repo if
-   this survives a week in the hand.
+3. **Firmware repo** — [`steven-matison/ember`](https://github.com/steven-matison/ember).
 
 ## Done condition
 
-Pick up the board (or the simulator tonight): shake gives a new live pulse,
-swipe L/R changes channel, swipe up/down changes face, long-press paints.
-The panel spends most of its life black. When this ships to the physical
-board, update `efm-waveshare-amoled.md` with the firmware-swap note (same
-sentence #183 will need).
+Pick up the board: Ember is a tile on the Brookesia home screen. Tap it,
+shake for a live pulse, swipe L/R for channel, tap to cycle faces, swipe
+up to go home. The panel spends most of its in-app life black. When this
+ships, update `efm-waveshare-amoled.md` with whichever image is on the
+board (slim host vs factory Brookesia + Ember).
