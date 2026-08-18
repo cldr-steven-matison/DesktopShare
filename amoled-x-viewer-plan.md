@@ -206,19 +206,16 @@ battery pill — there's no battery), reconnect handling, doc update with as-bui
 **Decided 2026-08-18: a new repo for the app; every `.md` stays in DesktopShare.** Same split already used
 for MicroFi, cso-operator-app, and Ember — code in its own repo, planning and golden-source docs here.
 
-Home follows Ember's precedent exactly: ESP32 firmware under the **`steven-matison`** account
-(`ember`, `MicroFi`, `esp32-fluidbox`), Cloudera-adjacent work under `cldr-steven-matison`. So
-**`steven-matison/amoled-x-viewer`**. **Steven creates it** —
-this session's GitHub login (`TunaStreetTest`) is a separate personal account in no shared org and cannot
-create repos under either of Steven's, so it needs the repo made and push access granted.
+**`amoled-x-viewer` is a TunaStreetTest project and repo.** Code is committed locally at
+`~/amoled-x-viewer` and waits there; DesktopShare keeps the docs.
 
 ## Open items
 
-Every design question is settled. What remains is access, not decisions:
+Every design question is settled.
 
-1. **Create `steven-matison/amoled-x-viewer`** and grant `TunaStreetTest` push access.
-2. **Grant read access to `steven-matison/ember`** — currently 404 to this login; needed to combine both
-   components into the one image Phase 4 delivers.
+1. **Push the app repo** once it exists.
+2. **`components/ember/` is not readable from here** — `steven-matison/ember` returns 404 to this
+   session's login, so Phase 4's combined image can't be assembled yet.
 
 ## Done condition
 
