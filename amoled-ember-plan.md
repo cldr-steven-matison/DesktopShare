@@ -52,7 +52,7 @@ Still not a MicroFi processor (same 256-byte / no-display reasons as #183).
 Still a flash — ESP32 has no sideload — but the image is **Brookesia + Ember**,
 not Ember instead of Brookesia.
 
-Two install shapes, both in `~/ember/firmware`:
+Two install shapes, both in [`amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember) `firmware/`:
 
 | Shape | What you get |
 |---|---|
@@ -91,13 +91,15 @@ Pulse shape (device-sized on purpose):
 }
 ```
 
-### 3. App home is `steven-matison/ember`, not DesktopShare
+### 3. App home is `steven-matison/amoled-x-ember`. Spec stays in DesktopShare.
 
-DesktopShare stays docs. The runnable app — backend, AMOLED simulator, Brookesia
-firmware — lives at [`steven-matison/ember`](https://github.com/steven-matison/ember)
-(clone on StarlinkAI: `/home/tunas/ember`). Keys are sourced at launch from
+DesktopShare keeps the plan (`amoled-ember-plan.md` on `issue-184-amoled-ember`)
+while we build and iterate. The runnable tree — backend, simulator, Brookesia
+firmware — is [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember)
+(clone on StarlinkAI: `/home/tunas/amoled-x-ember`). Sibling of the #183
+`amoled-x-viewer` repo. Keys are sourced at launch from
 `tuna-starlink-app/backend/.env.local` (`XAI_API_KEY`); they are never copied
-into the Ember tree.
+into the app tree.
 
 ## What runs tonight vs what flashes later
 
@@ -108,7 +110,7 @@ is split on purpose:
 |---|---|
 | Backend on StarlinkAI `:8088` | live — Grok + optional Imagine |
 | Pixel-true simulator (`368×448`) | live — same contract, same gestures |
-| Brookesia app + slim phone host in `~/ember/firmware` | written, unflashed (no IDF on this host, board is elsewhere) |
+| Brookesia app + slim phone host in `amoled-x-ember/firmware` | written, unflashed (no IDF on this host, board is elsewhere) |
 | Flash + IMU bring-up | WindowsDesktop follow-up, once SKU is read off the rear label |
 
 The simulator is not a cop-out. It is the same product at the same resolution,
@@ -134,7 +136,8 @@ PSRAM and sets it as the card background.
 1. **Exact SKU** — still unread. Default 1.8″ V2.
 2. **Auto-paint** — off. Imagine is ~$0.02–0.05/image; paint is a deliberate
    long-press, not a side effect of shake.
-3. **Firmware repo** — [`steven-matison/ember`](https://github.com/steven-matison/ember).
+3. **App repo** — [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember).
+   Spec stays in this file.
 
 ## Done condition
 
