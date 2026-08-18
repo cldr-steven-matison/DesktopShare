@@ -25,16 +25,35 @@ sessions reach for it on the same evening; a second board would remove the confl
 
 ## The device
 
+**SKU confirmed 2026-08-18** from the rear label (photo on #181) — the hardware gate is closed:
+
 | | |
 |---|---|
-| Board | Waveshare ESP32-S3 Touch AMOLED, revision **V2** |
-| Size / SKU | **unread — the one open hardware gate.** Pins the BSP, display driver (V2 on the 1.8″ is CO5300, not V1's SH8601), and touch IC |
-| Flash | 16 MB quad |
-| PSRAM | 8 MB embedded octal — LVGL framebuffers live here, not in internal SRAM |
-| Power | USB only, **no battery** — a tethered desk panel, not a handheld. No battery UI, no charge state, no AXP2101 percentage |
+| Board | **Waveshare ESP32-S3-Touch-AMOLED-1.8, V2** |
+| Display | **CO5300**, 1.8″ AMOLED, **368 × 448** — QSPI |
+| Touch | **CST820** (I2C) |
+| IO expander | **TCA9554** — panel/touch reset and enable lines sit behind it, not on direct GPIO |
+| PMIC | **AXP2101** — powers the display rails, so it must be brought up even with no battery |
+| Flash / PSRAM | 16 MB quad / 8 MB embedded octal |
+| Also on board | 6-axis IMU **QMI8658**, RTC **PCF85063**, codec **ES8311**, speaker, mic, microSD |
+| Power | USB-C only, **no battery** — a tethered desk panel, not a handheld. No battery UI, no charge state, no AXP2101 percentage (the chip is there; there's just nothing to measure) |
 
 **Standalone ESP-IDF + LVGL v9 app**, its own repo (`amoled-x-viewer`), its own build and partition
 table. Swipe = LVGL gesture events on a card-per-post layout; heart = a tap target on the card.
+
+What the real numbers change:
+
+- **Framebuffers**: 368 × 448 × 2 B = **322 KB** per full 16-bit frame — comfortable in 8 MB PSRAM, and
+  double buffering (644 KB) is still fine. Internal SRAM was never an option; now that's arithmetic, not
+  a guess.
+- **Card layout targets a 368 × 448 portrait panel** — a tall, narrow card. Post text wraps early; one
+  image per card wants roughly 368 × 220 to leave room for text and the heart row. This is the number
+  the backend pre-scales media to.
+- **The TCA9554 is the bring-up gotcha.** Reset lines behind an I2C expander mean the panel cannot come
+  up before I2C and the expander do; a "dead panel" during Phase 0 is far more likely to be expander
+  ordering than a bad display.
+- **Extras are out of scope but worth knowing they exist** — the IMU, mic, speaker, and SD are on the
+  board and cost nothing to ignore. (The IMU is what makes #184's shake gesture possible.)
 
 ## The device never talks to api.x.com
 
@@ -81,9 +100,10 @@ scaling. Decide from the dumped flow, not from this doc.
 
 ## Phases
 
-**Phase 0 — hardware gate.** Read the rear label for the exact size → pin BSP, display driver, touch IC.
-Bring up panel + touch with the vendor sample. Exit: the panel lights and touch registers on this unit.
-*(Blocked on the SKU read.)*
+**Phase 0 — hardware bring-up.** ~~Read the rear label~~ **done** — SKU, display, touch, and expander are
+all pinned above. Remaining: pull the Waveshare BSP for the `ESP32-S3-Touch-AMOLED-1.8` V2 and light the
+panel + touch on this unit, minding the AXP2101-then-TCA9554-then-panel init order. Exit: the panel lights
+and a touch registers. **Unblocked.**
 
 **Phase 1 — the UI, no network.** LVGL card-per-post layout, swipe between ~10 canned posts baked into
 the image, heart animates locally. Exit: it feels right under the thumb. **Swipe latency and card layout
@@ -100,9 +120,9 @@ battery), reconnect handling, doc update with as-built deviations.
 
 ## Open decisions
 
-1. **SKU size** — the only open hardware gate; all of Phase 0 hangs on it.
-2. **Repo name/home** — `amoled-x-viewer` as a new repo is the default; it shares no code with MicroFi.
-3. **The like-write probe** — needs an explicit go, because it's a public action on the real account.
+1. **Repo name/home** — `amoled-x-viewer` as a new repo is the default; it shares no code with MicroFi.
+2. **The like-write probe** — needs an explicit go, because it's a public action on the real account.
+3. ~~SKU size~~ — **answered 2026-08-18**: ESP32-S3-Touch-AMOLED-1.8 V2, CO5300 / 368×448 / CST820.
 4. ~~Which X account~~ — **answered**: @TunaStreetTest (`2036858257877188608`), verified live 2026-08-18.
 5. ~~Firmware repo home / EFM coexistence~~ — **not this issue.** Dedicated firmware per #184's
    convention; the agent is #181's business.
