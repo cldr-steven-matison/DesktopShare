@@ -193,8 +193,17 @@ close is a **two-step move, never one**:
 
 ```bash
 gh issue edit <n> --remove-label status:review --add-label status:done   # 1. mark done FIRST
-gh issue close <n> --comment "<result + commit sha>"                       # 2. then close
+gh issue close <n> --comment "<result + commit sha>"                     # 2. then close
+git checkout main && git pull --ff-only                                  # 3. merge the issue branch
+git merge --no-ff issue-<n>-<slug> && git push origin main
 ```
+
+**Merge the issue branch into `main` as part of the close** (step 3), when the issue has one. A
+closed issue whose doc only lives on its branch is a stale-spec trap — the next session pulls
+`main`, doesn't see the file, and works from whatever it finds instead. `--no-ff` keeps the
+branch's commits readable as a unit, matching the existing merge history. **Keep the branch after
+merging** — issue branches are never deleted (`workflow.md`). If the merge isn't clean, stop and
+reconcile; don't force it.
 
 **Set `status:done` before you close, always.** Whatever the issue carried
 (`todo`/`in-progress`/`review`), strip it and add `status:done` in the same edit, *then* close.
