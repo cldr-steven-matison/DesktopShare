@@ -182,7 +182,7 @@ and a REST Catalog `load-table` call (4-step OAuth flow completes, manifest retu
 
 ### Screenshots (CDW Management Console)
 
-> **Note:** The Trino LB is private — Hue is VPC-internal only. The CDW Management Console (`cloud.cloudera.com`) is publicly accessible from the Mac and is the screenshot path.
+> **Note:** The Trino LB is private — Hue and the Trino Web UI are VPC-internal without VPN. With AWS Client VPN connected (see [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md) §External / VPC access), both are Mac-accessible. The CDW Management Console (`cloud.cloudera.com`) is publicly accessible regardless.
 
 ![CDW cluster list row — srm-iceberg-cdp-env, env-xgfnld, Good Health, 2 DBCs / 1 VW](/images/trino-cdw-cluster-running.png)
 
@@ -252,7 +252,7 @@ After Step 2, both demos are live: REST Catalog (4-step OAuth) and Trino VW on t
 
 | Item | Detail |
 |---|---|
-| **External/public reachability** | The Trino endpoint is private (private LB). External demo access requires a VPN or bastion into the VPC. Not a blocker for internal/CDP-network demos. |
+| **External/public reachability** | The Trino endpoint is private (private LB). **Solved via AWS Client VPN** — see [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md) §External / VPC access and [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190). VPN also unblocks Hue and HMS thrift for NiFi PutIceberg (#151). |
 | ~~Trino as seed engine~~ | **Resolved (#179):** `redeploy.sh` uses Impala Data Hub (step 3-4) for all seeding — `seed-airlines.sql` (3 rows) + `seed-flights.sql` (120k rows). Trino VW is the query engine, not the seed engine. |
 | **Teardown is destructive; rebuild ~1h40m** | Destroy + rebuild replaces the weekly redeploy. `redeploy.sh` uses `semi-private`; CDW Trino provision is a required post-redeploy step (see Monday checklist above). Total: ~1h55m. |
 

@@ -46,6 +46,39 @@ This build uses `deployment_template = "public"`, and that is correct for a REST
 
 The public-EAG and `ENTERPRISE`-default behavior above is confirmed in the module source; the REST Catalog consumer-matrix **re-run** on the rebuilt `semi-private` `srm-iceberg` is still pending, tracked in **#179** (recreate Impala Data Hub → enable REST Catalog → seed → validate).
 
+## External / VPC access
+
+The `semi-private` template puts CDW workers, CDW load balancers, and DataLake compute nodes on **private subnets** (`10.10.0.0/16`). Public DNS names resolve to private IPs — unreachable from the Mac or any outside client. This affects every service in the demo suite, not just Trino:
+
+| Service | Endpoint | Blocked without VPN |
+|---|---|---|
+| **Trino VW coordinator** | `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site:443` | JDBC queries, Trino Web UI, screenshots |
+| **Hue** | `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site` | Query UI screenshots |
+| **HMS thrift** | `thrift://srm-iceberg-aw-dl-master0.srm-iceb.a465-9q4k.cloudera.site:9083` | `PutIceberg` via `HiveCatalogService` from CSO NiFi (#151) |
+| **Impala workers** | private `10.10.x` IPs | Direct worker access (gateway host is the current workaround) |
+
+**Solution: AWS Client VPN endpoint** attached to the `srm-iceberg-net` VPC (`10.10.0.0/16`). Tracked in [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190) — full option evaluation there. Client VPN is the only option that solves all four services at once without rebuilding the env or managing per-service tunnels.
+
+Once connected, the Mac gets a private IP routed into `10.10.0.0/16`. Because minikube (docker driver) shares the Mac's network stack, CSO NiFi pods also inherit the route — this directly unblocks `HiveCatalogService` for `PutIceberg` (#151) without any change to the minikube cluster.
+
+**Setup (one-time):**
+
+```bash
+# 1. Create server + client certificates — easy-rsa or ACM Private CA
+# 2. Create AWS Client VPN Endpoint in srm-iceberg-net VPC
+#    - Server cert ARN + client cert ARN
+#    - Client CIDR: 10.20.0.0/16 (must not overlap 10.10.0.0/16)
+#    - DNS: VPC resolver 169.254.169.253 (split-DNS; REST Catalog Knox gateway stays public-routed)
+# 3. Associate with 1–2 private subnets
+# 4. Add authorization rule: 10.10.0.0/16 → all groups
+# 5. Export .ovpn client config + embed client cert/key
+# Connect from Mac: AWS VPN Client, Tunnelblick, or OpenVPN
+```
+
+**Survives the weekly reaper.** The VPN endpoint is an AWS resource in the VPC. The CDP reaper deletes only CDP objects (env/DataLake/Data Hub); the VPC and VPN endpoint persist. Client config stays valid across weekly rebuilds — gateway FQDNs are stable for this tenant + prefix. One-time setup, reused every Monday.
+
+**Cost:** ~$0.10/hr per subnet association + ~$0.05/hr per active connection.
+
 ## Deployment record (this build)
 
 Fresh environment stood up 2026-08-11 in the shared Cloudera SE sandbox tenant (control plane **us-west-1**).
