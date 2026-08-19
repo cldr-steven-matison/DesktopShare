@@ -5,6 +5,8 @@ Let's stand up a fresh Cloudera Public Cloud (CDP) Enviornment on AWS with [`cdp
 > **Status:** 🟢 REST Catalog **live & validated** (2026-08-11) on **FTF3XR2065**. Env + DataLake + Impala Data Hub deployed, `poc_uc2.airlines` seeded, REST Catalog enabled via CM API, and the 4-step OAuth flow verified end-to-end (IDBroker-vended STS creds, `client.region=us-east-2`). Phase 5 (consumer matrix): **OSS Spark (minikube K8s), AWS EMR Spark, AWS Athena (for Spark), and Iceberg MCP (Impala) all ✅ validated**. **Pending:** **Snowflake.** Redeploy automation assigns the required env roles. Env stays up until the Friday reaper. Design confirmed against a colleague's live-run runbook.
 >
 > **Rebuilt 2026-08-17 (#162)** — first weekly `redeploy.sh` run against a truly reaped sandbox. AWS infra survived the reaper (terraform `0 destroyed`, 3 CDP objects recreated); `airlines` (3) + `flights` (120k) re-seeded and **both re-validated** via the 4-step REST flow. New reaper `enddate = 2026-08-21`. Fresh CRNs/share id land in `config.env`; new external users `iceberg-consumer` + `iceberg-consumer-nifi`. The NiFi re-wire leg (in the [CSO plan](cloudera-iceberg-rest-catalog-cso-plan.md)) surfaced a real bug — see the memory note `iceberg-rest-catalog-aws`.
+>
+> **Rebuilt `public` → `semi-private` 2026-08-18 (#179)** — destructive teardown + rebuild to co-host the CDW Trino VW (see [`cloudera-trino-plan.md`](cloudera-trino-plan.md)). Current `deployment_template = "semi-private"`. REST Catalog re-validated. Both tables (airlines + flights), both external users, and NiFi re-wire all carried forward. Trino VW (`srm-trino-vw`) added 2026-08-19 (#182). `enddate = 2026-08-28`. Reaper takes the env EOD Thursday 2026-08-21; **Monday redeploy restores full state (~1h40m `redeploy.sh` + ~15m CDW playbook)**.
 
 This is our reproducible rebuild of the Iceberg REST Catalog API Runbook for CDP Public Cloud Runtime 7.3.2 runbook.  We will deploy the environment from scratch, add the compute Data Hub the runbook assumes, and re-verify every external consumer engine — including **EMR Spark, not yet live-verified**. It complements [`cloudera-iceberg-to-athena-plan.md`](cloudera-iceberg-to-athena-plan.md) and corrects that to be validated doc's note that "REST Catalog doesn't reach Athena" — the runbook live-verified Athena-for-Spark via the REST Catalog on 2026-07-25.
 
@@ -52,7 +54,7 @@ Fresh environment stood up 2026-08-11 in the shared Cloudera SE sandbox tenant (
 | :---- | :---- |
 | `env_prefix` | `srm-iceberg` (the 12-char cap dropped the intended `-demo`) → env `srm-iceberg-cdp-env`, DL `srm-iceberg-aw-dl` |
 | AWS | profile `cldr-se` (SSO role `cldr_poweruser`), region **us-east-2** |
-| `deployment_template` | `public` (public Endpoint Access Gateway so external engines can reach Knox) |
+| `deployment_template` | `semi-private` (rebuilt 2026-08-18 #179 to co-host CDW/Trino; public EAG preserved — REST Catalog consumers unaffected) |
 | `datalake_scale` / `datalake_version` | `LIGHT_DUTY` (→ single IDBroker) / `7.3.2` |
 | `enable_raz` | `true` |
 | Terraform | v1.14.6; quickstart cloned at `~/Documents/GitHub/cdp-tf-quickstarts`, tfvars in `aws/` |
@@ -148,13 +150,12 @@ Key `terraform.tfvars` values used:
 ```hcl
 env_prefix          = "srm-iceberg"   # ≤12 chars → srm-iceberg-cdp-env / srm-iceberg-aw-dl
 aws_region          = "us-east-2"
-deployment_template = "public"        # public EAG → single IDBroker via LIGHT_DUTY
-                                      # ↑ use "semi-private" instead if this env will ALSO host a
-                                      #   CDW Trino VW — see the deployment-template section above
+deployment_template = "semi-private"  # private worker subnets (CDW/Trino) + public EAG (REST Catalog consumers)
 datalake_scale      = "LIGHT_DUTY"
 datalake_version    = "7.3.2"         # REST Catalog GA
 enable_raz          = true
-env_tags = { owner = "steven.matison", project = "iceberg-rest-catalog-demo", enddate = "2026-08-14" }
+env_tags = { owner = "steven.matison", project = "iceberg-rest-catalog-demo", enddate = "2026-08-28" }
+# ↑ bump enddate each Monday redeploy (SE sandbox reaper: EOD Friday weekly)
 ```
 
 Then `terraform init && terraform apply`. Capture outputs `cdp_environment_name` / `cdp_environment_crn` / `aws_vpc_id`, and pull the runbook coordinates from the live DataLake:
@@ -427,7 +428,7 @@ aws ec2 revoke-security-group-ingress --group-id <knox-sg> --security-group-rule
 
 ## Automated redeploy (weekly rebuild)
 
-The shared tenant reaps **EOD Friday**, so the whole stack is disposable and must be reproducible on demand — e.g. **Monday morning**. `redeploy.sh` (in the demo dir, embedded below for recoverability) chains every phase end-to-end with live CRN resolution + polling: **~1h40m, unattended after two interactive prereqs.**
+The shared tenant reaps **EOD Friday**, so the whole stack is disposable and must be reproducible on demand — e.g. **Monday morning**. `redeploy.sh` (authoritative copy in [`iceberg-rest-catalog-demo`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo)) chains every phase end-to-end: **~1h40m, unattended after two interactive prereqs.** After it completes, run the CDW Ansible playbook to restore the Trino VW (~15m — see [`cloudera-trino-plan.md`](cloudera-trino-plan.md) Monday redeploy checklist).
 
 **Interactive prereqs (once, before running):**
 ```bash
@@ -438,55 +439,17 @@ cdp configure                            # only if the CDP API key was rotated/d
 
 Then: `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh`
 
-Stable across rebuilds (same tenant + `srm-iceberg` prefix): the gateway host `srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site` and the MCP `.env`. **Only the CRNs churn** — the script re-resolves them from `describe-datalake`/`describe-environment` into `config.env`. (Not wired to a scheduler — run it manually Monday, or drop it in `launchd`/`cron` for true hands-off.)
+**What `redeploy.sh` does (8 steps):**
+1. `terraform apply` — rebuild env + DataLake (~1h20m); `deployment_template = "semi-private"` in tfvars
+2. Wait DataLake RUNNING; resolve fresh CRNs into `config.env`; assign resource roles (idempotent)
+3. Create Impala Data Hub + wait AVAILABLE (~18m) — Impala is still required for seeding (not Trino)
+4. Seed `poc_uc2.airlines` (3 rows) + `poc_uc2.flights` (120k rows, 12 monthly partitions)
+5. Enable REST Catalog (`hive_rest_catalog_enabled=true`, `client.region=us-east-2` safety valve); restart HMS then Knox
+6. Create two external users (`iceberg-consumer` + `iceberg-consumer-nifi`); share both tables to both users; activate; write fresh `credentials.json` + `credentials-nifi.json`
+7. Validate REST Catalog: `test-rest-catalog.sh poc_uc2 airlines` + `poc_uc2.flights`
+8. Best-effort NiFi re-wire: updates the Parameter Context on the surviving `iceberg-lab` minikube flow with the new `iceberg-consumer-nifi` creds; prints manual steps if the `nifi-client` pod is not running
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-export AWS_PROFILE=cldr-se
-export PATH="$HOME/.venvs/cdpcli/bin:$PATH"
-TF="$HOME/Documents/GitHub/cdp-tf-quickstarts/aws"
-DEMO="$HOME/Documents/GitHub/iceberg-rest-catalog-demo"
-PREFIX="srm-iceberg"; ENV_NAME="${PREFIX}-cdp-env"; DL="${PREFIX}-aw-dl"; DH="${PREFIX}-impala"
-GW="${PREFIX}-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site"; USER_NAME="steven.matison"
-
-# [1] terraform apply (env + DataLake) ~1h20m
-( cd "$TF" && terraform init -input=false >/dev/null && terraform apply -auto-approve )
-# [2] wait DataLake RUNNING, resolve CRNs
-until [ "$(cdp datalake describe-datalake --datalake-name "$DL" 2>/dev/null | jq -r '.datalake.status')" = RUNNING ]; do sleep 30; done
-DL_CRN=$(cdp datalake describe-datalake --datalake-name "$DL" | jq -r '.datalake.crn')
-ENV_CRN=$(cdp environments describe-environment --environment-name "$ENV_NAME" | jq -r '.environment.crn')
-printf 'ENV_CRN=%s\nDL_CRN=%s\n' "$ENV_CRN" "$DL_CRN" > "$DEMO/config.env"
-# [3] Impala Data Hub + wait AVAILABLE ~18m
-cdp datahub create-aws-cluster --cluster-name "$DH" --environment-name "$ENV_NAME" \
-  --cluster-definition-name "7.3.2 - Data Mart for AWS" || echo "(exists)"
-until [ "$(cdp datahub describe-cluster --cluster-name "$DH" 2>/dev/null | jq -r '.cluster.clusterStatus')" = AVAILABLE ]; do sleep 30; done
-# [4] seed
-( cd "$DEMO" && python seed-impala.py sql/seed-airlines.sql )
-# [5] enable REST Catalog + restart HMS/Knox (CM API)
-PW=$(cat "$DEMO/.workload.creds"); CMAPI="https://$GW/$DL/cdp-proxy-api/cm-api"
-EXIST=$(curl -sk -u "$USER_NAME:$PW" "$CMAPI/v51/clusters/$DL/services/hive/config" | jq -r '.items[]|select(.name=="hive_service_config_safety_valve").value // ""')
-case "$EXIST" in *client.region*) SV="$EXIST";; *) SV="${EXIST}<property><name>client.region</name><value>us-east-2</value></property>";; esac
-jq -n --arg sv "$SV" '{items:[{name:"hive_rest_catalog_enabled",value:"true"},{name:"hive_service_config_safety_valve",value:$sv}]}' > /tmp/hcfg.json
-curl -sk -u "$USER_NAME:$PW" -X PUT -H "Content-Type: application/json" -d @/tmp/hcfg.json "$CMAPI/v51/clusters/$DL/services/hive/config" >/dev/null
-for svc in hive knox; do
-  CID=$(curl -sk -u "$USER_NAME:$PW" -X POST "$CMAPI/v51/clusters/$DL/services/$svc/commands/restart" | jq -r '.id')
-  until [ "$(curl -sk -u "$USER_NAME:$PW" "$CMAPI/v51/commands/$CID" 2>/dev/null | jq -r '.active')" = false ]; do sleep 10; done
-done
-# [6] external user + data share + activate
-cd "$DEMO"
-cdp datacatalog create-external-users --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" \
-  --external-users '[{"username":"iceberg-consumer","email":"steven.matison@cloudera.com","companyName":"Cloudera"}]' > /tmp/eu.json
-jq '{clientId:.externalUsers[0].clientId,secret:.externalUsers[0].secret,username:.externalUsers[0].username}' /tmp/eu.json > credentials.json; chmod 600 credentials.json
-EUID_=$(jq -r '.externalUsers[0].userId' /tmp/eu.json)
-cdp datacatalog create-data-share --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" \
-  --data-share-name "srm-iceberg-share" --assets '[{"databaseName":"poc_uc2","tableName":"airlines"}]' \
-  --external-users "[{\"externalUserId\":$EUID_}]" > /tmp/ds.json
-SID=$(jq -r '.dataShareId' /tmp/ds.json); echo "DATA_SHARE_ID=$SID" >> "$DEMO/config.env"
-cdp datacatalog share-data-share --datalake-crn "$DL_CRN" --environment-crn "$ENV_CRN" --data-share-id "$SID"
-# [7] validate
-bash test-rest-catalog.sh poc_uc2 airlines
-```
+Stable across rebuilds: gateway host (`srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site`) and the MCP `.env` are fixed for this tenant + prefix. **Only the CRNs churn** — the script re-resolves them.
 
 ## Resources
 

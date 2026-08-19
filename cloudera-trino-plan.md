@@ -180,6 +180,20 @@ bash test-rest-catalog.sh poc_uc2 airlines
 Done: one `srm-iceberg-cdp-env` answering both a Trino SQL query (`airlines`/`flights` return rows)
 and a REST Catalog `load-table` call (4-step OAuth flow completes, manifest returned).
 
+### Screenshots (CDW Management Console)
+
+> **Note:** The Trino LB is private — Hue is VPC-internal only. The CDW Management Console (`cloud.cloudera.com`) is publicly accessible from the Mac and is the screenshot path.
+
+![CDW cluster list row — srm-iceberg-cdp-env, env-xgfnld, Good Health, 2 DBCs / 1 VW](/images/trino-cdw-cluster-running.png)
+
+![Database Catalog — srm-iceberg-dbc (Good Health, 1 VW, warehouse-1787080605-s6zv)](/images/trino-dbc-srm-iceberg.png)
+
+![Database Catalog — srm-iceberg-aw-dl-default (Good Health, 0 VWs)](/images/trino-dbc-default.png)
+
+![Virtual Warehouse list row — srm-trino-vw, TRINO type, Good Health, 43 cores](/images/trino-vw-list.png)
+
+![Virtual Warehouse Details — srm-trino-vw (trino-1787081027-2dv5), Good Health, r5d.4xlarge, env: srm-iceberg-cdp-env / env-xgfnld, DBC: srm-iceberg-dbc, Hue + Trino Web UI buttons](/images/trino-vw-details.png)
+
 ---
 
 ## Daily startup / weekly redeploy (delta)
@@ -193,6 +207,28 @@ Same auto-stop / Friday-reaper mechanics as the iceberg plan — see
    stop/start; confirm CDW cluster IDs after a full stop/start cycle (they typically hold).
 3. **Bump the `enddate` tag** in tfvars each Monday redeploy and `terraform apply` to extend the
    reaper window. Use `deployment_template = "semi-private"`.
+
+### Monday full redeploy checklist
+
+The reaper destroys the env EOD Friday. On Monday morning, to restore the full stack:
+
+**Step 1 — Run `redeploy.sh`** (~1h40m, unattended after interactive prereqs):
+```bash
+aws sso login --profile cldr-se      # interactive browser login
+bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh
+```
+
+**Step 2 — Re-run the CDW Trino playbook** (~15m, after `redeploy.sh` completes):
+```bash
+# Re-resolve fresh env_crn (CRN is stable for this tenant+prefix, but confirm after a destroy)
+cdp environments describe-environment --environment-name srm-iceberg-cdp-env | jq -r '.environment.crn'
+# Update env_crn in provision-trino-vw.yml if the CRN changed, then:
+source ~/.venvs/clouderacloud/bin/activate
+cd ~/Documents/GitHub/trino-demo
+ansible-playbook provision-trino-vw.yml -v
+```
+
+After Step 2, both demos are live: REST Catalog (4-step OAuth) and Trino VW on the same env.
 
 ---
 
@@ -217,8 +253,8 @@ Same auto-stop / Friday-reaper mechanics as the iceberg plan — see
 | Item | Detail |
 |---|---|
 | **External/public reachability** | The Trino endpoint is private (private LB). External demo access requires a VPN or bastion into the VPC. Not a blocker for internal/CDP-network demos. |
-| **Trino as seed engine** | Whether the CDW Trino VW can serve the `poc_uc2` seed `INSERT`s (flights 120k rows) or Impala is still required for the load. Tracked with REST Catalog completion in #179. |
-| **Teardown is destructive; rebuild ~1h40m** | Destroy + rebuild replaces the weekly redeploy. `redeploy.sh` / weekly reaper rebuild must use `semi-private`. Plan for downtime. |
+| ~~Trino as seed engine~~ | **Resolved (#179):** `redeploy.sh` uses Impala Data Hub (step 3-4) for all seeding — `seed-airlines.sql` (3 rows) + `seed-flights.sql` (120k rows). Trino VW is the query engine, not the seed engine. |
+| **Teardown is destructive; rebuild ~1h40m** | Destroy + rebuild replaces the weekly redeploy. `redeploy.sh` uses `semi-private`; CDW Trino provision is a required post-redeploy step (see Monday checklist above). Total: ~1h55m. |
 
 ---
 
