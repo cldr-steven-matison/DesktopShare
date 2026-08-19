@@ -144,14 +144,34 @@ colorbar bring-up project, and the `tunastreet.hello` runtime-package template. 
 gitignored `sdkconfig.local`. MicroFi's agent extraction is merged to MicroFi `main` (`5d180dc`;
 note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS the canonical repo).
 
+## Done 2026-08-19 (second session) — status tile + first real runtime app on the glass
+
+- **Agent status tile shipped and eyes-on** (#185 closed). Native `IApp` via
+  `BROOKESIA_SYSTEM_CORE_APP_PROVIDER_REGISTER_WITH_SYMBOL` (+ `-u` link flag to keep the static
+  registrar), inline JSON-UI document, 1 s refresh: agent id, class, WiFi SSID/IP, EFM URL, manifest
+  hash, flow id, heartbeat age/count, task liveness. Heartbeat age needed two additive read-only
+  getters in MicroFi `c2_client` (`c8af72e`; `pio run -e esp32s3-8mb` regression passed, XIAOs
+  untouched). Overlay component: `platform/overlay/.../components/agent_status_tile/`.
+- **X-viewer runs as a runtime JS package and works on the glass** (#183). `tunastreet.xviewer`
+  (`db5f06f` in waveshare-devices): Http service feed fetch, sandbox image download,
+  `SetViewSrc`-from-file confirmed viable, 3-slot rotating JPEG cache, swipe L/R + «/» taps.
+  Backend on WindowsDesktop `:8091`.
+- **`tunastreet.hello` axed from the device** (Steven's call) — stays in the repo as the package
+  template. Gotcha: the littlefs image is rebuilt from `examples/system/super/littlefs/` — any app
+  not re-staged there **silently disappears on the next storage flash**.
+- **LAN access to a WSL-hosted backend needs a Windows Firewall inbound rule per port** (mirrored
+  networking exposes the bind, the firewall still blocks it) — `Allow XViewer Port 8091`, same
+  pattern as `Allow EFM Port 10090` (#52).
+
 ## Next
 
-5. **Apps as runtime packages.** Ember (#184) + X-viewer (#183) as JS packages in `apps/` on
-   SD/LittleFS (JSON-UI + `brookesia_app.*` contract). Joint step with those issues.
-6. **Agent status tile** as a native `IApp` (agent id, class, IP, manifest hash, heartbeat age).
+5. **Ember (#184)** as a runtime JS package in `apps/` — the `tunastreet.xviewer` package plus the
+   repo's `tunastreet.hello` template are the working references (JSON-UI + `brookesia_app.*`
+   contract, params/results are JSON strings, no `fetch`/`setTimeout`).
+6. **X-viewer remainder (#183):** eyes-on like/unlike from the panel, then polish (refresh timer
+   behavior on-glass, error states, idle).
 
-Ask before every flash to this board. (Steven granted session-scoped standing reflash permission
-2026-08-19 — colorbar/platform iteration only, not a standing rule.)
+Ask before every flash to this board — fresh ask each session, every flash.
 
 ## Commands
 
