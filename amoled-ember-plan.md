@@ -1,79 +1,75 @@
 # Ember — a Grok pocket instrument for the AMOLED
 
-> **2026-08-18 — failed on the glass.** Grok 4.6 spent 3 h 14 min and seven
-> custom flashes to put Ember on the 1.8″ V2. Every image was black. Factory
-> Xiaozhi still works. Scoreboard, token/$ reconstruction, detours, slop
-> counts: [`amoled-ember-postmortem.md`](amoled-ember-postmortem.md).
-
-**Plan for [issue #184](https://github.com/cldr-steven-matison/DesktopShare/issues/184).**
+**Plan of record for [issue #184](https://github.com/cldr-steven-matison/DesktopShare/issues/184).**
 Driving device: the #181 Waveshare ESP32-S3 Touch AMOLED V2 (`efm-waveshare-amoled.md`).
 This is **not** the #183 X viewer. #183 is Claude's app (swipe my posts, tap to like).
 Ember is Grok's: one coal of signal in the dark.
 
+## State — on the glass, bounced on product, back to Grok (2026-08-19)
+
+Ember runs as the ESP-Brookesia v0.8 **runtime JS package `tunastreet.ember`**
+on the #188 platform image, a launcher tile next to the agent status tile and
+the X viewer. Deployed with a `littlefs_data`-partition-only flash — the
+platform image and the baked-in MicroFi agent were untouched, and heartbeats
+stayed 200 through the session. Eyes-on: pulse, coal-tap refresh, channel
+swipe all confirmed from the panel on first boot.
+
+**Steven's verdict same evening: the mechanics pass, the product doesn't.**
+Picking up the panel, you can't tell what the app is, what the coal means, or
+why you'd tap it — and a text card you page through lands too close to the
+X viewer beside it. The task is shipped back to Grok for the product
+iteration; the rails below (runtime package, backend, deploy path) are proven
+and stay.
+
+- App package: [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember)
+  `apps/tunastreet.ember/` (JSON-UI + QuickJS, modeled line-for-line on
+  `tunastreet.xviewer` — HTTP via the `Http` service with RequestAsync +
+  events, no fetch/setTimeout in the sandbox).
+- Backend: same repo `backend/` — Grok's original FastAPI tree from the
+  2026-08-18 session, salvaged nearly intact. Runs on **WindowsDesktop
+  `:8092`** (sibling of the X viewer's `:8091`): StarlinkAI left the
+  192.168.1.x LAN, and the panel can only reach 192.168.1.121. `XAI_API_KEY`
+  is sourced at launch from `tuna-starlink-app/backend/.env.local`, never
+  copied into the tree. Windows Firewall rule `Allow Ember Port 8092`
+  (the #52 per-port pattern).
+- The failed C++ firmware story (7 black flashes, $51.96):
+  [`amoled-ember-postmortem.md`](amoled-ember-postmortem.md). Its
+  `firmware/` tree stays in the repo as the record; the runtime package
+  replaced it entirely.
+
 ## Why this, not a feed
 
 A 368×448 panel is a terrible timeline and a perfect instrument. The world
-already has infinite scroll. What it does not have is a thing you pick up, shake,
-and get *one* true thing — named, dated, opinionated — then put down.
+already has infinite scroll. What it does not have is a thing you pick up,
+tap, and get *one* true thing — named, dated, opinionated — then put down.
 
-Grok is the only model in this array that can do all three on a live wire:
-
-1. **Search the current moment** (web search tool, not a cached briefing).
-2. **Take a side** (not "it remains to be seen").
-3. **Paint the moment** onto true-black AMOLED via Imagine, only when asked.
-
-The X viewer consumes Steven's own posts. Ember consumes the universe and
-compresses it until it fits in a matchbox.
+Grok does all three on a live wire: **search the current moment** (web search
+at forge time), **take a side** (never "it remains to be seen"), **paint the
+moment** onto true-black AMOLED via Imagine, only when asked.
 
 ## What you hold
 
-Four channels, three faces, two gestures that matter:
+Four channels, three faces:
 
 | Gesture | Does |
 |---|---|
-| Shake (IMU) or tap the coal | New pulse on this channel |
-| Swipe L / R | `WORLD` · `SCIENCE` · `SPACE` · `YOU` |
+| Tap the coal | New pulse on this channel (`POST /ember/refresh`) |
+| Swipe L / R (or the `«` `»` taps) | `WORLD` · `SCIENCE` · `SPACE` · `YOU` |
 | Tap the text | cycle **NOW → WHY → TAKE** |
+| Long-press the coal | **PAINT** — Imagine forges a 368×448 card (billable; opt-in); tap the card to put it away |
 | Swipe up from bottom | **Brookesia home** (system; Ember does not steal it) |
-| Long-press the coal | **PAINT** — Imagine forges a 368×448 card (billable; opt-in) |
 
-Idle is almost all pixels off. One living ember at the bottom. Heat of the
-current pulse drives how bright the coal burns. That is the whole product.
+The coal is cropped from Grok's own hero still, in three heat states —
+`heat` from the pulse drives how bright it burns. `YOU` is the array
+channel: a host-aware local snapshot (EFM server, sibling X viewer backend
+on WindowsDesktop; Lemonade on StarlinkAI) interpreted by Grok, not a news
+wire.
 
-`YOU` is the array channel: StarlinkAI / Lemonade / the AMOLED agent itself —
-Grok interpreting a live local snapshot, not a news wire.
-
-## Architecture — same hard calls as #183, different payload
-
-### 1. Brookesia app, not a replacement OS
-
-Steven asked for an on-screen icon. Ember is a `systems::phone::App`
-(`ESP_UTILS_REGISTER_PLUGIN_WITH_CONSTRUCTOR`) with a **112×112** launcher
-tile (`img_app_ember`). Brookesia keeps the home grid, status bar, swipe-up-
-to-home, and recents. Ember does not steal the vertical system gesture —
-in-app, tap cycles NOW/WHY/TAKE and swipe L/R changes channel.
-
-Still not a MicroFi processor (same 256-byte / no-display reasons as #183).
-Still a flash — ESP32 has no sideload — but the image is **Brookesia + Ember**,
-not Ember instead of Brookesia.
-
-Two install shapes, both in [`amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember) `firmware/`:
-
-| Shape | What you get |
-|---|---|
-| Slim host (`firmware/main`) | Phone + Ember only. **Not the combined-image path** — this drops the agent tile; use only for Ember-only solo testing. |
-| Drop-in (`firmware/components/ember`) | Copy into factory Brookesia; registry install puts the tile next to Settings / Calculator / AI Chat. |
-
-**SKU confirmed 2026-08-18:** Waveshare ESP32-S3-Touch-AMOLED-1.8, V2 — CO5300 display (368×448 QSPI), CST820 touch, TCA9554 IO expander, AXP2101 PMIC, QMI8658 IMU, 16 MB flash, 8 MB octal PSRAM, **no battery** (USB-C tethered desk panel). Dropping Ember into factory Brookesia and flashing that image is how the full suite ships.
-
-### 2. The device never talks to api.x.ai
-
-TLS to xAI, search tool-calls, Imagine bytes, and JSON bigger than a pulse do
-not belong on the panel. A backend on **StarlinkAI** does the Grok work and
-serves a dumb LAN contract:
+## LAN contract (device ↔ backend, `http://192.168.1.121:8092`)
 
 - `GET  /ember/pulse?channel=world|science|space|you` → current pulse
-- `POST /ember/refresh` `{"channel"}` → force a new pulse (shake)
+  (backend caches 180 s per channel; forges anew past TTL)
+- `POST /ember/refresh` `{"channel"}` → force a new pulse (coal tap)
 - `POST /ember/paint` `{"id"}` → Imagine card, returns `art` URL
 - `GET  /ember/art/<id>.jpg` → pre-scaled **368×448** JPEG
 
@@ -86,60 +82,42 @@ Pulse shape (device-sized on purpose):
   "now":  "≤120 chars, one sentence, specific",
   "why":  "≤180 chars, two sentences",
   "take": "≤140 chars, an actual opinion",
-  "heat": 0.15,
-  "ts":   "2026-08-18T16:45:00Z",
+  "heat": 0.85,
+  "ts":   "2026-08-19T19:55:59+00:00",
   "art":  null
 }
 ```
 
-### 3. App home is `steven-matison/amoled-x-ember`. Spec stays in DesktopShare.
+The device never talks to api.x.ai — TLS to xAI, search tool-calls, and
+Imagine bytes all stay on the backend.
 
-DesktopShare keeps the plan (`amoled-ember-plan.md` on `issue-184-amoled-ember`)
-while we build and iterate. The runnable tree — backend, simulator, Brookesia
-firmware — is [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember)
-(clone on StarlinkAI: `/home/tunas/amoled-x-ember`). Sibling of the #183
-`amoled-x-viewer` repo. Keys are sourced at launch from
-`tuna-starlink-app/backend/.env.local` (`XAI_API_KEY`); they are never copied
-into the app tree.
+## Deploy shape
 
-## What runs tonight vs what flashes later
+Runtime package on littlefs, no per-app reflash: stage
+`apps/tunastreet.ember/` into `waveshare-devices` →
+`examples/system/super/littlefs/apps/`, rebuild, flash **only** the
+`littlefs_data` partition (`0xaa1000`, COM8 Windows-side esptool). Re-stage
+every app you want to keep — anything missing from the staging tree vanishes
+on the next storage flash. Ask before every flash, fresh each session.
 
-The board is on WindowsDesktop COM8, not on this Beelink. So the v1 deliverable
-is split on purpose:
+## Remaining
 
-| Surface | Status |
-|---|---|
-| Backend on StarlinkAI `:8088` | live — Grok + optional Imagine |
-| Pixel-true simulator (`368×448`) | live — same contract, same gestures |
-| Brookesia app + slim phone host in `amoled-x-ember/firmware` | written, unflashed (no IDF on this host, board is elsewhere) |
-| Flash + IMU bring-up | WindowsDesktop follow-up — see Phase 1 prereq below |
-
-The simulator is not a cop-out. It is the same product at the same resolution,
-so we can iterate the feel before burning a flash.
-
-## Phases
-
-**Phase 0 — this session.** Backend + simulator + firmware source + this doc.
-Exit: open the simulator, shake, get a live Grok pulse.
-
-**Phase 1 — flash.** Prereq: display bring-up proven first — a solid color on the glass from `esp_lcd_panel_draw_bitmap` with no LVGL (lesson from the postmortem). Then WindowsDesktop installs IDF 5.5, sets Wi-Fi + `CONFIG_EMBER_BACKEND_URL`, flashes COM8. Exit: the physical panel shows the same pulse the simulator did.
-
-**Phase 2 — IMU + power.** QMI8658 shake instead of BOOT; AXP2101 display-rail telemetry (no battery — the PMIC is present to power the display rails, not for charge state); display sleep on idle (AMOLED's whole point).
-
-**Phase 3 — paint on-device.** Long-press downloads the 368×448 JPEG into
-PSRAM and sets it as the card background.
-
-## Open decisions
-
-1. **Auto-paint** — off. Imagine is ~$0.02–0.05/image; paint is a deliberate
-   long-press, not a side effect of shake.
-2. **App repo** — [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember).
-   Spec stays in this file.
+0. **Product redesign — Grok's court.** Make the thing legible in one glance
+   and unmistakably not-a-viewer. Everything below is polish behind that.
+1. **Shake = new pulse** — the QMI8658 is real hardware, but the JS sandbox
+   has no IMU service today. Needs a platform-image service (native, #188
+   overlay) before the gesture can exist; tap-the-coal is the v1 shake.
+2. **Idle ember** — display sleep / dimmed idle state (AMOLED's whole point);
+   pairs with #183's idle polish.
+3. **Backend as a persistent service** — `run.sh` is a foreground uvicorn;
+   decide whether it joins the X viewer backend's supervision story.
+4. **Auto-paint stays off** — Imagine costs money; paint remains a deliberate
+   long-press.
 
 ## Done condition
 
-Pick up the board: Ember is a tile on the Brookesia home screen. Tap it,
-shake for a live pulse, swipe L/R for channel, tap to cycle faces, swipe
-up to go home. The panel spends most of its in-app life black. When this
-ships, update `efm-waveshare-amoled.md` with whichever image is on the
-board (slim host vs factory Brookesia + Ember).
+The 2026-08-19 build met the mechanical bar (tile on home, live pulse,
+channel swipe, face cycle, paint, system swipe-up intact) — and that bar
+turned out to be too low. The real done condition: pick up the board cold
+and know within five seconds what the app is telling you and what touching
+it will do, without it reading as another post viewer.

@@ -34,7 +34,7 @@ MicroFi-1/2/3 on the XIAOs stay whole-image MicroFi devices — `efm-xiao-microf
 | PSRAM / Flash | 8 MB embedded octal / 16 MB quad (mfr `0x20` dev `0x4018`) |
 | Power | USB-C only, no battery |
 | MAC | `1c:db:d4:7b:85:84` |
-| COM port | COM8 (`VID_303A&PID_1001`, MAC as SER — re-identify by MAC after replug) |
+| COM port | on WindowsDesktop: COM8; on StarlinkAI: COM6 (`VID_303A&PID_1001`, MAC as SER — re-identify by MAC after replug). Board USB moved to StarlinkAI 2026-08-19 for Grok's #184 iteration (on cam via NvidiaNano); WiFi/LAN contract unchanged — the panel still lives on ATTyjuHfEi and reaches 192.168.1.121. |
 | EFM agent id | `microfi-1cdbd47b8584` (MAC-derived) |
 | Agent class | `AMOLED` |
 | IP | 192.168.1.202 |
@@ -163,15 +163,29 @@ note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS 
   networking exposes the bind, the firewall still blocks it) — `Allow XViewer Port 8091`, same
   pattern as `Allow EFM Port 10090` (#52).
 
+## Done 2026-08-19 (third session) — Ember on the glass as a runtime package
+
+- **Ember (#184) shipped as runtime JS package `tunastreet.ember`** (`amoled-x-ember` repo,
+  `apps/`) — third tile alongside the agent status tile and X viewer. `littlefs_data`-only flash
+  (`0xaa1000`), agent heartbeats 200 throughout. Backend: Grok's 08-18 FastAPI tree salvaged, now on
+  **WindowsDesktop `:8092`** (StarlinkAI left the 192.168.1.x LAN; the panel only reaches
+  192.168.1.121) — firewall rule `Allow Ember Port 8092`, key sourced from
+  `tuna-starlink-app/backend/.env.local`.
+- **Same evening: product bounced, task back to Grok** — mechanics pass, concept reads opaque and
+  too close to the X viewer (Steven's verdict on #184). The runtime rails stay.
+
 ## Next
 
-5. **Ember (#184)** as a runtime JS package in `apps/` — the `tunastreet.xviewer` package plus the
-   repo's `tunastreet.hello` template are the working references (JSON-UI + `brookesia_app.*`
-   contract, params/results are JSON strings, no `fetch`/`setTimeout`).
-6. **X-viewer remainder (#183):** eyes-on like/unlike from the panel, then polish (refresh timer
-   behavior on-glass, error states, idle).
+5. **Ember (#184) product redesign** — Grok's court, on the proven package/backend rails.
+6. **X-viewer (#183): done, ready for final testing** — like/unlike eyes-on 2026-08-19; only final
+   test + polish sign-off remain.
 
 Ask before every flash to this board — fresh ask each session, every flash.
+
+Flash + serial-capture tooling (port-parameterized scripts, littlefs-only flash recipe, and the
+no-IDF `littlefs-python` app-iteration path for hosts without a toolchain): `waveshare-devices`
+repo, `amoled-1.8-v2/tools/`. The current-flash `littlefs_data.bin` + boot log are staged on
+StarlinkAI at `~/amoled-x-ember/cache/device/` for the Grok session.
 
 ## Commands
 
