@@ -61,14 +61,10 @@ Two install shapes, both in [`amoled-x-ember`](https://github.com/steven-matison
 
 | Shape | What you get |
 |---|---|
-| Slim host (`firmware/main`) | Phone + Ember only. Default for the #181 1.8″ V2. |
+| Slim host (`firmware/main`) | Phone + Ember only. **Not the combined-image path** — this drops the agent tile; use only for Ember-only solo testing. |
 | Drop-in (`firmware/components/ember`) | Copy into factory Brookesia; registry install puts the tile next to Settings / Calculator / AI Chat. |
 
-**SKU confirmed 2026-08-18 on this Beelink:** 1.8″ V2 (official
-`FactoryXiaozhi_260601` image lit the panel; CO5300 + CST820). Flashing the slim host still darkens the `AMOLED` EFM
-agent from #181 (`pio run -e amoled -t upload` puts it back). Dropping Ember
-into factory Brookesia and flashing *that* image is how the rest of the
-suite stays.
+**SKU confirmed 2026-08-18:** Waveshare ESP32-S3-Touch-AMOLED-1.8, V2 — CO5300 display (368×448 QSPI), CST820 touch, TCA9554 IO expander, AXP2101 PMIC, QMI8658 IMU, 16 MB flash, 8 MB octal PSRAM, **no battery** (USB-C tethered desk panel). Dropping Ember into factory Brookesia and flashing that image is how the full suite ships.
 
 ### 2. The device never talks to api.x.ai
 
@@ -116,7 +112,7 @@ is split on purpose:
 | Backend on StarlinkAI `:8088` | live — Grok + optional Imagine |
 | Pixel-true simulator (`368×448`) | live — same contract, same gestures |
 | Brookesia app + slim phone host in `amoled-x-ember/firmware` | written, unflashed (no IDF on this host, board is elsewhere) |
-| Flash + IMU bring-up | WindowsDesktop follow-up, once SKU is read off the rear label |
+| Flash + IMU bring-up | WindowsDesktop follow-up — see Phase 1 prereq below |
 
 The simulator is not a cop-out. It is the same product at the same resolution,
 so we can iterate the feel before burning a flash.
@@ -126,22 +122,18 @@ so we can iterate the feel before burning a flash.
 **Phase 0 — this session.** Backend + simulator + firmware source + this doc.
 Exit: open the simulator, shake, get a live Grok pulse.
 
-**Phase 1 — flash.** WindowsDesktop installs IDF 5.5, sets Wi-Fi +
-`CONFIG_EMBER_BACKEND_URL`, flashes COM8. Exit: the physical panel shows the
-same pulse the simulator did.
+**Phase 1 — flash.** Prereq: display bring-up proven first — a solid color on the glass from `esp_lcd_panel_draw_bitmap` with no LVGL (lesson from the postmortem). Then WindowsDesktop installs IDF 5.5, sets Wi-Fi + `CONFIG_EMBER_BACKEND_URL`, flashes COM8. Exit: the physical panel shows the same pulse the simulator did.
 
-**Phase 2 — IMU + power.** QMI8658 shake instead of BOOT; AXP2101 battery
-pill; display sleep on idle (AMOLED's whole point).
+**Phase 2 — IMU + power.** QMI8658 shake instead of BOOT; AXP2101 display-rail telemetry (no battery — the PMIC is present to power the display rails, not for charge state); display sleep on idle (AMOLED's whole point).
 
 **Phase 3 — paint on-device.** Long-press downloads the 368×448 JPEG into
 PSRAM and sets it as the card background.
 
 ## Open decisions
 
-1. **Exact SKU** — still unread. Default 1.8″ V2.
-2. **Auto-paint** — off. Imagine is ~$0.02–0.05/image; paint is a deliberate
+1. **Auto-paint** — off. Imagine is ~$0.02–0.05/image; paint is a deliberate
    long-press, not a side effect of shake.
-3. **App repo** — [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember).
+2. **App repo** — [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember).
    Spec stays in this file.
 
 ## Done condition
