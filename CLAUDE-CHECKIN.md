@@ -153,6 +153,18 @@ Everything below runs in the `cld-streaming` minikube cluster, exposed via `kube
 
 If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address efm-host-ip ...` pane.
 
+### Telegram session comms (this device only — #192, 2026-08-19)
+
+- **Reply bridge**: `~/reply.sh` (wrapper → `files/agent-reply.sh`) appends Steven's phone
+  replies to `~/.claude/telegram-inbox.log`; a waiting session Monitors that file. Ask side:
+  `files/agent-ask.sh`. Phone command: `/bash bash reply.sh yes`. Mechanics:
+  `agent-to-agent.md` "Reply bridge".
+- **Keyboard-needed pings**: user-level `~/.claude/settings.json` here wires a `Notification`
+  hook to `.claude/hooks/telegram-notify.sh` (5-min dedupe). Not fleet-wide — other devices
+  don't wire it.
+- **Progress polls default-on for unattended work** on this device only —
+  `agent/device-comms.md` "Session comms (Telegram)".
+
 ---
 
 ## FTF3XR2065 (MacBook Pro, work laptop)

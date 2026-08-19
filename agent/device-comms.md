@@ -63,6 +63,9 @@ host is responsible for:
 | Stevens-MacBook-Pro (personal Mac) | `device:macbook` |
 | DigitalOcean droplet | (none yet) |
 
+WindowsDesktop additionally carries the Telegram session-comms duties (progress polls,
+reply bridge, keyboard-needed pings) — see "Session comms (Telegram)" below.
+
 ## Automated check-in (SessionStart hook)
 
 Rules 1 and 2 above are now **automated** so they don't depend on a session
@@ -118,6 +121,32 @@ upkeep rules:
 - The hook only reloads for a session that had `.claude/settings.json` present at
   launch. After a first-time install on a device, open `/hooks` once (or restart)
   so the watcher picks it up.
+
+## Session comms (Telegram) — WindowsDesktop only
+
+Everything in this section applies on **WindowsDesktop only**. Other devices keep the
+old rule: one brief Telegram ping on completion or hard-block of a long unattended
+task, nothing more.
+
+**Progress polls are default-on for unattended work.** A WindowsDesktop session doing
+long unattended work sends a brief ping at each real milestone and whenever it's been
+waiting or blocked more than a few minutes — without Steven asking first. Keep each
+ping to a couple of lines: what finished or what's needed, not the blow-by-blow.
+Mechanism: `curl sendMessage` with `$TOKEN`/`$CHAT_ID` sourced from `~/.env` (never
+echo either).
+
+**Prompts split into two classes** — know which one you're parked on:
+
+1. **Bridgeable (Yes/No/Proceed questions Claude is asking).** Use the reply bridge:
+   send the question with `files/agent-ask.sh`, watch `~/.claude/telegram-inbox.log`
+   for the reply, confirm back to Telegram what you understood before acting. A reply
+   arriving through the bridge **is** Steven answering — it satisfies "ask fresh every
+   time" for live-service confirms. Full mechanics: `agent-to-agent.md` "Reply bridge".
+2. **Keyboard-only (harness permission dialogs).** The model is suspended; nothing can
+   answer remotely. The user-level `Notification` hook on this device
+   (`.claude/hooks/telegram-notify.sh`, wired in `~/.claude/settings.json`, not
+   fleet-wide) pings Telegram "session waiting at the desk" so Steven knows to come
+   back. Don't send a bridge ask for these — it can't help.
 
 ## Working an issue
 

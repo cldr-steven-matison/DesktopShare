@@ -2,8 +2,45 @@
 
 A plan for using the OpenClaw Telegram bot to invoke Claude Code against DesktopShare (and related repos) while away from the desktop. The goal is human-in-the-loop remote planning and analysis — not autonomous operation.
 
-> **Status:** Planning. OpenClaw is live on Windows WSL2 with Qwen2.5-3B and `/bash` unlocked. Claude Code is installed in WSL2. DesktopShare is at `~/DesktopShare`.
+> **Status:** Reply bridge **live** (2026-08-19, #192) — see "Reply bridge" below. The `claude -p` invocation patterns further down are still planning/reference.
+> OpenClaw is live on Windows WSL2 with Qwen2.5-3B and `/bash` unlocked. Claude Code is installed in WSL2. DesktopShare is at `~/DesktopShare`.
 > See: [`agent-openclaw-windows.md`](agent-openclaw-windows.md) for OpenClaw setup reference.
+
+---
+
+## Reply bridge — answer a running session from the phone (live)
+
+The piece `claude -p` can't do: reach a session that is **already running** and waiting on a
+Yes/No/Proceed answer. OpenClaw exclusively owns the bot's `getUpdates` feed (a second poller
+would steal updates), so the bridge rides OpenClaw's `/bash` instead of polling Telegram:
+
+```
+Session hits a Yes/No/Proceed point (Steven away)
+  → source ~/.env && bash files/agent-ask.sh "Redeploy cso-operator-app now?"   # question lands on the phone
+  → session arms a persistent Monitor on ~/.claude/telegram-inbox.log (next NEW line)
+Steven on phone:  /bash bash reply.sh yes
+  → ~/reply.sh → files/agent-reply.sh appends "<epoch> yes" to the inbox
+  → Monitor fires the line into the session
+  → session confirms back to Telegram what it understood + what it's doing, then proceeds
+```
+
+The contract:
+
+- **Inbox**: `~/.claude/telegram-inbox.log`, append-only `<epoch> <text>` lines. Runtime state,
+  not repo content.
+- **One pending ask at a time per device.** The asking session reads only lines appended after
+  its ask; stale lines are inert. Documented, not enforced — don't run two unattended asking
+  sessions at once.
+- **Auth is OpenClaw's owner gating.** Only Steven's Telegram id can drive `/bash`, so anything
+  in the inbox came from him. `agent-reply.sh` is deliberately credential-free; the ack comes
+  from the session after it consumes the reply, which proves delivery end-to-end.
+- **Monitor shape** (session side): persistent Monitor (not a background Bash loop — that caps
+  at 10 min and dinner runs longer): snapshot `wc -l` of the inbox at ask time, `sleep 5` loop
+  until it grows, emit the new line(s), exit.
+- **What it can't answer**: harness permission dialogs — the model is suspended there. Those get
+  a "session waiting at the desk" ping from the `Notification` hook instead
+  (`.claude/hooks/telegram-notify.sh`, wired user-level on WindowsDesktop only, 5-min dedupe).
+  Policy split: `agent/device-comms.md` "Session comms (Telegram)".
 
 ---
 
