@@ -104,7 +104,7 @@ def find_mpv():
 def build_url(streamer):
     """kick:<slug> -> kick.com/<slug>; bare name -> twitch.tv/<name>.
     Matches the kick:-prefix convention already used for the watchlist/roster
-    (see streamers-twitch-bot.md / services/streamers.py) rather than
+    (see streamers/streamers-twitch-bot.md / services/streamers.py) rather than
     inventing a new one. A chat command of `!load kick:hstikkytokky screen3`
     reaches here with streamer == "kick:hstikkytokky" (the regex in
     TwitchChatListenerProcessor captures the whole non-whitespace token).

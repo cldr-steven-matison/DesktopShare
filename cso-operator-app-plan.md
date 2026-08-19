@@ -4,7 +4,7 @@ A demo app that exercises every concept from the **RAG with Cloudera Streaming O
 
 > **Status:** End-to-end working on Windows Minikube (RTX 4060, GPU passthrough). Living spec.
 > App repo: `github.com/cldr-steven-matison/cso-operator-app`
-> Companion: [`cso-operator-app-streamers.md`](cso-operator-app-streamers.md)
+> Companion: [`cso-operator-app-streamers.md`](streamers/cso-operator-app-streamers.md)
 
 ---
 
@@ -316,7 +316,7 @@ cso-operator-app/
 
 ### Streamers (registered only when `streamers` in MODULES)
 
-See [`cso-operator-app-streamers.md`](cso-operator-app-streamers.md) for full endpoint table.
+See [`cso-operator-app-streamers.md`](streamers/cso-operator-app-streamers.md) for full endpoint table.
 
 ---
 

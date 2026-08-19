@@ -15,6 +15,7 @@ Root-level Markdown files are **built with AI** (primarily Claude Code, with Gro
 - [How the array works](#how-the-array-works)
 - [Repository Structure](#-repository-structure)
 - [Supporting Repos](#-supporting-repos)
+- [Streamers App](#-streamers-app)
 - [Technologies & Topics](#%EF%B8%8F-technologies--topics)
 
 ---
@@ -59,6 +60,7 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 | **`history/`** | Archive of previous history and raw terminal/session output (`.txt`). |
 | **`images/`**  | Screenshots and diagrams referenced by the docs and blog. |
 | **`research/`** | MD files in a research state. |
+| **`streamers/`** | The Streamers system's docs — see [Streamers App](#-streamers-app) below. |
 
 ---
 
@@ -68,12 +70,33 @@ Every device runs Claude Code against this same repo, so a few files exist to ke
 |---------|------|---------|
 | **EdgeFlowManager** | [GitHub Repo](https://github.com/cldr-steven-matison/EdgeFlowManager) | The published *Complete Guide to Edge Flow Management* — chapters, EFM/MiNiFi flow exports, and figures |
 | **NiFiandAi** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFiandAi) | The public `nifi-and-ai` Claude skill — the sanitized playbook for building NiFi / MiNiFi / EFM flows (synced from `skills/nifi-and-ai/` via `skills/publish-skill.sh`) |
+| **cso-operator-app** | [GitHub Repo](https://github.com/cldr-steven-matison/cso-operator-app) | The local control-plane app — operator controls, EFM test kit, the RAG stack, and the Streamers pipeline |
 | **ClouderaStreamingOperators** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaStreamingOperators) | Terminal commands, YAML configs, and Helm values used in the blog |
 | **ClouderaOperatorYAML** | [GitHub Repo](https://github.com/cldr-steven-matison/ClouderaOperatorYAML) | Other YAML examples for Cloudera Streaming Operators (Kafka, Flink, NiFi) on Kubernetes (not CSO above) |
 | **NiFi-Templates** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi-Templates) | NiFi flow definition file templates and dataflow examples |
 | **NiFi2 Processor Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground) | Custom processor development & testing for NiFi 2 |
 | **MiNiFi Kubernetes Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/MiNiFi-Kubernetes-Playground) | MiNiFi + Kubernetes edge deployments |
 | **Flink Kubernetes Playground** | [GitHub Repo](https://github.com/cldr-steven-matison/Flink-Kubernetes-Playground) | Flink on K8s/GPU experiments |
+
+---
+
+## 🎬 Streamers App
+
+Separate from everything above: **Streamers** is a live social-posting pipeline, not a demo. It
+watches Twitch and Kick for clips from a watch list, transcribes them with Whisper, captions
+them with vLLM, queues them for review, and posts the approved ones to X as
+**@TunaStreetTest** — with real credentials, on a schedule, right now. Alongside it run a
+"streamer is live" alert path and a NiFi chat bot that takes `!load`/`!matrix` commands from
+Twitch chat and drives four physical screens across three machines in the array.
+
+The code is in [`cso-operator-app`](https://github.com/cldr-steven-matison/cso-operator-app),
+built and deployed with `MODULES=streamers`. Everything else — architecture, live process-group
+inventory, the operating runbook, the rules that break it, and what's next — is in
+**[`streamers/README.md`](streamers/README.md)**, which is the front door for that work. The raw
+working docs sit beside it in the same folder.
+
+Because it is a live posting queue, it has its own handling rules:
+[`agent/live-queues.md`](agent/live-queues.md).
 
 ---
 

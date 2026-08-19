@@ -1,6 +1,6 @@
 **HeyGen Avatar API — notes from working integrations**
 
-Captured across two real projects: the tuna-mascot Phase A prototype (see `cso-operator-app-streamers-tuna.md`) and the 2026-07-31 **@StevenMatison X intro** (SRM digital twin — see `files/heygen-srm-poc/`). API path works; for one-off polished clips, **HeyGen Studio (plan credits)** is often cheaper and clearer than burning the API wallet on full-length drafts.
+Captured across two real projects: the tuna-mascot Phase A prototype (see `streamers/cso-operator-app-streamers-tuna.md`) and the 2026-07-31 **@StevenMatison X intro** (SRM digital twin — see `files/heygen-srm-poc/`). API path works; for one-off polished clips, **HeyGen Studio (plan credits)** is often cheaper and clearer than burning the API wallet on full-length drafts.
 
 Session playbook and wins for the X video live in `files/heygen-srm-poc/LEARNINGS.md`.
 

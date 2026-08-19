@@ -21,5 +21,5 @@ That changes what "safe to touch" means. This file is the rule set for anything 
 
 ## Post-mortem behavior
 
-- When a live-queue incident happens (bad post published, credentials wiped, queue jammed), document it in the app's own DesktopShare doc — `cso-operator-app-streamers.md` for the current pipeline. Don't spread the write-up across multiple files.
+- When a live-queue incident happens (bad post published, credentials wiped, queue jammed), document it in the app's own DesktopShare doc — `streamers/cso-operator-app-streamers.md` for the current pipeline. Don't spread the write-up across multiple files.
 - Keep the writeup honest: what shipped, what fired, what the effect was, what changed. See `writing-style.md` — symptom → diagnosis → fix, no padding.

@@ -18,7 +18,7 @@ tags:
 
 > **Status:** WORKING — pipeline live, publishing to @TunaStreetTest.
 > App repo: `github.com/cldr-steven-matison/cso-operator-app`
-> Companion plan: [`cso-operator-app-plan.md`](cso-operator-app-plan.md)
+> Companion plan: [`cso-operator-app-plan.md`](../cso-operator-app-plan.md)
 
 ---
 
@@ -282,7 +282,7 @@ Both changes made via the safe property-only-PUT + run-status pattern (stop → 
 - **Publish history tab** — ✓ SHIPPED (session 14, as "Posted Clips") — see section below
 - **Auto-publish mode** — bypass review queue, post top clips on a schedule
 - **Post to real X account** — ✓ PLANNED (see section below)
-- **GPU optimization** — Whisper CPU + 5B caption model — see [`gpu-optimization-plan.md`](gpu-optimization-plan.md)
+- **GPU optimization** — Whisper CPU + 5B caption model — see [`gpu-optimization-plan.md`](../research/gpu-optimization-plan.md)
 - **Live Streamer Alert** — ✓ SHIPPED (session 15, as "LiveStreamerAlert") — see section below
 - **TODO: bring in the `nifi-custom-processors` repo** — the real GitHub repo exists but isn't cloned locally yet (currently just a local, non-git folder at `~/nifi-custom-processors` with `XLivePostProcessor.py` sitting in it uncommitted). Planned for next week.
 - **Video title/description/CTA/category** — PUNTED (session 12): needs an X Ads account for @TunaStreetTest before it's buildable. See "Untitled Videos" section above for what's confirmed.

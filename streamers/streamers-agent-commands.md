@@ -1,6 +1,6 @@
 Streamers pipeline — Telegram bot commands. All scripts live under `DesktopShare/files/`.
 
-See [agent-commands.md](agent-commands.md) for kubectl/minikube/git bootstrap commands.
+See [agent-commands.md](../agent-commands.md) for kubectl/minikube/git bootstrap commands.
 
 ## Streamers pipeline — Telegram bot scripts
 

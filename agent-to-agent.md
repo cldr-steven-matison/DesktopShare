@@ -52,7 +52,7 @@ Keep the cluster and app flows stopped while away. Then the worst Claude can do 
 
 **Read a specific file and analyze:**
 ```
-/bash cd ~/DesktopShare && claude -p "read cso-operator-app-streamers.md and summarize what's done and what's next"
+/bash cd ~/DesktopShare && claude -p "read streamers/cso-operator-app-streamers.md and summarize what's done and what's next"
 ```
 
 **Limit tools to read-only (safer for remote use):**
@@ -125,7 +125,7 @@ Telegram truncates messages at ~4096 characters. Long Claude responses will be c
 
 **Ask Claude to be brief:**
 ```
-/bash cd ~/DesktopShare && claude -p "summarize cso-operator-app-streamers.md in under 30 lines"
+/bash cd ~/DesktopShare && claude -p "summarize streamers/cso-operator-app-streamers.md in under 30 lines"
 ```
 
 **Pipe through head as a hard cap:**
@@ -156,7 +156,7 @@ Follow up to read more:
 /bash ~/claw-claude.sh now focus on the streamers next steps. what would you prioritize?
 
 # Message 3
-/bash ~/claw-claude.sh draft that as a new section for cso-operator-app-streamers.md
+/bash ~/claw-claude.sh draft that as a new section for streamers/cso-operator-app-streamers.md
 ```
 
 Start a fresh session (drop `--continue`) when you want Claude to approach something cold.
@@ -182,14 +182,14 @@ The file lands in the repo. You review it in Telegram. Edit or commit it when yo
 ### Pipe DesktopShare context into Claude API directly (no tool use)
 For lightweight questions that don't need file browsing, pipe content directly:
 ```
-/bash cat ~/DesktopShare/cso-operator-app-streamers.md | claude -p "based on this, what should session 5 cover?"
+/bash cat ~/DesktopShare/streamers/cso-operator-app-streamers.md | claude -p "based on this, what should session 5 cover?"
 ```
 
 ### GitHub as the handoff layer
 Have Claude write new plan sections or blog drafts and commit them to a branch. You review the diff on GitHub from your phone. No cluster, no credentials, no risk — just markdown in a PR.
 
 ```
-/bash cd ~/DesktopShare && claude -p "draft session 5 plan for streamers, append it to cso-operator-app-streamers.md" && git diff
+/bash cd ~/DesktopShare && claude -p "draft session 5 plan for streamers, append it to streamers/cso-operator-app-streamers.md" && git diff
 ```
 
 ---

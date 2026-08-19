@@ -8,7 +8,7 @@ import time
 # process on WindowsDesktop), replacing the always-on
 # mpv_stream_launcher.py/windows_matrix_launcher.py HTTP listeners' role for
 # screen2. Ported logic, not re-derived — see claude-screen.md and
-# streamers-twitch-bot-mpv-plan.md for the originals this is based on.
+# streamers/streamers-twitch-bot-mpv-plan.md for the originals this is based on.
 #
 # Key design change from the originals: no in-memory `_running` dict, since
 # each invocation is a fresh process with no memory of the last one. "Is mpv

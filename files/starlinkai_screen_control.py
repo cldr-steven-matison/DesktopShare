@@ -9,7 +9,7 @@ import time
 # for this device's two screens instead of WindowsDesktop's one. See
 # claude-screen.md's "Windows implementation (StarlinkAI / TunaStarlink)"
 # section for the screen table this SCREENS dict is drawn from, and
-# streamers-twitch-bot-mpv-plan.md for the array-facing screen3/screen4
+# streamers/streamers-twitch-bot-mpv-plan.md for the array-facing screen3/screen4
 # naming (this device's local screen2/screen3 map to those).
 #
 # Same design change from the old always-on

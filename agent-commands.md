@@ -42,4 +42,4 @@ Next the following sample commands I am using to get my Telegram chat started:
 
 ```
 
-See [streamers-agent-commands.md](streamers-agent-commands.md) for the Streamers pipeline Telegram bot scripts.
+See [streamers-agent-commands.md](streamers/streamers-agent-commands.md) for the Streamers pipeline Telegram bot scripts.
