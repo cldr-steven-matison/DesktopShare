@@ -143,20 +143,34 @@ deploy that resets the pod, never in `deployment.yaml` or `configmap.yaml`:
 that, not just rollout status. NiFi's own X credentials are separate: they live in the
 `streamers-x-creds` Parameter Context bound to `StreamersApp`.
 
-**Telegram.** Scripts are in [`../files/`](../files/), driven through the OpenClaw bot. Every
-one needs the `bash -c "..."` wrapper — `&&` chains, `source`, and `&` don't reliably run
-without it:
+**Telegram.** Scripts are in [`../files/`](../files/), driven through the OpenClaw bot.
+The one hard rule: OpenClaw's `/bash` needs a `bash -c "..."` wrapper for anything beyond a
+single bare command — `&&` chains, `source`, and backgrounding (`&`) don't reliably run
+without it; the bot may just chat back instead of executing.
+
+**Agent commands.** All scripts live under `DesktopShare/files/`, and every command is the
+same shape:
 
 ```
-/bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh FetchClips"
+/bash bash -c "source .env && bash ./DesktopShare/files/<script> <args>"
 ```
 
-`agent-PostNow.sh`, `agent-approvePosts.sh`, `agent-watchList.sh` (`show` / `rotate` /
-`add t:<login>` / `add k:<slug>`), `agent-fetchClips.sh start|stop`, `agent-publishFlow.sh
-<PG> start|stop`, `agent-trigger.sh <FlowName>`. Start/stop toggles a PG's schedule;
-`agent-trigger.sh` fires one run without touching it. Full catalog and status per command:
-[`streamers-agent-commands.md`](streamers-agent-commands.md) — an entry only goes in there
-once the command is confirmed working through the real bot.
+| Command | What it does |
+|---|---|
+| `agent-PostNow.sh <streamer>` | Post that streamer's queued clip now |
+| `agent-fetchClips.sh start\|stop` | Toggle the `FetchClips` PG on or off |
+| `agent-approvePosts.sh` | Approve queued posts |
+| `agent-watchList.sh show\|rotate\|add t:<name>\|add k:<name>\|<set-list>` | Show, rotate, add to, or replace the watch list (`t:` = Twitch, `k:` = Kick) |
+| `agent-publishFlow.sh PublishClipPeakTimeCron start\|stop` | Toggle the peak-time publisher |
+| `agent-trigger.sh LiveStreamerAlert\|FetchClips\|PublishClip\|PostWatchList` | One-shot on-demand run of that flow |
+
+Start/stop toggles a PG's continuous/cron operation. `agent-trigger.sh` fires one flowfile
+through `StreamersApp`'s shared `Trigger` (`ListenHTTP` → `RouteOnAttribute`) into the target
+flow's `TriggerInput` port — it never touches schedulers or PG run state. The backend's
+`TRIGGER_REQUESTS` allow-list is the single source of truth for valid names; the name
+`PublishClip` routes to `PublishClipPeakTimeCron`'s `TriggerInput`. `PostWatchList` was
+bot-confirmed 2026-07-26; the full bot round-trip for `agent-trigger.sh` itself is still
+unverified.
 
 **API.** `/api/streamers/*` — clips (`fetch-clips`, `process-clip`, `queue`, `clip/{id}`,
 `approve`, `skip`, `publish`, `publish-next`, `pending`, `pending/{id}/cancel`,
@@ -274,7 +288,6 @@ Raw working docs, kept as-is. This README is the summary; these are the detail.
 |---|---|---|
 | [`cso-operator-app-streamers.md`](cso-operator-app-streamers.md) | The anchor doc — pipeline, deploy, endpoints, gotchas, and a 22-session history tail | Reference + log; schedules and PG names lag live |
 | [`streamers.md`](streamers.md) | The roster: Twitch + Kick streamers, X handles, Clip/GIF path per streamer | Live reference, mirrors `_STREAMER_PATH_OVERRIDES` |
-| [`streamers-agent-commands.md`](streamers-agent-commands.md) | Telegram bot command catalog | Live reference |
 | [`streamers-twitch-bot.md`](streamers-twitch-bot.md) | Chat bot architecture, credentials, `WatchlistChatJoiner` | Live; its screen-mapping sections are superseded |
 | [`streamers-twitch-bot-mpv-plan.md`](streamers-twitch-bot-mpv-plan.md) | The mpv + yt-dlp migration; **authoritative for screen loading** | Built and live on all four screens |
 | [`streamer-kick-bot.md`](streamer-kick-bot.md) | Kick chat read path (Pusher, no auth) and the Inspector page; §4 is a posting-bot plan | §1–3 live, §4 plan only |
@@ -287,14 +300,19 @@ Raw working docs, kept as-is. This README is the summary; these are the detail.
 | [`streamers-original-architecture.md`](streamers-original-architecture.md) | The original 2026-06 clipping-pipeline sketch | Historical |
 | [`cso-operator-app-streamers-review-2026-07-17.md`](cso-operator-app-streamers-review-2026-07-17.md) | Full-series audit of the streamers docs | Historical |
 
-### Two contradictions worth knowing before you read
+### Two doc conflicts, resolved
 
-- **`cso-operator-app-streamers-tuna.md` contradicts itself.** Everything above its session
-  logs commits to a fully local, free pipeline (Wav2Lip/SadTalker, Piper). The last session log
-  concludes the opposite — local lip-sync was tried, called unusable, and HeyGen is the one that
-  works. Neither direction is settled.
-- **`streamers-twitch-bot.md` §9 says the chat bot's credentials live in the
-  `twitch-chat-bot-creds` Parameter Context. §5.1 records a live check finding `Client Secret`
-  and `Refresh Token` still stored as literal properties.** §5.1 is the accurate one. That
-  migration is still open, and it's why a routine version bump destroyed those credentials
-  twice in one day.
+- **Tuna avatar: HeyGen is the settled direction.** `cso-operator-app-streamers-tuna.md`'s
+  upper sections commit to a fully local pipeline (Wav2Lip/SadTalker + Piper), but its
+  2026-07-17 session log is the ground truth: local Wav2Lip was tried and rejected
+  ("absolutely horrible" on flat cartoon art), the drawn mouth-flap composite was tried and
+  rejected ("still looks crappy chopped"), and HeyGen works — real avatar ID
+  `be03a5aa65f946da8cf066a7708332cd`, working multi-line batched render code, creds in
+  `.env.local` under `files/tuna-test/`. Piper itself was never disproven — it simply drops
+  out with the local route. This matches open issue #50 (HeyGen POC).
+- **Chat-bot credentials: `streamers-twitch-bot.md` §5.1 is the accurate record.** `Client
+  Secret` and `Refresh Token` are literal processor properties today (live check 2026-07-25),
+  not in a `twitch-chat-bot-creds` Parameter Context — §9's claim was design intent that was
+  never implemented. The migration is still open, and it is not a straight lift: the rotated
+  refresh token lives only in processor memory, so a restart needs a fresh device-code
+  re-auth.

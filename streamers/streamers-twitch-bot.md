@@ -85,7 +85,7 @@ The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedi
 
 ## 9. Security & Best Practices (as built)
 
-- All Twitch credentials (Client Secret, refresh-token seed) live in the `twitch-chat-bot-creds` Parameter Context — never a literal processor property, never round-tripped through a GET-then-PUT.
+- The original design intent was all Twitch credentials (Client Secret, refresh-token seed) in a `twitch-chat-bot-creds` Parameter Context — **never implemented**. See §5.1 for the accurate live state: `Client Secret`/`Refresh Token` are literal processor properties (live check 2026-07-25) and the migration is still open. Never round-trip them through a GET-then-PUT.
 - Internal network only; no public exposure of any `ListenHTTP` endpoint.
 - Every real flow/processor change went through the NiFi or EFM REST API from a trusted host (`mynifi-0` or the EFM Flow Designer API) — no hand-edited `config.yml` left in place as the source of truth.
 - New chat-automation logic added as its own process group (`TwitchChatBot`), isolated from `StreamersApp`/`LiveStreamerAlert` — see rule 8 in the `nifi-and-ai` skill for why this is now a standing convention, not a one-off.
