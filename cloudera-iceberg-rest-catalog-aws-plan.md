@@ -61,21 +61,58 @@ The `semi-private` template puts CDW workers, CDW load balancers, and DataLake c
 
 Once connected, the Mac gets a private IP routed into `10.10.0.0/16`. Because minikube (docker driver) shares the Mac's network stack, CSO NiFi pods also inherit the route — this directly unblocks `HiveCatalogService` for `PutIceberg` (#151) without any change to the minikube cluster.
 
-**Setup (one-time):**
+**Live VPN endpoint (created 2026-08-19, #190):**
+
+| Resource | Value |
+|---|---|
+| Client VPN Endpoint | `cvpn-endpoint-0f7b1e940c5c8fe48` (us-east-2) |
+| Client CIDR | `10.20.0.0/16` |
+| Associated subnets | all three private subnets (us-east-2a/b/c) |
+| Auth rule | `10.10.0.0/16` → all groups |
+| Split tunnel | enabled (REST Catalog Knox stays public-routed) |
+| DNS | `169.254.169.253` (VPC resolver) |
+| Client config | `~/Documents/GitHub/iceberg-rest-catalog-demo/vpn/srm-iceberg-vpn.ovpn` |
+| Server cert (ACM) | `arn:aws:acm:us-east-2:007856030109:certificate/85817be4-eb08-48f1-8987-92ccee59a434` |
+
+**Connect:** import `vpn/srm-iceberg-vpn.ovpn` into AWS VPN Client (or Tunnelblick) and connect. Cert + key are embedded in the file — no extra configuration.
+
+**Setup (reproduced if needed):**
 
 ```bash
-# 1. Create server + client certificates — easy-rsa or ACM Private CA
-# 2. Create AWS Client VPN Endpoint in srm-iceberg-net VPC
-#    - Server cert ARN + client cert ARN
-#    - Client CIDR: 10.20.0.0/16 (must not overlap 10.10.0.0/16)
-#    - DNS: VPC resolver 169.254.169.253 (split-DNS; REST Catalog Knox gateway stays public-routed)
-# 3. Associate with 1–2 private subnets
-# 4. Add authorization rule: 10.10.0.0/16 → all groups
-# 5. Export .ovpn client config + embed client cert/key
-# Connect from Mac: AWS VPN Client, Tunnelblick, or OpenVPN
+cd ~/Documents/GitHub/iceberg-rest-catalog-demo/vpn
+
+# Generate CA + server + client certs (openssl — no easy-rsa needed)
+openssl genrsa -out ca.key 2048
+openssl req -new -x509 -days 3650 -key ca.key -subj "/CN=srm-iceberg-vpn-ca/O=srm-iceberg/C=US" -out ca.crt
+openssl genrsa -out server.key 2048 && openssl req -new -key server.key -subj "/CN=server.srm-iceberg-vpn/O=srm-iceberg/C=US" -out server.csr
+openssl x509 -req -days 3650 -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt
+openssl genrsa -out client.key 2048 && openssl req -new -key client.key -subj "/CN=client.srm-iceberg-vpn/O=srm-iceberg/C=US" -out client.csr
+openssl x509 -req -days 3650 -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt
+
+# Import to ACM, create endpoint, associate subnets, add auth rule, export config
+SERVER_CERT_ARN=$(aws acm import-certificate --region us-east-2 \
+  --certificate fileb://server.crt --private-key fileb://server.key --certificate-chain fileb://ca.crt \
+  --query 'CertificateArn' --output text)
+CLIENT_CERT_ARN=$(aws acm import-certificate --region us-east-2 \
+  --certificate fileb://client.crt --private-key fileb://client.key --certificate-chain fileb://ca.crt \
+  --query 'CertificateArn' --output text)
+VPN_ID=$(aws ec2 create-client-vpn-endpoint --region us-east-2 \
+  --client-cidr-block 10.20.0.0/16 --server-certificate-arn $SERVER_CERT_ARN \
+  --authentication-options Type=certificate-authentication,MutualAuthentication={ClientRootCertificateChainArn=$CLIENT_CERT_ARN} \
+  --connection-log-options Enabled=false --dns-servers 169.254.169.253 --split-tunnel \
+  --query 'ClientVpnEndpointId' --output text)
+for SUBNET in subnet-0261391108f5e05dc subnet-0da637498c8807337 subnet-0fef268632cabe1ee; do
+  aws ec2 associate-client-vpn-target-network --region us-east-2 --client-vpn-endpoint-id $VPN_ID --subnet-id $SUBNET
+done
+aws ec2 authorize-client-vpn-ingress --region us-east-2 --client-vpn-endpoint-id $VPN_ID \
+  --target-network-cidr 10.10.0.0/16 --authorize-all-groups
+# Wait ~20 min for associations → associated, then:
+aws ec2 export-client-vpn-client-configuration --region us-east-2 \
+  --client-vpn-endpoint-id $VPN_ID --output text > srm-iceberg-vpn.ovpn
+printf '\n<cert>\n%s</cert>\n\n<key>\n%s</key>\n' "$(cat client.crt)" "$(cat client.key)" >> srm-iceberg-vpn.ovpn
 ```
 
-**Survives the weekly reaper.** The VPN endpoint is an AWS resource in the VPC. The CDP reaper deletes only CDP objects (env/DataLake/Data Hub); the VPC and VPN endpoint persist. Client config stays valid across weekly rebuilds — gateway FQDNs are stable for this tenant + prefix. One-time setup, reused every Monday.
+**Survives the weekly reaper.** The VPN endpoint is an AWS resource in the VPC. The CDP reaper deletes only CDP objects (env/DataLake/Data Hub); the VPC and VPN endpoint persist. Client config stays valid across weekly rebuilds. One-time setup, reused every Monday.
 
 **Cost:** ~$0.10/hr per subnet association + ~$0.05/hr per active connection.
 
