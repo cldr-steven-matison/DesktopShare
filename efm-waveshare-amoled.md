@@ -137,9 +137,12 @@ Hosted-build gotchas (all live in the super example's `components/microfi_agent/
   ~659 KB, over the stock `CONFIG_LV_CACHE_DEF_SIZE=512000` — image silently doesn't render until
   the cache is raised (720000 works).
 
-⚠️ The working platform tree is an **uncommitted local clone** (`~/esp/esp-brookesia`, examples/
-system/super + the V2 board) plus uncommitted MicroFi changes on `feature/amoled-agent`. Needs a
-proper home before it's golden — decide with Steven (commit MicroFi branch; platform → new repo).
+Platform home: **[`TunaStreetTest/waveshare-devices`](https://github.com/TunaStreetTest/waveshare-devices)**
+(public, created 2026-08-19) — the V2 HAL board, `microfi_agent` guest component, super-example
+wiring, boot-screen resources (as an overlay over pinned esp-brookesia master + `setup.sh`), the
+colorbar bring-up project, and the `tunastreet.hello` runtime-package template. WiFi creds stay in
+gitignored `sdkconfig.local`. MicroFi's agent extraction is merged to MicroFi `main` (`5d180dc`;
+note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS the canonical repo).
 
 ## Next
 
