@@ -2,13 +2,20 @@
 
 Golden source for the AMOLED board, [issue #181](https://github.com/cldr-steven-matison/DesktopShare/issues/181).
 
-The board runs factory ESP-Brookesia. The EFM agent ships **inside** that image as a drop-in
-component next to the two apps — one image, three tiles. There is no separate agent firmware.
+The board ships with `FactoryXiaozhi_260601.bin` — an old ESP-Brookesia **v0.5** launcher in the
+factory partition plus Xiaozhi 2.2.6 in an OTA partition (AXP2101 power-button short-press switches
+Xiaozhi → Brookesia). Waveshare has not published that image's source. **Keep the recovery bin** —
+reflashing loses the only combined image.
+
+Target platform (#188, research verified 2026-08-19): a **one-time flash of ESP-Brookesia v0.8
+(master)** built for this SKU on **ESP-IDF 6.0–6.2**, with the EFM agent baked in as a native
+background service (compile-time, trusted). Apps deploy at **runtime** as sandboxed JS/Lua packages —
+`apps/<id>/manifest.json` + package on SD (preferred) or internal LittleFS, scanned at
+`System::init()`, reboot → tile. No reflash per app.
 
 ```
-firmware/components/microfi_agent/   # the EFM agent  (#181)
-firmware/components/ember/           # Grok's app     (#184)
-firmware/components/x_viewer/        # Claude's app   (#183)
+platform image (compile-time):  Brookesia v0.8 system + microfi_agent service + status tile
+runtime packages (no reflash):  ember (#184, Grok's app) · x_viewer (#183, Claude's app)
 ```
 
 MicroFi-1/2/3 on the XIAOs stay whole-image MicroFi devices — `efm-xiao-microfi-1-2-3.md` is their doc.
@@ -58,8 +65,9 @@ auto-registry, its own `idf_component.yml`). Four changes make it a passenger in
    dependency), `GetGPIO`/`SetGPIO` are out (control lines behind the TCA9554).
 
 Liveness is a read-only 112 × 112 tile — agent id, class, IP, manifest hash, flow name, heartbeat age,
-WiFi state. Registered like the apps (`systems::phone::App` +
-`ESP_UTILS_REGISTER_PLUGIN_WITH_CONSTRUCTOR`), swipe-up-from-bottom left to Brookesia, no controls.
+WiFi state. Registered as a native **`IApp`** (Brookesia v0.8 API — `systems::phone::App` /
+`ESP_UTILS_REGISTER_PLUGIN_WITH_CONSTRUCTOR` only exist in the dead ≤0.5 API), swipe-up-from-bottom
+left to Brookesia, no controls.
 The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
 
 ## Done
@@ -75,24 +83,72 @@ The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
   `error: 'CONFIG_MICROFI_LIVENESS_LED_GPIO' was not declared in this scope` (the pin symbols only
   exist inside Kconfig's `if MICROFI_LIVENESS_LED`).
 
+## Bring-up facts (verified 2026-08-19, #188 research)
+
+- **IDF: 6.0–6.2 for this work stream** (Brookesia master on S3; xiaozhi's V2 board runs 6.0.2).
+  The old "5.3–5.5, IDF 6 breaks" guidance was Brookesia v0.6-era. MicroFi XIAOs stay on PlatformIO.
+- All V2 drivers exist as registry components: `espressif/esp_lcd_co5300` (2.1.0), CST820 via
+  `esp_lcd_touch_cst816s`, `esp_io_expander_tca9554`. Proven together on this exact SKU by
+  `78/xiaozhi-esp32` `main/boards/waveshare/esp32-s3-touch-amoled-1.8-v2/`.
+- QSPI pins (from that board file): CS=12, PCLK=11, D0–3=4/5/6/7; 368×448 with **X-offset 16**.
+- Brookesia's HAL board `esp32_s3_touch_amoled_1_8` is the **V1** hardware (SH8601/FT3168) — the V2
+  port clones that board dir and swaps `sh8601`→`co5300` (config exists in the 1_75c/2_16 sibling
+  boards) and `ft5x06`→`cst816s`; TCA9554/AXP2101/ES8311 entries carry over.
+- Runtime apps are Lua/JS/WASM/ELF + JSON-UI, sandboxed to their own resources; native code
+  (agent, tight loops) belongs in the platform image, exposed as services.
+- Upstream risk: no S3 board in the `system/super` example's supported list (P4/S31 are the
+  reference boards) — launcher + JS runtime + agent headroom on 8 MB PSRAM needs a fit spike.
+
+## Done (#188 phases 0–4, 2026-08-19)
+
+0. **Toolchain**: standalone IDF 6.0.2 in WSL `~/esp/esp-idf` (cmake/ninja via pip — IDF 6 stopped
+   bundling them); esp-brookesia master + waveshareteam repo + xiaozhi clones in `~/esp/`.
+   Flashing runs Windows-side (`cmd.exe /c "python -m esptool --port COM8 …"` from a `/mnt/c` cwd).
+1. **Display gate PASSED** — first custom image ever to light this panel. `~/esp/amoled-colorbar`:
+   `esp_lcd_co5300` + `draw_bitmap` only, AXP2101 → TCA9554 → panel, xiaozhi V2 pins, gap X=16.
+2. **V2 HAL board port** — `brookesia_hal_boards/boards/waveshare/esp32_s3_touch_amoled_1_8_v2/`
+   (co5300 + cst816s @0x2a int=13/rst=39; select via `idf.py bmgr -b esp32_s3_touch_amoled_1_8_v2`).
+   Shell + touch confirmed on the glass.
+3. **S3 fit spike GO** — `system/super` (launcher + JS runtime + App Store) runs on the 8 MB S3.
+4. **Agent baked in + ONLINE** — `microfi-1cdbd47b8584 | AMOLED | ONLINE`, Brookesia home + agent
+   on one boot. Class manifest re-pinned to the 6-processor id
+   `c265dbcf-93f0-4f94-b0ed-5865c1512f6c` (DELETE + POST `/efm/api/agent-class-manifest-config` —
+   POST alone won't overwrite, PUT 500s). MicroFi tree changes: `microfi_agent_start()` extraction
+   (`src/agent.cpp`), `CONFIG_MICROFI_WIFI_ADOPT_EXISTING` adopt-mode in `wifi.cpp`. XIAO
+   regression passed (`pio run -e esp32s3-8mb`, run as `python -m platformio` on Windows).
+
+Hosted-build gotchas (all live in the super example's `components/microfi_agent/` wrapper):
+- IDF 6 driver splits: REQUIRES needs `esp_driver_gpio` + `esp_driver_tsens`.
+- The agent's 79.6 KB static BSS starved Brookesia's internal-DMA display buffers → display
+  start failed. Fix: `linker.lf` maps `libmicrofi_agent.a` → `extram_bss` (PSRAM).
+- WiFi: the board's saved STARLINK AP wins the boot reconnect race, and **STARLINK also NATs
+  192.168.1.x** — heartbeats to 192.168.1.121 silently connect-timeout from it. Fix in
+  `main/main.cpp`: boot pre-provision removes STARLINK, sets `ATTyjuHfEi` (creds from MicroFi's
+  gitignored `sdkconfig.defaults.local`), then **`GeneralAction::Connect`** — SetConnectAp alone
+  never joins, and `Start` is ignored when the service is already Started.
+- Boot splash = data, but edit the **component resource, not the example littlefs tree**:
+  `system/brookesia_system_super/resource/startup/images/background.png` (+ its `index.json` dims).
+  The example's `littlefs/` dir is a staged output — the build re-copies the component resource over
+  it every time, silently reverting any edit made there. Current image: black bg, pixel tuna, blue
+  "tuna street" (368×448, Steven-approved). Verify a splash change landed by md5-ing the file inside
+  `build/littlefs_data.bin` (littlefs-python venv in `build/littlefs_py_venv`). Two more splash traps:
+  the startup screen's stock `bgColor` is near-white `#fafbfc` (a failed image = long white flash —
+  set it black in `resource/startup/screens/startup.json`), and a full 368×448 splash decodes to
+  ~659 KB, over the stock `CONFIG_LV_CACHE_DEF_SIZE=512000` — image silently doesn't render until
+  the cache is raised (720000 works).
+
+⚠️ The working platform tree is an **uncommitted local clone** (`~/esp/esp-brookesia`, examples/
+system/super + the V2 board) plus uncommitted MicroFi changes on `feature/amoled-agent`. Needs a
+proper home before it's golden — decide with Steven (commit MicroFi branch; platform → new repo).
+
 ## Next
 
-1. **Install standalone ESP-IDF 5.5 on WindowsDesktop.** PlatformIO's bundled IDF is 6.0.1
-   (`~/.platformio/packages/framework-espidf/version.txt`); ESP-Brookesia targets 5.3–5.5. MicroFi
-   stays on the PlatformIO toolchain for the XIAOs.
-2. **Extract `microfi_agent_start()`**, add the adopt-mode switch, trim the processor set.
-   Regression gate: `pio run -e esp32s3-8mb` builds and MicroFi-1/2/3 still ONLINE.
-3. **Build stock factory Brookesia** for this SKU from `waveshareteam/ESP32-S3-Touch-AMOLED-1.8`.
-4. **Drop `components/microfi_agent/` in and boot it.** Exit: Brookesia home screen up *and*
-   `agent_state=ONLINE`, with a serial log showing both on the same boot (never captured on this
-   board yet).
-5. **Re-pin the class manifest** to the new 6-processor id — it will not dedupe onto MicroFi-3's
-   `9c1cb1b3-2a3b-4ad4-87b7-f91dbb1dec91` any more.
-6. **Add the agent tile.**
-7. **Combine with `components/ember/` and `components/x_viewer/`** — one flash, three tiles. Joint
-   step with #183 and #184.
+5. **Apps as runtime packages.** Ember (#184) + X-viewer (#183) as JS packages in `apps/` on
+   SD/LittleFS (JSON-UI + `brookesia_app.*` contract). Joint step with those issues.
+6. **Agent status tile** as a native `IApp` (agent id, class, IP, manifest hash, heartbeat age).
 
-Ask before every flash to this board.
+Ask before every flash to this board. (Steven granted session-scoped standing reflash permission
+2026-08-19 — colorbar/platform iteration only, not a standing rule.)
 
 ## Commands
 
@@ -110,7 +166,9 @@ curl http://192.168.1.121:10090/efm/api/agent-class-manifest-config/AMOLED
 
 ## Gotchas
 
-- **The board has an OS.** Anything that flashes a whole-device image replaces ESP-Brookesia.
+- **The board has an OS.** A whole-device flash replaces the factory Brookesia-v0.5 + Xiaozhi combo,
+  whose source is unpublished — recovery is only `FactoryXiaozhi_260601.bin`. The #188 platform
+  flash accepts this once; after that, apps arrive as files, not flashes.
 - **Dead panel after a flash** is usually init order, not hardware: AXP2101 → TCA9554 → panel.
 - **No flow is published** to class `AMOLED`.
 - **WSL→Windows interop** has died mid-session here (`accept4 failed 110` on every Windows exe). Only
