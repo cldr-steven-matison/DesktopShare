@@ -39,11 +39,9 @@ What a runtime JS app verifiably **can** do (read out of the v0.8 sources, 2026-
 | Swipe / tap | JSON-UI events → `SubscribeAction` → `on_action` | `gesture` events carry `{"direction": "left"|"right"|...}` |
 | Refresh / retry | `SystemTimer` — `StartPeriodic` / `StartDelayed` → `on_timer` | |
 
-**The one design-deciding unknown** is whether `SystemGui.SetViewSrc` accepts a downloaded JPEG's
-sandbox file path. The code path says yes (an unknown image id falls back to treating the raw src
-string as a filesystem path); the docs say ids-only. This is the first on-device spike. Fallback if
-ids-only is enforced: pre-declare rotating placeholder image ids in `res/images/index.json` and
-rewrite the files behind them; worst case, text-only cards.
+**The `SetViewSrc`-from-file question is answered on the glass (2026-08-19): YES.** A downloaded
+JPEG's sandbox path (via the `$brookesiaStoragePath` marker) renders fine — real post images show on
+the card. The fallback paths (placeholder ids / text-only cards) were never needed.
 
 **Brookesia still owns the shell** — home grid, status bar, and the swipe-up-from-bottom home gesture.
 The gesture table below is unchanged and still designed around it.
@@ -52,7 +50,7 @@ The gesture table below is unchanged and still designed around it.
 
 ```
 waveshare-devices/amoled-1.8-v2/apps/tunastreet.xviewer/   # this app (JS package)
-waveshare-devices/amoled-1.8-v2/apps/tunastreet.hello/     # the proven template (#188)
+waveshare-devices/amoled-1.8-v2/apps/tunastreet.hello/     # the template (#188) — repo only, removed from the device at Steven's call
 ```
 
 Staging today bakes the package into the littlefs partition image
@@ -151,21 +149,58 @@ Backend home question stays open: it runs today as the small Python app in `~/am
 into `cso-operator-app`, or becomes a NiFi PG gets decided when it needs to survive unattended — not
 blocking any phase.
 
-## Phases
+## Phases — R0–R2 done eyes-on 2026-08-19; R3 code shipped, on-glass verification remains
 
-**Phase R0 — package + image spike.** Author `tunastreet.xviewer` (manifest, JSON-UI card screen,
-`app.js`), stage into `apps/`, boot. Exit: tile appears, app opens, and the `SetViewSrc`-from-file
-question is answered on the glass (or the fallback is engaged).
+**Phase R0 + R1 — DONE 2026-08-19.** Tile on the Brookesia home screen, app opens, feed loads real
+@TunaStreetTest posts with images, swipe L/R navigates. Two as-built fixes got it there:
 
-**Phase R1 — live feed.** `Http.RequestAsync` → `/xviewer/feed`, card renders post 0 with real text
-and metrics; images downloaded to the app sandbox and shown; swipe L/R moves posts. Exit: a post I
-publish appears on the panel with no reflash.
+- **littlefs re-stage**: every runtime package must be re-staged in
+  `examples/system/super/littlefs/apps/` before a storage-partition flash — apps not in the staged
+  image vanish on flash.
+- **Windows Firewall rule `Allow XViewer Port 8091`** (inbound allow) — WSL mirrored networking
+  exposes the bind but the firewall drops LAN clients without a per-port rule (the #52 pattern).
+  Verified still enabled 2026-08-19.
 
-**Phase R2 — the like.** Tap heart → `POST /xviewer/action` → optimistic UI, revert on failure;
-unlike too. Exit: a tap on the panel puts a real like on x.com, visible on the account.
+**Phase R2 — DONE 2026-08-19.** Heart tap on the panel landed a real like on x.com (count 0 → 1,
+backend-verified), unliked/reverted paths wired. One behavior note, not a bug: a feed response
+served from cache (`cached: true`) can show `liked` from before the tap — the backend *does* update
+its cached entry on every `/xviewer/action`, so this only appears when the feed render raced the
+action.
 
-**Phase R3 — polish.** Feed refresh timer, reconnect/error states, idle behavior, as-built doc
-update.
+**Phase R3 — code shipped in `db5f06f`; what remains is verifying it on the glass.** Already in
+`app.js`: 60 s periodic feed refresh (`xv_refresh`), 10 s retry on failure (`xv_retry`),
+error/status states ("backend unreachable - retrying", "bad feed payload", "feed is empty",
+"like failed" with optimistic revert), stale-download guards, and full timer/service cleanup in
+`on_stop`. Idle is the system's: the app ignores vertical gestures and Brookesia owns the shell.
+The verification pass is the section below — it runs from **StarlinkAI**, which now holds the
+board's USB (COM6).
+
+## Final test pass — StarlinkAI
+
+The board's USB moved to StarlinkAI (enumerates **COM6**; re-identify by MAC `1c:db:d4:7b:85:84`
+with `python -m serial.tools.list_ports -v`). The panel's WiFi still reaches the backend at
+`http://192.168.1.121:8091` on WindowsDesktop — StarlinkAI itself is off that LAN, so backend-side
+checks go through WindowsDesktop (issue-comment coordination or Tailscale). Serial/flash tooling and
+the no-IDF littlefs recipe: [`amoled-1.8-v2/tools/README.md`](https://github.com/TunaStreetTest/waveshare-devices/blob/main/amoled-1.8-v2/tools/README.md);
+the current flash image is already staged on StarlinkAI at `~/amoled-x-ember/cache/device/`.
+
+1. **Verify before flashing.** Extract `/apps/tunastreet.xviewer/app/app.js` from the staged
+   `littlefs_data.bin` (littlefs-python, block_size 4096 × block_count 1250) and diff against the
+   repo copy at `main`. Identical → **no flash needed**, the glass already runs the final code.
+   Drift → patch the bin per the tools README and flash `0xaa1000` only — **ask before flashing**
+   (board hard-resets, EFM agent drops ~15 s).
+2. **Regression:** tile opens, feed renders real posts with images, swipe L/R moves posts,
+   swipe-up home gesture works, EFM agent stays online.
+3. **Refresh timer:** with the app open, capture serial — `python tools/readlog.py COM6 180` —
+   and expect `[xviewer] fetching feed` / `feed ok: N posts` roughly every 60 s.
+4. **Error + reconnect:** coordinate a brief backend stop/start on the issue first (it's a live
+   service on WindowsDesktop — fresh ask, every time). Expect "backend unreachable - retrying" on
+   the status line, then recovery within ~10 s of the backend returning. If not coordinated, report
+   it as untested — don't skip silently.
+5. **Idle soak:** leave the app open ≥ 15 min. No crash/reset on serial, feed still refreshing,
+   agent heartbeats intact (EFM is Tailscale-exposed on 10090 for a remote check).
+6. **Report back** on the StarlinkAI issue with per-item results + serial snippets, and
+   cross-comment on [#183](https://github.com/cldr-steven-matison/DesktopShare/issues/183).
 
 ## Where the code lives vs where the docs live
 
