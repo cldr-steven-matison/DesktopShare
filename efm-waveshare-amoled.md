@@ -172,7 +172,9 @@ note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS 
   192.168.1.121) — firewall rule `Allow Ember Port 8092`, key sourced from
   `tuna-starlink-app/backend/.env.local`.
 - **Same evening: product bounced, task back to Grok** — mechanics pass, concept reads opaque and
-  too close to the X viewer (Steven's verdict on #184). The runtime rails stay.
+  too close to the X viewer (Steven's verdict on #184). The runtime rails stay. **The `:8092`
+  backend was then shut down** (firewall rule kept); the Ember tile errors politely until the
+  redesign ships a replacement — which must run on WindowsDesktop, the only host the panel reaches.
 
 ## Next
 

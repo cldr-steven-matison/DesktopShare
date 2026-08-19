@@ -18,8 +18,17 @@ swipe all confirmed from the panel on first boot.
 Picking up the panel, you can't tell what the app is, what the coal means, or
 why you'd tap it — and a text card you page through lands too close to the
 X viewer beside it. The task is shipped back to Grok for the product
-iteration; the rails below (runtime package, backend, deploy path) are proven
-and stay.
+iteration; the rails below (runtime package, deploy path) are proven and stay
+as reference.
+
+**The `:8092` backend was shut down the same evening on Steven's call** — the
+product it served is being redesigned, so nothing keeps it warm. The on-glass
+Ember tile shows "backend unreachable - retrying" if opened. The contract
+below stands as spec, and the code runs again with one
+`bash scripts/run.sh` on WindowsDesktop (the firewall rule
+`Allow Ember Port 8092` is still in place). Whatever Grok builds next must
+still serve the panel from a host on 192.168.1.x — in practice
+WindowsDesktop, since StarlinkAI left that LAN.
 
 - App package: [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember)
   `apps/tunastreet.ember/` (JSON-UI + QuickJS, modeled line-for-line on
@@ -109,8 +118,8 @@ on the next storage flash. Ask before every flash, fresh each session.
    overlay) before the gesture can exist; tap-the-coal is the v1 shake.
 2. **Idle ember** — display sleep / dimmed idle state (AMOLED's whole point);
    pairs with #183's idle polish.
-3. **Backend as a persistent service** — `run.sh` is a foreground uvicorn;
-   decide whether it joins the X viewer backend's supervision story.
+3. **Backend home** — decided only after the redesign; the panel can reach
+   nothing but 192.168.1.121, so it lands on WindowsDesktop either way.
 4. **Auto-paint stays off** — Imagine costs money; paint remains a deliberate
    long-press.
 
