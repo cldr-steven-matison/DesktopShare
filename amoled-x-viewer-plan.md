@@ -149,7 +149,7 @@ Backend home question stays open: it runs today as the small Python app in `~/am
 into `cso-operator-app`, or becomes a NiFi PG gets decided when it needs to survive unattended — not
 blocking any phase.
 
-## Phases — R0–R2 done eyes-on 2026-08-19; R3 code shipped, on-glass verification remains
+## Phases — ALL DONE; issue closed 2026-08-20
 
 **Phase R0 + R1 — DONE 2026-08-19.** Tile on the Brookesia home screen, app opens, feed loads real
 @TunaStreetTest posts with images, swipe L/R navigates. Two as-built fixes got it there:
@@ -167,40 +167,34 @@ served from cache (`cached: true`) can show `liked` from before the tap — the 
 its cached entry on every `/xviewer/action`, so this only appears when the feed render raced the
 action.
 
-**Phase R3 — code shipped in `db5f06f`; what remains is verifying it on the glass.** Already in
-`app.js`: 60 s periodic feed refresh (`xv_refresh`), 10 s retry on failure (`xv_retry`),
-error/status states ("backend unreachable - retrying", "bad feed payload", "feed is empty",
-"like failed" with optimistic revert), stale-download guards, and full timer/service cleanup in
-`on_stop`. Idle is the system's: the app ignores vertical gestures and Brookesia owns the shell.
-The verification pass is the section below — it runs from **StarlinkAI**, which now holds the
-board's USB (COM6).
+**Phase R3 — DONE, verified across #193's StarlinkAI pass (2026-08-19/20) and the WindowsDesktop
+close-out (2026-08-20).** Per-item results:
 
-## Final test pass — StarlinkAI
+- **Code-identical verify:** on-glass `app.js` was byte-identical to `main` — no flash needed
+  for the pass itself.
+- **Refresh timer:** confirmed on serial — `[xviewer] fetching feed` / `feed ok: 10 posts`
+  every ~60 s.
+- **Idle soak (15 min):** clean — 15/15 refreshes, EFM heartbeats unbroken, zero errors/resets.
+- **Error + reconnect:** network layer confirmed on serial (in-flight request failed during a
+  coordinated backend stop, next poll recovered within ~30 s of restart). The status-line UI
+  text was never eyes-on confirmed — accepted as-is at close.
+- **Swipe debounce (the one real bug the pass found):** a continuous drag emitted multiple
+  gesture events and each advanced a slot. Fixed 2026-08-20 — 350 ms cooldown in the
+  `xviewer.gesture` branch only, taps stay immediate (`waveshare-devices` `5072cc5`), patched
+  into `littlefs_data.bin` via littlefs-python and flashed to `0xaa1000`. Steven confirmed
+  swipe behaves on-glass.
+- **"Full-res images" claim from the pass: refuted, not a bug.** The backend pre-scales every
+  image — verified empirically by parsing the served JPEG's SOF marker: 368 × 220 baseline,
+  ~14 KB. The device never receives full-resolution media; `max_file_size: 262144` on the
+  app-side download is belt-and-braces on top.
 
-The board's USB moved to StarlinkAI (enumerates **COM6**; re-identify by MAC `1c:db:d4:7b:85:84`
-with `python -m serial.tools.list_ports -v`). The panel's WiFi still reaches the backend at
-`http://192.168.1.121:8091` on WindowsDesktop — StarlinkAI itself is off that LAN, so backend-side
-checks go through WindowsDesktop (issue-comment coordination or Tailscale). Serial/flash tooling and
-the no-IDF littlefs recipe: [`amoled-1.8-v2/tools/README.md`](https://github.com/TunaStreetTest/waveshare-devices/blob/main/amoled-1.8-v2/tools/README.md);
-the current flash image is already staged on StarlinkAI at `~/amoled-x-ember/cache/device/`.
+**Board home (current):** USB back on **WindowsDesktop, COM8** (2026-08-20, staying). Backend and
+board on the same host again. Re-identify after a replug by MAC `1c:db:d4:7b:85:84`.
 
-1. **Verify before flashing.** Extract `/apps/tunastreet.xviewer/app/app.js` from the staged
-   `littlefs_data.bin` (littlefs-python, block_size 4096 × block_count 1250) and diff against the
-   repo copy at `main`. Identical → **no flash needed**, the glass already runs the final code.
-   Drift → patch the bin per the tools README and flash `0xaa1000` only — **ask before flashing**
-   (board hard-resets, EFM agent drops ~15 s).
-2. **Regression:** tile opens, feed renders real posts with images, swipe L/R moves posts,
-   swipe-up home gesture works, EFM agent stays online.
-3. **Refresh timer:** with the app open, capture serial — `python tools/readlog.py COM6 180` —
-   and expect `[xviewer] fetching feed` / `feed ok: N posts` roughly every 60 s.
-4. **Error + reconnect:** coordinate a brief backend stop/start on the issue first (it's a live
-   service on WindowsDesktop — fresh ask, every time). Expect "backend unreachable - retrying" on
-   the status line, then recovery within ~10 s of the backend returning. If not coordinated, report
-   it as untested — don't skip silently.
-5. **Idle soak:** leave the app open ≥ 15 min. No crash/reset on serial, feed still refreshing,
-   agent heartbeats intact (EFM is Tailscale-exposed on 10090 for a remote check).
-6. **Report back** on the StarlinkAI issue with per-item results + serial snippets, and
-   cross-comment on [#183](https://github.com/cldr-steven-matison/DesktopShare/issues/183).
+**Known feed behavior, deliberate scope-out:** posts whose media hangs off a *referenced* tweet
+(RTs, quote-tweets) render text-only — the backend only expands the post's own
+`attachments.media_keys`. A `referenced_tweets.id` expansion fallback would fill most blank
+cards; declined for now ("lets move on", 2026-08-20).
 
 ## Where the code lives vs where the docs live
 
@@ -212,10 +206,9 @@ the current flash image is already staged on StarlinkAI at `~/amoled-x-ember/cac
   historical.
 - **Every `.md` stays here in DesktopShare.**
 
-## Done condition
+## Done condition — MET, closed 2026-08-20
 
-The panel sits on the desk running the #188 platform. The X viewer tile sits on the Brookesia home
-screen next to the hello tile (and Ember's, when #184 ships its package). Tapping it shows the newest
-posts from @TunaStreetTest; swipe L/R moves between them; a tap on the heart lands a real like
-visible on x.com; swipe up returns home and the EFM agent never blinked. Package committed to
-waveshare-devices, this doc updated with as-built deviations.
+The panel sits on the desk running the #188 platform. The X viewer tile is on the Brookesia home
+screen; tapping it shows the newest posts from @TunaStreetTest; one swipe moves exactly one post;
+a tap on the heart lands a real like visible on x.com; swipe up returns home and the EFM agent
+never blinked. Package at `waveshare-devices` `5072cc5`; issues #183 + #193 closed.
