@@ -48,73 +48,50 @@ The public-EAG and `ENTERPRISE`-default behavior above is confirmed in the modul
 
 ## External / VPC access
 
-The `semi-private` template puts CDW workers, CDW load balancers, and DataLake compute nodes on **private subnets** (`10.10.0.0/16`). Public DNS names resolve to private IPs — unreachable from the Mac or any outside client. This affects every service in the demo suite, not just Trino:
+The `semi-private` template puts CDW workers, CDW load balancers, and DataLake compute nodes on **private subnets** (`10.10.0.0/16`). Public DNS names resolve to private IPs — unreachable from the Mac or any outside client. This affects every service in the demo suite, not just Trino (private IPs verified live 2026-08-20):
 
-| Service | Endpoint | Blocked without VPN |
-|---|---|---|
-| **Trino VW coordinator** | `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site:443` | JDBC queries, Trino Web UI, screenshots |
-| **Hue** | `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site` | Query UI screenshots |
-| **HMS thrift** | `thrift://srm-iceberg-aw-dl-master0.srm-iceb.a465-9q4k.cloudera.site:9083` | `PutIceberg` via `HiveCatalogService` from CSO NiFi (#151) |
-| **Impala workers** | private `10.10.x` IPs | Direct worker access (gateway host is the current workaround) |
+| Service | Endpoint | Resolves to | Blocked directly |
+|---|---|---|---|
+| **Trino VW coordinator / Web UI** | `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site:443` | `10.10.47.170`, `10.10.71.90` (private CDW NLB) | JDBC, Trino Web UI, screenshots |
+| **Hue** | `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site` | same private NLB | Query UI screenshots |
+| **HMS thrift** | `thrift://srm-iceberg-aw-dl-master0.srm-iceb.a465-9q4k.cloudera.site:9083` | `10.10.74.221` (private) | `PutIceberg` via `HiveCatalogService` from CSO NiFi (#151) |
+| **Impala workers** | private `10.10.x` IPs | — | Direct worker access (gateway host is the current workaround) |
+| DL gateway (Knox) | `srm-iceberg-aw-dl-gateway.…` | `3.141.161.46` (**public**) | *not* blocked — why the REST Catalog already works |
 
-**Solution: AWS Client VPN endpoint** attached to the `srm-iceberg-net` VPC (`10.10.0.0/16`). Tracked in [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190) — full option evaluation there. Client VPN is the only option that solves all four services at once without rebuilding the env or managing per-service tunnels.
+**Solution: EC2 bastion inside the VPC + SSH dynamic SOCKS proxy** (option 1 from [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190)). The bastion's ENI has a `10.10.x` source IP that the private NLB and services already have a VPC return route to — so a browser tunnelled through it reaches all private-subnet UIs at their real hostnames, TLS/SNI and Knox redirects intact. One tunnel serves Trino UI, Hue, and any future private service.
 
-Once connected, the Mac gets a private IP routed into `10.10.0.0/16`. Because minikube (docker driver) shares the Mac's network stack, CSO NiFi pods also inherit the route — this directly unblocks `HiveCatalogService` for `PutIceberg` (#151) without any change to the minikube cluster.
+**Client VPN was tried first and abandoned (dead end — do not retry).** A Client VPN endpoint (`10.20.0.0/16` client CIDR) was stood up, but the private NLB replies to the VPN client CIDR, which has **no return route in the VPC** — Client VPN can't be a route-table target, so there is no in-VPC return-path fix. Connections time out even with SGs/NACLs open. Verified live: the CDW node SG (`sg-02e19bda8692bc27a`) even carries a `443` ingress rule for `10.20.0.0/16` and it still didn't work — confirming the block was always the return route, never the SG. Teardown: `bastion/vpn-teardown.sh`.
 
-**Live VPN endpoint (created 2026-08-19, #190):**
+**Live bastion (created 2026-08-20, #190):**
 
 | Resource | Value |
 |---|---|
-| Client VPN Endpoint | `cvpn-endpoint-0f7b1e940c5c8fe48` (us-east-2) |
-| Client CIDR | `10.20.0.0/16` |
-| Associated subnets | all three private subnets (us-east-2a/b/c) |
-| Auth rule | `10.10.0.0/16` → all groups |
-| Split tunnel | enabled (REST Catalog Knox stays public-routed) |
-| DNS | `169.254.169.253` (VPC resolver) |
-| Client config | `~/Documents/GitHub/iceberg-rest-catalog-demo/vpn/srm-iceberg-vpn.ovpn` |
-| Server cert (ACM) | `arn:aws:acm:us-east-2:007856030109:certificate/85817be4-eb08-48f1-8987-92ccee59a434` |
+| Instance | `i-0c5dca3ec6a24804f` — `srm-iceberg-bastion`, `t3.small`, Amazon Linux 2023 |
+| Public subnet | `subnet-0e5c0f1fcae44da09` (us-east-2a, `10.10.96.0/24`; IGW-routed via `rtb-00f77e782c6d9d52f`) |
+| Bastion SG | `srm-iceberg-bastion-sg` — inbound tcp/22 from the Mac's public IP `/32` only |
+| Key pair | `srm-iceberg-keypair` — key on disk at `cdp-tf-quickstarts/aws/srm-iceberg-ssh-key.pem` |
+| VPC | `vpc-04c815b9f35200da1` (`srm-iceberg-net`, `10.10.0.0/16`), us-east-2 |
 
-**Connect:** import `vpn/srm-iceberg-vpn.ovpn` into AWS VPN Client (or Tunnelblick) and connect. Cert + key are embedded in the file — no extra configuration.
+**Why it reaches CDW:** the Trino/Hue NLB (`net/aae6dc93…`) is an internal NLB with no SG of its own; it forwards `:443` → NodePort `31137` on the EKS worker nodes, whose SG (`sg-02e19bda8692bc27a`) opens `31137` to `0.0.0.0/0`. Any in-VPC source reaches it — no CDW SG edits required. Validated 2026-08-20: from the bastion and through the SOCKS proxy from the Mac, `…/ui/` → HTTP 303 (Knox login redirect) resolving to `10.10.71.90`; Hue → 302.
 
-**Setup (reproduced if needed):**
+**Connect (runbook — scripts in [`iceberg-rest-catalog-demo/bastion/`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo/tree/main/bastion)):**
 
 ```bash
-cd ~/Documents/GitHub/iceberg-rest-catalog-demo/vpn
-
-# Generate CA + server + client certs (openssl — no easy-rsa needed)
-openssl genrsa -out ca.key 2048
-openssl req -new -x509 -days 3650 -key ca.key -subj "/CN=srm-iceberg-vpn-ca/O=srm-iceberg/C=US" -out ca.crt
-openssl genrsa -out server.key 2048 && openssl req -new -key server.key -subj "/CN=server.srm-iceberg-vpn/O=srm-iceberg/C=US" -out server.csr
-openssl x509 -req -days 3650 -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt
-openssl genrsa -out client.key 2048 && openssl req -new -key client.key -subj "/CN=client.srm-iceberg-vpn/O=srm-iceberg/C=US" -out client.csr
-openssl x509 -req -days 3650 -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt
-
-# Import to ACM, create endpoint, associate subnets, add auth rule, export config
-SERVER_CERT_ARN=$(aws acm import-certificate --region us-east-2 \
-  --certificate fileb://server.crt --private-key fileb://server.key --certificate-chain fileb://ca.crt \
-  --query 'CertificateArn' --output text)
-CLIENT_CERT_ARN=$(aws acm import-certificate --region us-east-2 \
-  --certificate fileb://client.crt --private-key fileb://client.key --certificate-chain fileb://ca.crt \
-  --query 'CertificateArn' --output text)
-VPN_ID=$(aws ec2 create-client-vpn-endpoint --region us-east-2 \
-  --client-cidr-block 10.20.0.0/16 --server-certificate-arn $SERVER_CERT_ARN \
-  --authentication-options Type=certificate-authentication,MutualAuthentication={ClientRootCertificateChainArn=$CLIENT_CERT_ARN} \
-  --connection-log-options Enabled=false --dns-servers 169.254.169.253 --split-tunnel \
-  --query 'ClientVpnEndpointId' --output text)
-for SUBNET in subnet-0261391108f5e05dc subnet-0da637498c8807337 subnet-0fef268632cabe1ee; do
-  aws ec2 associate-client-vpn-target-network --region us-east-2 --client-vpn-endpoint-id $VPN_ID --subnet-id $SUBNET
-done
-aws ec2 authorize-client-vpn-ingress --region us-east-2 --client-vpn-endpoint-id $VPN_ID \
-  --target-network-cidr 10.10.0.0/16 --authorize-all-groups
-# Wait ~20 min for associations → associated, then:
-aws ec2 export-client-vpn-client-configuration --region us-east-2 \
-  --client-vpn-endpoint-id $VPN_ID --output text > srm-iceberg-vpn.ovpn
-printf '\n<cert>\n%s</cert>\n\n<key>\n%s</key>\n' "$(cat client.crt)" "$(cat client.key)" >> srm-iceberg-vpn.ovpn
+cd ~/Documents/GitHub/iceberg-rest-catalog-demo/bastion
+./bastion-up.sh                 # idempotent: create/start bastion, print public IP
+./bastion-connect.sh <pub-ip>   # opens ssh -D 1080 SOCKS proxy (leave running)
+# Browser: SOCKS5 127.0.0.1:1080, remote DNS ON (Firefox network.proxy.socks_remote_dns=true),
+# then browse https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/ui/
+./bastion-up.sh --stop          # stop compute billing when idle
 ```
 
-**Survives the weekly reaper.** The VPN endpoint is an AWS resource in the VPC. The CDP reaper deletes only CDP objects (env/DataLake/Data Hub); the VPC and VPN endpoint persist. Client config stays valid across weekly rebuilds. One-time setup, reused every Monday.
+The scripts resolve VPC/subnet by **Name tag**, not hardcoded ID, so they survive the weekly rebuild's new IDs. `bastion-up.sh` re-points the SSH ingress at the current Mac IP on every run.
 
-**Cost:** ~$0.10/hr per subnet association + ~$0.05/hr per active connection.
+**Survives the weekly reaper.** The bastion is a plain EC2 in the persistent VPC; the CDP reaper deletes only CDP objects (env/DataLake/Data Hub), and the weekly redeploy is `terraform apply` (not destroy), so the VPC ID is stable. Re-run `bastion-up.sh` if the reaper ever takes the instance.
+
+**Cost:** `t3.small` ≈ $0.02/hr running; `--stop` when idle (the env auto-stops overnight anyway). No per-subnet or per-connection charges (unlike Client VPN's ~$0.10/hr/subnet).
+
+> **minikube / `PutIceberg` (#151) note:** unlike the (abandoned) VPN, a bastion does *not* transparently route the Mac's whole network stack, so minikube NiFi pods do **not** inherit VPC reachability for HMS thrift. If #151 needs pod→HMS, that's a separate path (e.g. an SSH `-L` forward the pod targets, or a NiFi-side proxy) — track it in #151, not here.
 
 ## Deployment record (this build)
 
