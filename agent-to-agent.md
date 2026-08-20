@@ -35,11 +35,16 @@ The contract:
   in the inbox came from him. `agent-reply.sh` is deliberately credential-free; the ack comes
   from the session after it consumes the reply, which proves delivery end-to-end.
 - **Monitor shape** (session side): persistent Monitor (not a background Bash loop — that caps
-  at 10 min and dinner runs longer): snapshot `wc -l` of the inbox at ask time, `sleep 5` loop
-  until it grows, emit the new line(s), exit.
+  at 10 min and dinner runs longer): snapshot `wc -l` of the inbox **BEFORE sending the ask**,
+  then send, then `sleep 5` loop until the count grows, emit the new line(s), exit. Snapshot
+  first — a phone-in-hand reply can land in the ask→snapshot gap, and a baseline taken after
+  it already contains the reply, so the count never "grows" and the session waits forever.
+  `agent-ask.sh` exits non-zero if Telegram did not confirm delivery — on that, do NOT arm
+  the Monitor.
 - **What it can't answer**: harness permission dialogs — the model is suspended there. Those get
   a "session waiting at the desk" ping from the `Notification` hook instead
-  (`.claude/hooks/telegram-notify.sh`, wired user-level on WindowsDesktop only, 5-min dedupe).
+  (`.claude/hooks/telegram-notify.sh`, wired user-level on WindowsDesktop only; pings on
+  permission prompts ONLY, 60s dedupe — idle between-turn notifications are ignored).
   Policy split: `agent/device-comms.md` "Session comms (Telegram)".
 
 ---

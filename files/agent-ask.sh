@@ -37,8 +37,14 @@ MSG="❓ [$DEV] ${QUESTION}
 
 reply: /bash bash reply.sh yes|no|<text>"
 
-curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+# Verify delivery before claiming success — "Ask sent" on a failed send leaves the
+# session waiting forever on a question that never reached the phone (#192 review).
+RESP=$(curl -s -m 15 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
      -d "chat_id=$CHAT_ID" \
-     --data-urlencode "text=${MSG}" > /dev/null
-
-echo "❓ Ask sent. Now watch \$HOME/.claude/telegram-inbox.log for the reply."
+     --data-urlencode "text=${MSG}" 2>/dev/null) || true
+if printf '%s' "$RESP" | grep -q '"ok":true'; then
+    echo "❓ Ask sent. Now watch \$HOME/.claude/telegram-inbox.log for the reply."
+else
+    echo "❌ Ask NOT delivered (network or Telegram rejected it) — do NOT wait on the inbox. Response: $(printf '%s' "$RESP" | head -c 200)"
+    exit 1
+fi

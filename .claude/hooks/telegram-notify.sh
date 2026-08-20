@@ -19,16 +19,26 @@ if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
     exit 0   # no creds on this host — silently do nothing
 fi
 
-MESSAGE=$(echo "$INPUT" | jq -r '.message // "waiting for input"')
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+if command -v jq >/dev/null 2>&1; then
+    MESSAGE=$(echo "$INPUT" | jq -r '.message // "waiting for input"')
+    CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+else
+    # No jq: can't classify — fail toward pinging (a lost permission ping is worse
+    # than a spurious one), and say why the text is missing.
+    MESSAGE="needs your permission (jq missing on host, raw message unavailable)"
+    CWD=""
+fi
 
-# Class-aware dedupe (issue #192, 2026-08-20): a permission-prompt ping must NEVER
-# be swallowed because an idle "waiting for input" notification pinged minutes
-# earlier — that exact suppression cost a parked session its ping today. Permission
-# prompts dedupe only against their own 60s stamp; everything else keeps 5 min.
+# Permission prompts ONLY (issue #192, 2026-08-20). The harness also emits idle
+# "waiting for input" notifications between conversation turns — those pinged
+# Steven while he was sitting AT the terminal (12:39 false alarm) and, worse,
+# their 5-min dedupe stamp once swallowed a real permission-prompt ping. This
+# hook's documented job (device-comms.md "Session comms", class 2) is the
+# keyboard-only harness dialog; completion/blocked pings for unattended work are
+# the session's own responsibility via the progress-poll protocol. 60s dedupe.
 case "$MESSAGE" in
   *[Pp]ermission*) STAMP="$HOME/.claude/telegram-notify-perm.last"; WINDOW=60 ;;
-  *)               STAMP="$HOME/.claude/telegram-notify.last";      WINDOW=300 ;;
+  *)               exit 0 ;;
 esac
 if [ -f "$STAMP" ]; then
     LAST=$(stat -c %Y "$STAMP" 2>/dev/null || echo 0)
@@ -51,9 +61,17 @@ fi
 
 MSG="⌨️ [$DEV] Session waiting at the desk: ${MESSAGE}${CWD:+ (${CWD})}"
 
-curl -s -m 10 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+# Stamp ONLY on confirmed delivery ({"ok":true}). A failed send must NOT arm the
+# dedupe — the harness re-fires notifications while parked, and each re-fire is a
+# retry as long as no stamp blocks it. Failures leave one line in a local err log
+# (never the token) so a broken TOKEN/CHAT_ID is discoverable instead of silent.
+RESP=$(curl -s -m 10 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
      -d "chat_id=$CHAT_ID" \
-     --data-urlencode "text=${MSG}" > /dev/null
-
-touch "$STAMP"
+     --data-urlencode "text=${MSG}" 2>/dev/null)
+if printf '%s' "$RESP" | grep -q '"ok":true'; then
+    touch "$STAMP"
+else
+    echo "$(date '+%F %T') send failed: $(printf '%s' "$RESP" | head -c 200)" \
+        >> "$HOME/.claude/telegram-notify.err" 2>/dev/null
+fi
 exit 0
