@@ -23,7 +23,17 @@ if [ -z "$QUESTION" ]; then
     exit 1
 fi
 
-MSG="❓ ${QUESTION}
+# Lead with the device name — asks from multiple devices land in ONE chat and an
+# unattributed question is unanswerable safely (2026-08-20, #192).
+DEV="$(hostname -s 2>/dev/null || hostname)"
+LIB="$(cd "$(dirname "$0")/../.claude/hooks" 2>/dev/null && pwd)/lib-device.sh"
+if [ -f "$LIB" ]; then
+    . "$LIB" 2>/dev/null || true
+    L="$(ds_device_labels 2>/dev/null | awk '{print $1}')" || true
+    if [ -n "$L" ]; then DEV="$L"; fi
+fi
+
+MSG="❓ [$DEV] ${QUESTION}
 
 reply: /bash bash reply.sh yes|no|<text>"
 

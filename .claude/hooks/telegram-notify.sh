@@ -31,7 +31,18 @@ fi
 MESSAGE=$(echo "$INPUT" | jq -r '.message // "waiting for input"')
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 
-MSG="⌨️ Session waiting at the desk: ${MESSAGE}${CWD:+ (${CWD})}"
+# Lead with the device name — alerts from multiple devices land in ONE chat, and
+# an unattributed "waiting at the desk" sends Steven to the wrong machine
+# (2026-08-20, #192). ds_device_labels gives the roster name; hostname fallback.
+DEV="$(hostname -s 2>/dev/null || hostname)"
+LIB="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/lib-device.sh"
+if [ -f "$LIB" ]; then
+    . "$LIB" 2>/dev/null
+    L="$(ds_device_labels 2>/dev/null | awk '{print $1}')"
+    [ -n "$L" ] && DEV="$L"
+fi
+
+MSG="⌨️ [$DEV] Session waiting at the desk: ${MESSAGE}${CWD:+ (${CWD})}"
 
 curl -s -m 10 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
      -d "chat_id=$CHAT_ID" \
