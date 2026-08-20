@@ -133,7 +133,12 @@ long unattended work sends a brief ping at each real milestone and whenever it's
 waiting or blocked more than a few minutes — without Steven asking first. Keep each
 ping to a couple of lines: what finished or what's needed, not the blow-by-blow.
 Mechanism: `curl sendMessage` with `$TOKEN`/`$CHAT_ID` sourced from `~/.env` (never
-echo either).
+echo either). **Every ping — from any device, this section's polls included — leads
+with the sending device's roster name in brackets** (`[WindowsDesktop] flash done`,
+`[StarlinkAI] blocked on COM6`): all devices share one chat, and an unattributed
+"waiting at the desk" sends Steven to the wrong machine (2026-08-20, #192).
+`agent-ask.sh` and `telegram-notify.sh` stamp it automatically; hand-built `curl`
+pings must include it themselves.
 
 **Prompts split into two classes** — know which one you're parked on:
 
