@@ -5,5 +5,5 @@ Bounced 2026-08-19 on product (issue #184). Replacement is T-MINUS:
 
 Do not revive coal / NOW-WHY-TAKE / WORLD-SCIENCE-SPACE-YOU. The 2026-08-18
 black-screen scoreboard stays in [`amoled-ember-postmortem.md`](amoled-ember-postmortem.md).
-The bounced runtime package remains in `amoled-x-ember` `apps/tunastreet.ember/`
-as the record; it is not staged onto the panel.
+The bounced Ember tree lived in `steven-matison/amoled-x-ember` and is not the
+app. Replacement: [`TunaStreetTest/amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus).

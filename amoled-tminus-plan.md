@@ -34,8 +34,8 @@ Flash is **littlefs_data only** (`0xaa1000`, COM8, MAC `1c:db:d4:7b:85:84`).
 Never write `0x0`–`0xaa1000`. Ask before every flash. Always re-stage
 `tunastreet.xviewer` on a storage rebuild; do **not** re-stage `tunastreet.ember`.
 
-App repo: [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember)
-(name is leftover). Package id is `tunastreet.tminus`.
+App repo: [`TunaStreetTest/amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus).
+Package id is `tunastreet.tminus`.
 
 ## LAN contract
 

@@ -203,6 +203,6 @@ The last image on COM6 at report time is a 232 KB colorbar that calls
 | Repo | What is in it after this write-up |
 |---|---|
 | [DesktopShare](https://github.com/cldr-steven-matison/DesktopShare) `issue-184-amoled-ember` | this file; `amoled-ember-plan.md` points here |
-| [amoled-x-ember](https://github.com/steven-matison/amoled-x-ember) | firmware snapshot of the failed bring-up, including the colorbar `main.cpp` and the BSP patch |
+| [amoled-x-ember](https://github.com/steven-matison/amoled-x-ember) | firmware snapshot of the failed bring-up (repo retired; app is [`TunaStreetTest/amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus)) |
 
 Wi-Fi PSK stays in gitignored `firmware/sdkconfig.defaults.local`.

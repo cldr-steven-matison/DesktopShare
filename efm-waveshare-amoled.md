@@ -184,7 +184,9 @@ Ask before every flash to this board — fresh ask each session, every flash.
 Flash + serial-capture tooling (port-parameterized scripts, littlefs-only flash recipe, and the
 no-IDF `littlefs-python` app-iteration path for hosts without a toolchain): `waveshare-devices`
 repo, `amoled-1.8-v2/tools/`. The current-flash `littlefs_data.bin` + boot log are staged on
-StarlinkAI at `~/amoled-x-ember/cache/device/` for the Grok session.
+StarlinkAI had a copy of the then-current `littlefs_data.bin` + boot log under
+`~/amoled-x-ember/cache/device/` (that repo is gone; app is now
+[`TunaStreetTest/amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus)).
 
 ## Commands
 
