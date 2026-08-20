@@ -140,11 +140,26 @@ esac
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
    && printf '%s' "$cmd" | grep -Eq -- '--add-label[= ]+status:(review|done)' \
    && command -v git >/dev/null 2>&1; then
-  if [ -n "$(git -C "$proj" status --porcelain 2>/dev/null)" ]; then
-    emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)"
-  fi
-  if [ -n "$(git -C "$proj" log @{u}.. --oneline 2>/dev/null)" ]; then
-    emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. There are commits not yet pushed to upstream — push them so the sha in the issue comment is durable and visible to other devices, THEN flip."
+  # Inline compliance (issue #192, 2026-08-20): the canonical chained one-liner
+  # `git add && git commit && git push && gh issue edit ... status:review` ALWAYS
+  # tripped this ask — the tree is of course dirty at hook time, the commit that
+  # cleans it is in the same chain. If the text BEFORE the flip contains both a
+  # commit and a push, the chain itself performs steps 1-2 in order — pass.
+  pre_flip="${cmd%%gh issue edit*}"
+  if printf '%s' "$pre_flip" | grep -Eq 'git +([^;&|]* )?commit\b' \
+     && printf '%s' "$pre_flip" | grep -Eq 'git +([^;&|]* )?push\b'; then
+    :
+  else
+    # Dirty-tree check ignores .claude/ machinery: hooks/settings edits are
+    # classifier-blocked for Claude and get committed by Steven on his own
+    # schedule — their dirt must not park an unrelated issue finish.
+    dirt="$(git -C "$proj" status --porcelain 2>/dev/null | grep -v ' \.claude/')"
+    if [ -n "$dirt" ]; then
+      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)"
+    fi
+    if [ -n "$(git -C "$proj" log @{u}.. --oneline 2>/dev/null)" ]; then
+      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. There are commits not yet pushed to upstream — push them so the sha in the issue comment is durable and visible to other devices, THEN flip."
+    fi
   fi
 fi
 
@@ -191,8 +206,62 @@ fi
 
 # 2. Commit / push only when explicitly asked — EXCEPT the issue-finish ritual, where
 #    commit+push are required (device-comms.md "Finishing an issue" / workflow.md).
+#    The hook VERIFIES the exception itself instead of asking (issue #192, 2026-08-20:
+#    the unconditional ask parked finish-ritual sessions at the keyboard). If the
+#    command — or, for a bare push, the unpushed commit subjects — references an
+#    issue #N that is claimed by THIS device (status:in-progress/review + device
+#    label, or status:done closed within the last 4h — the post-close doc-commit
+#    tail), that IS the sanctioned exception: allow with a context note. Anything
+#    unverifiable (no issue reference, not claimed here, gh offline) falls through
+#    to the ask, so an unrequested commit outside a finish ritual still prompts.
 if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit|push)\b'; then
-  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). The one exception is the issue-FINISH ritual (device-comms.md 'Finishing an issue'): if you're finishing an issue you were asked to complete, commit+push are REQUIRED — approve. Otherwise confirm this commit/push was asked for in the current turn before approving."
+  finish_n=""; finish_why=""
+  nums="$(printf '%s' "$cmd" | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
+  if [ -z "$nums" ] && command -v git >/dev/null 2>&1; then
+    # Bare push with no #N in the command: look in the unpushed commit subjects,
+    # in the repo the command targets — a leading `cd <dir> &&` or a `git -C <dir>`
+    # names it; else $proj.
+    repo="$proj"
+    cddir="$(printf '%s' "$cmd" | sed -n 's/^cd  *\([^;&|]*\).*/\1/p' | awk '{print $1}')"
+    [ -z "$cddir" ] && cddir="$(printf '%s' "$cmd" | sed -n 's/.*git  *-C  *\([^ ;&|]*\).*/\1/p' | head -1)"
+    case "$cddir" in "~"*) cddir="$HOME${cddir#\~}" ;; esac
+    [ -n "$cddir" ] && [ -d "$cddir" ] && repo="$cddir"
+    nums="$(git -C "$repo" log @{u}.. --format=%s 2>/dev/null | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
+  fi
+  if [ -n "$nums" ] && command -v gh >/dev/null 2>&1; then
+    now="$(date +%s)"
+    for n in $nums; do
+      # gh runs from $proj so the issue lookup is pinned to this repo regardless
+      # of what directory the guarded command targets.
+      info="$(cd "$proj" 2>/dev/null && gh issue view "$n" --json labels,closedAt 2>/dev/null)"
+      [ -n "$info" ] || continue
+      lbls="$(printf '%s' "$info" | jq -r '[.labels[].name]|join(",")' 2>/dev/null)"
+      why=""
+      if printf '%s' "$lbls" | grep -Eq 'status:(in-progress|review)'; then
+        why="claimed by this device (status:in-progress/review)"
+      elif printf '%s' "$lbls" | grep -q 'status:done'; then
+        # Post-close tail of the same finish ritual: the plan/doc commit often lands
+        # AFTER the issue is closed (2026-08-20, #183/#193 — close first, then commit
+        # the DesktopShare plan doc referencing them). Accept a done issue closed
+        # within the last 4h; an old closed issue in a commit message still prompts.
+        closed="$(printf '%s' "$info" | jq -r '.closedAt // ""' 2>/dev/null)"
+        if [ -n "$closed" ]; then
+          cts="$(date -d "$closed" +%s 2>/dev/null || echo 0)"
+          [ "$cts" -gt 0 ] && [ $((now - cts)) -le 14400 ] \
+            && why="status:done, closed within the last 4h — the post-close doc-commit tail"
+        fi
+      fi
+      [ -n "$why" ] || continue
+      for l in $(ds_device_labels 2>/dev/null); do
+        [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && { finish_n="$n"; finish_why="$why"; }
+      done
+      [ -n "$finish_n" ] && break
+    done
+  fi
+  if [ -n "$finish_n" ]; then
+    emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits."
+  fi
+  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). The one exception is the issue-FINISH ritual (device-comms.md 'Finishing an issue') — if this commit references the issue being finished (#N in the message), the guard auto-approves it without asking; this prompt means it could NOT verify that (no issue reference, issue not claimed by this device, or gh offline). Confirm this commit/push was asked for in the current turn before approving."
 fi
 
 # 3. Ad-hoc port-forwards / tunnels. The canonical set lives as zellij panes
@@ -228,19 +297,34 @@ fi
 # 2026-08-03 batch: six issues closed, labels never flipped, so `gh issue list`
 # filters lied). If the SAME command also flips the label to status:done inline
 # (the documented `gh issue edit ... --add-label status:done && gh issue close`
-# one-liner), it's compliant — pass. Otherwise look up each issue's current labels
-# and ask if status:done is absent. Loops ALL issue numbers; fails open (no gh).
+# one-liner), it's compliant — pass. Otherwise the hook FIXES the label ITSELF
+# (issue #192, 2026-08-20: this fired 4x in 5 days as an ask that parked unattended
+# sessions — same "remove the model from the loop" reshape as auto-claim rule A):
+# for this device's issues it runs the status:done flip and allows with a context
+# note; only a failed flip, or another device's issue, still asks. Loops ALL issue
+# numbers; fails open (no gh).
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+'; then
   # Inline done-flip in the same command satisfies the rule — don't second-guess it.
   if ! { printf '%s' "$cmd" | grep -Eq -- '--add-label' \
          && printf '%s' "$cmd" | grep -Eq 'status:done'; }; then
     if command -v gh >/dev/null 2>&1; then
+      fixed=""
       for n in $(ds_issue_numbers "$cmd" close); do
         cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
         if [ -n "$cur" ] && ! printf '%s' "$cur" | grep -q 'status:done'; then
-          emit_ask "Issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)). device-comms.md 'Closing an issue': set status:done FIRST, then close — closing while it still reads todo/in-progress/review strands the label and makes gh issue list filters lie (the 2026-08-03 drift). Do it in one move: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'"
+          mine=""
+          for l in $(ds_device_labels 2>/dev/null); do
+            [ -n "$l" ] && printf '%s' "$cur" | grep -q "device:$l" && mine=1
+          done
+          old="$(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | head -1)"
+          if [ -n "$mine" ] && gh issue edit "$n" ${old:+--remove-label "$old"} --add-label status:done >/dev/null 2>&1; then
+            fixed="$fixed #$n"
+          else
+            emit_ask "Issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)) and the guard could not auto-flip it (another device's issue, or gh edit failed). device-comms.md 'Closing an issue': set status:done FIRST, then close. Do it in one move: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'"
+          fi
         fi
       done
+      [ -n "$fixed" ] && emit_ctx "Close guard: flipped$fixed to status:done for you before the close (device-comms.md 'Closing an issue' — label first, then close). Auto-fixed, no action needed."
     fi
   fi
 fi
