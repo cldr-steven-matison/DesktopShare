@@ -69,6 +69,10 @@ command -v jq >/dev/null 2>&1 || exit 0
 payload="$(cat)"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // ""' 2>/dev/null)" || exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // ""' 2>/dev/null)"
+# The session's working directory at call time — sessions cd into sub-repos
+# (waveshare-devices, EdgeFlowManager) in EARLIER Bash calls, so git checks that
+# only ever look at $proj miss the repo the ritual is actually happening in.
+hookcwd="$(printf '%s' "$payload" | jq -r '.cwd // ""' 2>/dev/null)"
 
 proj="${CLAUDE_PROJECT_DIR:-.}"
 # shellcheck disable=SC1091
@@ -145,28 +149,45 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
   # tripped this ask — the tree is of course dirty at hook time, the commit that
   # cleans it is in the same chain. If the text BEFORE the flip contains both a
   # commit and a push, the chain itself performs steps 1-2 in order — pass.
-  pre_flip="${cmd%%gh issue edit*}"
+  # %% (first occurrence) would truncate at a "gh issue edit" QUOTED INSIDE a commit
+  # message; % cuts at the last occurrence — the actual flip in a chained command.
+  pre_flip="${cmd%gh issue edit*}"
   if printf '%s' "$pre_flip" | grep -Eq 'git +([^;&|]* )?commit\b' \
      && printf '%s' "$pre_flip" | grep -Eq 'git +([^;&|]* )?push\b'; then
     :
   else
+    # Check the repo the session is ACTUALLY in (payload cwd), not just $proj —
+    # the ritual's commits usually live in the sub-repo the session cd'd into
+    # earlier; $proj-only checks parked flips over unrelated DesktopShare dirt.
+    repo7="$proj"
+    [ -n "$hookcwd" ] && git -C "$hookcwd" rev-parse --git-dir >/dev/null 2>&1 && repo7="$hookcwd"
     # Dirty-tree check ignores .claude/ machinery: hooks/settings edits are
     # classifier-blocked for Claude and get committed by Steven on his own
     # schedule — their dirt must not park an unrelated issue finish.
-    dirt="$(git -C "$proj" status --porcelain 2>/dev/null | grep -v ' \.claude/')"
+    dirt="$(git -C "$repo7" status --porcelain 2>/dev/null | grep -v ' \.claude/')"
     if [ -n "$dirt" ]; then
-      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)"
+      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree ($repo7) still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)"
     fi
-    if [ -n "$(git -C "$proj" log @{u}.. --oneline 2>/dev/null)" ]; then
-      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. There are commits not yet pushed to upstream — push them so the sha in the issue comment is durable and visible to other devices, THEN flip."
+    # Unpushed-commit check: ask ONLY when an unpushed subject references the very
+    # issue being flipped — unpushed commits for OTHER issues are that work's
+    # business and must not park this finish (2026-08-20 #192 review).
+    unpushed="$(git -C "$repo7" log @{u}.. --format=%s 2>/dev/null)"
+    if [ -n "$unpushed" ]; then
+      for fn in $(ds_issue_numbers "$cmd" edit); do
+        if printf '%s' "$unpushed" | grep -q "#$fn\b"; then
+          emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. Commits referencing #$fn are not yet pushed to upstream in $repo7 — push them so the sha in the issue comment is durable and visible to other devices, THEN flip."
+        fi
+      done
     fi
   fi
 fi
 
 # ---- claim-clear: a manual claim command clears those issues from the marker.
-#      Handle first so a manual claim is never second-guessed. It cannot trip rules
-#      1-4 (it's a gh issue edit to in-progress, not review/done). Loops ALL issue
-#      numbers via the shared helper (no head -1 truncation). ----
+#      NO early exit (2026-08-20, #192 review): the old `exit 0` here swallowed
+#      every later rule for ANY chained command mentioning status:in-progress —
+#      e.g. `gh issue edit N --remove-label status:in-progress ... && gh issue
+#      close N` skipped the close guard entirely. Clear the marker and FALL
+#      THROUGH; a pure claim command matches none of the rules below anyway. ----
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
    && printf '%s' "$cmd" | grep -Eq 'status:in-progress'; then
   if [ -n "$marker" ] && [ -f "$marker" ]; then
@@ -179,7 +200,6 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
       fi
     done
   fi
-  exit 0
 fi
 
 # 8. Live write to /nifi-api/ or /efm/api/ without the nifi-and-ai skill loaded
@@ -214,14 +234,18 @@ fi
 #    tail), that IS the sanctioned exception: allow with a context note. Anything
 #    unverifiable (no issue reference, not claimed here, gh offline) falls through
 #    to the ask, so an unrequested commit outside a finish ritual still prompts.
-if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit|push)\b'; then
+if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; then
   finish_n=""; finish_why=""
   nums="$(printf '%s' "$cmd" | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
-  if [ -z "$nums" ] && command -v git >/dev/null 2>&1; then
-    # Bare push with no #N in the command: look in the unpushed commit subjects,
-    # in the repo the command targets — a leading `cd <dir> &&` or a `git -C <dir>`
-    # names it; else $proj.
+  if [ -z "$nums" ] && command -v git >/dev/null 2>&1 \
+     && ! printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit)\b'; then
+    # Bare PUSH with no #N in the command (a command that also COMMITS must carry
+    # its own reference — stale unpushed subjects must not sanction a brand-new
+    # unreferenced commit): look in the unpushed commit subjects, in the repo the
+    # command targets — a leading `cd <dir>` or `git -C <dir>` names it, else the
+    # session's cwd at call time, else $proj.
     repo="$proj"
+    [ -n "$hookcwd" ] && git -C "$hookcwd" rev-parse --git-dir >/dev/null 2>&1 && repo="$hookcwd"
     cddir="$(printf '%s' "$cmd" | sed -n 's/^cd  *\([^;&|]*\).*/\1/p' | awk '{print $1}')"
     [ -z "$cddir" ] && cddir="$(printf '%s' "$cmd" | sed -n 's/.*git  *-C  *\([^ ;&|]*\).*/\1/p' | head -1)"
     case "$cddir" in "~"*) cddir="$HOME${cddir#\~}" ;; esac
@@ -251,7 +275,10 @@ if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit|push)\b'; then
         # within the last 4h; an old closed issue in a commit message still prompts.
         closed="$(printf '%s' "$info" | jq -r '.closedAt // ""' 2>/dev/null)"
         if [ -n "$closed" ]; then
-          cts="$(date -d "$closed" +%s 2>/dev/null || echo 0)"
+          # GNU date first; BSD/macOS fallback so the 4h window works on the Macs.
+          cts="$(date -d "$closed" +%s 2>/dev/null \
+                 || date -j -f '%Y-%m-%dT%H:%M:%SZ' "$closed" +%s 2>/dev/null \
+                 || echo 0)"
           [ "$cts" -gt 0 ] && [ $((now - cts)) -le 14400 ] \
             && why="status:done, closed within the last 4h — the post-close doc-commit tail"
         fi
@@ -308,7 +335,8 @@ fi
 # for this device's issues it runs the status:done flip and allows with a context
 # note; only a failed flip, or another device's issue, still asks. Loops ALL issue
 # numbers; fails open (no gh).
-if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+'; then
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+' \
+   && ! printf '%s' "$cmd" | grep -Eq -- '(-R|--repo)[= ]'; then
   # Inline done-flip in the same command satisfies the rule — don't second-guess it.
   if ! { printf '%s' "$cmd" | grep -Eq -- '--add-label' \
          && printf '%s' "$cmd" | grep -Eq 'status:done'; }; then
@@ -354,7 +382,8 @@ fi
 # hook claims it ITSELF (runs gh issue edit) rather than asking the model to. Loops
 # ALL issue numbers in the command. The gh lookups only run on this rare match (never
 # on `gh issue list`), so the common Bash path pays nothing. Fails open.
-if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/dev/null 2>&1; then
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/dev/null 2>&1 \
+   && ! printf '%s' "$cmd" | grep -Eq -- '(-R|--repo)[= ]'; then
   claimed=""; failed=""
   for n in $(ds_issue_numbers "$cmd" view); do
     lbls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
