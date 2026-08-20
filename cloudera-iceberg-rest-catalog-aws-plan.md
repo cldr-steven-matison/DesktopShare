@@ -72,7 +72,9 @@ The `semi-private` template puts CDW workers, CDW load balancers, and DataLake c
 | Key pair | `srm-iceberg-keypair` — key on disk at `cdp-tf-quickstarts/aws/srm-iceberg-ssh-key.pem` |
 | VPC | `vpc-04c815b9f35200da1` (`srm-iceberg-net`, `10.10.0.0/16`), us-east-2 |
 
-**Why it reaches CDW:** the Trino/Hue NLB (`net/aae6dc93…`) is an internal NLB with no SG of its own; it forwards `:443` → NodePort `31137` on the EKS worker nodes, whose SG (`sg-02e19bda8692bc27a`) opens `31137` to `0.0.0.0/0`. Any in-VPC source reaches it — no CDW SG edits required. Validated 2026-08-20: from the bastion and through the SOCKS proxy from the Mac, `…/ui/` → HTTP 303 (Knox login redirect) resolving to `10.10.71.90`; Hue → 302.
+**Why it reaches CDW:** the Trino/Hue NLB (`net/aae6dc93…`) is an internal NLB with no SG of its own; it forwards `:443` → NodePort `31137` on the EKS worker nodes, whose SG (`sg-02e19bda8692bc27a`) opens `31137` to `0.0.0.0/0`. Any in-VPC source reaches it — no CDW SG edits required. Validated 2026-08-20: from the bastion and through the SOCKS proxy from the Mac, `…/ui/` → HTTP 303 (Knox login redirect) resolving to `10.10.71.90`; Hue → 302. Trino Web UI over the SOCKS proxy from the Mac browser:
+
+![Trino Web UI Cluster Overview via bastion SOCKS proxy](images/trino-ui-via-bastion-cluster-overview.png)
 
 **Connect (runbook — scripts in [`iceberg-rest-catalog-demo/bastion/`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo/tree/main/bastion)):**
 
