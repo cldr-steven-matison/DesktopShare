@@ -15,7 +15,7 @@ background service (compile-time, trusted). Apps deploy at **runtime** as sandbo
 
 ```
 platform image (compile-time):  Brookesia v0.8 system + microfi_agent service + status tile
-runtime packages (no reflash):  ember (#184, Grok's app) · x_viewer (#183, Claude's app)
+runtime packages (no reflash):  tminus (#184, Grok's app) · x_viewer (#183, Claude's app)
 ```
 
 MicroFi-1/2/3 on the XIAOs stay whole-image MicroFi devices — `efm-xiao-microfi-1-2-3.md` is their doc.
@@ -163,24 +163,21 @@ note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS 
   networking exposes the bind, the firewall still blocks it) — `Allow XViewer Port 8091`, same
   pattern as `Allow EFM Port 10090` (#52).
 
-## Done 2026-08-19 (third session) — Ember on the glass as a runtime package
+## Done 2026-08-19 (third session) — Ember on the glass, then bounced
 
-- **Ember (#184) shipped as runtime JS package `tunastreet.ember`** (`amoled-x-ember` repo,
-  `apps/`) — third tile alongside the agent status tile and X viewer. `littlefs_data`-only flash
-  (`0xaa1000`), agent heartbeats 200 throughout. Backend: Grok's 08-18 FastAPI tree salvaged, now on
-  **WindowsDesktop `:8092`** (StarlinkAI left the 192.168.1.x LAN; the panel only reaches
-  192.168.1.121) — firewall rule `Allow Ember Port 8092`, key sourced from
-  `tuna-starlink-app/backend/.env.local`.
-- **Same evening: product bounced, task back to Grok** — mechanics pass, concept reads opaque and
-  too close to the X viewer (Steven's verdict on #184). The runtime rails stay. **The `:8092`
-  backend was then shut down** (firewall rule kept); the Ember tile errors politely until the
-  redesign ships a replacement — which must run on WindowsDesktop, the only host the panel reaches.
+- **Ember (#184) shipped as runtime JS package `tunastreet.ember`**, then bounced the same
+  evening on product (opaque coal metaphor, too close to the X viewer). Mechanics and rails
+  (littlefs-only flash, `:8092` on WindowsDesktop, `Http`/`SystemGui`/`SystemTimer` sandbox)
+  were proven. Replacement is **T-MINUS** (`tunastreet.tminus`) — see Next.
 
 ## Next
 
-5. **Ember (#184) product redesign** — Grok's court, on the proven package/backend rails.
+5. **T-MINUS (#184)** — Ember was bounced on product 2026-08-19. Replacement is a
+   launch-clock runtime package `tunastreet.tminus` (not a feed, not coal). Plan:
+   [`amoled-tminus-plan.md`](amoled-tminus-plan.md). Backend still `:8092` on
+   WindowsDesktop. Do not re-stage `tunastreet.ember`.
 6. **X-viewer (#183): done, ready for final testing** — like/unlike eyes-on 2026-08-19; only final
-   test + polish sign-off remain.
+   test + polish sign-off remain. Always re-stage `tunastreet.xviewer` on any littlefs rebuild.
 
 Ask before every flash to this board — fresh ask each session, every flash.
 
