@@ -226,7 +226,12 @@ if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit|push)\b'; then
     [ -z "$cddir" ] && cddir="$(printf '%s' "$cmd" | sed -n 's/.*git  *-C  *\([^ ;&|]*\).*/\1/p' | head -1)"
     case "$cddir" in "~"*) cddir="$HOME${cddir#\~}" ;; esac
     [ -n "$cddir" ] && [ -d "$cddir" ] && repo="$cddir"
-    nums="$(git -C "$repo" log @{u}.. --format=%s 2>/dev/null | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
+    subjects="$(git -C "$repo" log @{u}.. --format=%s 2>/dev/null)"
+    # @{u} fails when the checked-out branch has no upstream — e.g. another session
+    # flipped the shared tree onto a fresh issue branch mid-push (2026-08-20, #192,
+    # issue-184-tminus). Fall back to every commit not on any remote ref.
+    [ -z "$subjects" ] && subjects="$(git -C "$repo" log --branches --not --remotes --format=%s 2>/dev/null | head -20)"
+    nums="$(printf '%s' "$subjects" | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
   fi
   if [ -n "$nums" ] && command -v gh >/dev/null 2>&1; then
     now="$(date +%s)"

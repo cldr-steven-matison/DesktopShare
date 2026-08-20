@@ -19,17 +19,24 @@ if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
     exit 0   # no creds on this host — silently do nothing
 fi
 
-STAMP="$HOME/.claude/telegram-notify.last"
+MESSAGE=$(echo "$INPUT" | jq -r '.message // "waiting for input"')
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+
+# Class-aware dedupe (issue #192, 2026-08-20): a permission-prompt ping must NEVER
+# be swallowed because an idle "waiting for input" notification pinged minutes
+# earlier — that exact suppression cost a parked session its ping today. Permission
+# prompts dedupe only against their own 60s stamp; everything else keeps 5 min.
+case "$MESSAGE" in
+  *[Pp]ermission*) STAMP="$HOME/.claude/telegram-notify-perm.last"; WINDOW=60 ;;
+  *)               STAMP="$HOME/.claude/telegram-notify.last";      WINDOW=300 ;;
+esac
 if [ -f "$STAMP" ]; then
     LAST=$(stat -c %Y "$STAMP" 2>/dev/null || echo 0)
     NOW=$(date +%s)
-    if [ $((NOW - LAST)) -lt 300 ]; then
+    if [ $((NOW - LAST)) -lt "$WINDOW" ]; then
         exit 0
     fi
 fi
-
-MESSAGE=$(echo "$INPUT" | jq -r '.message // "waiting for input"')
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 
 # Lead with the device name — alerts from multiple devices land in ONE chat, and
 # an unattributed "waiting at the desk" sends Steven to the wrong machine
