@@ -176,6 +176,44 @@ note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS 
   backend was then shut down** (firewall rule kept); the Ember tile errors politely until the
   redesign ships a replacement — which must run on WindowsDesktop, the only host the panel reaches.
 
+## Done 2026-08-21 — the UI kit, the harness, and four apps on the glass
+
+The board went from two runtime apps to four, and both halves of the tooling #208 asked for now
+exist. Everything below is flashed and verified.
+
+- **`panelkit` — the AMOLED UI Developer Kit** (#208, closed). `amoled-1.8-v2/uikit/`:
+  `tokens.json` (every number measured on the glass in #205), `panelkit.py` primitives, `lint.py`
+  R1-R5, `selftest.py`, and a frozen `fixtures/dirty-screen.json` so the lint's proof does not
+  depend on a file somebody is about to repair. The two trap classes are now `ValueError`s at
+  generation time, not comments: a flex parent cannot silently override absolute children, and no
+  tap target can be built without `pressLock` / `scrollable:false` / `pressed`+`released`. Racing's
+  screen regenerates byte-identical through the migrated generator (the file is smaller only
+  because the JSON indent changed; parsed trees compare equal).
+- **The panel simulator became shared tooling** (#212, closed). `amoled-1.8-v2/tools/simulator/`
+  runs any package -- `--app <id>`, resolved manifest -> profile -> flow -> `initial` screen -- with
+  its own dependency-free Node server, an optional `--proxy` to an app's real backend, and
+  `lint.js --check <app>` as the pre-flash gate. It rendered flow/flex layouts, gesture payloads and
+  cache-backed images that the racing-only version never simulated.
+  **It is the required pre-flash step for any UI change.**
+- **`tunastreet.agent`** (#197) -- new runtime package. Heartbeat sweep, running-vs-catalogue
+  processor count, and the metrics the agent actually ships (uptime, memory, CPU, queued
+  FlowFiles). Backend `~/amoled-agent` on **`:8094`**, digesting one EFM call
+  (`GET /efm/api/agents/<id>`) into exactly the fields the panel renders. **Needs the firewall rule
+  `Allow Agent Port 8094`** -- same per-port rule as `:8091`/`:8092`/`:8093`.
+- **`tunastreet.xviewer` rebuilt on the kit** (#198). Real tools bar (LIKE / VIEWS / REPLIES /
+  CLEAR) at the tap-target minimums, prev/next moved onto the media card as two 184x220 zones,
+  20px post text. Backend now serves `metrics.replies` (X's `reply_count`) and a composed profile
+  card at `/xviewer/img/profile.jpg` -- most posts carry no media, and the card is the biggest
+  surface on the panel, so a text post shows the account's own avatar rather than black.
+- **`tunastreet.tminus` rebuilt on the kit and deployed** (#184). Launch art fills what was dead
+  space; the screen had to leave flex to get a background image at all. Backend `~/amoled-tminus`
+  on `:8092`, now defaulting to the next launch that has not lifted off -- LL2's `upcoming` window
+  keeps a launch after T-0, so the headline had been a Falcon 9 that flew six hours earlier.
+- **Staging is scripted**: `tools/stage_apps.py <image.bin> <app-id>...` mirrors packages into an
+  existing `littlefs_data.bin` with littlefs-python, leaving the three `brookesia.general.*` system
+  apps untouched, and prints a before/after inventory plus free space. Post-flash inventory: 5 apps
+  staged, **1.70 MB free** of the 5 MB partition.
+
 ## Next
 
 5. **Ember (#184) product redesign** — Grok's court, on the proven package/backend rails.
