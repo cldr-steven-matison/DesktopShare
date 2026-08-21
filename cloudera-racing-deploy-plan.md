@@ -49,4 +49,5 @@ drained, zero bulletins) → CSM Kafka → leaderboard `/health` `kafka: connect
 
 ## Next
 
-- **#205** — AMOLED client, designed against this running game (its real `/api/leaderboard` payloads and its real look). Board: Waveshare AMOLED 1.8 V2 on COM8; any host-side leg lives on `192.168.1.121` with a per-port firewall rule (#52 pattern).
+- **#205** — the racing game itself running on the AMOLED panel, feeding this deployment's pipeline. Shipped and at review; as-built + lessons in [`amoled-racing-plan.md`](amoled-racing-plan.md).
+- **Upstream game questions raised by playing it** (upstream code — this deployment is byte-identical to the fork, so these belong upstream as PR/collab, not local patches): [#209](https://github.com/cldr-steven-matison/DesktopShare/issues/209) iceberg power-up pins difficulty at Lv.1; [#210](https://github.com/cldr-steven-matison/DesktopShare/issues/210) no finish line — the game is endless survival (`endGame()` fires only on 3 collisions).

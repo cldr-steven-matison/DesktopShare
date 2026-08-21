@@ -92,11 +92,18 @@ is the live-truth image.
 never on the flashed image (it exists in the repo only). Remaining apps on the glass:
 `tunastreet.racing`, `tunastreet.xviewer`, and the three `brookesia.general.*`.
 
-## Open / next
+## Open / next — filed as sub-issues
 
-- Board-side leaderboard fetch: not yet confirmed reaching `192.168.1.121:8093` from the device.
-  `Allow Racing Port 8093` exists (profile Any); `Test-NetConnection` to this host's own LAN IP
-  reports False for `8091` and `10090` too, so that check is inconclusive rather than a failure —
-  needs a real client test.
-- Tilt steering via the board's IMU is the physical-control option (there is no left/right button
-  pair on this hardware); would need the platform to expose the IMU to the sandbox.
+| Issue | What |
+|---|---|
+| [#209](https://github.com/cldr-steven-matison/DesktopShare/issues/209) | Iceberg power-up pins difficulty at Lv.1 — **upstream** game-balance PR (upstream code, not our deploy) |
+| [#210](https://github.com/cldr-steven-matison/DesktopShare/issues/210) | No finish line — propose a race/finish mode **upstream** (the game is endless survival today) |
+| [#211](https://github.com/cldr-steven-matison/DesktopShare/issues/211) | Confirm the board can reach the backend on `:8093` (firewall rule exists; the obvious test is invalid) |
+| [#212](https://github.com/cldr-steven-matison/DesktopShare/issues/212) | Generalise the panel simulator into shared tooling for all runtime apps |
+| [#213](https://github.com/cldr-steven-matison/DesktopShare/issues/213) | Tilt steering via the board IMU (no left/right buttons exist) — check sandbox exposure first |
+
+**Upstream vs ours:** the speed-level reset and the missing finish line are both **upstream game logic**
+(`services/game/index.html:425` and the single `endGame()` call site at `:434`). Our clone is
+byte-identical to upstream HEAD — #201 changed only the nginx upstream, the Kafka bootstrap, and k8s
+manifests — so #209/#210 belong upstream as PR/collaboration with
+`cldr-jquiroscr/cloudera-racing-standalone` (and the internal `cloudera-racing`), not as a local patch.
