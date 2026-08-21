@@ -1,0 +1,41 @@
+# Delta vs the fork's k8s/leaderboard/40-leaderboard.yaml:
+#   - KAFKA_BROKERS -> the live CSM Kafka bootstrap in cld-streaming (PLAINTEXT 9092)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leaderboard
+  namespace: cloudera-racing-standalone
+  labels: { app: leaderboard }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: leaderboard } }
+  template:
+    metadata:
+      labels: { app: leaderboard }
+    spec:
+      containers:
+        - name: leaderboard
+          image: racing/leaderboard:2.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3000 }]
+          env:
+            - { name: KAFKA_BROKERS,  value: "my-cluster-kafka-bootstrap.cld-streaming.svc.cluster.local:9092" }
+            - { name: KAFKA_TOPIC,    value: "game_metrics" }
+            - { name: KAFKA_GROUP_ID, value: "racing-leaderboard" }
+            - { name: PORT,           value: "3000" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: leaderboard
+  namespace: cloudera-racing-standalone
+spec:
+  selector: { app: leaderboard }
+  ports: [{ port: 3000, targetPort: 3000 }]

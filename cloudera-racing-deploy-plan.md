@@ -1,89 +1,52 @@
-# Cloudera Racing — deploy plan + AMOLED client
+# Cloudera Racing — deployed on WindowsDesktop (as-built)
 
-Plan of record for [issue #201](https://github.com/cldr-steven-matison/DesktopShare/issues/201).
-Authored on the Mac (planning machine); **executed on WindowsDesktop**. The AMOLED client is tracked
-separately in [#205](https://github.com/cldr-steven-matison/DesktopShare/issues/205).
+Record for [issue #201](https://github.com/cldr-steven-matison/DesktopShare/issues/201). The AMOLED
+client is [#205](https://github.com/cldr-steven-matison/DesktopShare/issues/205).
 
-## Context
+> **Supersedes the 2026-08-21 Mac-authored runbook** (dedicated `racing` minikube profile + CDP
+> Data Hub Kafka + internal repo). Steven's calls on WindowsDesktop the same day: deploy **into the
+> existing stack**, by the book on Cloudera Streaming Operators, from the **public fork** — and
+> **#205's speculative spec was wiped**; the client gets designed against the actual running game.
 
-#201 asks for two things: a deploy runbook for `cldr-steven-matison/cloudera-racing` (internal GitHub)
-posted as a comment on #201 for WindowsDesktop to execute, and a new issue to build the
-[AMOLED] Cloudera Racing client. Per `device-work-belongs-on-device`, the Mac does the outward
-planning only — it does not run the deploy or flash the board.
+## What's deployed (2026-08-21, verified end-to-end)
 
-**The app** (`cloudera-racing`): a browser racing game whose telemetry flows
-`game (nginx) → NiFi ListenHTTP → PublishKafka2RecordCDP → CDP Kafka → Flink/SSB → Kudu`.
-Ships `scripts/install.sh` (detects `wsl`, apt path) that stands up minikube + CFM Operator 3.1.0 +
-NiFi 2.4.0 (image `cfm-nifi-k8s:...nifi_2.4.0...`, ~4.77 GB) + the game, imports the flow via REST,
-and bridges the NiFi UI over socat. Also has a Server Mode (Node.js+nginx on EC2) as plan-B.
+Source: [`cldr-jquiroscr/cloudera-racing-standalone`](https://github.com/cldr-jquiroscr/cloudera-racing-standalone)
+(public github.com fork of the VPN-only internal repo; same architecture:
+game nginx → NiFi ListenHTTP → PublishKafka → Kafka → leaderboard consumer). Pristine clone:
+`~/cloudera-racing-standalone`. Its installer is macOS/k3d-only and was **not** run — the images,
+manifests, and flow were deployed by hand into the existing default-profile minikube.
 
-**Decisions:**
-- Deploy target: **dedicated minikube profile `racing`** in WSL2 — the live `cld-streaming` stack on
-  the default profile stays untouched.
-- Kafka backend: **CDP Data Hub Kafka** (SASL_SSL, workload creds + SG CIDR allowlist) — repo default.
-- AMOLED scope: **runtime JS package `tunastreet.racing`** on the existing Waveshare V2 board,
-  showing the **live leaderboard**, fed by a small backend on WindowsDesktop (`192.168.1.121:<port>`)
-  reading the game's `/api/leaderboard`. Sibling of `tunastreet.xviewer` (#183) / `tunastreet.ember` (#184).
+| Piece | Where | Detail |
+|---|---|---|
+| game (nginx) + leaderboard (node/KafkaJS) pods | ns `cloudera-racing-standalone` | images `racing/game:2.0.0` / `racing/leaderboard:2.0.0`, built in WSL docker, `minikube image load` |
+| NiFi flow `game_metrics_flow` | child PG on the live `mynifi` (cfm-streaming), canvas (2112, 1168) | `ListenHTTP :9999 /contentListener` → `PublishKafka2RecordCDP` (present in this NiFi 2.6.0: `nifi-cdf-kafka-2-nar 2.6.0.4.3.4.0-234` — no processor swap needed) |
+| param context `game-params` | bound to the child PG only (root untouched) | `Kafka Broker Endpoint` = live bootstrap, topic `game_metrics`, producer `datahero-producer` |
+| topic `game_metrics` | KafkaTopic CR `game-metrics` (cld-streaming) | 3 partitions / 3 replicas, `min.insync.replicas: 2` — live CSM Kafka `my-cluster` |
+| game access | `http://localhost:8080` | pane in the canonical `kube-service-ports-efm.kdl` (`svc/game 8080:80`); NodePort 30080 also set (node IP not host-reachable on this box) |
 
-## Deploy runbook (posted on #201)
+**Deltas vs the fork** (each forced by "existing cluster instead of its own"), all in
+[`files/racing/`](files/racing/):
 
-Executor: WindowsDesktop. Key adaptation vs the repo README: **isolate into a `racing` profile**
-instead of the default cluster, since WindowsDesktop's default `minikube` already runs the live
-`cld-streaming` stack.
+- `10-game-nginx-configmap.yaml` — nginx `/api/metrics` upstream → `http://mynifi.cfm-streaming.svc.cluster.local:9999/contentListener` (ConfigMap over `default.conf`, image stock). The headless `mynifi` service makes any JVM port reachable with **no Service/CR change and no NiFi restart** — same rail as the StreamersApp Trigger on 9080.
+- `40-leaderboard.yaml` — `KAFKA_BROKERS=my-cluster-kafka-bootstrap.cld-streaming.svc.cluster.local:9092` (PLAINTEXT, no SASL — matches the live listener).
+- `60-kafkatopic.yaml` — the topic CR, matching the five existing topic CRs' convention.
+- Fork's `51-nifi-listen-service.yaml` skipped (cross-namespace selector can't work; FQDN replaces it).
+- `game_metrics_flow.windowsdesktop.json` — the uploaded flow (broker param pre-retargeted);
+  `game_metrics_flow.as-deployed.json` — post-import export from the live canvas.
+- `nifi-api.sh` — NiFi REST helper: operator mTLS user cert from inside `mynifi-0`
+  (`/home/nifi/cfmopusercert/`), `--connect-to` for the SNI/pod-IP bind (localhost:8443 refuses).
 
-**Step 0 — prerequisites (before install.sh):**
-- Clone in WSL2: `git clone https://github.infra.cloudera.com/cldr-steven-matison/cloudera-racing`
-- Place the Cloudera **license** at `helm/cloudera-racing/flows/license.txt` (gitignored; download from
-  Management Console → subscription → Download License). Install fails at the CFM Operator step without it.
-- Have a live **CDP Data Hub** with Kafka (Streams Messaging), the **CDP workload user + password**, and
-  the **broker endpoints** (`host:port`, SASL_SSL 9093). Docker Desktop running with WSL2 integration.
+**Verified:** synthetic heartbeat POST → game nginx → ListenHTTP (out 1) → PublishKafka (in 1, queue
+drained, zero bulletins) → CSM Kafka → leaderboard `/health` `kafka: connected`, driver visible in
+`/api/leaderboard` `live_players`. KafkaJS 2.2.4 against Kafka 4.1.1.1.6 works.
 
-**Step 1 — isolate the profile (the one real deviation from the README):**
-- `minikube profile racing` **before** running install.sh (or `export MINIKUBE_PROFILE=racing`). This makes
-  `minikube start` / `minikube service` / the kube-context all target `racing`, leaving the default
-  `minikube` (cld-streaming) alone. install.sh calls plain `minikube start` (4 CPU / 6 GB) — setting the
-  active profile first is what keeps it isolated.
+## Operating it
 
-**Step 2 — run the installer:**
-- `cd cloudera-racing && bash scripts/install.sh` — prompts for exactly 3 inputs: CDP workload user,
-  password, Kafka broker endpoints. It auto: installs deps (apt), starts minikube, cert-manager + CFM
-  Operator 3.1.0, builds the game image, pulls NiFi 2.4.0, deploys the NiFi CR (waits 7/7), builds the JKS
-  truststore from the Cloudera CA chain, sets up the socat/`/etc/hosts` NiFi-UI bridge, imports the flow.
+- Play: `http://localhost:8080` (zellij pane must be up). Dashboard: `/leaderboard`; API: `/api/leaderboard`; health: `/api` n/a, leaderboard pod `/health`.
+- Clean scoreboard between sessions: `kubectl rollout restart deploy/leaderboard -n cloudera-racing-standalone` (state is in-memory by design).
+- Flow controls: `files/racing/nifi-api.sh GET /flow/process-groups/25a779b5-01a0-1000-ffff-fffff15a145b/status?recursive=true`.
+- Teardown (if ever): delete ns `cloudera-racing-standalone`, stop+delete the PG via the API, delete KafkaTopic CR `game-metrics` — nothing else in the cluster was touched.
 
-**Step 3 — CDP-side wiring:**
-- Add WindowsDesktop's egress IP to the **Kafka security group CIDR allowlist** (Management Console →
-  Environments → env → Network → CIDR allow list → `<ip>/32`), or the producer's TLS handshake hangs.
-- Create the Kafka topic the flow publishes to (README "Kafka Topic Setup"; installer const `game_metrics`).
+## Next
 
-**Step 4 — access & verify:**
-- `bash scripts/show_urls.sh --open` — game URL (via `minikube service` tunnel, keep terminal open) +
-  NiFi UI (`https://…:8443` via socat). WSL2 mirrored networking makes `127.0.0.1:<port>` reachable from
-  the Windows browser.
-- Play a game → confirm NiFi ListenHTTP shows flowfiles and PublishKafka2RecordCDP is running with no
-  penalized/errored queue; confirm messages land on the CDP topic.
-
-**Step 5 — teardown / notes:**
-- Stop without deleting: `minikube stop -p racing`. Full clean: `bash scripts/install.sh --teardown`
-  (run with the `racing` profile active). If the flow goes missing after a pod restart:
-  `bash scripts/automate_only.sh`.
-- Executor posts the outcome back to #201; if it stalls on creds/env, use `bash files/agent-blocked.sh 201 "<question>"`.
-
-## AMOLED Cloudera Racing client — #205
-
-Runtime JS package `tunastreet.racing`, sibling of xviewer/ember, `device:WindowsDesktop` / `status:todo`.
-
-- **Board / platform:** existing Waveshare ESP32-S3-Touch-AMOLED-1.8 **V2**, ESP-Brookesia **v0.8**
-  runtime — a sandboxed **JS + JSON-UI package** `apps/tunastreet.racing/` (no reflash; deploy via
-  SD/littlefs). Modeled line-for-line on `tunastreet.xviewer`. HTTP via the `Http` service
-  (`RequestAsync` + events), `SystemTimer` for refresh — **no `fetch`/`setTimeout`** in the sandbox.
-  Golden source: [`efm-waveshare-amoled.md`](efm-waveshare-amoled.md); app pattern:
-  [`amoled-x-viewer-plan.md`](amoled-x-viewer-plan.md).
-- **What the panel shows:** live race leaderboard — top-N drivers (name / car / score) + a "playing now"
-  count, refreshed on a timer. 368×448 AMOLED; design for the instrument, not a timeline.
-- **Backend leg:** small service on **WindowsDesktop `192.168.1.121:<port>`** (sibling of xviewer `:8091`
-  / ember `:8092`; pick the next free port) that reads the deployed game's **`/api/leaderboard`** JSON and
-  reshapes it for the panel. Needs a Windows Firewall inbound allow rule for the port (the #52 per-port
-  pattern). Depends on the #201 deploy being live so there's a leaderboard to read.
-- **Dependencies:** #201 (data source), #181 (the AMOLED agent), #183/#184 (sibling apps + proven deploy
-  rails). Board USB currently on StarlinkAI (moved 2026-08-19) — the package-flash leg happens wherever the
-  board is; the backend + LAN target stay WindowsDesktop.
+- **#205** — AMOLED client, designed against this running game (its real `/api/leaderboard` payloads and its real look). Board: Waveshare AMOLED 1.8 V2 on COM8; any host-side leg lives on `192.168.1.121` with a per-port firewall rule (#52 pattern).

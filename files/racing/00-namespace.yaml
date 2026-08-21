@@ -1,0 +1,7 @@
+# Cloudera Racing on the existing WindowsDesktop minikube (#201).
+# Overlay of cldr-jquiroscr/cloudera-racing-standalone k8s/ — deltas only where
+# "existing cluster instead of its own" forces them. Pristine clone: ~/cloudera-racing-standalone.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudera-racing-standalone
