@@ -310,9 +310,12 @@ Raw working docs, kept as-is. This README is the summary; these are the detail.
   `be03a5aa65f946da8cf066a7708332cd`, working multi-line batched render code, creds in
   `.env.local` under `files/tuna-test/`. Piper itself was never disproven — it simply drops
   out with the local route. This matches open issue #50 (HeyGen POC).
-- **Chat-bot credentials: `streamers-twitch-bot.md` §5.1 is the accurate record.** `Client
-  Secret` and `Refresh Token` are literal processor properties today (live check 2026-07-25),
-  not in a `twitch-chat-bot-creds` Parameter Context — §9's claim was design intent that was
-  never implemented. The migration is still open, and it is not a straight lift: the rotated
-  refresh token lives only in processor memory, so a restart needs a fresh device-code
-  re-auth.
+- **Chat-bot credentials: resolved — the migration landed 2026-07-25.** `streamers-twitch-bot.md`
+  §5.1 and §9 now agree and are both current: `Client Secret` and `Refresh Token` are
+  `twitch-chat-bot-creds` Parameter Context references, re-verified live 2026-08-21 via the
+  context's `referencingComponents`. The conflict this entry used to record was real only
+  before that date. What remains open is a *different* problem, and not a straight lift: Twitch
+  rotates the refresh token on every use and the rotated value lives only in processor memory,
+  so the stored seed goes stale and a restart still needs a fresh device-code re-auth.
+  **Don't re-open this from `flow.json.gz`** — a parameter-referenced sensitive property
+  persists there as `enc{...}`, indistinguishable from a literal (issue #199).
