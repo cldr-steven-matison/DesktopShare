@@ -2,7 +2,7 @@
 
 A plan for using the OpenClaw Telegram bot to invoke Claude Code against DesktopShare (and related repos) while away from the desktop. The goal is human-in-the-loop remote planning and analysis — not autonomous operation.
 
-> **Status:** Reply bridge **live** (2026-08-19, #192) — see "Reply bridge" below. The `claude -p` invocation patterns further down are still planning/reference.
+> **Status:** Reply bridge **live** (proven end-to-end from the phone 2026-08-21, #192) — see "Reply bridge" below. The `claude -p` invocation patterns further down are still planning/reference.
 > OpenClaw is live on Windows WSL2 with Qwen2.5-3B and `/bash` unlocked. Claude Code is installed in WSL2. DesktopShare is at `~/DesktopShare`.
 > See: [`agent-openclaw-windows.md`](agent-openclaw-windows.md) for OpenClaw setup reference.
 
@@ -18,7 +18,7 @@ would steal updates), so the bridge rides OpenClaw's `/bash` instead of polling 
 Session hits a Yes/No/Proceed point (Steven away)
   → source ~/.env && bash files/agent-ask.sh "Redeploy cso-operator-app now?"   # question lands on the phone
   → session arms a persistent Monitor on ~/.claude/telegram-inbox.log (next NEW line)
-Steven on phone:  /bash bash reply.sh yes
+Steven on phone:  /bash bash ~/reply.sh yes
   → ~/reply.sh → files/agent-reply.sh appends "<epoch> yes" to the inbox
   → Monitor fires the line into the session
   → session confirms back to Telegram what it understood + what it's doing, then proceeds
@@ -34,10 +34,12 @@ The contract:
   inbox**, so a waiting session just keeps waiting with no signal that anything is wrong. This
   cost an hour on 2026-08-21. Check it first when a reply doesn't land:
   `curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/v1/models` → expect `200`.
-- **Reply syntax is `/bash bash reply.sh yes`** — the `/bash` prefix is required; without it the
-  text is just a chat message to OpenClaw and nothing executes. `reply.sh` is installed in **both**
-  `$HOME` and OpenClaw's workspace, because `/bash` runs with cwd = the workspace: with only the
-  `$HOME` copy the relative form exited 127 in silence (fixed 2026-08-21, `files/install-192.sh`).
+- **Reply syntax is `/bash bash ~/reply.sh yes`** — the `/bash` prefix is required (without it
+  the text is just a chat message to OpenClaw and nothing executes), and the `~/` form is
+  cwd-independent. `reply.sh` is still installed in **both** `$HOME` and OpenClaw's workspace as
+  belt-and-braces, because `/bash` runs with cwd = the workspace: the old *relative* form
+  (`/bash bash reply.sh yes`) exited 127 in silence when only the `$HOME` copy existed (fixed
+  2026-08-21, `files/install-192.sh` — which now also repairs content drift, not just absence).
 - **Inbox**: `~/.claude/telegram-inbox.log`, append-only `<epoch> <text>` lines. Runtime state,
   not repo content. The epoch is written when the line is *appended*, which is when OpenClaw
   relayed it — not when the reply was sent.
@@ -53,12 +55,15 @@ The contract:
   first — a phone-in-hand reply can land in the ask→snapshot gap, and a baseline taken after
   it already contains the reply, so the count never "grows" and the session waits forever.
   `agent-ask.sh` exits non-zero if Telegram did not confirm delivery — on that, do NOT arm
-  the Monitor.
+  the Monitor. When consuming a reply, check the line's leading epoch against the time the ask
+  was sent and IGNORE older lines — OpenClaw flushes queued replies in a burst on recovery, and
+  a stale `yes` must not answer a newer question (the same recency check `guard.sh`'s poll
+  applies).
 - **What it can't answer**: harness permission dialogs — the model is suspended there. Those get
   a "session waiting at the desk" ping from the `Notification` hook instead
   (`.claude/hooks/telegram-notify.sh`, wired user-level on WindowsDesktop only with
-  `"matcher": "permission_prompt"`; 60s dedupe, sentinel-gated, and it names the issue and the
-  parked command). Policy split: `agent/device-comms.md` "Session comms (Telegram)".
+  `"matcher": "permission_prompt"`; 60s dedupe, **not** sentinel-gated — it always fires, a
+  permission prompt suspends the model — and it names the issue and the parked command). Policy split: `agent/device-comms.md` "Session comms (Telegram)".
 
 ### Guard's permission bridge — the same inbox, a different wait
 
@@ -78,16 +83,19 @@ difference matters if you ever touch it:
   answer that isn't clearly yes/no — all fall through to the normal prompt at the desk.
 - **Strictly opt-in.** With `~/.claude/unattended` absent it is a no-op, on every device.
 
-**Known limitation — a queued reply can answer the wrong question.** The base snapshot makes
-replies that were already in the inbox inert, but it cannot tell a fresh answer from one OpenClaw
-had *queued* and flushed mid-window. Observed 2026-08-21: with the model endpoint down, several
-replies sat in OpenClaw and all nine landed in the inbox within twelve seconds once it recovered.
-So a `yes` meant for an earlier question can, in principle, be consumed as approval for a later
-one — including a live-redeploy gate, where the standing rule is a fresh ask every time
-(`agent/incident-rules.md`). Accepted deliberately (Steven, 2026-08-21) rather than adding a
-per-ask confirmation code. **Practical guard: don't leave an unanswered ask outstanding, and if
-OpenClaw has been down, check `~/.claude/telegram-inbox.log` for a backlog before arming the
-sentinel again.**
+**Closed limitation — a queued reply used to be able to answer the wrong question.** The base
+snapshot makes replies already in the inbox inert, but it could not tell a fresh answer from one
+OpenClaw had *queued* and flushed mid-window (observed 2026-08-21: with the model endpoint down,
+nine replies landed in the inbox within twelve seconds of recovery — so a stale `yes` could in
+principle have approved a later question, including a live-redeploy gate). Closed the same day
+(#192 audit): every inbox line carries its append epoch, and guard's poll now **skips any line
+stamped before its ask was sent**, so a flushed backlog is inert to it. A session-level Monitor
+ask must apply the same check (see "Monitor shape" above). Still good hygiene: don't leave an
+unanswered ask outstanding, and if OpenClaw has been down, check `~/.claude/telegram-inbox.log`
+for a backlog before arming the sentinel — the epoch check guards the poll window, not a human
+reading the backlog. The remaining un-enforced contract is **one pending ask at a time per
+device**: two concurrent asks share one inbox and the first reply answers whichever poll reads
+it first.
 
 ### When the question is too big for yes/no
 
@@ -108,7 +116,8 @@ Then work on something that doesn't depend on the answer. Policy: `agent/device-
 
 Remote work runs in one of two modes. Which one you're in depends on whether a session is already running.
 
-**Headless (primary) — a fresh `claude -p` per command.** This is the default remote path: no session is left running, so there is nothing to sit parked on a permission dialog. It must carry explicit permission flags, or it stalls on the first gated tool:
+**Headless (primary) — a fresh `claude -p` per command.** This is the default remote path: no session is left running, so there is nothing to sit parked on a permission dialog. It should carry explicit permission flags — not to avoid a hang (bare `-p` auto-denies gated
+tools and keeps going, see below) but to decide what the run may do:
 
 ```
 claude -p "<prompt>" --permission-mode dontAsk \

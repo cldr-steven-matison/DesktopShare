@@ -169,15 +169,17 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 - **Reply bridge** (fallback, for a session already running): `~/reply.sh` (wrapper →
   `files/agent-reply.sh`) appends Steven's phone replies to `~/.claude/telegram-inbox.log`; a
   waiting session Monitors that file. Ask side: `files/agent-ask.sh`. Phone command:
-  `/bash bash reply.sh yes` — the `/bash` prefix is required, and `reply.sh` is installed in both
-  `$HOME` and OpenClaw's workspace. Mechanics: `agent-to-agent.md` "Reply bridge".
+  `/bash bash ~/reply.sh yes` — the `/bash` prefix is required, and `reply.sh` is installed in
+  both `$HOME` and OpenClaw's workspace. Mechanics: `agent-to-agent.md` "Reply bridge".
 - **The bridge dies silently if `127.0.0.1:8000` is down.** OpenClaw processes `/bash` with a
   local Qwen2.5-3B served by the `svc/vllm-service 8000:8000` zellij pane
   (`kube-service-ports-efm.kdl`). Pane down ⇒ every reply fails `llm request failed`, nothing
   reaches the inbox, and the waiting session gets no signal at all. **First check when a reply
   doesn't land** (2026-08-21, #192): `curl -s -m 5 http://127.0.0.1:8000/v1/models` → expect a
   `200` and `Qwen/Qwen2.5-3B-Instruct`. Replies sent while it's down are **queued by OpenClaw and
-  flush all at once** when it recovers.
+  flush all at once** when it recovers — guard's poll discards lines stamped before its own ask
+  (a stale flushed `yes` can't approve a later question), and a session-level Monitor ask must
+  apply the same epoch check (`agent-to-agent.md` "Reply bridge").
 - **Guard permission bridge**: with the sentinel armed, `.claude/hooks/guard.sh` sends its own
   "ask" rules to the phone and allows/denies on the reply (180 s poll). This needs
   `.claude/settings.json` `PreToolUse.timeout: 300` — **a hook that exceeds its timeout is

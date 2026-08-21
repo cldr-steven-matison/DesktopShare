@@ -159,7 +159,12 @@ is sent — a command mentioning a credential keyword is dropped rather than quo
    send the question with `files/agent-ask.sh`, watch `~/.claude/telegram-inbox.log`
    for the reply, confirm back to Telegram what you understood before acting. A reply
    arriving through the bridge **is** Steven answering — it satisfies "ask fresh every
-   time" for live-service confirms. Full mechanics: `agent-to-agent.md` "Reply bridge".
+   time" for live-service confirms. Two mechanics that cost real time when skipped: if no
+   reply lands, check the model endpoint FIRST (`curl -s -m 5 http://127.0.0.1:8000/v1/models`
+   → expect 200 — a dead vllm pane means every phone reply fails silently and nothing reaches
+   the inbox); and when consuming a reply, ignore inbox lines whose epoch predates your ask
+   (OpenClaw flushes queued replies in a burst on recovery). Full mechanics:
+   `agent-to-agent.md` "Reply bridge".
 2. **Guard prompts (`.claude/hooks/guard.sh` "ask" rules).** With the sentinel armed,
    the guard **bridges these itself** — the question goes to the phone, `yes` allows,
    `no` denies, and silence or an unclear reply falls back to the desk prompt. It never
@@ -167,9 +172,10 @@ is sent — a command mentioning a credential keyword is dropped rather than quo
    redeploy/port-forward/commit prompt reaches Steven rather than parking. Two limits:
    guard only sees the commands its own rules match — a command that trips the harness's
    permission allow-list instead never reaches guard, and lands in class 3; and a reply
-   OpenClaw had **queued** while its model endpoint was down can flush into a later ask's
-   window and answer the wrong question (`agent-to-agent.md` "Known limitation"). If
-   OpenClaw has been down, check the inbox for a backlog before arming the sentinel.
+   OpenClaw had **queued** while its model endpoint was down flushes on recovery — guard
+   discards lines stamped before its own ask went out (2026-08-21, #192 audit), so a
+   flushed backlog is inert to it. If OpenClaw has been down, still check the inbox for a
+   backlog before arming the sentinel.
 3. **Keyboard-only (harness permission dialogs).** The model is suspended; nothing can
    answer remotely. The user-level `Notification` hook on this device
    (`.claude/hooks/telegram-notify.sh`, wired in `~/.claude/settings.json` with
@@ -201,17 +207,17 @@ Telegram is only the doorbell.
 
 ## Working an issue
 
-1. **Claiming is automatic when you open the issue.** Running `gh issue view <n>` on a
-   still-`status:todo` issue for this device makes the guard hook flip it to
-   `status:in-progress` for you (see "Automated check-in" above) — you do **not** need to
-   run the claim command by hand, and you'll get an `additionalContext` line confirming it.
-   The label is how the fleet sees which issues are actively being worked; the auto-claim
-   exists so an issue is never left looking unclaimed while a device works it. Never jump
+1. **Claim when you pick up the issue — auto-claim fires on engagement, not on sight.**
+   A bare `gh issue view <n>` no longer claims (narrowed 2026-08-21, #192 audit: a
+   read-only view by an exploration sub-agent claimed an issue nobody was working); a view
+   only records the issue for Telegram-ping context. The guard auto-claims a
+   still-`status:todo` issue for this device on the first **mutating** engagement — a
+   `gh issue comment <n>` — and confirms via an `additionalContext` line. The label is how
+   the fleet sees which issues are actively being worked, so when you start work without
+   commenting first, run the claim yourself. Never jump
    `status:todo` → `status:review` — the progression is `todo → in-progress → review`, and
    `in-progress` must be set even for a task you finish in one sitting (a guard backstop
-   blocks that jump). The only time you run the claim manually is the residual gap — working
-   an issue without ever `gh issue view`-ing it, or when auto-claim reported it couldn't
-   reach `gh`:
+   blocks that jump). The claim command:
    ```bash
    gh issue edit <n> --remove-label status:todo --add-label status:in-progress
    ```
