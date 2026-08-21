@@ -6,11 +6,15 @@
 # agent-reply.sh) can NOT answer them; this ping is the differentiation.
 #
 # Wired per-device, NOT fleet-wide: referenced by absolute path from the
-# user-level ~/.claude/settings.json on WindowsDesktop only. Other devices
+# user-level ~/.claude/settings.json on WindowsDesktop only, with
+# `"matcher": "permission_prompt"` so the harness filters by notification TYPE
+# before this script ever runs (see files/install-192.sh step 2). Other devices
 # don't wire it and are unaffected by pulls.
 #
-# Dedupe: at most one ping per 5 minutes (touch-file mtime), so a prompt storm
-# doesn't spam the chat. Never echoes $TOKEN/$CHAT_ID.
+# Two gates before anything is sent: the ~/.claude/unattended sentinel (silent at
+# the desk) and a permission_prompt type check. Dedupe: at most one ping per 60s
+# (touch-file mtime), stamped only on confirmed delivery. Never echoes
+# $TOKEN/$CHAT_ID, and the command context it quotes is redacted at write time.
 
 INPUT=$(cat)
 
@@ -22,24 +26,46 @@ fi
 if command -v jq >/dev/null 2>&1; then
     MESSAGE=$(echo "$INPUT" | jq -r '.message // "waiting for input"')
     CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+    NTYPE=$(echo "$INPUT" | jq -r '.notification_type // empty')
 else
     # No jq: can't classify — fail toward pinging (a lost permission ping is worse
     # than a spurious one), and say why the text is missing.
     MESSAGE="needs your permission (jq missing on host, raw message unavailable)"
     CWD=""
+    NTYPE=""
 fi
 
-# Permission prompts ONLY (issue #192, 2026-08-20). The harness also emits idle
-# "waiting for input" notifications between conversation turns — those pinged
-# Steven while he was sitting AT the terminal (12:39 false alarm) and, worse,
-# their 5-min dedupe stamp once swallowed a real permission-prompt ping. This
-# hook's documented job (device-comms.md "Session comms", class 2) is the
-# keyboard-only harness dialog; completion/blocked pings for unattended work are
-# the session's own responsibility via the progress-poll protocol. 60s dedupe.
-case "$MESSAGE" in
-  *[Pp]ermission*) STAMP="$HOME/.claude/telegram-notify-perm.last"; WINDOW=60 ;;
-  *)               exit 0 ;;
+# Silent at the desk (issue #192, 2026-08-21). Everything that talks to Telegram
+# unprompted is gated behind the ~/.claude/unattended sentinel — a keyboard ping
+# fired while Steven is sitting at the keyboard is the same "messages came
+# unexpectedly" complaint that already moved progress polls behind this sentinel
+# (agent/device-comms.md "Session comms"). He arms it when he leaves.
+[ -f "$HOME/.claude/unattended" ] || exit 0
+
+# Permission prompts ONLY (issue #192). The harness also emits idle "waiting for
+# input" notifications between conversation turns — those pinged Steven while he
+# was sitting AT the terminal (12:39 false alarm) and, worse, their 5-min dedupe
+# stamp once swallowed a real permission-prompt ping. This hook's documented job
+# (device-comms.md "Session comms", class 2) is the keyboard-only harness dialog;
+# completion/blocked pings for unattended work are the session's own job via the
+# progress-poll protocol. 60s dedupe.
+#
+# Discriminate STRUCTURALLY on notification_type (permission_prompt vs idle_prompt
+# vs agent_needs_input …), not on the message text — the text grep this replaces is
+# what produced the 12:39 false alarm. The settings.json matcher should already
+# have filtered to permission_prompt; this is the second line of defence, and the
+# text grep survives only as a fallback for a payload that carries no type field.
+case "$NTYPE" in
+  permission_prompt) : ;;
+  "")
+      case "$MESSAGE" in
+        *[Pp]ermission*) : ;;
+        *)               exit 0 ;;
+      esac
+      ;;
+  *) exit 0 ;;
 esac
+STAMP="$HOME/.claude/telegram-notify-perm.last"; WINDOW=60
 if [ -f "$STAMP" ]; then
     LAST=$(stat -c %Y "$STAMP" 2>/dev/null || echo 0)
     NOW=$(date +%s)
@@ -52,14 +78,31 @@ fi
 # an unattributed "waiting at the desk" sends Steven to the wrong machine
 # (2026-08-20, #192). ds_device_labels gives the roster name; hostname fallback.
 DEV="$(hostname -s 2>/dev/null || hostname)"
-LIB="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/lib-device.sh"
+HOOKDIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+LIB="$HOOKDIR/lib-device.sh"
+ISSUES=""
+LASTCMD=""
 if [ -f "$LIB" ]; then
     . "$LIB" 2>/dev/null
     L="$(ds_device_labels 2>/dev/null | awk '{print $1}')"
     [ -n "$L" ] && DEV="$L"
+    # The hook's own cwd isn't the project dir; derive it from where this file
+    # lives (…/<project>/.claude/hooks/) so the markers resolve.
+    : "${CLAUDE_PROJECT_DIR:=$(cd "$HOOKDIR/../.." 2>/dev/null && pwd)}"
+    export CLAUDE_PROJECT_DIR
+    ISSUES="$(ds_session_issues 2>/dev/null)"
+    # The command guard.sh last saw — already redacted and credential-suppressed
+    # at write time (lib-device.sh ds_note_last_tool). "Session waiting at the
+    # desk" with no idea WHICH command was the whole complaint (2026-08-21, #192:
+    # "a bit of context will help a lot").
+    LASTCMD="$(head -c 200 "$(ds_last_tool_file)" 2>/dev/null | head -1)"
 fi
 
-MSG="⌨️ [$DEV] Session waiting at the desk: ${MESSAGE}${CWD:+ (${CWD})}"
+MSG="⌨️ [$DEV]${ISSUES:+ $ISSUES} Session waiting at the desk — ${MESSAGE}"
+[ -n "$LASTCMD" ] && MSG="${MSG}
+\$ ${LASTCMD}"
+[ -n "$CWD" ] && MSG="${MSG}
+${CWD}"
 
 # Stamp ONLY on confirmed delivery ({"ok":true}). A failed send must NOT arm the
 # dedupe — the harness re-fires notifications while parked, and each re-fire is a

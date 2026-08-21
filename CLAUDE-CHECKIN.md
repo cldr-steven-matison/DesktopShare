@@ -153,17 +153,31 @@ Everything below runs in the `cld-streaming` minikube cluster, exposed via `kube
 
 If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address efm-host-ip ...` pane.
 
-### Telegram session comms (this device only — #192, 2026-08-19)
+### Telegram session comms (this device only — #192, 2026-08-19, reworked 2026-08-21)
 
-- **Reply bridge**: `~/reply.sh` (wrapper → `files/agent-reply.sh`) appends Steven's phone
-  replies to `~/.claude/telegram-inbox.log`; a waiting session Monitors that file. Ask side:
-  `files/agent-ask.sh`. Phone command: `/bash bash reply.sh yes`. Mechanics:
-  `agent-to-agent.md` "Reply bridge".
+- **`~/.claude/unattended` is the master switch.** Steven `touch`es it when he leaves the desk
+  and `rm`s it when he's back. **Absent = this device is completely silent**: no progress polls,
+  no keyboard pings, no phone questions from the guard. Everything below only happens when it's
+  armed. Install/verify everything here with `bash files/install-192.sh` (`--apply` to act).
+- **Headless is the primary remote mode**: `~/claw-claude.sh` (from `files/claw-claude.sh`) runs
+  a fresh `claude -p` per Telegram command with `--permission-mode dontAsk` + a read-only
+  `--allowedTools` set, so there is no session left running that could park on a prompt.
+  `agent-to-agent.md` "Two operating modes".
+- **Reply bridge** (fallback, for a session already running): `~/reply.sh` (wrapper →
+  `files/agent-reply.sh`) appends Steven's phone replies to `~/.claude/telegram-inbox.log`; a
+  waiting session Monitors that file. Ask side: `files/agent-ask.sh`. Phone command:
+  `/bash bash reply.sh yes`. Mechanics: `agent-to-agent.md` "Reply bridge".
+- **Guard permission bridge**: with the sentinel armed, `.claude/hooks/guard.sh` sends its own
+  "ask" rules to the phone and allows/denies on the reply (180 s poll). This needs
+  `.claude/settings.json` `PreToolUse.timeout: 300` — **a hook that exceeds its timeout is
+  treated as a pass and the command runs**, so the timeout must always exceed the poll.
 - **Keyboard-needed pings**: user-level `~/.claude/settings.json` here wires a `Notification`
-  hook to `.claude/hooks/telegram-notify.sh` (5-min dedupe). Not fleet-wide — other devices
-  don't wire it.
-- **Progress polls default-on for unattended work** on this device only —
-  `agent/device-comms.md` "Session comms (Telegram)".
+  hook to `.claude/hooks/telegram-notify.sh` with `"matcher": "permission_prompt"` (60 s dedupe;
+  names the issue and the parked command). Not fleet-wide — other devices don't wire it.
+- **Blocked on something bigger than yes/no**: `files/agent-blocked.sh <issue> "<question>"`
+  puts it on the issue, flips `status:blocked`, and Telegrams the comment link.
+- **Progress polls for unattended work** on this device only — `agent/device-comms.md`
+  "Session comms (Telegram)".
 
 ---
 

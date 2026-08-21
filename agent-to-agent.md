@@ -43,9 +43,40 @@ The contract:
   the Monitor.
 - **What it can't answer**: harness permission dialogs — the model is suspended there. Those get
   a "session waiting at the desk" ping from the `Notification` hook instead
-  (`.claude/hooks/telegram-notify.sh`, wired user-level on WindowsDesktop only; pings on
-  permission prompts ONLY, 60s dedupe — idle between-turn notifications are ignored).
-  Policy split: `agent/device-comms.md` "Session comms (Telegram)".
+  (`.claude/hooks/telegram-notify.sh`, wired user-level on WindowsDesktop only with
+  `"matcher": "permission_prompt"`; 60s dedupe, sentinel-gated, and it names the issue and the
+  parked command). Policy split: `agent/device-comms.md` "Session comms (Telegram)".
+
+### Guard's permission bridge — the same inbox, a different wait
+
+`.claude/hooks/guard.sh` rides this same bridge for its own "ask" rules (redeploy, port-forward,
+an unverified commit, a finish-ritual violation), so an unattended session doesn't park on them.
+It is the same `agent-ask.sh` and the same inbox, but the **wait is shaped differently**, and the
+difference matters if you ever touch it:
+
+- **A synchronous poll inside the hook, not a Monitor.** A hook has no session to hand a Monitor
+  to. It snapshots the inbox, sends, then `sleep 5` up to 36 times (180 s) waiting for the line
+  count to grow.
+- **The hook `timeout` is the hard ceiling.** A `PreToolUse` command hook that exceeds its
+  `timeout` is treated as a **pass — the tool runs**. So the poll window must stay well under it:
+  180 s of polling under the `timeout: 300` set in `.claude/settings.json`. **Never raise the poll
+  without raising the timeout first**, or a gated command gets silently allowed.
+- **It never auto-allows.** Sentinel absent, `~/.env` incomplete, send failed, no reply, or an
+  answer that isn't clearly yes/no — all fall through to the normal prompt at the desk.
+- **Strictly opt-in.** With `~/.claude/unattended` absent it is a no-op, on every device.
+
+### When the question is too big for yes/no
+
+A multi-option `AskUserQuestion` or a plan approval **cannot** be intercepted by a hook or
+answered programmatically — there is no bridge to build. Route it back to the issue instead:
+
+```bash
+source ~/.env && bash files/agent-blocked.sh <issue> "<question, and what each answer means>"
+```
+
+Comment on the issue → `status:blocked` → Telegram ping carrying the **link to that comment**.
+Then work on something that doesn't depend on the answer. Policy: `agent/device-comms.md`
+"Session comms (Telegram)".
 
 ---
 
@@ -62,7 +93,11 @@ claude -p "<prompt>" --permission-mode dontAsk \
     "Bash(kubectl get *)" "Bash(kubectl logs *)"
 ```
 
-Under `dontAsk`, only tools matching an allow rule run; anything else is **denied and the run continues and reports** — it never blocks waiting for input, and `AskUserQuestion` is denied outright. Writes and pushes stay out of the allowlist, so headless remote work is read-only analysis and planning (see Safety Boundaries). Bare `claude -p` without these flags defaults to `default` permission mode and will hang the moment it hits a gated tool with no TTY to answer on — the examples further down that omit the flags are at-desk/reference only. The versioned wrapper `files/claw-claude.sh` bakes the flags in; install it to `~`.
+Under `dontAsk`, only tools matching an allow rule run; anything else is **denied and the run continues and reports** — it never blocks waiting for input, and `AskUserQuestion` is denied outright. Writes and pushes stay out of the allowlist, so headless remote work is read-only analysis and planning (see Safety Boundaries). The versioned wrapper `files/claw-claude.sh` bakes the flags in; install it to `~` with `bash files/install-192.sh --apply`.
+
+`--allowedTools` takes **space-separated** values after the one flag (`--allowedTools "Read" "Grep" "Bash(git log *)"`), not a comma-separated list.
+
+**Why the flags still matter, even though bare `-p` doesn't hang.** A non-interactive `-p` run with no `--permission-prompt-tool` has no prompt to fall back to, so a gated tool is **auto-denied and Claude keeps working** — it does not hang and does not error. (An earlier version of this section said it would hang; that was wrong, checked against the Claude Code docs for 2.1.238.) The flags are what decide *which* tools are allowed to run at all, so without them a remote turn quietly does far less than you asked and reports around it. Set them deliberately.
 
 **Interactive bridge (fallback) — a session already running at the desk.** When you've left an interactive session running and it needs an answer, the reply bridge above carries a Yes/No back from the phone. Its limit is harness permission dialogs, where the model is suspended: for those, arm `~/.claude/unattended` so `guard.sh`'s permission-bridge asks the phone and allows/denies on your reply; prompts guard doesn't gate fall back to the "waiting at the desk" ping. Prefer headless mode when you can — it can't get stuck; reach for the interactive bridge only when a session is already live.
 
@@ -118,9 +153,9 @@ Keep the cluster and app flows stopped while away. Then the worst Claude can do 
 /bash cd ~/DesktopShare && claude -p "read streamers/cso-operator-app-streamers.md and summarize what's done and what's next"
 ```
 
-**Limit tools to read-only (safer for remote use):**
+**Limit tools to read-only (safer for remote use)** — space-separated, not comma-separated:
 ```
-/bash cd ~/DesktopShare && claude --allowedTools Read,Bash -p "review all plan files and give me a status summary"
+/bash cd ~/DesktopShare && claude --allowedTools "Read" "Grep" "Glob" -p "review all plan files and give me a status summary"
 ```
 
 ---
@@ -143,8 +178,13 @@ claude --continue -p "$*" \
 ```
 
 ```bash
-cp files/claw-claude.sh ~/claw-claude.sh && chmod +x ~/claw-claude.sh
+bash files/install-192.sh            # show what's missing on this device
+bash files/install-192.sh --apply    # install the wrapper + the hook/notification settings
 ```
+
+`files/install-192.sh` is the single install path for everything this issue added — Claude's
+direct writes to `settings.json` and `~/.claude/settings.json` are classifier-blocked, so the
+repo stages and one command applies. It is idempotent and backs up every file it replaces.
 
 Then from Telegram:
 ```

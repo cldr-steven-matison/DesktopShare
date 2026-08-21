@@ -54,3 +54,88 @@ ds_issue_numbers() {
     | grep -oE '[0-9]+' \
     | awk '!seen[$0]++'
 }
+
+# ---------------------------------------------------------------------------
+# Session-comms helpers (issue #192). Used by guard.sh, telegram-notify.sh and
+# files/agent-ask.sh so every Telegram message can say WHICH ISSUE the session is
+# on and WHAT COMMAND it is parked on — Steven 2026-08-21: "make the message to
+# telegram be more information, what issue(s) you are on, a bit of context will
+# help a lot." All of it is local file state: no gh/network call on the hot path.
+# ---------------------------------------------------------------------------
+
+# The unattended sentinel. Steven arms this when he leaves the desk; everything
+# that talks to Telegram unprompted is gated behind it, so an at-desk session is
+# silent (device-comms.md "Session comms"). Returns 0 when armed.
+ds_unattended() {
+  [ -f "$HOME/.claude/unattended" ]
+}
+
+# Path to the session-issue marker: the issue number(s) this session is working,
+# one per line. guard.sh appends whenever it already resolves an issue number
+# (auto-claim, the finish-ritual check, the close flip) — no extra lookups.
+# checkin.sh clears it at session start.
+ds_session_issue_marker() {
+  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.session-issues"
+}
+
+# Path to the last-command file: a redacted one-line summary of the most recent
+# Bash command guard.sh saw. The Notification hook reads it to name what a
+# permission prompt is parked on — including prompts guard itself never raised
+# (an allowlist miss, which is most of them).
+ds_last_tool_file() {
+  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.last-tool"
+}
+
+# Record $1 as an issue this session is working. Idempotent, fails silently.
+ds_note_session_issue() {
+  local m
+  [ -n "$1" ] || return 0
+  m="$(ds_session_issue_marker)"
+  mkdir -p "$(dirname "$m")" 2>/dev/null || true
+  grep -qxF "$1" "$m" 2>/dev/null || echo "$1" >> "$m" 2>/dev/null || true
+}
+
+# Echo the issue(s) this session is on as "#192" / "#192, #195"; empty if unknown.
+# Marker first, then the branch name (issue-<n>-<slug>) as the fallback.
+ds_session_issues() {
+  local m out="" br
+  m="$(ds_session_issue_marker)"
+  if [ -s "$m" ]; then
+    out="$(awk '!seen[$0]++ { if (n++) printf ", "; printf "#%s", $0 }' "$m" 2>/dev/null)"
+  fi
+  if [ -z "$out" ]; then
+    br="$(git -C "${CLAUDE_PROJECT_DIR:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+    case "$br" in
+      issue-[0-9]*) out="#$(printf '%s' "$br" | sed -n 's/^issue-\([0-9][0-9]*\).*/\1/p')" ;;
+    esac
+  fi
+  printf '%s' "$out"
+}
+
+# Echo a REDACTED one-line summary of a command, safe to put in a Telegram
+# message; echoes NOTHING when the command can't be shown safely. ~/.env values
+# must never reach the chat, so this is deliberately over-eager: any command whose
+# text mentions a credential keyword is suppressed whole, and any long opaque run
+# is collapsed to an ellipsis before truncation. $2 = max chars (default 160).
+ds_redact_cmd() {
+  case "$1" in
+    *TOKEN*|*token*|*SECRET*|*secret*|*PASS*|*pass*|*KEY*|*key*|*Authorization*|*--data-urlencode*)
+      return 0 ;;
+  esac
+  printf '%s' "$1" | tr '\n\t' '  ' | sed 's/[A-Za-z0-9_-]\{24,\}/…/g' | cut -c1-"${2:-160}"
+}
+
+# Record the redacted summary of the command about to run. The file is REMOVED
+# rather than left stale when the command can't be shown — a stale line would make
+# the next ping name the wrong command, which is worse than naming none.
+ds_note_last_tool() {
+  local f line
+  f="$(ds_last_tool_file)"
+  line="$(ds_redact_cmd "$1")"
+  if [ -z "$line" ]; then
+    rm -f "$f" 2>/dev/null || true
+    return 0
+  fi
+  mkdir -p "$(dirname "$f")" 2>/dev/null || true
+  printf '%s\n' "$line" > "$f" 2>/dev/null || true
+}

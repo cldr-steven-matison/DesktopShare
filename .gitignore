@@ -2,11 +2,15 @@
 # local: settings.local.json (per-machine permission paths), skills/ (a local
 # install copy — the canonical skill source is the top-level skills/ dir),
 # .claim-pending (per-session claim-before-work marker written by guard.sh), and
-# .nifi-skill-loaded (per-session nifi-and-ai-loaded marker, same shape).
+# .nifi-skill-loaded (per-session nifi-and-ai-loaded marker, same shape), and
+# .session-issues / .last-tool (per-session comms context for the Telegram pings,
+# issue #192).
 /.claude/settings.local.json
 /.claude/skills/
 /.claude/.claim-pending
 /.claude/.nifi-skill-loaded
+/.claude/.session-issues
+/.claude/.last-tool
 # Local-only working directories — real content kept on disk, never tracked.
 /files/tuna-test/
 /files/heygen-srm-poc/

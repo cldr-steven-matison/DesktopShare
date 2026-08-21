@@ -41,6 +41,17 @@ if command -v ds_nifi_skill_marker >/dev/null 2>&1; then
   rm -f "$(ds_nifi_skill_marker)" 2>/dev/null || true
 fi
 
+# Same for the session-comms context markers (issue #192): the issue(s) this
+# session is working and the last command guard.sh saw. Both are what the
+# Telegram pings quote, so a leftover from a prior session would make a ping name
+# the wrong issue or the wrong command — worse than saying nothing.
+if command -v ds_session_issue_marker >/dev/null 2>&1; then
+  rm -f "$(ds_session_issue_marker)" 2>/dev/null || true
+fi
+if command -v ds_last_tool_file >/dev/null 2>&1; then
+  rm -f "$(ds_last_tool_file)" 2>/dev/null || true
+fi
+
 out=""
 
 # 1. Pull first (device-comms.md rule 1).

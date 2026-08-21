@@ -143,18 +143,54 @@ with the sending device's roster name in brackets** (`[WindowsDesktop] flash don
 `agent-ask.sh` and `telegram-notify.sh` stamp it automatically; hand-built `curl`
 pings must include it themselves.
 
-**Prompts split into two classes** — know which one you're parked on:
+**Say which issue, and what command.** A device name alone isn't enough context to
+answer from a phone. Every ping also carries the issue number(s) the session is on and,
+where the ping is about a parked command, the command itself
+(`⌨️ [WindowsDesktop] #192 Session waiting at the desk — …` / `$ kubectl exec …`).
+`agent-ask.sh`, `agent-blocked.sh` and `telegram-notify.sh` fill this in automatically
+from `ds_session_issues` / `ds_last_tool_file` (`.claude/hooks/lib-device.sh`); a
+hand-built `curl` ping names the issue itself. The command text is redacted before it
+is sent — a command mentioning a credential keyword is dropped rather than quoted, so a
+`~/.env` value can never reach the chat.
+
+**Prompts split into three classes** — know which one you're parked on:
 
 1. **Bridgeable (Yes/No/Proceed questions Claude is asking).** Use the reply bridge:
    send the question with `files/agent-ask.sh`, watch `~/.claude/telegram-inbox.log`
    for the reply, confirm back to Telegram what you understood before acting. A reply
    arriving through the bridge **is** Steven answering — it satisfies "ask fresh every
    time" for live-service confirms. Full mechanics: `agent-to-agent.md` "Reply bridge".
-2. **Keyboard-only (harness permission dialogs).** The model is suspended; nothing can
+2. **Guard prompts (`.claude/hooks/guard.sh` "ask" rules).** With the sentinel armed,
+   the guard **bridges these itself** — the question goes to the phone, `yes` allows,
+   `no` denies, and silence or an unclear reply falls back to the desk prompt. It never
+   auto-allows. Nothing to do from the session side; just know that an unattended
+   redeploy/port-forward/commit prompt reaches Steven rather than parking. Its limit:
+   guard only sees the commands its own rules match. A command that trips the harness's
+   permission allow-list instead never reaches guard, and lands in class 3.
+3. **Keyboard-only (harness permission dialogs).** The model is suspended; nothing can
    answer remotely. The user-level `Notification` hook on this device
-   (`.claude/hooks/telegram-notify.sh`, wired in `~/.claude/settings.json`, not
-   fleet-wide) pings Telegram "session waiting at the desk" so Steven knows to come
-   back. Don't send a bridge ask for these — it can't help.
+   (`.claude/hooks/telegram-notify.sh`, wired in `~/.claude/settings.json` with
+   `"matcher": "permission_prompt"`, not fleet-wide) pings Telegram "session waiting at
+   the desk" with the issue and the command, so Steven knows to come back. Don't send a
+   bridge ask for these — it can't help. **The real fix for this class is not to be in
+   it:** run remote work headless (`~/claw-claude.sh`, `agent-to-agent.md` "Two
+   operating modes"), where there is no session to park.
+
+**Multi-stage prompts don't go to Telegram at all — they go back to the issue.**
+A multi-option `AskUserQuestion` or a plan approval **cannot** be intercepted by a hook
+or answered programmatically (verified against the Claude Code hook docs for 2.1.238),
+so with `~/.claude/unattended` armed, don't raise one. Either take the decision yourself
+under a stated assumption and keep working, or — when proceeding either way would be
+unsafe or would waste the work if wrong — run:
+
+```bash
+source ~/.env && bash files/agent-blocked.sh <issue> "<the question, and what each answer means>"
+```
+
+That posts the question as a comment on the issue, flips it to `status:blocked`, and
+pings Telegram with a **link to that comment** plus the reply syntax. Then move to work
+that doesn't depend on the answer. The issue is the durable home for a decision;
+Telegram is only the doorbell.
 
 ## Working an issue
 

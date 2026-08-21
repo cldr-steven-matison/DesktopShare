@@ -24,16 +24,28 @@ if [ -z "$QUESTION" ]; then
 fi
 
 # Lead with the device name — asks from multiple devices land in ONE chat and an
-# unattributed question is unanswerable safely (2026-08-20, #192).
+# unattributed question is unanswerable safely (2026-08-20, #192). Then the issue
+# number(s) this session is on: a bare question with no context isn't answerable
+# from a phone either (2026-08-21, #192 — Steven: "what issue(s) you are on, a bit
+# of context will help a lot"). Override with DS_ISSUE=192 if auto-detection is
+# wrong or the ask belongs to an issue the guard never saw.
 DEV="$(hostname -s 2>/dev/null || hostname)"
-LIB="$(cd "$(dirname "$0")/../.claude/hooks" 2>/dev/null && pwd)/lib-device.sh"
+ISSUES=""
+REPO="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)"
+LIB="$REPO/.claude/hooks/lib-device.sh"
 if [ -f "$LIB" ]; then
     . "$LIB" 2>/dev/null || true
     L="$(ds_device_labels 2>/dev/null | awk '{print $1}')" || true
     if [ -n "$L" ]; then DEV="$L"; fi
+    : "${CLAUDE_PROJECT_DIR:=$REPO}"
+    export CLAUDE_PROJECT_DIR
+    ISSUES="$(ds_session_issues 2>/dev/null)" || true
+fi
+if [ -n "$DS_ISSUE" ]; then
+    ISSUES="#${DS_ISSUE#\#}"
 fi
 
-MSG="❓ [$DEV] ${QUESTION}
+MSG="❓ [$DEV]${ISSUES:+ $ISSUES} ${QUESTION}
 
 reply: /bash bash reply.sh yes|no|<text>"
 

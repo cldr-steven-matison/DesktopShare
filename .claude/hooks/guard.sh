@@ -15,6 +15,7 @@
 #      a duplicate on the same target silently orphans or hangs (2026-07-29, issue #11).
 #   4. Never mark an issue status:review/done while it still carries status:todo
 #      — the forbidden todo->review jump proves it was never claimed as in-progress.
+#      DENIES (not asks): the fix is a claim command the model runs itself.
 #   5. Before a processor-create/update call (a POST/PUT to a /processors endpoint
 #      carrying a `position`), state the flow shape + pitch and match it against
 #      layout.md. Prose in layout.md alone failed to stop two fresh EFM builds from
@@ -36,7 +37,9 @@
 #      running shared PG, violating the skill's own rule 8). Fixed the same way rule
 #      A below was fixed: the hook writes its own marker when it sees Skill(nifi-and-ai)
 #      go by, and blocks a live write while that marker is absent — no reliance on the
-#      model remembering. See lib-device.sh ds_nifi_skill_marker.
+#      model remembering. See lib-device.sh ds_nifi_skill_marker. DENIES (not asks)
+#      since 2026-08-21 (#192/#199): "load the skill" is a message for the model, and
+#      an ask parked a human purely to relay it.
 #
 # Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
 # Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
@@ -59,9 +62,21 @@
 # All issue-number extraction goes through ds_issue_numbers (lib-device.sh) so the
 # `head -1` truncation (only the first issue in a chained command was seen) can't recur.
 #
-# On a match it returns permissionDecision "ask" (hazard rules) or injects
-# additionalContext (auto-claim). Non-matching calls pass through. Fails open
-# (exit 0) throughout so a missing jq/gh never blocks all tool use.
+# On a match it returns permissionDecision "ask" (hazard rules — a decision only
+# Steven can make), "deny" (rules 4 and 8 — an instruction to the MODEL, which acts
+# on the reason and retries with nobody at the keyboard), or "allow" plus
+# additionalContext (auto-claim, auto-fix). Non-matching calls pass through. Fails
+# open (exit 0) throughout so a missing jq/gh never blocks all tool use.
+#
+# Permission bridge (issue #192, 2026-08-21). When ~/.claude/unattended is armed,
+# an "ask" is sent to Steven's phone through the reply bridge instead of parking the
+# session at a keyboard nobody is at; his yes/no decides, and silence falls back to
+# the desk prompt. Strictly opt-in — with the sentinel absent nothing changes, on
+# any device. See ds_bridge_decide below. Two constraints it is built around:
+#   - a PreToolUse command hook that exceeds its `timeout` is treated as a PASS and
+#     the tool RUNS, so the 180s poll must stay well under the 300s timeout set in
+#     .claude/settings.json. Never raise the poll without raising the timeout first.
+#   - the bridge never auto-allows on silence, a failed send, or an unclear reply.
 
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -80,11 +95,43 @@ proj="${CLAUDE_PROJECT_DIR:-.}"
 marker=""
 command -v ds_claim_marker >/dev/null 2>&1 && marker="$(ds_claim_marker)"
 
-emit_ask() {
+# ---- Decision emitters. WHICH ONE a rule uses is the point (issue #192) -----
+#   emit_ask       a decision only Steven can make (live redeploy, an unrequested
+#                  push). Parks the session at the keyboard UNLESS the phone bridge
+#                  is armed, in which case the question goes to Telegram and his
+#                  reply decides. Pass a short label as $2 for the phone message.
+#   emit_ask_local same prompt, NEVER bridged — for answers that need someone
+#                  looking at this screen.
+#   emit_deny      an INSTRUCTION TO THE MODEL, not a question for a human. deny
+#                  hands the reason back to the model and the turn continues, so it
+#                  fixes the problem and retries with nobody in the loop. Rules 4, 5
+#                  and 8 used to be `ask`, which parked a human purely to relay a
+#                  message to the model (2026-08-21, #192: the rule 8 skill-load
+#                  prompt Steven pasted).
+#   emit_ctx       allow + tell the model why (auto-claim, auto-fix, bridge-approve).
+
+emit_json_ask() {
   # $1 = reason string. Shown in the permission prompt; blocks pending a decision.
   jq -nc --arg r "$1" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0
+}
+
+emit_deny() {
+  # $1 = reason. Blocks the call and returns the reason to the model (both as the
+  # decision reason and as additionalContext, so it lands regardless of how the
+  # client surfaces a denial). The model acts on it and retries in the same turn.
+  jq -nc --arg r "$1" \
+    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r,additionalContext:$r}}'
+  exit 0
+}
+
+emit_ask_local() { emit_json_ask "$1"; }
+
+emit_ask() {
+  # $1 = reason (shown at the desk). $2 = short label used in the phone ask.
+  ds_bridge_decide "$1" "$2"
+  emit_json_ask "$1"
 }
 
 emit_ctx() {
@@ -95,6 +142,92 @@ emit_ctx() {
   jq -nc --arg r "$1" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r,additionalContext:$r}}'
   exit 0
+}
+
+# ---- Permission bridge (issue #192) ----------------------------------------
+# With Steven away, a guard "ask" parks the session at a keyboard nobody is at.
+# When ~/.claude/unattended is armed, send the question to the phone through the
+# existing reply bridge (files/agent-ask.sh -> ~/.claude/telegram-inbox.log) and
+# decide on his answer instead. STRICTLY OPT-IN: sentinel absent and this is a
+# no-op, so guard behaves exactly as it always has on every other device.
+#
+# Synchronous poll, NOT the Monitor shape a session-level ask uses — a hook has no
+# session to hand a Monitor to. That makes the hook TIMEOUT the hard constraint: a
+# PreToolUse command hook that times out is treated as a PASS and the tool RUNS,
+# so the poll window must stay well under it. 180s of polling under the 300s
+# timeout in .claude/settings.json leaves 120s of headroom.
+#
+# It NEVER auto-allows on silence. Not armed, send failed, timed out, or an answer
+# that wasn't clearly yes/no -> return, and the caller falls through to the normal
+# desk prompt.
+ds_bridge_decide() {
+  local reason="$1" label="$2" inbox base cur line ans ask q n cmdline
+  command -v ds_unattended >/dev/null 2>&1 || return 0
+  ds_unattended || return 0
+  [ -f "$HOME/.env" ] || return 0
+  grep -Eq '^ *(export +)?TOKEN=' "$HOME/.env" 2>/dev/null || return 0
+  grep -Eq '^ *(export +)?CHAT_ID=' "$HOME/.env" 2>/dev/null || return 0
+  ask="$proj/files/agent-ask.sh"
+  [ -f "$ask" ] || return 0
+
+  inbox="$HOME/.claude/telegram-inbox.log"
+  # Snapshot BEFORE the send: a phone-in-hand reply can land in the gap, and a
+  # baseline taken afterwards already contains it, so the count never grows and
+  # the poll waits out the whole window (agent-to-agent.md "Reply bridge").
+  base="$(wc -l < "$inbox" 2>/dev/null || echo 0)"
+
+  # The command goes through the same redaction as the ping context — a ~/.env
+  # value must never reach the chat, so a credential-bearing command is asked
+  # about without quoting it.
+  cmdline="$(ds_redact_cmd "$cmd" 220 2>/dev/null)"
+  q="${label:-guard check}"
+  [ -n "$cmdline" ] && q="$q
+\$ $cmdline"
+  q="$q
+
+Approve?"
+
+  ( set -a; . "$HOME/.env" 2>/dev/null; set +a; bash "$ask" "$q" ) >/dev/null 2>&1 || return 0
+
+  n=0; cur="$base"
+  while [ "$n" -lt 36 ]; do
+    sleep 5
+    n=$((n + 1))
+    cur="$(wc -l < "$inbox" 2>/dev/null || echo "$base")"
+    [ "$cur" -gt "$base" ] && break
+  done
+  [ "$cur" -gt "$base" ] || { ds_bridge_ack "⌨️ no reply in 3 min — falling back to the prompt at the desk"; return 0; }
+
+  line="$(sed -n "$((base + 1))p" "$inbox" 2>/dev/null)"
+  ans="$(printf '%s' "$line" | sed 's/^[0-9]* *//' | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  case "$ans" in
+    yes|y|ok|okay|approve|approved|proceed|go)
+      ds_bridge_ack "✅ approved — running it"
+      emit_ctx "Approved from the phone through the #192 permission bridge (reply: \"$ans\"). Steven answered this himself, so it satisfies 'ask fresh every time'. It covers ONLY this one command. Guard's reason was: $reason"
+      ;;
+    no|n|deny|denied|stop|cancel|abort)
+      ds_bridge_ack "🚫 denied — not running it"
+      emit_deny "Denied from the phone through the #192 permission bridge (reply: \"$ans\"). Do NOT retry this command. Say what you would do instead and move on to work that doesn't depend on it. Guard's reason was: $reason"
+      ;;
+  esac
+  # Anything else is ambiguous — fall back to the desk rather than guess.
+  ds_bridge_ack "⌨️ reply \"$ans\" wasn't a clear yes/no — falling back to the prompt at the desk"
+  return 0
+}
+
+# Confirm back to Telegram what the bridge understood, before acting on it. The
+# ack is what proves the answer reached a live session rather than just a file.
+ds_bridge_ack() {
+  local dev issues
+  dev="$(ds_device_labels 2>/dev/null | awk '{print $1}')"
+  [ -n "$dev" ] || dev="$(hostname -s 2>/dev/null || hostname)"
+  issues="$(ds_session_issues 2>/dev/null)"
+  ( set -a; . "$HOME/.env" 2>/dev/null; set +a
+    [ -n "$TOKEN" ] && [ -n "$CHAT_ID" ] && \
+    curl -s -m 10 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+      -d "chat_id=$CHAT_ID" \
+      --data-urlencode "text=[$dev]${issues:+ $issues} $1" >/dev/null 2>&1
+  ) >/dev/null 2>&1 || true
 }
 
 # ---- Rule B: edit/write while a claim is still pending ----
@@ -131,6 +264,12 @@ esac
 [ "$tool" = "Bash" ] || exit 0
 [ -z "$cmd" ] && exit 0
 
+# Record what this call is, so a Telegram ping can NAME the command the session is
+# parked on — including prompts guard never raises itself (an allow-list miss,
+# which is most of them). Redacted and credential-suppressed in ds_note_last_tool
+# (lib-device.sh); issue #192, Steven: "a bit of context will help a lot".
+command -v ds_note_last_tool >/dev/null 2>&1 && ds_note_last_tool "$cmd"
+
 # 7. Finish-ritual ordering — MUST run before the claim-clear block below, because the
 # standard finish flip (`gh issue edit N --remove-label status:in-progress --add-label
 # status:review`) mentions `status:in-progress` and would otherwise be swallowed by
@@ -166,7 +305,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
     # schedule — their dirt must not park an unrelated issue finish.
     dirt="$(git -C "$repo7" status --porcelain 2>/dev/null | grep -v ' \.claude/')"
     if [ -n "$dirt" ]; then
-      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree ($repo7) still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)"
+      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree ($repo7) still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)" "guard rule 7 — issue finish flip on a dirty tree ($repo7)"
     fi
     # Unpushed-commit check: ask ONLY when an unpushed subject references the very
     # issue being flipped — unpushed commits for OTHER issues are that work's
@@ -175,7 +314,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
     if [ -n "$unpushed" ]; then
       for fn in $(ds_issue_numbers "$cmd" edit); do
         if printf '%s' "$unpushed" | grep -q "#$fn\b"; then
-          emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. Commits referencing #$fn are not yet pushed to upstream in $repo7 — push them so the sha in the issue comment is durable and visible to other devices, THEN flip."
+          emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. Commits referencing #$fn are not yet pushed to upstream in $repo7 — push them so the sha in the issue comment is durable and visible to other devices, THEN flip." "guard rule 7 — finishing #$fn with commits still unpushed"
         fi
       done
     fi
@@ -214,14 +353,18 @@ if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/' \
    && printf '%s' "$cmd" | grep -Eq -- '-X *['"'"'"]?(POST|PUT|DELETE)|--data|--data-binary|(^|[[:space:]])-d[[:space:]]'; then
   nifi_marker=""
   command -v ds_nifi_skill_marker >/dev/null 2>&1 && nifi_marker="$(ds_nifi_skill_marker)"
-  if [ -z "$nifi_marker" ] || [ ! -f "$nifi_marker" ]; then
-    emit_ask "Live write to /nifi-api/ or /efm/api/ detected, but the nifi-and-ai skill hasn't been loaded this session (agent/incident-rules.md 'NiFi flow edits': load it before the first live write, not after — a clean prior task on a DIFFERENT system this same session doesn't cover it, 2026-08-11 issue #136/#142). Load it first: Skill(nifi-and-ai). If you've already loaded it and this is a false trigger, approve."
+  if [ -z "$nifi_marker" ]; then
+    # lib-device.sh missing: the marker can't be checked at all, so this could be a
+    # false trigger. That IS a look-at-the-screen call, and never a phone question.
+    emit_ask_local "Live write to /nifi-api/ or /efm/api/ detected. The nifi-and-ai skill marker could not be resolved (lib-device.sh missing), so the guard cannot tell whether the skill was loaded. Load it first: Skill(nifi-and-ai)."
+  elif [ ! -f "$nifi_marker" ]; then
+    emit_deny "BLOCKED: live write to /nifi-api/ or /efm/api/ before the nifi-and-ai skill was loaded this session (agent/incident-rules.md 'NiFi flow edits' — load it before the first live write, not after; a clean prior task on a DIFFERENT system in the same session does not cover it: 2026-08-11, #136/#142; recurred 2026-08-21, #199). Load it now with Skill(nifi-and-ai) and then re-run this command — the guard writes its own marker when it sees the Skill call, so the retry will pass. This is a denial and not a prompt on purpose (#192): it is an instruction to you, not a decision for Steven, so nobody should have to be at the keyboard for it."
   fi
 fi
 
 # 1. Live-service redeploy / restart hazards (break in-flight NiFi InvokeHTTP).
 if printf '%s' "$cmd" | grep -Eq 'deploy\.sh|rollout restart|kubectl +delete +pod'; then
-  emit_ask "Live-service redeploy/restart detected. Per agent/incident-rules.md (Live service restarts): a redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls into kills the in-flight request (unexpected end of stream) — this has bitten 3x. Before approving: dump the live NiFi flow and confirm no processor is running/mid-fetch, let in-flight ones drain, and confirm exactly one pod Running. This approval covers ONLY this one command."
+  emit_ask "Live-service redeploy/restart detected. Per agent/incident-rules.md (Live service restarts): a redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls into kills the in-flight request (unexpected end of stream) — this has bitten 3x. Before approving: dump the live NiFi flow and confirm no processor is running/mid-fetch, let in-flight ones drain, and confirm exactly one pod Running. This approval covers ONLY this one command." "guard rule 1 — live-service redeploy/restart"
 fi
 
 # 2. Commit / push only when explicitly asked — EXCEPT the issue-finish ritual, where
@@ -291,9 +434,10 @@ if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; 
     done
   fi
   if [ -n "$finish_n" ]; then
+    ds_note_session_issue "$finish_n" 2>/dev/null || true
     emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits."
   fi
-  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). The one exception is the issue-FINISH ritual (device-comms.md 'Finishing an issue') — if this commit references the issue being finished (#N in the message), the guard auto-approves it without asking; this prompt means it could NOT verify that (no issue reference, issue not claimed by this device, or gh offline). Confirm this commit/push was asked for in the current turn before approving."
+  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). The one exception is the issue-FINISH ritual (device-comms.md 'Finishing an issue') — if this commit references the issue being finished (#N in the message), the guard auto-approves it without asking; this prompt means it could NOT verify that (no issue reference, issue not claimed by this device, or gh offline). Confirm this commit/push was asked for in the current turn before approving." "guard rule 2 — commit/push not verifiable as a finish ritual"
 fi
 
 # 3. Ad-hoc port-forwards / tunnels. The canonical set lives as zellij panes
@@ -301,15 +445,21 @@ fi
 # orphans or hangs (2026-07-29, issue #11: a hung forward misdiagnosed cross-device
 # as tailnet flakiness; same session, a sub-agent's own untracked local forward hung too).
 if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])kubectl +port-forward\b|(^|[;&| ])minikube +(tunnel|service)\b'; then
-  emit_ask "Ad-hoc port-forward/tunnel detected. Per agent/incident-rules.md (Port-forwards and tunnels): check for one already running first (ss -tlnp / ps aux | grep port-forward) and reuse it — the canonical set lives as zellij panes in kube-service-ports-efm.kdl, not background processes an agent owns. A duplicate on the same target can silently orphan or hang. If this is a genuine one-off (e.g. a sub-agent's own temporary test forward it will tear down before finishing), confirm that's the case before approving."
+  emit_ask "Ad-hoc port-forward/tunnel detected. Per agent/incident-rules.md (Port-forwards and tunnels): check for one already running first (ss -tlnp / ps aux | grep port-forward) and reuse it — the canonical set lives as zellij panes in kube-service-ports-efm.kdl, not background processes an agent owns. A duplicate on the same target can silently orphan or hang. If this is a genuine one-off (e.g. a sub-agent's own temporary test forward it will tear down before finishing), confirm that's the case before approving." "guard rule 3 — ad-hoc port-forward/tunnel"
 fi
 
 # 4. Marking an issue reviewed/done that was never claimed. device-comms.md forbids
 # the todo->review jump (the progression is todo -> in-progress -> review, and
 # in-progress must be set even for a one-sitting task). If a `gh issue edit` adds
 # status:review or status:done to an issue that STILL carries status:todo, the claim
-# step was skipped — ask. Loops ALL issue numbers (no head -1 truncation). The gh
-# label lookup only runs on this rare transition and fails open (no gh / offline).
+# step was skipped. DENY, don't ask (issue #192, 2026-08-21): the fix is a claim
+# command the MODEL runs, not a decision Steven makes, so parking a human here only
+# relays a message. The denial names the exact command; the model claims and retries
+# in the same turn. Deliberately NOT auto-fixed the way rules 6 and A are — the flip
+# the model is running also carries `--remove-label status:todo`, so claiming on its
+# behalf here would make that removal a no-op against a label the issue no longer
+# has and leave it double-labelled. Loops ALL issue numbers (no head -1 truncation).
+# The gh label lookup only runs on this rare transition and fails open.
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
    && printf '%s' "$cmd" | grep -Eq -- '--add-label' \
    && printf '%s' "$cmd" | grep -Eq 'status:(review|done)'; then
@@ -317,7 +467,8 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
     for n in $(ds_issue_numbers "$cmd" edit); do
       cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
       if printf '%s' "$cur" | grep -q 'status:todo'; then
-        emit_ask "Issue #$n is being marked review/done but still carries status:todo — it was never claimed as status:in-progress. device-comms.md forbids the todo->review jump (todo -> in-progress -> review). Claim it first: gh issue edit $n --remove-label status:todo --add-label status:in-progress"
+        ds_note_session_issue "$n" 2>/dev/null || true
+        emit_deny "BLOCKED: issue #$n is being marked review/done but still carries status:todo — it was never claimed as status:in-progress, and device-comms.md forbids the todo->review jump (todo -> in-progress -> review, even for a task finished in one sitting). Claim it first with the documented claim command from device-comms.md 'Working an issue' step 1, then re-run this flip."
       fi
     done
   fi
@@ -343,6 +494,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+' \
     if command -v gh >/dev/null 2>&1; then
       fixed=""
       for n in $(ds_issue_numbers "$cmd" close); do
+        ds_note_session_issue "$n" 2>/dev/null || true
         cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
         if [ -n "$cur" ] && ! printf '%s' "$cur" | grep -q 'status:done'; then
           mine=""
@@ -353,7 +505,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+' \
           if [ -n "$mine" ] && gh issue edit "$n" ${old:+--remove-label "$old"} --add-label status:done >/dev/null 2>&1; then
             fixed="$fixed #$n"
           else
-            emit_ask "Issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)) and the guard could not auto-flip it (another device's issue, or gh edit failed). device-comms.md 'Closing an issue': set status:done FIRST, then close. Do it in one move: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'"
+            emit_ask "Issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)) and the guard could not auto-flip it (another device's issue, or gh edit failed). device-comms.md 'Closing an issue': set status:done FIRST, then close. Do it in one move: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'" "guard rule 6 — closing #$n without status:done"
           fi
         fi
       done
@@ -387,6 +539,12 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/de
   claimed=""; failed=""
   for n in $(ds_issue_numbers "$cmd" view); do
     lbls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
+    # Remember every one of THIS device's issues the session opens — it is what the
+    # Telegram pings quote as "which issue(s) you are on" (#192). Independent of the
+    # claim below: an already-claimed issue is still the issue being worked.
+    for l in $(ds_device_labels 2>/dev/null); do
+      [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && ds_note_session_issue "$n" 2>/dev/null
+    done
     printf '%s' "$lbls" | grep -q 'status:todo' || continue   # only unclaimed issues
     mine=""
     for l in $(ds_device_labels 2>/dev/null); do
