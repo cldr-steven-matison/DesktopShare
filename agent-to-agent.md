@@ -26,8 +26,21 @@ Steven on phone:  /bash bash reply.sh yes
 
 The contract:
 
+- **Hard dependency: OpenClaw's model endpoint must be up.** `/bash` is processed by OpenClaw's
+  agent, which runs on a local model server (`127.0.0.1:8000`, Qwen2.5-3B). That port is a
+  `kubectl port-forward svc/vllm-service 8000:8000` pane in
+  `~/.config/zellij/layouts/kube-service-ports-efm.kdl` — **not** something OpenClaw starts. With
+  that pane down, every phone reply fails with `llm request failed` and **nothing reaches the
+  inbox**, so a waiting session just keeps waiting with no signal that anything is wrong. This
+  cost an hour on 2026-08-21. Check it first when a reply doesn't land:
+  `curl -s -m 5 -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/v1/models` → expect `200`.
+- **Reply syntax is `/bash bash reply.sh yes`** — the `/bash` prefix is required; without it the
+  text is just a chat message to OpenClaw and nothing executes. `reply.sh` is installed in **both**
+  `$HOME` and OpenClaw's workspace, because `/bash` runs with cwd = the workspace: with only the
+  `$HOME` copy the relative form exited 127 in silence (fixed 2026-08-21, `files/install-192.sh`).
 - **Inbox**: `~/.claude/telegram-inbox.log`, append-only `<epoch> <text>` lines. Runtime state,
-  not repo content.
+  not repo content. The epoch is written when the line is *appended*, which is when OpenClaw
+  relayed it — not when the reply was sent.
 - **One pending ask at a time per device.** The asking session reads only lines appended after
   its ask; stale lines are inert. Documented, not enforced — don't run two unattended asking
   sessions at once.
@@ -64,6 +77,17 @@ difference matters if you ever touch it:
 - **It never auto-allows.** Sentinel absent, `~/.env` incomplete, send failed, no reply, or an
   answer that isn't clearly yes/no — all fall through to the normal prompt at the desk.
 - **Strictly opt-in.** With `~/.claude/unattended` absent it is a no-op, on every device.
+
+**Known limitation — a queued reply can answer the wrong question.** The base snapshot makes
+replies that were already in the inbox inert, but it cannot tell a fresh answer from one OpenClaw
+had *queued* and flushed mid-window. Observed 2026-08-21: with the model endpoint down, several
+replies sat in OpenClaw and all nine landed in the inbox within twelve seconds once it recovered.
+So a `yes` meant for an earlier question can, in principle, be consumed as approval for a later
+one — including a live-redeploy gate, where the standing rule is a fresh ask every time
+(`agent/incident-rules.md`). Accepted deliberately (Steven, 2026-08-21) rather than adding a
+per-ask confirmation code. **Practical guard: don't leave an unanswered ask outstanding, and if
+OpenClaw has been down, check `~/.claude/telegram-inbox.log` for a backlog before arming the
+sentinel again.**
 
 ### When the question is too big for yes/no
 

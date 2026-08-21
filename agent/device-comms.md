@@ -164,9 +164,12 @@ is sent — a command mentioning a credential keyword is dropped rather than quo
    the guard **bridges these itself** — the question goes to the phone, `yes` allows,
    `no` denies, and silence or an unclear reply falls back to the desk prompt. It never
    auto-allows. Nothing to do from the session side; just know that an unattended
-   redeploy/port-forward/commit prompt reaches Steven rather than parking. Its limit:
-   guard only sees the commands its own rules match. A command that trips the harness's
-   permission allow-list instead never reaches guard, and lands in class 3.
+   redeploy/port-forward/commit prompt reaches Steven rather than parking. Two limits:
+   guard only sees the commands its own rules match — a command that trips the harness's
+   permission allow-list instead never reaches guard, and lands in class 3; and a reply
+   OpenClaw had **queued** while its model endpoint was down can flush into a later ask's
+   window and answer the wrong question (`agent-to-agent.md` "Known limitation"). If
+   OpenClaw has been down, check the inbox for a backlog before arming the sentinel.
 3. **Keyboard-only (harness permission dialogs).** The model is suspended; nothing can
    answer remotely. The user-level `Notification` hook on this device
    (`.claude/hooks/telegram-notify.sh`, wired in `~/.claude/settings.json` with
