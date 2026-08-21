@@ -70,6 +70,8 @@ seconds by the simulator that now exists.
 | RACE OVER painting over a live race (simulator only) | The DOM renderer built nodes **flat** instead of nested, so hiding a container left its children painting | Renderer nests children in their parent element, matching LVGL |
 | Simulator showed "leaderboard unreachable" | The page is served from `127.0.0.1:8093` but `app.js` targets `192.168.1.121:8093` — cross-origin, so requests land but **CORS blocks reading the reply** | The simulator rewrites the app's LAN base to `location.origin` |
 
+**Sizing, measured on the glass** (input for the [#208](https://github.com/cldr-steven-matison/DesktopShare/issues/208) UI kit): status text needs a **15px floor** (11px was unreadable), body 16–20px, primary values 28–56px, buttons **76–88px tall with ≥40px between distinct targets** and near-full-width (320 of 368), and in-game controls as full-height thirds rather than small zones. Rule of thumb: **at 368×448 at arm's length, traditional UI sizing is about half of what works.**
+
 **The meta-lesson: for device UI, build the off-device harness before the first flash.** A flash
 cycle is minutes plus a person with a finger; the simulator turns that into seconds and catches
 exactly the class of bug (layout, event wiring, missing paths) that a boot log cannot show.
@@ -99,7 +101,7 @@ never on the flashed image (it exists in the repo only). Remaining apps on the g
 | [#209](https://github.com/cldr-steven-matison/DesktopShare/issues/209) | Iceberg power-up pins difficulty at Lv.1 — **upstream** game-balance PR (upstream code, not our deploy) |
 | [#210](https://github.com/cldr-steven-matison/DesktopShare/issues/210) | No finish line — propose a race/finish mode **upstream** (the game is endless survival today) |
 | [#211](https://github.com/cldr-steven-matison/DesktopShare/issues/211) | Confirm the board can reach the backend on `:8093` (firewall rule exists; the obvious test is invalid) |
-| [#212](https://github.com/cldr-steven-matison/DesktopShare/issues/212) | Generalise the panel simulator into shared tooling for all runtime apps |
+| [#212](https://github.com/cldr-steven-matison/DesktopShare/issues/212) | Panel simulator harness — the preview half of the **[#208](https://github.com/cldr-steven-matison/DesktopShare/issues/208) AMOLED UI Developer Kit** |
 | [#213](https://github.com/cldr-steven-matison/DesktopShare/issues/213) | Tilt steering via the board IMU (no left/right buttons exist) — check sandbox exposure first |
 
 **Upstream vs ours:** the speed-level reset and the missing finish line are both **upstream game logic**
