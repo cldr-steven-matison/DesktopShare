@@ -31,7 +31,7 @@ they were not. Check live yourself before acting on either.
 | `TwitchChatBot` — `!load` / `!matrix` / `!watchlist` → 4 screens | **Live** |
 | `WatchlistChatJoiner` — joins watchlisted channels, greets, removes on offline | **Live** |
 | Inspector — one-shot chat/clip probe for any login | **Live** (Streamers tab) |
-| `WatchlistChatSnapshotPoller` + `TopStreamerJoiner` (chat activity, #89) | Built, **stopped**, backend not deployed |
+| `WatchlistChatSnapshotPoller` + `TopStreamerJoiner` (chat activity, #89) | `TopStreamerJoiner` **live 2026-08-21** (#200) — own-channel branch only; `WatchlistChatSnapshotPoller` still stopped |
 | `TunaStarLinkFlows` | **Disabled** |
 | Viral stream, Kick posting bot, OBS overlay phases 1-4, Talking Tuna mascot | Plans only |
 
@@ -52,7 +52,7 @@ Seven under the `StreamersApp` parent PG, plus four at NiFi root. Schedules are 
 | `TwitchChatBot` (root) | persistent IRC socket | RUNNING |
 | `WatchlistChatJoiner` (root) | `TriggerCycle`, 15 min | RUNNING |
 | `WatchlistChatSnapshotPoller` (root) | `TriggerCycle`, ~2 min | stopped |
-| `TopStreamerJoiner` (root) | cron, ~30-60 min | stopped |
+| `TopStreamerJoiner` (root) | `OwnChannelTrigger` cron 10 min; discovery `TriggerCycle` cron 1 hr | own-channel branch **running**; discovery branch stopped |
 
 **There are two publishers, not one.** `PublishClipPeakTimeCron` covers the peak window and
 `PublishClipOffPeakDay` covers 11:00–17:00 UTC hourly. The docs below describe a single
@@ -314,8 +314,10 @@ Raw working docs, kept as-is. This README is the summary; these are the detail.
   §5.1 and §9 now agree and are both current: `Client Secret` and `Refresh Token` are
   `twitch-chat-bot-creds` Parameter Context references, re-verified live 2026-08-21 via the
   context's `referencingComponents`. The conflict this entry used to record was real only
-  before that date. What remains open is a *different* problem, and not a straight lift: Twitch
-  rotates the refresh token on every use and the rotated value lives only in processor memory,
-  so the stored seed goes stale and a restart still needs a fresh device-code re-auth.
+  before that date. **The "rotation" follow-on was a misdiagnosis, corrected 2026-08-21 (#202):**
+  measured against the live Twitch API, the refresh grant returns the *same* refresh token, so the
+  seed never went stale and a restart never needed a re-auth on its own. The `"********"` mask
+  destroying the stored token was the real cause, and binding to the Parameter Context on
+  2026-07-25 already fixed it.
   **Don't re-open this from `flow.json.gz`** — a parameter-referenced sensitive property
   persists there as `enc{...}`, indistinguishable from a literal (issue #199).

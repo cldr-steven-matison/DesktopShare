@@ -52,7 +52,7 @@ Routing is `RouteOnAttribute` inside `TwitchChatBot`, branching on `${screen}` (
 
 ## 5. Component Specifications (as built)
 
-**5.1 Twitch chat listener** — `TwitchChatListenerProcessor` (`0.0.22-SNAPSHOT`, `RUNNING`/`VALID` as of 2026-08-21). Auth is a user OAuth token (scopes `chat:read chat:edit user:write:chat user:bot`) via Twitch's device-code grant. **Both sensitive properties are Parameter Context references, and have been since the 2026-07-25 migration** — `Client Secret` → `#{twitch-chat-client-secret}` and `Refresh Token` → `#{twitch-bot-refresh-token}`, both in the `twitch-chat-bot-creds` context. Confirmed live 2026-08-21 via `GET /parameter-contexts/{id}` → `referencingComponents`, which lists `TwitchChatListener` against both. **Do not re-derive this from `flow.json.gz`:** NiFi stores the *resolved* value of a parameter reference as `enc{...}`, identical in form to a real literal, and a `GET /processors/{id}` masks either as `"********"` — reading `enc{}` as "still a literal" is what produced a false "the migration regressed" claim on 2026-08-21 (issue #199). `referencingComponents` is the only authoritative check; see `nifi-and-ai` `SKILL.md` rule 1's carve-out. The GET-then-PUT rule still applies regardless — a full-entity round-trip is what destroyed these credentials twice in one day before the migration. Mints a fresh access token before every (re)connect since Twitch rotates the refresh token on every use — the rotated value only lives in the running processor's memory (Parameter Context seed goes stale after first use; a restart needs a fresh device-code re-auth). Also posts to chat (`PRIVMSG`): command replies, a one-time join announcement (mentions `!load`/`!matrix`/`!watchlist`/`!commands` as available — does **not** auto-post the watchlist itself anymore, see `!watchlist` in section 3), and `!load`/`!matrix` acks.
+**5.1 Twitch chat listener** — `TwitchChatListenerProcessor` (`0.0.22-SNAPSHOT`, `RUNNING`/`VALID` as of 2026-08-21). Auth is a user OAuth token (scopes `chat:read chat:edit user:write:chat user:bot`) via Twitch's device-code grant. **Both sensitive properties are Parameter Context references, and have been since the 2026-07-25 migration** — `Client Secret` → `#{twitch-chat-client-secret}` and `Refresh Token` → `#{twitch-bot-refresh-token}`, both in the `twitch-chat-bot-creds` context. Confirmed live 2026-08-21 via `GET /parameter-contexts/{id}` → `referencingComponents`, which lists `TwitchChatListener` against both. **Do not re-derive this from `flow.json.gz`:** NiFi stores the *resolved* value of a parameter reference as `enc{...}`, identical in form to a real literal, and a `GET /processors/{id}` masks either as `"********"` — reading `enc{}` as "still a literal" is what produced a false "the migration regressed" claim on 2026-08-21 (issue #199). `referencingComponents` is the only authoritative check; see `nifi-and-ai` `SKILL.md` rule 1's carve-out. The GET-then-PUT rule still applies regardless — a full-entity round-trip is what destroyed these credentials twice in one day before the migration. Mints a fresh access token before every (re)connect. **Twitch does *not* rotate the refresh token for this app** — measured 2026-08-21 (#202): the value returned by the refresh grant is byte-identical to the device-code seed, on both this app and the watchlist bot's. Since `0.0.23-SNAPSHOT` the returned token is persisted to NiFi component state (`Scope.LOCAL`, key `refresh_token`) and read back ahead of the property, so the property is now a seed; that is defence in case Twitch ever does rotate (its docs say the token *may* change, and public clients do), not a fix for an observed rotation. Also posts to chat (`PRIVMSG`): command replies, a one-time join announcement (mentions `!load`/`!matrix`/`!watchlist`/`!commands` as available — does **not** auto-post the watchlist itself anymore, see `!watchlist` in section 3), and `!load`/`!matrix` acks.
 
 **5.2 Central NiFi** — `TwitchChatBot` process group: `TwitchChatListenerProcessor` → `RouteOnAttribute` → 3× `InvokeHTTP` → `TwitchChatReplyProcessor` (dispatch-success chat confirmation, wired off each `InvokeHTTP`'s `Original` relationship). `TwitchChatReplyProcessor` deliberately does *not* reuse the listener's rotating user token — it mints a stateless App Access Token via Client Credentials grant (Client ID + Secret only), avoiding any collision with the listener's refresh cycle. Posts via Twitch Helix `POST /helix/chat/messages`, not IRC.
 
@@ -95,7 +95,7 @@ The real stream URL is the actual `www.twitch.tv/<streamer>` page (Twitch's dedi
 | Risk | Status |
 |---|---|
 | `InvokeGamingPC` hardcoded to pod IP | Open — breaks on pod reschedule |
-| Listener token reseed gap on restart | Open — tracked as [#202](https://github.com/cldr-steven-matison/DesktopShare/issues/202). The `#{twitch-bot-refresh-token}` seed is spent on the first connect (Twitch rotates on every use, and the rotated value only lives in the running processor's memory), so a restart needs a manual device-code re-auth. A *token-rotation* gap, not a missing Parameter Context — the binding itself is done (§5.1). `WatchlistChatJoinerProcessor` has the same gap. Fix shape in #202: persist the rotated token via NiFi's `StateManager` (`Scope.LOCAL`) and demote the property to a seed |
+| Listener token reseed gap on restart | **Closed 2026-08-21 — the premise did not hold** ([#202](https://github.com/cldr-steven-matison/DesktopShare/issues/202)). Measured: Twitch returns the *same* refresh token from the refresh grant, so the seed is not spent and a restart never needed a re-auth on that account. What actually killed the bot was the `"********"` mask — a full-entity GET-then-PUT (a bundle-version bump) overwrote the `Refresh Token` property with the literal mask, after which every restart re-seeded from garbage. Corroborated by the 2026-07-25 recovery, which re-hydrated the token from `.env` rather than re-granting: a seed spent by rotation could not have worked. **The real fix shipped 2026-07-25** (Parameter Context binding, §5.1). #202 still shipped state persistence as defence, plus two genuine bug fixes in the joiner — see §14 |
 | `!load`/`!matrix` fire regardless of whether the target streamer is actually live | Open — planned Helix live-check not yet built |
 | Windows listener (`browser_launcher.py`) silent death | Mitigated — Scheduled Task with 5-min health-check trigger, crash logging to file; true root cause of two earlier silent deaths still unproven |
 | Bot gets rate-limited in a channel it doesn't moderate | Relevant now that the watchlist-join feature is live (section 13, 2026-07-24) — non-mod Twitch chat rate limits are meaningfully tighter. Not yet hit in practice across the 5 real channels joined so far, but worth watching as the watchlist grows |
@@ -141,6 +141,101 @@ All in one isolated PG, `WatchlistChatJoiner` (id `918d7b51-...`). Custom code: 
 - `TriggerCycle`'s schedule was reduced from 60s (used during testing) to **15 min** in production, to cut Twitch/Helix and internal API call volume.
 - `JoinAndGreet`'s `success` relationship is deliberately routed to the same `LogAttribute` (`LogJoinFailure`) as `failure`, not auto-terminated — left as a standing log for visibility, not just a debug leftover.
 - Real-world test discipline that mattered: proved the whole chain first against a single hardcoded `tunastarlink` FlowFile (via a temporary `UpdateAttribute` override) before ever wiring in the real multi-streamer watchlist — caught the `SplitJson`/`ExtractText` bug and confirmed Dry Run behavior without risking a bad post into a real, high-traffic channel like `xqc`'s.
+
+## 14. Refresh tokens & the credential-destruction failure mode (#202, 2026-08-21)
+
+**Measured, not assumed: Twitch does not rotate the refresh token for these apps.** Probing the
+live refresh grant on 2026-08-21 for both the listener's app (`r6tml86s`) and the watchlist bot's
+(`0e8hl6iy`), the `refresh_token` field in the response came back **byte-identical to the
+device-code seed**. A refresh definitely happened — the processors only persist state when Twitch
+returns a `refresh_token` at all. Both are Confidential clients; Twitch's docs say the token *may*
+change, and public clients do rotate, so this is a per-client-type behaviour rather than a
+guarantee.
+
+**So the "seed goes stale, restart needs a re-auth" story was a misdiagnosis.** It was inferred
+from the processor's own code comment, not from a measurement, and then propagated into this doc
+and into #202. Two pieces of evidence contradict it:
+
+- `cso-operator-app-streamers.md` records a **processor-level stop/start of `TwitchChatListener`**
+  ("run-status only, no property PUT") marked *Confirmed live* — a restart that needed no re-auth.
+- The 2026-07-25 recovery **re-hydrated `twitch-bot-refresh-token` from `/home/tunas/.env`**, not
+  from a fresh grant. A seed spent by rotation could not have worked.
+
+**What actually killed the bot was the `"********"` mask.** A full-entity GET-then-PUT — which is
+exactly what a bundle-version bump did before the Parameter Context migration — wrote the literal
+8-character mask over the real `Refresh Token`. Every restart after that re-seeded from garbage →
+HTTP 400 → an IRC loop retrying forever on a dead token. Reaching for a device-code re-auth
+recovered it, which *looked* like "the rotated token was lost" but was really "the credential was
+overwritten". **The real fix shipped 2026-07-25**: binding both sensitive properties to
+`twitch-chat-bot-creds` (§5.1). That is why the stop/start above worked.
+
+**What #202 shipped anyway, and why it was kept:**
+
+| Change | Version | Why it stands |
+|---|---|---|
+| Rotated token persisted to component state (`Scope.LOCAL`, key `refresh_token`), property demoted to a seed | listener `0.0.23-SNAPSHOT`, joiner `0.0.6-SNAPSHOT` | Defence. If Twitch ever does rotate, the value is captured instead of lost. Costs nothing when it doesn't. |
+| **`KeyError` fix** — `WatchlistChatJoinerProcessor` did `payload["refresh_token"]` unguarded | joiner `0.0.6` | A real bug. The listener already guarded the same access (keep previous value + warn); the joiner would have raised, and Twitch omitting the field has been observed. |
+| **`HTTPError` body logging** added to the joiner | joiner `0.0.6` | A real diagnostic gap — a dead token used to read identically to a network blip. Now Twitch's own error body is logged. |
+| HTTP-400 re-seed hatch | both | A rejected stored token is dropped and the property seed gets exactly one retry, so re-seeding is "paste a fresh token into the Parameter Context and restart" rather than a code change. |
+
+**Threading note.** The listener's refresh runs on the daemon IRC thread, where the py4j state
+bridge must not be touched, so rotation stashes to `_pending_token_write` and `create()` /
+`onStopped` flush it from a NiFi task thread. The joiner is a `FlowFileTransform` with no
+background thread, so it writes through directly. Worst case for the listener is one lost rotation
+on a crash between stash and flush — exactly the old behaviour, so it fails no worse.
+
+**Durability.** Component state is not encrypted the way a sensitive property is, and `mynifi-0`'s
+volumes are all `emptyDir` — so this survives a processor or NiFi restart but **not a pod delete**.
+A pod delete already destroys the entire flow, so that is no worse than the flow's own durability.
+`Scope.CLUSTER` was considered and rejected: this node runs `nifi.cluster.is.node=true` with
+`KubernetesConfigMapStateProvider`, so cluster state *would* outlive a pod delete — but the flow
+itself would not, so it buys nothing real and would put a live credential in a plaintext ConfigMap.
+
+**Offline cover:** `files/test_twitch_chat_triggers.py` §7 (listener, 170 checks total) and
+`files/test_watchlist_chat_joiner.py` (joiner, 43 checks). Both stub `nifiapi.componentstate` and
+carry drift guards asserting the real `onScheduled`/rotation blocks still match the fixtures.
+
+## 15. TopStreamerJoiner (as-built, live 2026-08-21, #200)
+
+**What it does:** a second `WatchlistChatJoinerProcessor` instance that joins top *unfollowed*
+streamers' chats to expand presence — the last unfinished piece of #89. Root-level PG
+`c51ff9b2-019f-1000-0000-000026eb2ccb`.
+
+**Its own Twitch app, and it must be Confidential.** App `TopStreamerJoiner`, client `2esm418w`,
+same `tunastreettest` account, own device-code grant, own refresh-token seed — so it cannot race
+`WatchlistChatJoiner`'s token the way sharing App 2 would have. A **Public** client was tried
+first and is unusable here: Twitch issues no client secret to a public client, while the
+processor's refresh grant sends `client_secret` and the property is `required=True`. Switching
+client type meant a new app and therefore a new grant.
+
+**The PG had no Parameter Context bound at all** (`parameterContext: null`) from its 2026-08-04
+build until #200 — so any `#{...}` reference in it would silently have failed to resolve. Binding
+`twitch-chat-bot-creds` to the PG was a required step the issue did not mention. Generalised as
+[#203](https://github.com/cldr-steven-matison/DesktopShare/issues/203).
+
+**Two entry branches, deliberately independent:**
+
+```
+OwnChannelTrigger (cron 0 0/10 * * * ?) -> SetOwnChannel (streamer=tunastarlink) -> JoinAndGreet
+TriggerCycle      (cron 0 0 0/1 * * ?)  -> FetchTopStreamers -> SplitTopStreamers
+                                        -> ExtractStreamerAttr -> JoinAndGreet
+```
+
+The own-channel branch keeps the bot present in `tunastarlink`, the one channel Steven controls,
+independently of discovery — a liveness heartbeat, and the safe way to verify a real join. Native
+processors only (skill rule 9). `JoinAndGreet`'s `_joined` set dedups within a processor lifetime,
+so a repeat tick costs one FlowFile and no Twitch traffic; the 10-minute cadence exists so a
+restart re-joins within 10 minutes rather than waiting for the hourly cycle.
+
+**Live state:** `Dry Run=false`, own-channel branch **running** and confirmed greeting in real
+chat 2026-08-21. The discovery `TriggerCycle` (`c52a49c0-…`) is **deliberately left stopped** —
+joining strangers' channels unsolicited is a reputational and rate-limit surface (non-mod Twitch
+limits are meaningfully tighter), so it is its own explicit go-ahead.
+
+**Known gaps in this PG, not fixed here** (scope): `FetchTopStreamers` auto-terminates `Retry`,
+`Failure` *and* `No Retry`, so every transient 5xx/429 from `/discover/top` vanishes silently
+(skill rule 7); and `JoinAndGreet` auto-terminates both `success` and `failure` with no
+`LogAttribute`, unlike `WatchlistChatJoiner`'s `LogJoinFailure` — a failed join is invisible.
 
 ## TODO / To Review
 
