@@ -27,25 +27,33 @@ def rounded(draw, box, radius, fill):
 
 
 def icon():
+    """A monitor trace, not a line drawing.
+
+    The first pass used a 5px stroke on a small inset plate; at 92px next to
+    RACING's full-bleed flag and T-MINUS's slab "T-" it read as a scratch.
+    This one is full-bleed, 9px strokes, and the spike runs most of the tile's
+    height so the shape is legible before you've focused on it.
+    """
     img = Image.new("RGBA", (SZ, SZ), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    # Tile ground: near-black plate so the trace has something to sit on
-    # without lighting up the whole launcher cell.
-    rounded(d, (2, 2, SZ - 3, SZ - 3), 18, DARK)
+    # Full-bleed plate, matching the weight of the other launcher tiles.
+    rounded(d, (0, 0, SZ - 1, SZ - 1), 20, DARK)
 
-    # The trace: flat line, one tall spike, flat line again. Coordinates are
-    # hand-placed rather than computed -- the shape only has to read at 92px.
     mid = SZ // 2
-    trace = [
-        (10, mid), (26, mid), (32, mid - 6), (38, mid + 4),
-        (44, mid - 26), (50, mid + 22), (56, mid), (66, mid), (82, mid),
-    ]
-    d.line(trace, fill=ORANGE, width=5, joint="curve")
+    # Baseline in, tall spike, baseline out. Hand-placed -- it only has to
+    # read at 92px.
+    d.line([(6, mid), (28, mid)], fill=ORANGE, width=9, joint="curve")
+    d.line([(28, mid), (36, mid - 12)], fill=ORANGE, width=9, joint="curve")
+    d.line([(36, mid - 12), (44, mid + 10)], fill=ORANGE, width=9, joint="curve")
+    # The beat itself, in live-green: up hard, down hard, back to baseline.
+    d.line([(44, mid + 10), (52, mid - 34)], fill=GREEN, width=9, joint="curve")
+    d.line([(52, mid - 34), (60, mid + 30)], fill=GREEN, width=9, joint="curve")
+    d.line([(60, mid + 30), (68, mid)], fill=GREEN, width=9, joint="curve")
+    d.line([(68, mid), (86, mid)], fill=ORANGE, width=9, joint="curve")
 
-    # The beat itself -- the one green thing on the tile.
-    d.line([(44, mid - 26), (50, mid + 22)], fill=GREEN, width=5)
-    d.ellipse((78, mid - 5, 88, mid + 5), fill=GREEN)
+    # Terminal pip -- the "still beating" dot the app's sweep also uses.
+    d.ellipse((76, mid - 9, 92 - 2, mid + 7), fill=GREEN)
     return img
 
 
