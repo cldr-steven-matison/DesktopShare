@@ -15,11 +15,13 @@ from PIL import Image, ImageDraw
 OUT = "/home/tunas/waveshare-devices/amoled-1.8-v2/apps/tunastreet.racing/res/images"
 OBS = 44
 CAR_W, CAR_H = 56, 74
-BG = (15, 15, 15)
+# RGBA with a fully transparent ground: an opaque backdrop renders as a visible
+# black box around every sprite on the panel's true-black road.
+BG = (0, 0, 0, 0)
 
 
 def new(w, h):
-    img = Image.new("RGB", (w, h), BG)
+    img = Image.new("RGBA", (w, h), BG)
     return img, ImageDraw.Draw(img)
 
 
