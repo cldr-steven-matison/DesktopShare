@@ -63,7 +63,7 @@ trap 'rm -f "$BODY"' EXIT
     # `--` on both: a printf FORMAT string that starts with "-" is parsed as an
     # option by bash's builtin, which silently drops the whole line.
     printf -- '- Reply on this issue — the next session on %s reads it as the answer.\n' "$DEV"
-    printf -- '- Or answer straight from Telegram: `/bash bash reply.sh <your answer>` — that reaches the session immediately if it is still running.\n\n'
+    printf -- '- Or answer straight from Telegram: `/bash bash ~/reply.sh <your answer>` — that reaches the session immediately if it is still running.\n\n'
     printf 'The issue is labelled `status:blocked` until then. The session has moved on to work that does not depend on this.\n'
 } > "$BODY"
 
@@ -99,7 +99,7 @@ MSG="🚧 [$DEV] #$ISSUE blocked — needs a decision you can't make from a yes/
 $FIRST
 
 $URL
-reply: /bash bash reply.sh <your answer>"
+reply: /bash bash ~/reply.sh <your answer>"
 
 RESP=$(curl -s -m 15 -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
      -d "chat_id=$CHAT_ID" \

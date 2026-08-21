@@ -117,9 +117,36 @@ else
   fi
 fi
 
-# 5. ~/reply.sh — the phone's end of the reply bridge. Already live; verified, not rewritten.
-step "5. ~/reply.sh — reply-bridge entry point"
-if [ -f "$HOME/reply.sh" ]; then say "   present"; else say "   ⚠️  MISSING — the reply bridge cannot work without it"; fi
+# 5. The phone's end of the reply bridge, in BOTH places it has to exist.
+#    OpenClaw runs /bash with cwd = its own workspace, NOT $HOME — so the documented
+#    `/bash bash reply.sh yes` resolved to nothing and exited 127, and the reply never
+#    reached the inbox. Silent failure: the phone shows OpenClaw's output, the session
+#    just keeps waiting (2026-08-21, #192). ~/reply.sh serves the absolute form; a copy
+#    in the workspace keeps the relative form working too.
+step "5. reply-bridge entry points (\$HOME + the OpenClaw workspace)"
+# Read the workspace wherever OpenClaw keeps it rather than hard-coding the path —
+# it currently lives at agents.defaults.workspace, but search by key so a config
+# reshuffle doesn't silently reintroduce the exit-127 failure.
+WS="$(jq -r 'first(paths(scalars) as $p | select($p[-1]=="workspace") | getpath($p)) // empty' "$HOME/.openclaw/openclaw.json" 2>/dev/null)"
+for target in "$HOME/reply.sh" ${WS:+"$WS/reply.sh"}; do
+  if [ -f "$target" ]; then
+    say "   present: $target"
+  else
+    say "   installing: $target"
+    changes=$((changes + 1))
+    if [ "$APPLY" = 1 ]; then
+      cat > "$target" <<'WRAP' && chmod +x "$target" && say "   ✅ applied"
+#!/bin/bash
+# Thin wrapper so the phone command stays short: /bash bash reply.sh yes
+# Installed in BOTH $HOME and the OpenClaw workspace, because OpenClaw's /bash cwd
+# is the workspace — a relative `reply.sh` only resolves if a copy lives there too
+# (issue #192, 2026-08-21: it didn't, so every phone reply exited 127 in silence).
+exec bash "$HOME/DesktopShare/files/agent-reply.sh" "$@"
+WRAP
+    fi
+  fi
+done
+[ -n "$WS" ] || say "   ⚠️  could not read the OpenClaw workspace path — check ~/.openclaw/openclaw.json"
 
 printf '\n'
 if [ "$APPLY" = 1 ]; then
