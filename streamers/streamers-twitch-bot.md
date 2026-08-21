@@ -232,10 +232,28 @@ chat 2026-08-21. The discovery `TriggerCycle` (`c52a49c0-…`) is **deliberately
 joining strangers' channels unsolicited is a reputational and rate-limit surface (non-mod Twitch
 limits are meaningfully tighter), so it is its own explicit go-ahead.
 
-**Known gaps in this PG, not fixed here** (scope): `FetchTopStreamers` auto-terminates `Retry`,
-`Failure` *and* `No Retry`, so every transient 5xx/429 from `/discover/top` vanishes silently
-(skill rule 7); and `JoinAndGreet` auto-terminates both `success` and `failure` with no
-`LogAttribute`, unlike `WatchlistChatJoiner`'s `LogJoinFailure` — a failed join is invisible.
+**Failure paths — fixed 2026-08-21 ([#204](https://github.com/cldr-steven-matison/DesktopShare/issues/204)).**
+As first built, this PG dropped every error on the floor: `FetchTopStreamers` auto-terminated
+`Retry`, `Failure` *and* `No Retry` (skill rule 7), so an error from `/discover/top` produced no
+FlowFile and no log line — an hourly cron that looked healthy and simply never joined anyone; and
+`JoinAndGreet` auto-terminated both `success` and `failure`, making a dead token, a Twitch
+rate-limit, or a channel rejecting the bot completely invisible. Now:
+
+- `FetchTopStreamers` `Retry` **self-loops** with a bounded `FlowFile Expiration` of 10 min — a
+  transient blip retries, a persistent failure ages out instead of looping forever
+- `Failure` + `No Retry` → **`LogFetchFailure`**
+- `JoinAndGreet` `failure` → **`LogJoinFailure`**, mirroring `WatchlistChatJoiner`'s convention
+
+Only `Original` (on `FetchTopStreamers`) and `success` (on `JoinAndGreet`) remain auto-terminated,
+both correctly. Both logs run at **`error`**, deliberately diverging from `WatchlistChatJoiner`'s
+`info`: NiFi only raises a UI bulletin at `WARN` and above, so an info-level failure log is
+invisible in the one place someone would look. Rate-limit rejections are the expected signal once
+the discovery branch starts joining channels the bot does not moderate — this is what makes that
+branch safe to turn on.
+
+Still auto-terminated and *not* addressed by #204, deliberately: `SplitTopStreamers`' `failure` and
+`ExtractStreamerAttr`'s `unmatched`. Same general class, but neither is what made the discovery
+branch unsafe to start.
 
 ## TODO / To Review
 

@@ -12,6 +12,125 @@
     "remoteProcessGroups": [],
     "processors": [
       {
+        "identifier": "24d1cd8d-cbfe-3944-8eb8-3ddec4925b73",
+        "instanceIdentifier": "255c7dda-01a0-1000-ffff-ffffcec63c68",
+        "name": "LogJoinFailure",
+        "comments": "#204. JoinAndGreet auto-terminated both success and failure, so a dead token, a Twitch rate-limit, or a channel rejecting the bot was completely invisible. Rate-limit rejections are the expected signal once the discovery branch joins channels the bot does not moderate. Mirrors WatchlistChatJoiner's LogJoinFailure.",
+        "position": {
+          "x": 900.0,
+          "y": 700.0
+        },
+        "type": "org.apache.nifi.processors.standard.LogAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "properties": {
+          "Log prefix": null,
+          "character-set": "UTF-8",
+          "Log FlowFile Properties": "true",
+          "Log Level": "error",
+          "attributes-to-ignore-regex": null,
+          "Attributes to Ignore": null,
+          "Attributes to Log": null,
+          "attributes-to-log-regex": ".*",
+          "Output Format": "Line per Attribute",
+          "Log Payload": "false"
+        },
+        "propertyDescriptors": {
+          "Log prefix": {
+            "name": "Log prefix",
+            "displayName": "Log prefix",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "character-set": {
+            "name": "character-set",
+            "displayName": "Character Set",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log FlowFile Properties": {
+            "name": "Log FlowFile Properties",
+            "displayName": "Log FlowFile Properties",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log Level": {
+            "name": "Log Level",
+            "displayName": "Log Level",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "attributes-to-ignore-regex": {
+            "name": "attributes-to-ignore-regex",
+            "displayName": "Attributes to Ignore by Regular Expression",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Attributes to Ignore": {
+            "name": "Attributes to Ignore",
+            "displayName": "Attributes to Ignore",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Attributes to Log": {
+            "name": "Attributes to Log",
+            "displayName": "Attributes to Log",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "attributes-to-log-regex": {
+            "name": "attributes-to-log-regex",
+            "displayName": "Attributes to Log by Regular Expression",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Output Format": {
+            "name": "Output Format",
+            "displayName": "Output Format",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log Payload": {
+            "name": "Log Payload",
+            "displayName": "Log Payload",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 25,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
+      },
+      {
         "identifier": "b04cca81-e1d6-3839-9d87-88b23ec09b7e",
         "instanceIdentifier": "c52a4a0d-019f-1000-ffff-ffff9a4a9121",
         "name": "SplitTopStreamers",
@@ -429,6 +548,125 @@
         "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
       },
       {
+        "identifier": "7cd905d1-ea65-3701-a82e-06cc48c8970e",
+        "instanceIdentifier": "255c7a63-01a0-1000-ffff-ffffb683b62b",
+        "name": "LogFetchFailure",
+        "comments": "#204. FetchTopStreamers used to auto-terminate Failure and No Retry alongside Retry, so every error from /discover/top vanished with no FlowFile and no log line - an hourly cron that looked fine and simply never joined anyone. Logged at error level, not info like WatchlistChatJoiner's equivalent, because NiFi only raises a UI bulletin at WARN+.",
+        "position": {
+          "x": 900.0,
+          "y": 100.0
+        },
+        "type": "org.apache.nifi.processors.standard.LogAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "properties": {
+          "Log prefix": null,
+          "character-set": "UTF-8",
+          "Log FlowFile Properties": "true",
+          "Log Level": "error",
+          "attributes-to-ignore-regex": null,
+          "Attributes to Ignore": null,
+          "Attributes to Log": null,
+          "attributes-to-log-regex": ".*",
+          "Output Format": "Line per Attribute",
+          "Log Payload": "false"
+        },
+        "propertyDescriptors": {
+          "Log prefix": {
+            "name": "Log prefix",
+            "displayName": "Log prefix",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "character-set": {
+            "name": "character-set",
+            "displayName": "Character Set",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log FlowFile Properties": {
+            "name": "Log FlowFile Properties",
+            "displayName": "Log FlowFile Properties",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log Level": {
+            "name": "Log Level",
+            "displayName": "Log Level",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "attributes-to-ignore-regex": {
+            "name": "attributes-to-ignore-regex",
+            "displayName": "Attributes to Ignore by Regular Expression",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Attributes to Ignore": {
+            "name": "Attributes to Ignore",
+            "displayName": "Attributes to Ignore",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Attributes to Log": {
+            "name": "Attributes to Log",
+            "displayName": "Attributes to Log",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "attributes-to-log-regex": {
+            "name": "attributes-to-log-regex",
+            "displayName": "Attributes to Log by Regular Expression",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Output Format": {
+            "name": "Output Format",
+            "displayName": "Output Format",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log Payload": {
+            "name": "Log Payload",
+            "displayName": "Log Payload",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 25,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
+      },
+      {
         "identifier": "3cff1742-d102-36e2-9ee8-bde56a620f56",
         "instanceIdentifier": "c52f336d-019f-1000-ffff-ffffc361aaf9",
         "name": "JoinAndGreet",
@@ -513,8 +751,7 @@
         "runDurationMillis": 25,
         "concurrentlySchedulableTaskCount": 1,
         "autoTerminatedRelationships": [
-          "success",
-          "failure"
+          "success"
         ],
         "scheduledState": "ENABLED",
         "retryCount": 10,
@@ -917,10 +1154,7 @@
         "runDurationMillis": 0,
         "concurrentlySchedulableTaskCount": 1,
         "autoTerminatedRelationships": [
-          "No Retry",
-          "Retry",
-          "Original",
-          "Failure"
+          "Original"
         ],
         "scheduledState": "ENABLED",
         "retryCount": 10,
@@ -1071,6 +1305,41 @@
         "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
       },
       {
+        "identifier": "54f9766e-5d7b-315d-9c14-67782105c664",
+        "instanceIdentifier": "255c8126-01a0-1000-ffff-ffffa2c69bcc",
+        "name": "",
+        "source": {
+          "id": "5e05ed25-0048-3b50-8b8b-bd8fb5208c0b",
+          "type": "PROCESSOR",
+          "groupId": "83be513c-a540-384e-ae53-264bd5f97d02",
+          "name": "FetchTopStreamers",
+          "comments": "",
+          "instanceIdentifier": "c52a49ea-019f-1000-0000-00000942bdcb"
+        },
+        "destination": {
+          "id": "5e05ed25-0048-3b50-8b8b-bd8fb5208c0b",
+          "type": "PROCESSOR",
+          "groupId": "83be513c-a540-384e-ae53-264bd5f97d02",
+          "name": "FetchTopStreamers",
+          "comments": "",
+          "instanceIdentifier": "c52a49ea-019f-1000-0000-00000942bdcb"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "Retry"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "10 min",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
+      },
+      {
         "identifier": "f527dfc5-59ce-34ef-9f57-c32e2c67bef5",
         "instanceIdentifier": "253cc480-01a0-1000-0000-000050a0ef09",
         "name": "",
@@ -1129,6 +1398,77 @@
         "zIndex": 0,
         "selectedRelationships": [
           "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
+      },
+      {
+        "identifier": "0d747ab1-53bb-31da-b54b-5d81166bbd29",
+        "instanceIdentifier": "255c8481-01a0-1000-0000-00004dbe4205",
+        "name": "",
+        "source": {
+          "id": "5e05ed25-0048-3b50-8b8b-bd8fb5208c0b",
+          "type": "PROCESSOR",
+          "groupId": "83be513c-a540-384e-ae53-264bd5f97d02",
+          "name": "FetchTopStreamers",
+          "comments": "",
+          "instanceIdentifier": "c52a49ea-019f-1000-0000-00000942bdcb"
+        },
+        "destination": {
+          "id": "7cd905d1-ea65-3701-a82e-06cc48c8970e",
+          "type": "PROCESSOR",
+          "groupId": "83be513c-a540-384e-ae53-264bd5f97d02",
+          "name": "LogFetchFailure",
+          "comments": "#204. FetchTopStreamers used to auto-terminate Failure and No Retry alongside Retry, so every error from /discover/top vanished with no FlowFile and no log line - an hourly cron that looked fine and simply never joined anyone. Logged at error level, not info like WatchlistChatJoiner's equivalent, because NiFi only raises a UI bulletin at WARN+.",
+          "instanceIdentifier": "255c7a63-01a0-1000-ffff-ffffb683b62b"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "No Retry",
+          "Failure"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "83be513c-a540-384e-ae53-264bd5f97d02"
+      },
+      {
+        "identifier": "55c51889-c458-3252-a394-8a79d9642e37",
+        "instanceIdentifier": "255c87d5-01a0-1000-ffff-ffff902c76db",
+        "name": "",
+        "source": {
+          "id": "3cff1742-d102-36e2-9ee8-bde56a620f56",
+          "type": "PROCESSOR",
+          "groupId": "83be513c-a540-384e-ae53-264bd5f97d02",
+          "name": "JoinAndGreet",
+          "comments": "",
+          "instanceIdentifier": "c52f336d-019f-1000-ffff-ffffc361aaf9"
+        },
+        "destination": {
+          "id": "24d1cd8d-cbfe-3944-8eb8-3ddec4925b73",
+          "type": "PROCESSOR",
+          "groupId": "83be513c-a540-384e-ae53-264bd5f97d02",
+          "name": "LogJoinFailure",
+          "comments": "#204. JoinAndGreet auto-terminated both success and failure, so a dead token, a Twitch rate-limit, or a channel rejecting the bot was completely invisible. Rate-limit rejections are the expected signal once the discovery branch joins channels the bot does not moderate. Mirrors WatchlistChatJoiner's LogJoinFailure.",
+          "instanceIdentifier": "255c7dda-01a0-1000-ffff-ffffcec63c68"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "failure"
         ],
         "backPressureObjectThreshold": 10000,
         "backPressureDataSizeThreshold": "1 GB",
