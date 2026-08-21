@@ -3,8 +3,7 @@
 
 The panel runs the actual game. Four absolute panels on one 368x448 screen,
 toggled by `hidden` bindings, mirroring the browser game's flow:
-  name  -> username + START RACING
-  car   -> pick your car + GO
+  car   -> pick your car + START RACING (the driver is this device: Tuna)
   game  -> drive
   over  -> result + race again
 
@@ -86,47 +85,30 @@ def button(id, x, y, w, h, text, action, bg=ORANGE, fg="#0f0f0f", size=30,
                    label(id + "_t", 0, (h - size - 8) // 2, w, size + 8, size, fg, text)])
 
 
-# ------------------------------------------------------------- name panel (1)
-name = box("panel_name", 0, 0, W, H, "#000000", hidden="nameHidden", children=[
-    label("n_brand", 0, 14, W, 34, 28, WHITE, "CLOUDERA"),
-    label("n_brand2", 0, 48, W, 40, 34, ORANGE, "RACING"),
-    box("n_rule", 34, 92, 300, 4, ORANGE),
-    label("n_prompt", 0, 108, W, 26, 20, MUTED, "ENTER YOUR NAME"),
-    {
-        "type": "textInput", "id": "n_name",
-        "placement": {"mode": "absolute", "x": 24, "y": 140, "width": 320, "height": 72},
-        "layout": NONE,
-        "style": {"textColor": WHITE, "fontSize": 34, "textAlign": "center",
-                  "bgColor": DARK, "radius": 12},
-        "commonProps": {"clickable": True},
-        "textInputProps": {"text": "", "placeholder": "Driver", "maxLength": 12},
-    },
-    button("n_start", 24, 224, 320, 76, "START RACING", "racing.to_car", size=28),
-    label("n_hint", 0, 310, W, 24, 16, MUTED, "tap the box to type"),
-    {
-        "type": "keyboard", "id": "n_kb",
-        "placement": {"mode": "absolute", "x": 0, "y": 336, "width": W, "height": 112},
-        "layout": NONE,
-        "keyboardProps": {"target": "n_name"},
-        "bindings": {"commonProps.hidden": "kbHidden"},
-    },
-])
-
 # -------------------------------------------------------------- car panel (2)
 car = box("panel_car", 0, 0, W, H, "#000000", hidden="carHidden", children=[
-    label("c_greet", 0, 18, W, 34, 26, WHITE, ""),
-    box("c_rule", 34, 58, 300, 4, ORANGE),
-    label("c_prompt", 0, 74, W, 26, 20, MUTED, "PICK YOUR CAR"),
-    box("c_a", 24, 108, 320, 96, DARK, radius=12, click="racing.car_a",
+    label("c_brand", 0, 10, W, 34, 26, WHITE, "CLOUDERA"),
+    label("c_brand2", 0, 42, W, 40, 34, ORANGE, "RACING"),
+    box("c_rule", 34, 86, 300, 4, ORANGE),
+    label("c_greet", 0, 98, W, 30, 22, GREEN, ""),
+    label("c_prompt", 0, 130, W, 26, 20, MUTED, "PICK YOUR CAR"),
+    box("c_a", 24, 160, 320, 104, DARK, radius=12, click="racing.car_a",
         bindings={"style.bgColor": "carABg"}, children=[
-            label("c_a_t", 0, 14, 320, 36, 30, WHITE, "Toyota Corolla S"),
-            label("c_a_s", 0, 54, 320, 26, 18, MUTED, "reliable · steady")]),
-    box("c_b", 24, 216, 320, 96, DARK, radius=12, click="racing.car_b",
+            {"type": "image", "id": "c_a_img",
+             "placement": {"mode": "absolute", "x": 14, "y": 15, "width": 56, "height": 74},
+             "layout": NONE,
+             "imageProps": {"src": "${image.car_corolla}", "innerAlign": "contain"}},
+            label("c_a_t", 84, 24, 226, 34, 26, WHITE, "Toyota Corolla S", "left"),
+            label("c_a_s", 84, 58, 226, 26, 18, MUTED, "reliable · steady", "left")]),
+    box("c_b", 24, 274, 320, 104, DARK, radius=12, click="racing.car_b",
         bindings={"style.bgColor": "carBBg"}, children=[
-            label("c_b_t", 0, 14, 320, 36, 30, WHITE, "Porsche 911"),
-            label("c_b_s", 0, 54, 320, 26, 18, MUTED, "speed · sharp")]),
-    button("c_go", 24, 330, 320, 84, "GO!", "racing.go", size=40),
-    label("c_hint", 0, 420, W, 24, 16, MUTED, "tap left / right to steer"),
+            {"type": "image", "id": "c_b_img",
+             "placement": {"mode": "absolute", "x": 14, "y": 15, "width": 56, "height": 74},
+             "layout": NONE,
+             "imageProps": {"src": "${image.car_porsche}", "innerAlign": "contain"}},
+            label("c_b_t", 84, 24, 226, 34, 26, WHITE, "Porsche 911", "left"),
+            label("c_b_s", 84, 58, 226, 26, 18, MUTED, "speed · sharp", "left")]),
+    button("c_go", 24, 388, 320, 50, "START RACING", "racing.go", size=26),
 ])
 
 # ------------------------------------------------------------- game panel (3)
@@ -148,15 +130,25 @@ for x in (122, 246):
     game_children.append(
         box("g_div_%d" % x, x, ROAD_TOP, 2, ROAD_BOTTOM - ROAD_TOP, "#1e1e1e", clickable=False))
 for i in range(OBS):
-    game_children.append(box(
-        "g_obs%d" % i, LANES[0] - OBS_SZ // 2, -90, OBS_SZ, OBS_SZ, "#f5a623",
-        radius=8, clickable=False,
-        bindings={"placement.x": "obs%dX" % i, "placement.y": "obs%dY" % i,
-                  "style.bgColor": "obs%dC" % i, "commonProps.hidden": "obs%dH" % i}))
-game_children.append(box(
-    "g_car", LANES[1] - CAR_W // 2, CAR_Y, CAR_W, CAR_H, "#e8e8ee", radius=10,
-    clickable=False, bindings={"placement.x": "carX", "style.bgColor": "carColor"},
-    children=[label("g_car_t", 0, 24, CAR_W, 26, 18, "#111111", "")]))
+    game_children.append({
+        "type": "image", "id": "g_obs%d" % i,
+        "placement": {"mode": "absolute", "x": LANES[0] - OBS_SZ // 2, "y": -90,
+                      "width": OBS_SZ, "height": OBS_SZ},
+        "layout": NONE,
+        "commonProps": {"clickable": False},
+        "imageProps": {"src": "${image.obs_cone}", "innerAlign": "contain"},
+        "bindings": {"placement.x": "obs%dX" % i, "placement.y": "obs%dY" % i,
+                     "commonProps.hidden": "obs%dH" % i},
+    })
+game_children.append({
+    "type": "image", "id": "g_car",
+    "placement": {"mode": "absolute", "x": LANES[1] - CAR_W // 2, "y": CAR_Y,
+                  "width": CAR_W, "height": CAR_H},
+    "layout": NONE,
+    "commonProps": {"clickable": False},
+    "imageProps": {"src": "${image.car_porsche}", "innerAlign": "contain"},
+    "bindings": {"placement.x": "carX"},
+})
 game_children.append(label("g_toast", 0, 240, W, 34, 24, ORANGE, ""))
 
 game = box("panel_game", 0, 0, W, H, "#000000", hidden="gameHidden", children=game_children)
@@ -181,7 +173,7 @@ screen = {
     "style": {"bgColor": "#000000", "padding": 0},
     "layout": NONE,
     "commonProps": {"scrollable": False, "clickable": True},
-    "children": [name, car, game, over],
+    "children": [car, game, over],
 }
 
 if __name__ == "__main__":
