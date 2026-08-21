@@ -29,7 +29,7 @@ CAR_W, CAR_H = 56, 74
 CAR_Y = 300
 ROAD_TOP, ROAD_BOTTOM = 56, 448
 OBS = 6
-OBS_SZ = 44
+OBS_SZ = 44  # tick is 40ms in app.js — motion is smoother, speed unchanged
 
 NONE = {"type": "none"}
 
@@ -57,12 +57,20 @@ def label(id, x, y, w, h, size, color, text="", align="center",
 
 def box(id, x, y, w, h, color, children=None, bindings=None, click=None,
         hidden=None, radius=0, clickable=None):
+    """A container.
+
+    TOUCH TRAP (two flashes): `container` defaults to scrollable=True, so a
+    press that drifts a few px becomes a scroll gesture and the press is lost —
+    the button reads as "wants to slide instead of taking the press". Every
+    container here pins scrollable=False and pressLock=True, and tap targets
+    fire on pressed/released, never on a clicked that requires a valid press.
+    """
     n = {
         "type": "container", "id": id,
         "placement": {"mode": "absolute", "x": x, "y": y, "width": w, "height": h},
         "layout": NONE,
         "style": {"bgColor": color, "padding": 0, "radius": radius},
-        "commonProps": {"scrollable": False,
+        "commonProps": {"scrollable": False, "pressLock": True,
                         "clickable": bool(click) if clickable is None else clickable},
         "children": children or [],
     }
@@ -72,8 +80,12 @@ def box(id, x, y, w, h, color, children=None, bindings=None, click=None,
     if b:
         n["bindings"] = b
     if click:
-        n["events"] = [{"type": "clicked", "effects": [
-            {"type": "emitAction", "action": click, "requireValidPress": True}]}]
+        n["events"] = [
+            {"type": "pressed", "effects": [
+                {"type": "emitAction", "action": click}]},
+            {"type": "released", "effects": [
+                {"type": "emitAction", "action": click}]},
+        ]
     return n
 
 
@@ -119,9 +131,11 @@ car = box("panel_car", 0, 0, W, H, "#000000", hidden="carHidden", children=[
 
 # ------------------------------------------------------------- game panel (3)
 game_children = [
-    label("g_name", 8, 6, 150, 28, 20, WHITE, "", "left"),
-    label("g_lives", 158, 6, 90, 28, 22, GREEN, "***"),
-    label("g_score", 250, 2, 112, 36, 30, ORANGE, "0", "right"),
+    label("g_name", 8, 4, 120, 26, 19, WHITE, "", "left"),
+    label("g_lives", 130, 4, 76, 26, 22, GREEN, "***",
+          bindings={"style.textColor": "livesColor"}),
+    label("g_clock", 206, 4, 60, 26, 19, MUTED, "0:00"),
+    label("g_score", 266, 0, 96, 34, 28, ORANGE, "0", "right"),
     label("g_speed", 8, 32, 200, 22, 16, MUTED, "Lv.1 · 60 km/h", "left"),
     label("g_mode", 208, 32, 152, 22, 16, ORANGE, "", "right"),
     box("g_rule", 0, 52, W, 3, "#333333"),
@@ -141,14 +155,16 @@ for zi in range(3):
                       "height": ROAD_BOTTOM - ROAD_TOP},
         "layout": NONE,
         "style": {"bgColor": "#000000", "padding": 0},
-        "commonProps": {"scrollable": False, "clickable": True},
-        # `pressed` is the fast path (touch-down). `clicked` is kept as a
-        # belt-and-braces second trigger in case pressed does not fire in this
-        # runtime; steerTo() is idempotent so a double-fire costs nothing.
+        "commonProps": {"scrollable": False, "pressLock": True, "clickable": True},
+        # pressed = touch-down (fast path); pressing = still held, so a slow or
+        # dragging finger still lands the lane; released = the catch-all. None
+        # use requireValidPress, which would drop the whole tap if it drifted.
         "events": [
             {"type": "pressed", "effects": [
                 {"type": "emitAction", "action": "racing.lane%d" % zi}]},
-            {"type": "clicked", "effects": [
+            {"type": "pressing", "effects": [
+                {"type": "emitAction", "action": "racing.lane%d" % zi}]},
+            {"type": "released", "effects": [
                 {"type": "emitAction", "action": "racing.lane%d" % zi}]},
         ],
     })
@@ -184,13 +200,14 @@ game = box("panel_game", 0, 0, W, H, "#000000", hidden="gameHidden", children=ga
 over = box("panel_over", 0, 0, W, H, "#000000", hidden="overHidden", children=[
     label("o_head", 0, 12, W, 34, 26, ORANGE, "RACE OVER"),
     box("o_rule", 60, 50, 248, 4, ORANGE),
-    label("o_rank", 0, 60, W, 34, 24, WHITE, ""),
-    label("o_score", 0, 96, W, 68, 56, ORANGE, "0"),
-    label("o_stats", 0, 166, W, 28, 18, WHITE, ""),
-    label("o_board_h", 0, 200, W, 24, 16, MUTED, "TOP OF THE BOARD"),
-    label("o_b1", 0, 224, W, 28, 20, "#FFD700", ""),
-    label("o_b2", 0, 252, W, 28, 20, "#C0C0C0", ""),
-    label("o_b3", 0, 280, W, 28, 20, "#CD7F32", ""),
+    label("o_rank", 0, 58, W, 32, 24, WHITE, ""),
+    label("o_sub", 0, 90, W, 24, 15, MUTED, ""),
+    label("o_score", 0, 114, W, 62, 52, ORANGE, "0"),
+    label("o_stats", 0, 178, W, 26, 18, WHITE, ""),
+    label("o_board_h", 0, 206, W, 22, 15, MUTED, "TOP OF THE BOARD"),
+    label("o_b1", 0, 228, W, 26, 19, "#FFD700", ""),
+    label("o_b2", 0, 254, W, 26, 19, "#C0C0C0", ""),
+    label("o_b3", 0, 280, W, 26, 19, "#CD7F32", ""),
     button("o_again", 24, 320, 320, 84, "RACE AGAIN", "racing.again", size=30),
     label("o_status", 0, 412, W, 24, 16, MUTED, ""),
 ])
@@ -199,7 +216,7 @@ screen = {
     "type": "viewScreen", "id": "home",
     "style": {"bgColor": "#000000", "padding": 0},
     "layout": NONE,
-    "commonProps": {"scrollable": False, "clickable": True},
+    "commonProps": {"scrollable": False, "pressLock": True, "clickable": True},
     "children": [car, game, over],
 }
 
