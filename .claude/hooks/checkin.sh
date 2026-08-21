@@ -39,6 +39,9 @@ fi
 # also enforced, not just cross-session).
 if command -v ds_nifi_skill_marker >/dev/null 2>&1; then
   rm -f "$(ds_nifi_skill_marker)" 2>/dev/null || true
+  # ...and the companion "already nudged about a pre-skill read" marker (rule 8b,
+  # 2026-08-21 #199) — it is once-per-SESSION, so it has to reset here too.
+  rm -f "$(ds_nifi_skill_marker).read-noticed" 2>/dev/null || true
 fi
 
 # Same for the session-comms context markers (issue #192): the issue(s) this

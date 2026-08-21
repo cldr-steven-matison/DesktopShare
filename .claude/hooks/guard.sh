@@ -39,7 +39,11 @@
 #      go by, and blocks a live write while that marker is absent — no reliance on the
 #      model remembering. See lib-device.sh ds_nifi_skill_marker. DENIES (not asks)
 #      since 2026-08-21 (#192/#199): "load the skill" is a message for the model, and
-#      an ask parked a human purely to relay it.
+#      an ask parked a human purely to relay it. Rule 8b (2026-08-21, #199) covers
+#      the READ side without blocking it: the first NiFi/EFM read of a session with
+#      no marker gets an allow + additionalContext nudge, because #199's real cost
+#      was pre-skill READS (an SNI trap the skill documents, and a misread of
+#      flow.json.gz's enc{}), not a write.
 #
 # Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
 # Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
@@ -394,6 +398,25 @@ if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/' \
     emit_ask_local "Live write to /nifi-api/ or /efm/api/ detected. The nifi-and-ai skill marker could not be resolved (lib-device.sh missing), so the guard cannot tell whether the skill was loaded. Load it first: Skill(nifi-and-ai)."
   elif [ ! -f "$nifi_marker" ]; then
     emit_deny "BLOCKED: live write to /nifi-api/ or /efm/api/ before the nifi-and-ai skill was loaded this session (agent/incident-rules.md 'NiFi flow edits' — load it before the first live write, not after; a clean prior task on a DIFFERENT system in the same session does not cover it: 2026-08-11, #136/#142; recurred 2026-08-21, #199). Load it now with Skill(nifi-and-ai) and then re-run this command — the guard writes its own marker when it sees the Skill call, so the retry will pass. This is a denial and not a prompt on purpose (#192): it is an instruction to you, not a decision for Steven, so nobody should have to be at the keyboard for it."
+  fi
+fi
+
+# 8b. READ side of rule 8, added 2026-08-21 (#199). The block above deliberately
+# lets a plain GET through — skill rule 1 wants live state read BEFORE any edit, so
+# investigation must never be blocked. But #199's first cost was a READ: token
+# requests and GET /flow/process-groups/root went out before the skill was loaded,
+# and the pod-IP/SNI trap they then hit is documented verbatim in the skill
+# (references/flow-api.md section 5). Loading first would have cost zero debugging.
+# So: don't block, but INJECT the reminder into the model's context (emit_ctx) the
+# first time a session touches a NiFi/EFM surface without the marker. Once per
+# session — a second marker file makes sure this is a nudge, not a nag.
+if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/|flow\.json\.gz|kubectl[[:space:]]+(exec|logs|cp)[^|;]*nifi'; then
+  nifi_marker=""
+  command -v ds_nifi_skill_marker >/dev/null 2>&1 && nifi_marker="$(ds_nifi_skill_marker)"
+  if [ -n "$nifi_marker" ] && [ ! -f "$nifi_marker" ] && [ ! -f "$nifi_marker.read-noticed" ]; then
+    mkdir -p "$(dirname "$nifi_marker")" 2>/dev/null || true
+    : > "$nifi_marker.read-noticed" 2>/dev/null || true
+    emit_ctx "This session is touching a NiFi/EFM surface and the nifi-and-ai skill has NOT been loaded yet. Allowing this read — rule 1 wants live state read first — but load Skill(nifi-and-ai) NOW, before the next call, not after the first write gets denied. Reads are where 2026-08-21 (#199) actually cost time: the auth attempt that followed hit the pod-IP/SNI trap the skill documents verbatim in references/flow-api.md section 5, and a wrong read of flow.json.gz (enc{} does NOT mean 'literal, not a parameter reference' — query the parameter context's referencingComponents) burned a third of that session. This notice fires once per session."
   fi
 fi
 
