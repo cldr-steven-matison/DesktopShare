@@ -174,10 +174,14 @@ is sent — a command mentioning a credential keyword is dropped rather than quo
    answer remotely. The user-level `Notification` hook on this device
    (`.claude/hooks/telegram-notify.sh`, wired in `~/.claude/settings.json` with
    `"matcher": "permission_prompt"`, not fleet-wide) pings Telegram "session waiting at
-   the desk" with the issue and the command, so Steven knows to come back. Don't send a
-   bridge ask for these — it can't help. **The real fix for this class is not to be in
-   it:** run remote work headless (`~/claw-claude.sh`, `agent-to-agent.md` "Two
-   operating modes"), where there is no session to park.
+   the desk" with the issue and the command, so Steven knows to come back. **This ping
+   ignores the `~/.claude/unattended` sentinel and always fires** — a permission prompt
+   suspends the model, so the session can do nothing at all until a human arrives; that
+   is the one message never worth withholding. (Progress polls stay gated: they're
+   chatty and the session keeps working without them.) Don't send a bridge ask for
+   these — it can't help. **The real fix for this class is not to be in it:** run remote
+   work headless (`~/claw-claude.sh`, `agent-to-agent.md` "Two operating modes"), where
+   there is no session to park.
 
 **Multi-stage prompts don't go to Telegram at all — they go back to the issue.**
 A multi-option `AskUserQuestion` or a plan approval **cannot** be intercepted by a hook

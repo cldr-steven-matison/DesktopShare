@@ -11,6 +11,8 @@
 /.claude/.nifi-skill-loaded
 /.claude/.session-issues
 /.claude/.last-tool
+# files/install-192.sh backs up every settings file it replaces, next to the original.
+*.pre-192.*
 # Local-only working directories — real content kept on disk, never tracked.
 /files/tuna-test/
 /files/heygen-srm-poc/

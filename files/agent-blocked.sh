@@ -80,14 +80,10 @@ else
     echo "⚠️  Could not add status:blocked to #$ISSUE — add it by hand."
 fi
 
-# The Telegram ping is gated behind the unattended sentinel, same as every other
-# unprompted message from this device (agent/device-comms.md "Session comms"). At
-# the desk the session tells Steven directly and a ping would just be noise; the
-# comment and the URL above land either way.
-if [ ! -f "$HOME/.claude/unattended" ]; then
-    echo "🔕 At the desk (~/.claude/unattended absent) — no Telegram ping sent."
-    exit 0
-fi
+# NOT sentinel-gated (issue #192, 2026-08-21), same reasoning as telegram-notify.sh:
+# this fires only when the session has decided it is BLOCKED and can make no further
+# progress, which is exactly the message that must never be withheld. Progress polls
+# stay behind the sentinel because they're chatty and optional; "I am stuck" is not.
 if [ -z "${TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
     echo "⚠️  TOKEN/CHAT_ID not set — comment posted, but no Telegram ping. (source ~/.env first)"
     exit 0

@@ -35,12 +35,17 @@ else
     NTYPE=""
 fi
 
-# Silent at the desk (issue #192, 2026-08-21). Everything that talks to Telegram
-# unprompted is gated behind the ~/.claude/unattended sentinel — a keyboard ping
-# fired while Steven is sitting at the keyboard is the same "messages came
-# unexpectedly" complaint that already moved progress polls behind this sentinel
-# (agent/device-comms.md "Session comms"). He arms it when he leaves.
-[ -f "$HOME/.claude/unattended" ] || exit 0
+# NOT sentinel-gated, deliberately (issue #192, 2026-08-21). This ping was briefly
+# put behind ~/.claude/unattended for consistency with progress polls, and that was
+# wrong: a permission prompt SUSPENDS the model, so the session can do nothing at all
+# until a human arrives. It is the one message that must never be withheld — and it
+# went missing the moment the sentinel came down. Steven, same day: "that one should
+# have sent a message then that i was needed at the desk".
+#
+# The noise this gate was meant to stop is already gone: the 12:39 false alarm was an
+# IDLE notification, which the notification_type check below now filters structurally.
+# Progress polls stay sentinel-gated — they're chatty by nature and the session can
+# keep working without them. This one isn't and can't.
 
 # Permission prompts ONLY (issue #192). The harness also emits idle "waiting for
 # input" notifications between conversation turns — those pinged Steven while he

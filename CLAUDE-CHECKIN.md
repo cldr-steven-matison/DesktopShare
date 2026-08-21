@@ -155,10 +155,13 @@ If StarlinkAI needs any of the "not yet exposed" services, they'd need the same 
 
 ### Telegram session comms (this device only — #192, 2026-08-19, reworked 2026-08-21)
 
-- **`~/.claude/unattended` is the master switch.** Steven `touch`es it when he leaves the desk
-  and `rm`s it when he's back. **Absent = this device is completely silent**: no progress polls,
-  no keyboard pings, no phone questions from the guard. Everything below only happens when it's
-  armed. Install/verify everything here with `bash files/install-192.sh` (`--apply` to act).
+- **`~/.claude/unattended` is the master switch for the *optional* traffic.** Steven `touch`es it
+  when he leaves the desk and `rm`s it when he's back. Absent ⇒ no progress polls and no phone
+  questions from the guard. **Two things ignore it and always fire**: the "waiting at the desk"
+  permission ping and `agent-blocked.sh` — both mean the session is stuck and can make no further
+  progress, so withholding them just strands the work (2026-08-21, #192: the ping was briefly
+  gated and went missing exactly when it was needed). Install/verify everything here with
+  `bash files/install-192.sh` (`--apply` to act).
 - **Headless is the primary remote mode**: `~/claw-claude.sh` (from `files/claw-claude.sh`) runs
   a fresh `claude -p` per Telegram command with `--permission-mode dontAsk` + a read-only
   `--allowedTools` set, so there is no session left running that could park on a prompt.

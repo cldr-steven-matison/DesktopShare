@@ -75,7 +75,13 @@ fi
 #    Local + gitignored, so a script may write it even though Claude may not.
 step "3. .claude/settings.local.json — leftover allowlist entries"
 LS="$REPO/.claude/settings.local.json"
-want='["Bash(ffprobe *)","Bash(idf.py build)"]'
+# The first two are the hand-adds outstanding since this issue was filed. The rest
+# are the read-only commands that actually produced the prompt storm on 2026-08-21 —
+# every one was used dozens of times in a single session while unlisted.
+# Deliberately NOT here: `sed *` (the -i form writes), `bash files/*` (that directory
+# holds agent-PostNow.sh, which posts to X for real), and `gh api *` (the -X
+# DELETE/PATCH forms are writes — see the note this script prints at the end).
+want='["Bash(ffprobe *)","Bash(idf.py build)","Bash(jq *)","Bash(stat *)","Bash(ss *)","Bash(wc *)","Bash(sed -n *)","Bash(cmp *)","Bash(head *)","Bash(tail *)"]'
 if [ ! -f "$LS" ]; then
   say "   ⚠️  $LS not found — add the entries by hand"
 else
