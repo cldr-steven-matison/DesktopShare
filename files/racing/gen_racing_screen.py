@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 """Generate res/screens/home.json for tunastreet.racing (#205).
 
-The panel runs the actual game: start -> drive -> game over, three absolute
-panels on one 368x448 screen toggled by `hidden` bindings. Written as a
-generator because the play field is repetitive (6 recycled obstacle nodes,
-3 lanes) and hand-maintaining ~1200 lines of JSON is how layout bugs hide.
+The panel runs the actual game. Four absolute panels on one 368x448 screen,
+toggled by `hidden` bindings, mirroring the browser game's flow:
+  name  -> username + START RACING
+  car   -> pick your car + GO
+  game  -> drive
+  over  -> result + race again
+
+Sizing rule for this device: nothing is "normal UI" scale. It is a 368x448
+panel viewed at arm's length and driven by a fingertip, so type is 20-46px and
+every tap target is >=64px tall and near-full-width.
+
+LAYOUT TRAP (cost a flash): a parent with layout.type flex/grid lays out its
+children and ignores their absolute x/y. Every panel here therefore declares
+layout {"type": "none"} — absolute placement only works under a none-layout
+parent.
 
 Palette is the game's own (services/game/index.html + leaderboard.html):
 Cloudera orange #F96702 on true black, podium gold/silver/bronze, live green.
@@ -12,20 +23,24 @@ Cloudera orange #F96702 on true black, podium gold/silver/bronze, live green.
 import json
 
 W, H = 368, 448
-ORANGE, WHITE, MUTED, GREEN, RED = "#F96702", "#f0f0f0", "#888888", "#22c55e", "#e5484d"
-LANES = [61, 184, 307]          # lane centre x
-CAR_W, CAR_H = 52, 68
-CAR_Y = 320
-ROAD_TOP, ROAD_H = 52, 396
-OBS = 6                          # recycled obstacle nodes
-OBS_SZ = 38
+ORANGE, WHITE, MUTED, GREEN = "#F96702", "#f0f0f0", "#888888", "#22c55e"
+DARK = "#1a1a1a"
+LANES = [61, 184, 307]           # lane centre x
+CAR_W, CAR_H = 56, 74
+CAR_Y = 300
+ROAD_TOP, ROAD_BOTTOM = 56, 448
+OBS = 6
+OBS_SZ = 44
+
+NONE = {"type": "none"}
 
 
-def label(id, x, y, w, h, size, color, text="", align="center", bindings=None,
-          click=None, hidden=None):
+def label(id, x, y, w, h, size, color, text="", align="center",
+          bindings=None, click=None, hidden=None):
     n = {
         "type": "label", "id": id,
         "placement": {"mode": "absolute", "x": x, "y": y, "width": w, "height": h},
+        "layout": NONE,
         "style": {"textColor": color, "fontSize": size, "textAlign": align},
         "labelProps": {"text": text},
     }
@@ -42,14 +57,14 @@ def label(id, x, y, w, h, size, color, text="", align="center", bindings=None,
 
 
 def box(id, x, y, w, h, color, children=None, bindings=None, click=None,
-        hidden=None, radius=0):
+        hidden=None, radius=0, clickable=None):
     n = {
         "type": "container", "id": id,
         "placement": {"mode": "absolute", "x": x, "y": y, "width": w, "height": h},
+        "layout": NONE,
         "style": {"bgColor": color, "padding": 0, "radius": radius},
-        "commonProps": {"scrollable": False, "clickable": bool(click)},
-        "layout": {"type": "flex", "flexFlow": "row", "mainAlign": "center",
-                   "crossAlign": "center", "gap": 0},
+        "commonProps": {"scrollable": False,
+                        "clickable": bool(click) if clickable is None else clickable},
         "children": children or [],
     }
     b = dict(bindings or {})
@@ -63,99 +78,110 @@ def box(id, x, y, w, h, color, children=None, bindings=None, click=None,
     return n
 
 
-# ---------------------------------------------------------------- start panel
-start = box("panel_start", 0, 0, W, H, "#000000", hidden="startHidden", children=[
-    label("s_brand_l", 0, 26, 200, 34, 24, WHITE, "CLOUDERA", "right"),
-    label("s_brand_r", 204, 26, 120, 34, 24, ORANGE, " RACING", "left"),
-    box("s_rule", 40, 64, 288, 3, ORANGE),
-    label("s_prompt", 0, 80, W, 20, 14, MUTED, "ENTER YOUR NAME"),
+def button(id, x, y, w, h, text, action, bg=ORANGE, fg="#0f0f0f", size=30,
+           bindings=None, hidden=None):
+    """A big tap target: the label fills the box so the whole slab is the button."""
+    return box(id, x, y, w, h, bg, radius=12, click=action, bindings=bindings,
+               hidden=hidden, children=[
+                   label(id + "_t", 0, (h - size - 8) // 2, w, size + 8, size, fg, text)])
+
+
+# ------------------------------------------------------------- name panel (1)
+name = box("panel_name", 0, 0, W, H, "#000000", hidden="nameHidden", children=[
+    label("n_brand", 0, 14, W, 34, 28, WHITE, "CLOUDERA"),
+    label("n_brand2", 0, 48, W, 40, 34, ORANGE, "RACING"),
+    box("n_rule", 34, 92, 300, 4, ORANGE),
+    label("n_prompt", 0, 108, W, 26, 20, MUTED, "ENTER YOUR NAME"),
     {
-        "type": "textInput", "id": "s_name",
-        "placement": {"mode": "absolute", "x": 44, "y": 104, "width": 280, "height": 44},
-        "style": {"textColor": WHITE, "fontSize": 20, "textAlign": "center",
-                  "bgColor": "#1a1a1a", "radius": 8},
+        "type": "textInput", "id": "n_name",
+        "placement": {"mode": "absolute", "x": 24, "y": 140, "width": 320, "height": 72},
+        "layout": NONE,
+        "style": {"textColor": WHITE, "fontSize": 34, "textAlign": "center",
+                  "bgColor": DARK, "radius": 12},
         "commonProps": {"clickable": True},
         "textInputProps": {"text": "", "placeholder": "Driver", "maxLength": 12},
     },
-    label("s_car_hint", 0, 156, W, 18, 12, MUTED, "PICK YOUR CAR"),
-    box("s_car_a", 30, 178, 145, 54, "#1a1a1a", radius=8, click="racing.car_a",
-        bindings={"style.borderColor": "carAColor"}, children=[
-            label("s_car_a_t", 0, 0, 145, 20, 14, WHITE, "Toyota", "center")]),
-    box("s_car_b", 193, 178, 145, 54, "#1a1a1a", radius=8, click="racing.car_b",
-        bindings={"style.borderColor": "carBColor"}, children=[
-            label("s_car_b_t", 0, 0, 145, 20, 14, WHITE, "Porsche 911", "center")]),
-    label("s_car_a_s", 30, 214, 145, 16, 11, MUTED, "Corolla S · reliable"),
-    label("s_car_b_s", 193, 214, 145, 16, 11, MUTED, "911 · speed"),
-    box("s_go", 104, 246, 160, 56, ORANGE, radius=10, click="racing.go", children=[
-        label("s_go_t", 0, 0, 160, 30, 26, "#0f0f0f", "GO!", "center")]),
-    label("s_hint", 0, 310, W, 18, 12, MUTED, "tap left / right side to steer"),
-    label("s_status", 0, 330, W, 18, 12, MUTED, ""),
+    button("n_start", 24, 224, 320, 76, "START RACING", "racing.to_car", size=28),
+    label("n_hint", 0, 310, W, 24, 16, MUTED, "tap the box to type"),
     {
-        "type": "keyboard", "id": "s_kb",
-        "placement": {"mode": "absolute", "x": 0, "y": 352, "width": W, "height": 96},
-        "keyboardProps": {"target": "s_name"},
+        "type": "keyboard", "id": "n_kb",
+        "placement": {"mode": "absolute", "x": 0, "y": 336, "width": W, "height": 112},
+        "layout": NONE,
+        "keyboardProps": {"target": "n_name"},
         "bindings": {"commonProps.hidden": "kbHidden"},
     },
 ])
 
-# ----------------------------------------------------------------- game panel
+# -------------------------------------------------------------- car panel (2)
+car = box("panel_car", 0, 0, W, H, "#000000", hidden="carHidden", children=[
+    label("c_greet", 0, 18, W, 34, 26, WHITE, ""),
+    box("c_rule", 34, 58, 300, 4, ORANGE),
+    label("c_prompt", 0, 74, W, 26, 20, MUTED, "PICK YOUR CAR"),
+    box("c_a", 24, 108, 320, 96, DARK, radius=12, click="racing.car_a",
+        bindings={"style.bgColor": "carABg"}, children=[
+            label("c_a_t", 0, 14, 320, 36, 30, WHITE, "Toyota Corolla S"),
+            label("c_a_s", 0, 54, 320, 26, 18, MUTED, "reliable · steady")]),
+    box("c_b", 24, 216, 320, 96, DARK, radius=12, click="racing.car_b",
+        bindings={"style.bgColor": "carBBg"}, children=[
+            label("c_b_t", 0, 14, 320, 36, 30, WHITE, "Porsche 911"),
+            label("c_b_s", 0, 54, 320, 26, 18, MUTED, "speed · sharp")]),
+    button("c_go", 24, 330, 320, 84, "GO!", "racing.go", size=40),
+    label("c_hint", 0, 420, W, 24, 16, MUTED, "tap left / right to steer"),
+])
+
+# ------------------------------------------------------------- game panel (3)
 game_children = [
-    # HUD
-    label("g_name", 8, 6, 130, 20, 14, WHITE, "", "left"),
-    label("g_lives", 140, 6, 88, 20, 14, GREEN, "***", "center"),
-    label("g_clock", 230, 6, 60, 20, 14, MUTED, "0:00", "center"),
-    label("g_score", 292, 4, 70, 24, 20, ORANGE, "0", "right"),
-    label("g_speed", 8, 28, 180, 18, 12, MUTED, "Lv.1 · 60 km/h", "left"),
-    label("g_mode", 188, 28, 172, 18, 12, MUTED, "", "right"),
-    box("g_rule", 0, 48, W, 2, "#333333"),
+    label("g_name", 8, 6, 150, 28, 20, WHITE, "", "left"),
+    label("g_lives", 158, 6, 90, 28, 22, GREEN, "***"),
+    label("g_score", 250, 2, 112, 36, 30, ORANGE, "0", "right"),
+    label("g_speed", 8, 32, 200, 22, 16, MUTED, "Lv.1 · 60 km/h", "left"),
+    label("g_mode", 208, 32, 152, 22, 16, ORANGE, "", "right"),
+    box("g_rule", 0, 52, W, 3, "#333333"),
 ]
-# touch zones sit BEHIND the sprites: LVGL hit-testing skips non-clickable
+# Touch zones sit BEHIND the sprites: LVGL hit-testing skips non-clickable
 # objects, so a tap over a car/obstacle still reaches the zone underneath.
 game_children += [
-    box("g_tz_l", 0, ROAD_TOP, W // 2, ROAD_H - ROAD_TOP, "#000000", click="racing.left"),
-    box("g_tz_r", W // 2, ROAD_TOP, W // 2, ROAD_H - ROAD_TOP, "#000000", click="racing.right"),
+    box("g_tz_l", 0, ROAD_TOP, W // 2, ROAD_BOTTOM - ROAD_TOP, "#000000", click="racing.left"),
+    box("g_tz_r", W // 2, ROAD_TOP, W // 2, ROAD_BOTTOM - ROAD_TOP, "#000000", click="racing.right"),
 ]
-# lane dividers
 for x in (122, 246):
-    game_children.append(box("g_div_%d" % x, x, ROAD_TOP, 2, ROAD_H - ROAD_TOP, "#1e1e1e"))
-# obstacles
+    game_children.append(
+        box("g_div_%d" % x, x, ROAD_TOP, 2, ROAD_BOTTOM - ROAD_TOP, "#1e1e1e", clickable=False))
 for i in range(OBS):
     game_children.append(box(
-        "g_obs%d" % i, LANES[0] - OBS_SZ // 2, -80, OBS_SZ, OBS_SZ, "#f5a623", radius=6,
+        "g_obs%d" % i, LANES[0] - OBS_SZ // 2, -90, OBS_SZ, OBS_SZ, "#f5a623",
+        radius=8, clickable=False,
         bindings={"placement.x": "obs%dX" % i, "placement.y": "obs%dY" % i,
                   "style.bgColor": "obs%dC" % i, "commonProps.hidden": "obs%dH" % i}))
-# the car
 game_children.append(box(
-    "g_car", LANES[1] - CAR_W // 2, CAR_Y, CAR_W, CAR_H, "#e8e8ee", radius=8,
-    bindings={"placement.x": "carX", "style.bgColor": "carColor"}, children=[
-        label("g_car_t", 0, 0, CAR_W, 20, 12, "#111111", "", "center")]))
-game_children.append(label("g_toast", 0, 268, W, 22, 15, ORANGE, "", "center"))
+    "g_car", LANES[1] - CAR_W // 2, CAR_Y, CAR_W, CAR_H, "#e8e8ee", radius=10,
+    clickable=False, bindings={"placement.x": "carX", "style.bgColor": "carColor"},
+    children=[label("g_car_t", 0, 24, CAR_W, 26, 18, "#111111", "")]))
+game_children.append(label("g_toast", 0, 240, W, 34, 24, ORANGE, ""))
 
 game = box("panel_game", 0, 0, W, H, "#000000", hidden="gameHidden", children=game_children)
 
-# ------------------------------------------------------------ game-over panel
+# -------------------------------------------------------------- over panel (4)
 over = box("panel_over", 0, 0, W, H, "#000000", hidden="overHidden", children=[
-    label("o_head", 0, 22, W, 26, 20, ORANGE, "RACE OVER"),
-    box("o_rule", 60, 52, 248, 3, ORANGE),
-    label("o_rank", 0, 64, W, 30, 22, WHITE, ""),
-    label("o_sub", 0, 96, W, 36, 12, MUTED, ""),
-    label("o_score_l", 0, 140, W, 18, 13, MUTED, "SCORE"),
-    label("o_score", 0, 158, W, 52, 44, ORANGE, "0"),
-    label("o_stats", 0, 214, W, 20, 14, WHITE, ""),
-    label("o_board_h", 0, 244, W, 18, 12, MUTED, "TOP OF THE BOARD"),
-    label("o_b1", 0, 264, W, 20, 15, "#FFD700", ""),
-    label("o_b2", 0, 286, W, 20, 15, "#C0C0C0", ""),
-    label("o_b3", 0, 308, W, 20, 15, "#CD7F32", ""),
-    box("o_again", 84, 340, 200, 54, ORANGE, radius=10, click="racing.again", children=[
-        label("o_again_t", 0, 0, 200, 28, 20, "#0f0f0f", "RACE AGAIN", "center")]),
-    label("o_status", 0, 404, W, 20, 13, MUTED, ""),
+    label("o_head", 0, 12, W, 34, 26, ORANGE, "RACE OVER"),
+    box("o_rule", 60, 50, 248, 4, ORANGE),
+    label("o_rank", 0, 60, W, 34, 24, WHITE, ""),
+    label("o_score", 0, 96, W, 68, 56, ORANGE, "0"),
+    label("o_stats", 0, 166, W, 28, 18, WHITE, ""),
+    label("o_board_h", 0, 200, W, 24, 16, MUTED, "TOP OF THE BOARD"),
+    label("o_b1", 0, 224, W, 28, 20, "#FFD700", ""),
+    label("o_b2", 0, 252, W, 28, 20, "#C0C0C0", ""),
+    label("o_b3", 0, 280, W, 28, 20, "#CD7F32", ""),
+    button("o_again", 24, 320, 320, 84, "RACE AGAIN", "racing.again", size=30),
+    label("o_status", 0, 412, W, 24, 16, MUTED, ""),
 ])
 
 screen = {
     "type": "viewScreen", "id": "home",
     "style": {"bgColor": "#000000", "padding": 0},
+    "layout": NONE,
     "commonProps": {"scrollable": False, "clickable": True},
-    "children": [start, game, over],
+    "children": [name, car, game, over],
 }
 
 if __name__ == "__main__":
