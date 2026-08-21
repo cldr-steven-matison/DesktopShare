@@ -47,22 +47,31 @@ fi
 #    Without it the hook fires on every notification type and telegram-notify.sh has to
 #    guess from the message text — that text-grep is what produced the 12:39 idle false
 #    alarm. matcher "permission_prompt" discriminates structurally instead.
-step "2. ~/.claude/settings.json — Notification matcher: permission_prompt"
+step "2. ~/.claude/settings.json — Notification hook (matcher: permission_prompt)"
 US="$HOME/.claude/settings.json"
 if [ ! -f "$US" ]; then
   say "   ⚠️  $US not found — skipping (this step is WindowsDesktop-only)"
 else
   m="$(jq -r '.hooks.Notification[0].matcher // "unset"' "$US" 2>/dev/null)"
-  if [ "$m" = "permission_prompt" ]; then
+  hc="$(jq -r '.hooks.Notification[0].hooks[0].command // ""' "$US" 2>/dev/null)"
+  if [ "$m" = "permission_prompt" ] && [ -n "$hc" ]; then
     say "   already current"
   else
-    say "   matcher $m -> permission_prompt"
+    if [ -z "$hc" ]; then
+      # No Notification hook at all. Patching just the matcher would "succeed"
+      # while leaving a matcher with no command — desk ping never wired, installer
+      # reporting ✅ (#192 audit). Install the whole hook object instead.
+      say "   no Notification hook — installing the full hook (command + matcher + timeout)"
+    else
+      say "   matcher $m -> permission_prompt"
+    fi
     changes=$((changes + 1))
     if [ "$APPLY" = 1 ]; then
       backup "$US"
       tmp="$(mktemp)"
-      if jq '.hooks.Notification[0].matcher = "permission_prompt"' "$US" > "$tmp" 2>/dev/null \
-         && [ -s "$tmp" ]; then
+      if jq --arg c "bash $REPO/.claude/hooks/telegram-notify.sh" \
+           '.hooks.Notification = [{matcher:"permission_prompt", hooks:[{type:"command", command:(if (.hooks.Notification[0].hooks[0].command // "") != "" then .hooks.Notification[0].hooks[0].command else $c end), timeout:20}]}]' \
+           "$US" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
         mv "$tmp" "$US" && say "   ✅ applied"
       else
         rm -f "$tmp"; say "   ❌ jq patch failed — left untouched"
@@ -134,25 +143,69 @@ step "5. reply-bridge entry points (\$HOME + the OpenClaw workspace)"
 # it currently lives at agents.defaults.workspace, but search by key so a config
 # reshuffle doesn't silently reintroduce the exit-127 failure.
 WS="$(jq -r 'first(paths(scalars) as $p | select($p[-1]=="workspace") | getpath($p)) // empty' "$HOME/.openclaw/openclaw.json" 2>/dev/null)"
+# Build the expected wrapper once and compare CONTENT, not existence — an [ -f ]
+# check can never repair drift, the exact failure class this step exists to
+# prevent (#192 audit: the pre-08-21 ~/reply.sh was reported "present" forever).
+# The repo path is baked in from where this installer actually lives, not a
+# hard-coded ~/DesktopShare.
+expected="$(mktemp)"
+cat > "$expected" <<WRAP
+#!/bin/bash
+# Thin wrapper so the phone command stays short: /bash bash ~/reply.sh yes
+# Installed in BOTH \$HOME and the OpenClaw workspace, because OpenClaw's /bash cwd
+# is the workspace — a relative \`reply.sh\` only resolves if a copy lives there too
+# (issue #192, 2026-08-21: it didn't, so every phone reply exited 127 in silence).
+exec bash "$REPO/files/agent-reply.sh" "\$@"
+WRAP
 for target in "$HOME/reply.sh" ${WS:+"$WS/reply.sh"}; do
-  if [ -f "$target" ]; then
-    say "   present: $target"
+  if [ -f "$target" ] && cmp -s "$expected" "$target"; then
+    say "   already current: $target"
   else
     say "   installing: $target"
     changes=$((changes + 1))
     if [ "$APPLY" = 1 ]; then
-      cat > "$target" <<'WRAP' && chmod +x "$target" && say "   ✅ applied"
-#!/bin/bash
-# Thin wrapper so the phone command stays short: /bash bash reply.sh yes
-# Installed in BOTH $HOME and the OpenClaw workspace, because OpenClaw's /bash cwd
-# is the workspace — a relative `reply.sh` only resolves if a copy lives there too
-# (issue #192, 2026-08-21: it didn't, so every phone reply exited 127 in silence).
-exec bash "$HOME/DesktopShare/files/agent-reply.sh" "$@"
-WRAP
+      [ -f "$target" ] && backup "$target"
+      cp "$expected" "$target" && chmod +x "$target" && say "   ✅ applied"
     fi
   fi
 done
+rm -f "$expected"
 [ -n "$WS" ] || say "   ⚠️  could not read the OpenClaw workspace path — check ~/.openclaw/openclaw.json"
+
+# 6. Allowlist narrowing (#192 audit, Steven's call 2026-08-21): Bash(git *) and
+#    Bash(curl *) were already in the local allowlist and subsume exactly the
+#    writes the storm-set exclusions were protecting against (git push / reset,
+#    arbitrary curl POSTs). Replace them with read-safe git subcommands and the
+#    one documented localhost health check. A finish-ritual commit/push stays
+#    frictionless — guard rule 2 auto-approves it — and unattended prompts reach
+#    the phone through the bridge.
+step "6. .claude/settings.local.json — narrow Bash(git *) / Bash(curl *)"
+if [ ! -f "$LS" ]; then
+  say "   ⚠️  $LS not found — nothing to narrow"
+else
+  drop='["Bash(git *)","Bash(curl *)"]'
+  addl='["Bash(git status)","Bash(git status *)","Bash(git log)","Bash(git log *)","Bash(git diff)","Bash(git diff *)","Bash(git show *)","Bash(git branch)","Bash(git branch *)","Bash(git blame *)","Bash(git fetch)","Bash(git fetch *)","Bash(git rev-parse *)","Bash(git remote *)","Bash(git add *)","Bash(git stash list)","Bash(curl -s -m 5 http://127.0.0.1:8000/v1/models)"]'
+  present="$(jq -r --argjson d "$drop" '[(.permissions.allow // [])[] | select(. as $x | $d | index($x))] | join(", ")' "$LS" 2>/dev/null)"
+  missing="$(jq -r --argjson w "$addl" '(.permissions.allow // []) as $a | [$w[] | . as $x | select($a | index($x) | not)] | join(", ")' "$LS" 2>/dev/null)"
+  if [ -z "$present" ] && [ -z "$missing" ]; then
+    say "   already current"
+  else
+    [ -n "$present" ] && say "   removing: $present"
+    [ -n "$missing" ] && say "   adding:   $missing"
+    changes=$((changes + 1))
+    if [ "$APPLY" = 1 ]; then
+      backup "$LS"
+      tmp="$(mktemp)"
+      if jq --argjson d "$drop" --argjson w "$addl" \
+           '.permissions.allow = ((.permissions.allow // []) | map(select(. as $x | $d | index($x) | not)) | reduce $w[] as $x (.; if index($x) then . else . + [$x] end))' \
+           "$LS" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        mv "$tmp" "$LS" && say "   ✅ applied"
+      else
+        rm -f "$tmp"; say "   ❌ jq patch failed — narrow by hand"
+      fi
+    fi
+  fi
+fi
 
 printf '\n'
 if [ "$APPLY" = 1 ]; then

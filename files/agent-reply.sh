@@ -3,8 +3,9 @@
 # The inbound half of the Telegram reply bridge (issue #192). Appends the
 # answer to the session inbox file that a waiting Claude Code session watches
 # (persistent Monitor on new lines). Invoked from the phone through OpenClaw:
-#   /bash bash reply.sh yes
-# (~/reply.sh on WindowsDesktop is a thin wrapper around this script.)
+#   /bash bash ~/reply.sh yes
+# (~/reply.sh is a thin wrapper around this script; a second copy lives in the
+# OpenClaw workspace so even the old relative form still resolves.)
 #
 # Deliberately credential-free: no ~/.env, no sendMessage. The confirmation
 # ping comes from the session itself once it consumes the reply — that proves

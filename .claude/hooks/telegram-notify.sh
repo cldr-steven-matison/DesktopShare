@@ -11,8 +11,9 @@
 # before this script ever runs (see files/install-192.sh step 2). Other devices
 # don't wire it and are unaffected by pulls.
 #
-# Two gates before anything is sent: the ~/.claude/unattended sentinel (silent at
-# the desk) and a permission_prompt type check. Dedupe: at most one ping per 60s
+# ONE gate before anything is sent: a permission_prompt type check — this ping
+# deliberately IGNORES the ~/.claude/unattended sentinel (rationale in the body:
+# a permission prompt suspends the model). Dedupe: at most one ping per 60s
 # (touch-file mtime), stamped only on confirmed delivery. Never echoes
 # $TOKEN/$CHAT_ID, and the command context it quotes is redacted at write time.
 

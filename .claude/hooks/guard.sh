@@ -50,11 +50,16 @@
 #   - under a low-friction permission mode the "ask" is auto-resolved with no human,
 #     and `gh issue *` is allow-listed, so the ask was silently swallowed anyway.
 # The fix removes the model from the loop:
-#   A. Opening a still-todo issue for THIS device (`gh issue view N`) — the hook
-#      AUTO-CLAIMS it: it runs `gh issue edit N ... status:in-progress` ITSELF and
-#      injects `additionalContext` telling the model it was claimed. No model
-#      cooperation required, so no device can ignore it. Fires in plan mode and in
-#      subagents (both fire PreToolUse), which is where the 7th skip happened.
+#   A. ENGAGING a still-todo issue for THIS device — the hook AUTO-CLAIMS it: it
+#      runs `gh issue edit N ... status:in-progress` ITSELF and injects
+#      `additionalContext` telling the model it was claimed. No model cooperation
+#      required, so no device can ignore it. Fires in plan mode and in subagents
+#      (both fire PreToolUse), which is where the 7th skip happened. NARROWED
+#      2026-08-21 (#192 audit): the trigger used to be `gh issue view N`, and a
+#      read-only view by an exploration sub-agent claimed an issue nobody was
+#      working — a view now only records the issue for Telegram-ping context, and
+#      the claim fires on the first MUTATING engagement (`gh issue comment N`;
+#      the edit/close transitions are owned by rules 4 and 6).
 #      If the auto-claim gh call fails (offline/perms), it falls back to recording N
 #      in the claim-pending marker and asking — the old behavior as a backstop only.
 #   B. An Edit/Write while the marker is non-empty asks you to claim the issue(s)
@@ -104,7 +109,7 @@ command -v ds_claim_marker >/dev/null 2>&1 && marker="$(ds_claim_marker)"
 #                  looking at this screen.
 #   emit_deny      an INSTRUCTION TO THE MODEL, not a question for a human. deny
 #                  hands the reason back to the model and the turn continues, so it
-#                  fixes the problem and retries with nobody in the loop. Rules 4, 5
+#                  fixes the problem and retries with nobody in the loop. Rules 4
 #                  and 8 used to be `ask`, which parked a human purely to relay a
 #                  message to the model (2026-08-21, #192: the rule 8 skill-load
 #                  prompt Steven pasted).
@@ -161,7 +166,7 @@ emit_ctx() {
 # that wasn't clearly yes/no -> return, and the caller falls through to the normal
 # desk prompt.
 ds_bridge_decide() {
-  local reason="$1" label="$2" inbox base cur line ans ask q n cmdline
+  local reason="$1" label="$2" inbox base cur line ans ask q n cmdline asktime ep body why
   command -v ds_unattended >/dev/null 2>&1 || return 0
   ds_unattended || return 0
   [ -f "$HOME/.env" ] || return 0
@@ -180,26 +185,53 @@ ds_bridge_decide() {
   # value must never reach the chat, so a credential-bearing command is asked
   # about without quoting it.
   cmdline="$(ds_redact_cmd "$cmd" 220 2>/dev/null)"
+  # The rule's own reason rides along, truncated. A phone approval used to carry
+  # only the label + command — a materially less-informed decision than the desk
+  # prompt on exactly the rules where the rationale matters most (#192 audit).
+  why="$(printf '%.300s' "$reason")"
   q="${label:-guard check}"
   [ -n "$cmdline" ] && q="$q
 \$ $cmdline"
+  [ -n "$why" ] && q="$q
+— $why"
   q="$q
 
 Approve?"
 
+  # Stamp the ask time BEFORE sending: every inbox line carries its append epoch
+  # (agent-reply.sh), and only lines stamped at/after this instant may answer
+  # THIS question.
+  asktime="$(date +%s)"
   ( set -a; . "$HOME/.env" 2>/dev/null; set +a; bash "$ask" "$q" ) >/dev/null 2>&1 || return 0
 
-  n=0; cur="$base"
+  n=0; line=""
   while [ "$n" -lt 36 ]; do
     sleep 5
     n=$((n + 1))
     cur="$(wc -l < "$inbox" 2>/dev/null || echo "$base")"
-    [ "$cur" -gt "$base" ] && break
+    # Consume new lines oldest-first, SKIPPING any stamped before the ask went
+    # out. OpenClaw queues replies while its model endpoint is down and flushes
+    # them all at once on recovery (nine in twelve seconds, 2026-08-21) — without
+    # this check a stale queued "yes" flushing mid-window is consumed as approval
+    # for THIS question: the one auto-allow path the #192 audit found.
+    while [ "$cur" -gt "$base" ]; do
+      line="$(sed -n "$((base + 1))p" "$inbox" 2>/dev/null)"
+      ep="$(printf '%s' "$line" | sed -n 's/^\([0-9][0-9]*\)[[:space:]].*/\1/p')"
+      if [ -n "$ep" ] && [ "$ep" -lt "$asktime" ]; then
+        base=$((base + 1)); line=""
+        continue
+      fi
+      break
+    done
+    [ -n "$line" ] && break
   done
-  [ "$cur" -gt "$base" ] || { ds_bridge_ack "⌨️ no reply in 3 min — falling back to the prompt at the desk"; return 0; }
+  [ -n "$line" ] || { ds_bridge_ack "⌨️ no reply in 3 min — falling back to the prompt at the desk"; return 0; }
 
-  line="$(sed -n "$((base + 1))p" "$inbox" 2>/dev/null)"
-  ans="$(printf '%s' "$line" | sed 's/^[0-9]* *//' | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  body="$(printf '%s' "$line" | sed 's/^[0-9]* *//')"
+  # The first WORD decides — "yes go ahead" is a yes, "no leave it" is a no. The
+  # old whitespace-strip glued the whole reply into one unmatchable token, which
+  # fell back to a desk nobody is at (#192 audit).
+  ans="$(printf '%s' "$body" | awk '{print $1}' | tr '[:upper:]' '[:lower:]' | tr -d '.,!')"
   case "$ans" in
     yes|y|ok|okay|approve|approved|proceed|go)
       ds_bridge_ack "✅ approved — running it"
@@ -211,7 +243,7 @@ Approve?"
       ;;
   esac
   # Anything else is ambiguous — fall back to the desk rather than guess.
-  ds_bridge_ack "⌨️ reply \"$ans\" wasn't a clear yes/no — falling back to the prompt at the desk"
+  ds_bridge_ack "⌨️ reply \"$(printf '%.60s' "$body")\" wasn't a clear yes/no — falling back to the prompt at the desk"
   return 0
 }
 
@@ -239,7 +271,10 @@ case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
     if [ -n "$marker" ] && [ -s "$marker" ]; then
       nums="$(paste -sd, "$marker" 2>/dev/null | sed 's/,/, #/g')"
-      emit_ask "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Flip it manually: gh issue edit <n> --remove-label status:todo --add-label status:in-progress"
+      # Name the file in the phone label — Edit-family tools carry no .command, so
+      # without this the bridged ask arrived with zero context (#192 audit).
+      fpath="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/null)"
+      emit_ask "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Flip it manually: gh issue edit <n> --remove-label status:todo --add-label status:in-progress" "guard rule B — $tool ${fpath:-(unknown file)} with #$nums still unclaimed"
     fi
     exit 0
     ;;
@@ -526,18 +561,22 @@ fi
 if printf '%s' "$cmd" | grep -Eq '/processors\b' \
    && printf '%s' "$cmd" | grep -Eq 'position' \
    && printf '%s' "$cmd" | grep -Eq -- '-X *(POST|PUT)|--data|--data-binary|(^|[[:space:]])-d[[:space:]]|componentConfiguration|requestId'; then
-  emit_ask "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. BEFORE approving, state out loud: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If this is a read (GET) or the numbers already match layout.md, approve."
+  emit_ask "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. BEFORE approving, state out loud: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If this is a read (GET) or the numbers already match layout.md, approve." "guard rule 5 — processor create/update with an explicit position (state shape + pitch vs layout.md)"
 fi
 
-# A. Auto-claim on view. `gh issue view N` is the tell that the model is engaging a
-# specific issue; if it's still status:todo for one of this host's device labels, the
-# hook claims it ITSELF (runs gh issue edit) rather than asking the model to. Loops
-# ALL issue numbers in the command. The gh lookups only run on this rare match (never
+# A. Auto-claim on ENGAGEMENT, not on sight (narrowed 2026-08-21, #192 audit: a
+# read-only `gh issue view 199` by an exploration sub-agent auto-claimed an issue
+# nobody was working). A view now only RECORDS the issue for Telegram-ping
+# context; the claim fires on the first MUTATING engagement — `gh issue comment N`
+# (the edit/close transitions are already owned by rules 4 and 6). Loops ALL
+# issue numbers in the command. The gh lookups only run on this rare match (never
 # on `gh issue list`), so the common Bash path pays nothing. Fails open.
-if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/dev/null 2>&1 \
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +(view|comment) +[0-9]+' && command -v gh >/dev/null 2>&1 \
    && ! printf '%s' "$cmd" | grep -Eq -- '(-R|--repo)[= ]'; then
+  do_claim=""
+  printf '%s' "$cmd" | grep -Eq 'gh +issue +comment +[0-9]+' && do_claim=1
   claimed=""; failed=""
-  for n in $(ds_issue_numbers "$cmd" view); do
+  for n in $(ds_issue_numbers "$cmd" '(view|comment)'); do
     lbls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
     # Remember every one of THIS device's issues the session opens — it is what the
     # Telegram pings quote as "which issue(s) you are on" (#192). Independent of the
@@ -545,6 +584,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/de
     for l in $(ds_device_labels 2>/dev/null); do
       [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && ds_note_session_issue "$n" 2>/dev/null
     done
+    [ -n "$do_claim" ] || continue                            # a bare view never claims
     printf '%s' "$lbls" | grep -q 'status:todo' || continue   # only unclaimed issues
     mine=""
     for l in $(ds_device_labels 2>/dev/null); do
@@ -563,7 +603,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+' && command -v gh >/de
   done
   if [ -n "$claimed" ] || [ -n "$failed" ]; then
     msg="Auto-claim guard (device-comms.md 'Working an issue' step 1):"
-    [ -n "$claimed" ] && msg="$msg flipped$claimed to status:in-progress for this device on open — claiming is now AUTOMATIC, you do NOT need to run gh issue edit to claim these."
+    [ -n "$claimed" ] && msg="$msg flipped$claimed to status:in-progress for this device on first mutating engagement — claiming is AUTOMATIC here, you do NOT need to run gh issue edit to claim these."
     [ -n "$failed" ] && msg="$msg could NOT auto-claim$failed (gh edit failed — offline or perms); claim manually before any Edit/Write: gh issue edit <n> --remove-label status:todo --add-label status:in-progress."
     emit_ctx "$msg"
   fi
