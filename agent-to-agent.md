@@ -49,6 +49,25 @@ The contract:
 
 ---
 
+## Two operating modes
+
+Remote work runs in one of two modes. Which one you're in depends on whether a session is already running.
+
+**Headless (primary) — a fresh `claude -p` per command.** This is the default remote path: no session is left running, so there is nothing to sit parked on a permission dialog. It must carry explicit permission flags, or it stalls on the first gated tool:
+
+```
+claude -p "<prompt>" --permission-mode dontAsk \
+  --allowedTools "Read" "Grep" "Glob" \
+    "Bash(git pull)" "Bash(git log *)" "Bash(git status *)" "Bash(git diff *)" \
+    "Bash(kubectl get *)" "Bash(kubectl logs *)"
+```
+
+Under `dontAsk`, only tools matching an allow rule run; anything else is **denied and the run continues and reports** — it never blocks waiting for input, and `AskUserQuestion` is denied outright. Writes and pushes stay out of the allowlist, so headless remote work is read-only analysis and planning (see Safety Boundaries). Bare `claude -p` without these flags defaults to `default` permission mode and will hang the moment it hits a gated tool with no TTY to answer on — the examples further down that omit the flags are at-desk/reference only. The versioned wrapper `files/claw-claude.sh` bakes the flags in; install it to `~`.
+
+**Interactive bridge (fallback) — a session already running at the desk.** When you've left an interactive session running and it needs an answer, the reply bridge above carries a Yes/No back from the phone. Its limit is harness permission dialogs, where the model is suspended: for those, arm `~/.claude/unattended` so `guard.sh`'s permission-bridge asks the phone and allows/denies on your reply; prompts guard doesn't gate fall back to the "waiting at the desk" ping. Prefer headless mode when you can — it can't get stuck; reach for the interactive bridge only when a session is already live.
+
+---
+
 ## The Core Idea
 
 OpenClaw handles the Telegram channel. Claude Code handles the thinking and repo work. The bridge is `/bash`:
@@ -82,6 +101,8 @@ Keep the cluster and app flows stopped while away. Then the worst Claude can do 
 
 ## Basic Invocation
 
+> Unattended remote runs go through the wrapper (`~/claw-claude.sh`) or carry `--permission-mode dontAsk` + `--allowedTools` explicitly — see "Two operating modes". The bare `claude -p` examples in this section assume you're at the desk to answer any prompt.
+
 **Single prompt, no session carry-over:**
 ```
 /bash cd ~/DesktopShare && claude -p "what's in this repo and what are the active plans?"
@@ -108,15 +129,21 @@ Keep the cluster and app flows stopped while away. Then the worst Claude can do 
 
 Save as `~/claw-claude.sh` for cleaner Telegram commands:
 
+Versioned template lives at `files/claw-claude.sh` — the copy below is the same thing. It carries the `dontAsk` + read-only `--allowedTools` set so a remote run can't park:
+
 ```bash
 #!/bin/bash
-# Usage: ~/claw-claude.sh your prompt here
-cd ~/DesktopShare
-claude --continue -p "$*"
+# ~/claw-claude.sh — headless remote entry point for the OpenClaw /bash bridge (#192).
+cd "${DS_DIR:-$HOME/DesktopShare}" || exit 1
+claude --continue -p "$*" \
+  --permission-mode dontAsk \
+  --allowedTools "Read" "Grep" "Glob" \
+    "Bash(git pull)" "Bash(git log *)" "Bash(git status *)" "Bash(git diff *)" \
+    "Bash(kubectl get *)" "Bash(kubectl logs *)"
 ```
 
 ```bash
-chmod +x ~/claw-claude.sh
+cp files/claw-claude.sh ~/claw-claude.sh && chmod +x ~/claw-claude.sh
 ```
 
 Then from Telegram:

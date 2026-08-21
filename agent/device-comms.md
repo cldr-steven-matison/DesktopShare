@@ -128,10 +128,13 @@ Everything in this section applies on **WindowsDesktop only**. Other devices kee
 old rule: one brief Telegram ping on completion or hard-block of a long unattended
 task, nothing more.
 
-**Progress polls are default-on for unattended work.** A WindowsDesktop session doing
-long unattended work sends a brief ping at each real milestone and whenever it's been
-waiting or blocked more than a few minutes — without Steven asking first. Keep each
-ping to a couple of lines: what finished or what's needed, not the blow-by-blow.
+**Progress polls are for unattended work only, and gated behind the `~/.claude/unattended`
+sentinel.** Steven arms that file when he leaves the desk. With it present, a WindowsDesktop
+session sends a brief ping at each real milestone and whenever it's been waiting or blocked
+more than a few minutes — without Steven asking first. **With the sentinel absent — someone's
+at the desk — no progress polls fire at all** (a chatty at-desk session was the bulk of the
+"messages came unexpectedly" complaint, #192). Check `test -f ~/.claude/unattended` before
+polling. Keep each ping to a couple of lines: what finished or what's needed, not the blow-by-blow.
 Mechanism: `curl sendMessage` with `$TOKEN`/`$CHAT_ID` sourced from `~/.env` (never
 echo either). **Every ping — from any device, this section's polls included — leads
 with the sending device's roster name in brackets** (`[WindowsDesktop] flash done`,
