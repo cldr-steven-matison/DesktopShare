@@ -17,9 +17,9 @@ The **write-and-round-trip** counterpart to [`cloudera-iceberg-rest-catalog-cso-
 ### How Iceberg-on-Impala actually works
 Impala has no catalog of its own — it writes Iceberg through the HiveCatalog (HMS). A table created `STORED BY ICEBERG` lands in the DataLake HMS and is thereafter readable by anything that speaks that catalog: Impala, Hive, Flink `catalog-type=hive`, and the read-only REST consumer. That is the whole concept here: **one table, written by NiFi and read by everything, through the authoritative HMS catalog.**
 
-## Prerequisite — network reachability (out of scope in this plan)
+## Prerequisite — pod→HMS network reachability (owned here)
 
-`HiveCatalogService` opens a raw thrift socket to HMS on the DataLake master (`thrift://…master0…:9083`). The NiFi pod needs network reachability to that endpoint. **The network path is tracked separately in [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190) and is deliberately not solved here** — no VPN / bastion / env-rebuild decision belongs in this plan.
+`HiveCatalogService` opens a raw thrift socket to HMS on the DataLake master (`thrift://…master0…:9083`), which resolves to a **private** VPC IP (`10.10.74.221`). The NiFi pod needs a network path to that endpoint. **[#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190) does *not* cover this** — its EC2 bastion + SSH SOCKS proxy serves the **Mac browser** only and does not route the minikube pods' network stack. Pod→HMS is therefore a prerequisite this issue (#151) owns: build an SSH `-L` forward the pod can target (e.g. via a k8s `ExternalName`/`Endpoints` service pointing at `host.minikube.internal`), or a NiFi-side proxy. Until that path exists, the native write below cannot commit and the DBCP-Impala fallback (§Alternative) is the only reachable door.
 
 ## SSB / Flink — `catalog-type=hive` read-back
 

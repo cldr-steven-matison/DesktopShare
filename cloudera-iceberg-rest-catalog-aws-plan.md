@@ -58,9 +58,7 @@ The `semi-private` template puts CDW workers, CDW load balancers, and DataLake c
 | **Impala workers** | private `10.10.x` IPs | — | Direct worker access (gateway host is the current workaround) |
 | DL gateway (Knox) | `srm-iceberg-aw-dl-gateway.…` | `3.141.161.46` (**public**) | *not* blocked — why the REST Catalog already works |
 
-**Solution: EC2 bastion inside the VPC + SSH dynamic SOCKS proxy** (option 1 from [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190)). The bastion's ENI has a `10.10.x` source IP that the private NLB and services already have a VPC return route to — so a browser tunnelled through it reaches all private-subnet UIs at their real hostnames, TLS/SNI and Knox redirects intact. One tunnel serves Trino UI, Hue, and any future private service.
-
-**Client VPN was tried first and abandoned (dead end — do not retry).** A Client VPN endpoint (`10.20.0.0/16` client CIDR) was stood up, but the private NLB replies to the VPN client CIDR, which has **no return route in the VPC** — Client VPN can't be a route-table target, so there is no in-VPC return-path fix. Connections time out even with SGs/NACLs open. Verified live: the CDW node SG (`sg-02e19bda8692bc27a`) even carries a `443` ingress rule for `10.20.0.0/16` and it still didn't work — confirming the block was always the return route, never the SG. Teardown: `bastion/vpn-teardown.sh`.
+**Solution: EC2 bastion inside the VPC + SSH dynamic SOCKS proxy** (see [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190)). The bastion's ENI has a `10.10.x` source IP that the private NLB and services already have a VPC return route to — so a browser tunnelled through it reaches all private-subnet UIs at their real hostnames, TLS/SNI and Knox redirects intact. One tunnel serves Trino UI, Hue, and any future private service.
 
 **Live bastion (created 2026-08-20, #190):**
 
@@ -91,9 +89,9 @@ The scripts resolve VPC/subnet by **Name tag**, not hardcoded ID, so they surviv
 
 **Survives the weekly reaper.** The bastion is a plain EC2 in the persistent VPC; the CDP reaper deletes only CDP objects (env/DataLake/Data Hub), and the weekly redeploy is `terraform apply` (not destroy), so the VPC ID is stable. Re-run `bastion-up.sh` if the reaper ever takes the instance.
 
-**Cost:** `t3.small` ≈ $0.02/hr running; `--stop` when idle (the env auto-stops overnight anyway). No per-subnet or per-connection charges (unlike Client VPN's ~$0.10/hr/subnet).
+**Cost:** `t3.small` ≈ $0.02/hr running; `--stop` when idle (the env auto-stops overnight anyway). No per-subnet or per-connection charges.
 
-> **minikube / `PutIceberg` (#151) note:** unlike the (abandoned) VPN, a bastion does *not* transparently route the Mac's whole network stack, so minikube NiFi pods do **not** inherit VPC reachability for HMS thrift. If #151 needs pod→HMS, that's a separate path (e.g. an SSH `-L` forward the pod targets, or a NiFi-side proxy) — track it in #151, not here.
+> **minikube / `PutIceberg` (#151) note:** a bastion does *not* transparently route the Mac's whole network stack, so minikube NiFi pods do **not** inherit VPC reachability for HMS thrift. If #151 needs pod→HMS, that's a separate path (e.g. an SSH `-L` forward the pod targets, or a NiFi-side proxy) — track it in #151, not here.
 
 ## Deployment record (this build)
 
