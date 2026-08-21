@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate res/screens/home.json for tunastreet.racing (#205).
+"""Generate res/screens/home.json for tunastreet.racing (#205, migrated to
+the uikit/panelkit.py kit for #208).
 
 The panel runs the actual game. Four absolute panels on one 368x448 screen,
 toggled by `hidden` bindings, mirroring the browser game's flow:
@@ -7,23 +8,41 @@ toggled by `hidden` bindings, mirroring the browser game's flow:
   game  -> drive
   over  -> result + race again
 
-Sizing rule for this device: nothing is "normal UI" scale. It is a 368x448
-panel viewed at arm's length and driven by a fingertip, so type is 20-46px and
-every tap target is >=64px tall and near-full-width.
+This screen was the seed panelkit.py was generalised from: label(), box() and
+button() here are now panelkit's label(), canvas() and button(), and the car
+bars are panelkit's tile(). The two traps that cost a flash cycle in #205 --
+a flex-layout parent silently overriding absolute children, and
+container/requireValidPress swallowing a drifted tap -- are now closed by the
+kit itself (see uikit/panelkit.py's module docstring), not just described in
+this comment.
 
-LAYOUT TRAP (cost a flash): a parent with layout.type flex/grid lays out its
-children and ignores their absolute x/y. Every panel here therefore declares
-layout {"type": "none"} — absolute placement only works under a none-layout
-parent.
+Text sizes below are still explicit numbers, not "whatever panelkit feels
+like": every label() call passes the exact legacy size, and panelkit checks
+each one against its role's token band (and the absolute text floor) at
+generation time. Palette is the game's own (services/game/index.html +
+leaderboard.html): Cloudera orange #F96702 on true black, podium gold/silver/
+bronze, live green -- all token constants except the true-black background,
+which this game deliberately keeps darker than the kit's generic screen
+background (see README.md's token-rationale section).
 
-Palette is the game's own (services/game/index.html + leaderboard.html):
-Cloudera orange #F96702 on true black, podium gold/silver/bronze, live green.
+Three lane-touch zones (g_tz0-2) need `pressed` + `pressing` + `released` --
+continuous drive control while the finger is held down, not a discrete tap --
+which none of panelkit's primitives emit (button()/canvas()'s click= is
+pressed+released only, by design: see panelkit.py). They're kept as raw
+dicts, byte-identical to the original, rather than forcing them through a
+primitive that doesn't actually fit the shape.
 """
 import json
+import os
+import sys
 
-W, H = 368, 448
-ORANGE, WHITE, MUTED, GREEN = "#F96702", "#f0f0f0", "#888888", "#22c55e"
-DARK = "#1a1a1a"
+sys.path.insert(0, "/home/tunas/waveshare-devices/amoled-1.8-v2/uikit")
+import panelkit as pk  # noqa: E402
+import tokens as tk    # noqa: E402
+
+W, H = tk.W, tk.H
+ORANGE, WHITE, MUTED, GREEN = tk.ORANGE, tk.INK, tk.MUTED, tk.GREEN
+DARK = tk.DARK
 LANES = [61, 184, 307]           # lane centre x
 CAR_W, CAR_H = 56, 74
 CAR_Y = 300
@@ -31,121 +50,61 @@ ROAD_TOP, ROAD_BOTTOM = 56, 448
 OBS = 6
 OBS_SZ = 44  # tick is 40ms in app.js — motion is smoother, speed unchanged
 
-NONE = {"type": "none"}
-
-
-def label(id, x, y, w, h, size, color, text="", align="center",
-          bindings=None, click=None, hidden=None):
-    n = {
-        "type": "label", "id": id,
-        "placement": {"mode": "absolute", "x": x, "y": y, "width": w, "height": h},
-        "layout": NONE,
-        "style": {"textColor": color, "fontSize": size, "textAlign": align},
-        "labelProps": {"text": text},
-    }
-    b = dict(bindings or {})
-    if hidden:
-        b["commonProps.hidden"] = hidden
-    if b:
-        n["bindings"] = b
-    if click:
-        n["commonProps"] = {"clickable": True}
-        n["events"] = [{"type": "clicked", "effects": [
-            {"type": "emitAction", "action": click, "requireValidPress": True}]}]
-    return n
-
-
-def box(id, x, y, w, h, color, children=None, bindings=None, click=None,
-        hidden=None, radius=0, clickable=None):
-    """A container.
-
-    TOUCH TRAP (two flashes): `container` defaults to scrollable=True, so a
-    press that drifts a few px becomes a scroll gesture and the press is lost —
-    the button reads as "wants to slide instead of taking the press". Every
-    container here pins scrollable=False and pressLock=True, and tap targets
-    fire on pressed/released, never on a clicked that requires a valid press.
-    """
-    n = {
-        "type": "container", "id": id,
-        "placement": {"mode": "absolute", "x": x, "y": y, "width": w, "height": h},
-        "layout": NONE,
-        "style": {"bgColor": color, "padding": 0, "radius": radius},
-        "commonProps": {"scrollable": False, "pressLock": True,
-                        "clickable": bool(click) if clickable is None else clickable},
-        "children": children or [],
-    }
-    b = dict(bindings or {})
-    if hidden:
-        b["commonProps.hidden"] = hidden
-    if b:
-        n["bindings"] = b
-    if click:
-        n["events"] = [
-            {"type": "pressed", "effects": [
-                {"type": "emitAction", "action": click}]},
-            {"type": "released", "effects": [
-                {"type": "emitAction", "action": click}]},
-        ]
-    return n
-
-
-def button(id, x, y, w, h, text, action, bg=ORANGE, fg="#0f0f0f", size=30,
-           bindings=None, hidden=None):
-    """A big tap target: the label fills the box so the whole slab is the button."""
-    return box(id, x, y, w, h, bg, radius=12, click=action, bindings=bindings,
-               hidden=hidden, children=[
-                   label(id + "_t", 0, (h - size - 8) // 2, w, size + 8, size, fg, text)])
+NONE = pk.NONE_LAYOUT
 
 
 # -------------------------------------------------------------- car panel (2)
-car = box("panel_car", 0, 0, W, H, "#000000", hidden="carHidden", children=[
+car = pk.canvas("panel_car", 0, 0, W, H, bg="#000000", hidden="carHidden", children=[
     # header bar
-    box("c_bar", 0, 6, W, 54, "#141414", children=[
-        label("c_brand", 0, 10, 190, 36, 28, WHITE, "CLOUDERA", "right"),
-        label("c_brand2", 194, 10, 170, 36, 28, ORANGE, " RACING", "left")]),
-    box("c_rule", 0, 60, W, 4, ORANGE),
-    # car 1 bar
-    box("c_a", 16, 76, 336, 92, DARK, radius=12, click="racing.car_a",
-        bindings={"style.bgColor": "carABg"}, children=[
-            {"type": "image", "id": "c_a_img",
-             "placement": {"mode": "absolute", "x": 14, "y": 9, "width": 56, "height": 74},
-             "layout": NONE,
-             "imageProps": {"src": "${image.car_corolla}", "innerAlign": "contain"}},
-            label("c_a_t", 84, 20, 240, 34, 26, WHITE, "Toyota Corolla S", "left"),
-            label("c_a_s", 84, 54, 240, 26, 18, MUTED, "reliable · steady", "left")]),
-    # car 2 bar
-    box("c_b", 16, 180, 336, 92, DARK, radius=12, click="racing.car_b",
-        bindings={"style.bgColor": "carBBg"}, children=[
-            {"type": "image", "id": "c_b_img",
-             "placement": {"mode": "absolute", "x": 14, "y": 9, "width": 56, "height": 74},
-             "layout": NONE,
-             "imageProps": {"src": "${image.car_porsche}", "innerAlign": "contain"}},
-            label("c_b_t", 84, 20, 240, 34, 26, WHITE, "Porsche 911", "left"),
-            label("c_b_s", 84, 54, 240, 26, 18, MUTED, "speed · sharp", "left")]),
+    pk.canvas("c_bar", 0, 6, W, 54, bg="#141414", children=[
+        pk.label("c_brand", 0, 10, 190, 36, text="CLOUDERA", role="value",
+                 color=WHITE, align="right", size=28),
+        pk.label("c_brand2", 194, 10, 170, 36, text=" RACING", role="value",
+                 color=ORANGE, align="left", size=28)]),
+    pk.canvas("c_rule", 0, 60, W, 4, bg=ORANGE),
+    # car 1 / car 2 bars — panelkit's tile() generalises these (image + two
+    # lines of text, whole box tappable). title_y is pinned explicitly to
+    # reproduce the hand-tuned legacy pixel position (20, not the formula's
+    # auto-centred 16) — see panelkit.tile()'s docstring.
+    pk.tile("c_a", 16, 76, 336, 92, "${image.car_corolla}", "Toyota Corolla S",
+            "reliable · steady", "racing.car_a", img_pad=14, img_w=CAR_W,
+            img_h=CAR_H, title_size=26, subtitle_size=18, title_y=20,
+            bindings={"style.bgColor": "carABg"}),
+    pk.tile("c_b", 16, 180, 336, 92, "${image.car_porsche}", "Porsche 911",
+            "speed · sharp", "racing.car_b", img_pad=14, img_w=CAR_W,
+            img_h=CAR_H, title_size=26, subtitle_size=18, title_y=20,
+            bindings={"style.bgColor": "carBBg"}),
     # text band — the deliberate gap between the car bars and START
-    label("c_greet", 0, 286, W, 30, 22, GREEN, ""),
-    label("c_prompt", 0, 316, W, 26, 18, MUTED, "tap a lane to steer"),
+    pk.label("c_greet", 0, 286, W, 30, text="", role="body", color=GREEN, size=22),
+    pk.label("c_prompt", 0, 316, W, 26, text="tap a lane to steer", role="body",
+              color=MUTED, size=18),
     # start
-    button("c_go", 16, 352, 336, 88, "START RACING", "racing.go", size=30),
+    pk.button("c_go", 16, 352, W - 32, 88, "START RACING", "racing.go", size=30),
 ])
 
 # ------------------------------------------------------------- game panel (3)
 game_children = [
-    label("g_name", 8, 4, 120, 26, 19, WHITE, "", "left"),
-    label("g_lives", 130, 4, 76, 26, 22, GREEN, "***",
-          bindings={"style.textColor": "livesColor"}),
-    label("g_clock", 206, 4, 60, 26, 19, MUTED, "0:00"),
-    label("g_score", 266, 0, 96, 34, 28, ORANGE, "0", "right"),
-    label("g_speed", 8, 32, 200, 22, 16, MUTED, "Lv.1 · 60 km/h", "left"),
-    label("g_mode", 208, 32, 152, 22, 16, ORANGE, "", "right"),
-    box("g_rule", 0, 52, W, 3, "#333333"),
+    pk.label("g_name", 8, 4, 120, 26, text="", role="body", color=WHITE,
+              align="left", size=19),
+    pk.label("g_lives", 130, 4, 76, 26, text="***", role="body", color=GREEN,
+              size=22, bindings={"style.textColor": "livesColor"}),
+    pk.label("g_clock", 206, 4, 60, 26, text="0:00", role="body", color=MUTED, size=19),
+    pk.label("g_score", 266, 0, 96, 34, text="0", role="value", color=ORANGE,
+              align="right", size=28),
+    pk.label("g_speed", 8, 32, 200, 22, text="Lv.1 · 60 km/h", role="body",
+              color=MUTED, align="left", size=16),
+    pk.label("g_mode", 208, 32, 152, 22, text="", role="body", color=ORANGE,
+              align="right", size=16),
+    pk.canvas("g_rule", 0, 52, W, 3, bg="#333333"),
 ]
 # Touch zones sit BEHIND the sprites: LVGL hit-testing skips non-clickable
 # objects, so a tap over a car/obstacle still reaches the zone underneath.
 # One tap goes straight to a lane: the road is split into three zones, each
 # targeting its own lane, so right->left is one tap, not two. They fire on
 # `pressed` (touch-down) rather than `clicked` (release + valid-press), which
-# is what makes a dodge feel immediate.
+# is what makes a dodge feel immediate. This is the "pressed+pressing+
+# released, no gap" shape panelkit's primitives don't build (see module
+# docstring) -- kept as the original raw dicts.
 LANE_ZONE_W = W // 3
 for zi in range(3):
     game_children.append({
@@ -171,54 +130,41 @@ for zi in range(3):
 
 for x in (122, 246):
     game_children.append(
-        box("g_div_%d" % x, x, ROAD_TOP, 2, ROAD_BOTTOM - ROAD_TOP, "#1e1e1e", clickable=False))
+        pk.canvas("g_div_%d" % x, x, ROAD_TOP, 2, ROAD_BOTTOM - ROAD_TOP,
+                  bg="#1e1e1e", clickable=False))
 for i in range(OBS):
-    game_children.append({
-        "type": "image", "id": "g_obs%d" % i,
-        "placement": {"mode": "absolute", "x": LANES[0] - OBS_SZ // 2, "y": -90,
-                      "width": OBS_SZ, "height": OBS_SZ},
-        "layout": NONE,
-        "commonProps": {"clickable": False},
-        "imageProps": {"src": "${image.obs_cone}", "innerAlign": "contain"},
-        "bindings": {"placement.x": "obs%dX" % i, "placement.y": "obs%dY" % i,
-                     "commonProps.hidden": "obs%dH" % i},
-    })
-game_children.append({
-    "type": "image", "id": "g_car",
-    "placement": {"mode": "absolute", "x": LANES[1] - CAR_W // 2, "y": CAR_Y,
-                  "width": CAR_W, "height": CAR_H},
-    "layout": NONE,
-    "commonProps": {"clickable": False},
-    "imageProps": {"src": "${image.car_porsche}", "innerAlign": "contain"},
-    "bindings": {"placement.x": "carX"},
-})
-game_children.append(label("g_toast", 0, 240, W, 34, 24, ORANGE, ""))
+    game_children.append(
+        pk.sprite("g_obs%d" % i, LANES[0] - OBS_SZ // 2, -90, OBS_SZ, OBS_SZ,
+                  "${image.obs_cone}", clickable=False,
+                  bindings={"placement.x": "obs%dX" % i, "placement.y": "obs%dY" % i,
+                            "commonProps.hidden": "obs%dH" % i}))
+game_children.append(
+    pk.sprite("g_car", LANES[1] - CAR_W // 2, CAR_Y, CAR_W, CAR_H,
+              "${image.car_porsche}", clickable=False, bindings={"placement.x": "carX"}))
+game_children.append(pk.label("g_toast", 0, 240, W, 34, text="", role="value",
+                                color=ORANGE, size=24))
 
-game = box("panel_game", 0, 0, W, H, "#000000", hidden="gameHidden", children=game_children)
+game = pk.canvas("panel_game", 0, 0, W, H, bg="#000000", hidden="gameHidden",
+                  children=game_children)
 
 # -------------------------------------------------------------- over panel (4)
-over = box("panel_over", 0, 0, W, H, "#000000", hidden="overHidden", children=[
-    label("o_head", 0, 12, W, 34, 26, ORANGE, "RACE OVER"),
-    box("o_rule", 60, 50, 248, 4, ORANGE),
-    label("o_rank", 0, 58, W, 32, 24, WHITE, ""),
-    label("o_sub", 0, 90, W, 24, 15, MUTED, ""),
-    label("o_score", 0, 114, W, 62, 52, ORANGE, "0"),
-    label("o_stats", 0, 178, W, 26, 18, WHITE, ""),
-    label("o_board_h", 0, 206, W, 22, 15, MUTED, "TOP OF THE BOARD"),
-    label("o_b1", 0, 228, W, 26, 19, "#FFD700", ""),
-    label("o_b2", 0, 254, W, 26, 19, "#C0C0C0", ""),
-    label("o_b3", 0, 280, W, 26, 19, "#CD7F32", ""),
-    button("o_again", 24, 320, 320, 84, "RACE AGAIN", "racing.again", size=30),
-    label("o_status", 0, 412, W, 24, 16, MUTED, ""),
+over = pk.canvas("panel_over", 0, 0, W, H, bg="#000000", hidden="overHidden", children=[
+    pk.label("o_head", 0, 12, W, 34, text="RACE OVER", role="value", color=ORANGE, size=26),
+    pk.canvas("o_rule", 60, 50, 248, 4, bg=ORANGE),
+    pk.label("o_rank", 0, 58, W, 32, text="", role="value", color=WHITE, size=24),
+    pk.label("o_sub", 0, 90, W, 24, text="", role="footer", color=MUTED, size=15),
+    pk.label("o_score", 0, 114, W, 62, text="0", role="hero", color=ORANGE, size=52),
+    pk.label("o_stats", 0, 178, W, 26, text="", role="body", color=WHITE, size=18),
+    pk.label("o_board_h", 0, 206, W, 22, text="TOP OF THE BOARD", role="footer",
+              color=MUTED, size=15),
+    pk.label("o_b1", 0, 228, W, 26, text="", role="body", color=tk.GOLD, size=19),
+    pk.label("o_b2", 0, 254, W, 26, text="", role="body", color=tk.SILVER, size=19),
+    pk.label("o_b3", 0, 280, W, 26, text="", role="body", color=tk.BRONZE, size=19),
+    pk.button("o_again", 24, 320, 320, 84, "RACE AGAIN", "racing.again", size=30),
+    pk.label("o_status", 0, 412, W, 24, text="", role="footer", color=MUTED, size=16),
 ])
 
-screen = {
-    "type": "viewScreen", "id": "home",
-    "style": {"bgColor": "#000000", "padding": 0},
-    "layout": NONE,
-    "commonProps": {"scrollable": False, "pressLock": True, "clickable": True},
-    "children": [car, game, over],
-}
+screen = pk.screen("home", [car, game, over], bg="#000000")
 
 if __name__ == "__main__":
     out = "/home/tunas/waveshare-devices/amoled-1.8-v2/apps/tunastreet.racing/res/screens/home.json"

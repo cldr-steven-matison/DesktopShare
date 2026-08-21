@@ -8,6 +8,7 @@
 /.claude/settings.local.json
 /.claude/skills/
 /.claude/.claim-pending
+/.claude/.nifi-skill-loaded.read-noticed
 /.claude/.nifi-skill-loaded
 /.claude/.session-issues
 /.claude/.last-tool
