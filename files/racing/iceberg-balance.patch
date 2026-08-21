@@ -1,0 +1,47 @@
+--- a/services/game/index.html
++++ b/services/game/index.html
+@@ -282,7 +282,7 @@
+ // ── Constants ─────────────────────────────────────────────
+ let LANES=[25,103,181]; // recalculated on game start based on actual road width
+ const LANE_NAMES=['Left','Center','Right'];
+-const MAX_LIVES=3,BOOST_SEC=15,HERO_SEC=120,ICEBERG_MIN=3000;
++const MAX_LIVES=3,BOOST_SEC=15,HERO_SEC=120,ICEBERG_MIN=3000,ICEBERG_FLOOR=3;
+ const KAFKA_TOPIC='game_metrics'; // fixed — never changes
+ 
+ // Recalculate lane positions based on actual road element dimensions
+@@ -296,7 +296,7 @@
+ // ── State ─────────────────────────────────────────────────
+ let username='',userId='',carType='corolla',lane=1;
+ let running=false,score=0,collisions=0,elapsed=0;
+-let speedLevel=1,baseKmh=60,boostCd=BOOST_SEC;
++let speedLevel=1,baseKmh=60,boostCd=BOOST_SEC,peakLevel=1;
+ let obstacles=[],gLoop=null,clockLoop=null,spawnT=0,heroMode=false,lastKmh=60;
+ 
+ // ── UUID generator (RFC4122 v4) ───────────────────────────
+@@ -367,7 +367,7 @@
+ 
+ // ── Game logic ────────────────────────────────────────────
+ function resetGame(){
+-  score=0;collisions=0;elapsed=0;speedLevel=1;baseKmh=60;boostCd=BOOST_SEC;spawnT=0;heroMode=false;lastKmh=60;
++  score=0;collisions=0;elapsed=0;speedLevel=1;baseKmh=60;boostCd=BOOST_SEC;spawnT=0;heroMode=false;lastKmh=60;peakLevel=1;
+   recalcLanes();
+   lane=1;document.getElementById('car-el').style.left=(LANES[lane]-26)+'px';
+   obstacles.forEach(o=>o.remove());obstacles=[];
+@@ -393,7 +393,7 @@
+     document.getElementById('spd-fill').style.width=Math.round(((BOOST_SEC-boostCd)/BOOST_SEC)*100)+'%';
+     document.getElementById('boost-cd').textContent=Math.max(0,boostCd)+'s';
+     if(boostCd<=0){
+-      speedLevel++;baseKmh+=20;boostCd=BOOST_SEC;
++      speedLevel++;baseKmh+=20;boostCd=BOOST_SEC;if(speedLevel>peakLevel)peakLevel=speedLevel;
+       document.getElementById('spd-lv').textContent='Lv.'+speedLevel+' · '+baseKmh+' km/h';
+       document.getElementById('spd-wrap').style.background='#F9670228';
+       setTimeout(()=>document.getElementById('spd-wrap').style.background='',700);
+@@ -422,7 +422,7 @@
+     if(ol===lane&&top>carBottom-5&&top<carBottom+52){
+       const type=o.dataset.type;o.remove();obstacles.splice(i,1);
+       if(type==='iceberg'){
+-        if(speedLevel>1){speedLevel--;baseKmh=Math.max(60,baseKmh-20);}
++        if(speedLevel>Math.max(1,peakLevel-ICEBERG_FLOOR)){speedLevel--;baseKmh=Math.max(60,baseKmh-20);}
+         boostCd=BOOST_SEC;
+         document.getElementById('spd-lv').textContent='Lv.'+speedLevel+' · '+baseKmh+' km/h';
+         document.getElementById('spd-fill').style.width='0%';

@@ -1,0 +1,70 @@
+--- a/services/game/index.html
++++ b/services/game/index.html
+@@ -179,6 +179,9 @@
+     <span style="color:#FF3621">▲ Survive 2:00 — unknown villains appear in Hero Mode</span><br>
+     <span style="color:#22c55e">▼ Power-up unlocks at 3,000 pts — Apache Iceberg cools your speed</span>
+   </p>
++  <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#aaa">
++    <input type="checkbox" id="finish-mode-chk">🏁 Finish-line mode — 90s sprint, highest score wins
++  </label>
+   <button class="btn" onclick="beginGame()">Race Now ↗</button>
+   <button class="btn-sec" onclick="goScreen('screen-login')">← Back</button>
+ </div>
+@@ -282,7 +285,7 @@
+ // ── Constants ─────────────────────────────────────────────
+ let LANES=[25,103,181]; // recalculated on game start based on actual road width
+ const LANE_NAMES=['Left','Center','Right'];
+-const MAX_LIVES=3,BOOST_SEC=15,HERO_SEC=120,ICEBERG_MIN=3000;
++const MAX_LIVES=3,BOOST_SEC=15,HERO_SEC=120,ICEBERG_MIN=3000,FINISH_SEC=90;
+ const KAFKA_TOPIC='game_metrics'; // fixed — never changes
+ 
+ // Recalculate lane positions based on actual road element dimensions
+@@ -294,7 +297,7 @@
+ }
+ 
+ // ── State ─────────────────────────────────────────────────
+-let username='',userId='',carType='corolla',lane=1;
++let username='',userId='',carType='corolla',lane=1,finishMode=false;
+ let running=false,score=0,collisions=0,elapsed=0;
+ let speedLevel=1,baseKmh=60,boostCd=BOOST_SEC;
+ let obstacles=[],gLoop=null,clockLoop=null,spawnT=0,heroMode=false,lastKmh=60;
+@@ -349,6 +352,7 @@
+ }
+ function selCar(t,card){carType=t;document.querySelectorAll('.car-card').forEach(c=>c.classList.remove('sel'));card.classList.add('sel');}
+ function beginGame(){
++  finishMode=document.getElementById('finish-mode-chk').checked;
+   goScreen('screen-game');
+   document.getElementById('hud-player').textContent=username;
+   document.getElementById('hud-car').textContent=carType==='corolla'?'Toyota Corolla S':'Porsche 911';
+@@ -388,7 +392,9 @@
+   clockLoop=setInterval(()=>{
+     if(!running)return;
+     elapsed++;boostCd--;
+-    const mm=String(Math.floor(elapsed/60)).padStart(2,'0'),ss=String(elapsed%60).padStart(2,'0');
++    if(finishMode&&elapsed>=FINISH_SEC){endGame('race_finished');return;}
++    const shown=finishMode?Math.max(0,FINISH_SEC-elapsed):elapsed;
++    const mm=String(Math.floor(shown/60)).padStart(2,'0'),ss=String(shown%60).padStart(2,'0');
+     document.getElementById('hud-clock').textContent=mm+':'+ss;
+     document.getElementById('spd-fill').style.width=Math.round(((BOOST_SEC-boostCd)/BOOST_SEC)*100)+'%';
+     document.getElementById('boost-cd').textContent=Math.max(0,boostCd)+'s';
+@@ -517,17 +523,17 @@
+   if(telemetryLoop){clearInterval(telemetryLoop);telemetryLoop=null;}
+ }
+ 
+-function endGame(){
++function endGame(reason){
+   running=false;clearInterval(gLoop);clearInterval(clockLoop);
+   stopTelemetry();
+-  sendTelemetry(updateMetrics(),'game_over');
++  sendTelemetry(updateMetrics(),reason||'game_over');
+   // Deactivate mobile touch zones so buttons are tappable again
+   document.querySelectorAll('.touch-zone').forEach(z=>z.classList.remove('active'));
+   const ach=getAch(score);
+   const mm=String(Math.floor(elapsed/60)).padStart(2,'0'),ss=String(elapsed%60).padStart(2,'0');
+   document.getElementById('over-rank').textContent=ach.rank;
+   document.getElementById('over-title').textContent=ach.title;
+-  document.getElementById('over-sub').textContent=ach.sub+(heroMode?' Survived Cloudera Hero Mode. 🦾':'');
++  document.getElementById('over-sub').textContent=ach.sub+(heroMode?' Survived Cloudera Hero Mode. 🦾':'')+(reason==='race_finished'?' 🏁 Finished the sprint!':'');
+   document.getElementById('over-pid').textContent='Player ID: #'+userId.substring(0,8);
+   document.getElementById('os-score').textContent=score;
+   document.getElementById('os-speed').textContent=lastKmh+' km/h';
