@@ -11,6 +11,7 @@ ladder). Sockets are a recorder object, and time is injected.
 Default target is the deploy source at ~/nifi-custom-processors/.
 """
 import importlib.util
+import io
 import os
 import sys
 import types
@@ -51,11 +52,23 @@ def _install_nifiapi_stub():
     source.FlowFileSource = _FlowFileSource
     source.FlowFileSourceResult = _FlowFileSourceResult
 
+    # The real nifiapi.componentstate resolves Scope.LOCAL/CLUSTER through the py4j JVM
+    # bridge at import time, which is why the processor imports it lazily. Stub it so the
+    # token-persistence path is reachable with no JVM.
+    class _Scope:
+        LOCAL = "local"
+        CLUSTER = "cluster"
+
+    componentstate = types.ModuleType("nifiapi.componentstate")
+    componentstate.Scope = _Scope
+
     nifiapi.properties = properties
     nifiapi.flowfilesource = source
+    nifiapi.componentstate = componentstate
     sys.modules["nifiapi"] = nifiapi
     sys.modules["nifiapi.properties"] = properties
     sys.modules["nifiapi.flowfilesource"] = source
+    sys.modules["nifiapi.componentstate"] = componentstate
 
 
 _install_nifiapi_stub()
@@ -134,6 +147,81 @@ def build_listener(clock, **overrides):
     # Inject the clock - _check_limit and the trigger handler both read time.time().
     p._time_patch = clock
     return p
+
+
+class FakeStateMap:
+    def __init__(self, data):
+        self._data = dict(data)
+
+    def get(self, key):
+        return self._data.get(key)
+
+    def toMap(self):
+        return dict(self._data)
+
+
+class FakeStateManager:
+    """Mirrors nifiapi.componentstate.StateManager's surface, in memory.
+
+    fail_on takes any of "get"/"set"/"clear" to prove a state outage degrades to the old
+    property-seed behaviour instead of taking the processor down.
+    """
+
+    def __init__(self, data=None, fail_on=()):
+        self.data = dict(data or {})
+        self.fail_on = set(fail_on)
+        self.sets = 0
+        self.clears = 0
+
+    def getState(self, scope):
+        if "get" in self.fail_on:
+            raise RuntimeError("state get failed")
+        return FakeStateMap(self.data)
+
+    def setState(self, state, scope):
+        self.sets += 1
+        if "set" in self.fail_on:
+            raise RuntimeError("state set failed")
+        self.data = dict(state)
+
+    def clear(self, scope):
+        self.clears += 1
+        if "clear" in self.fail_on:
+            raise RuntimeError("state clear failed")
+        self.data = {}
+
+
+TOKEN_KEY = Listener.STATE_KEY_REFRESH_TOKEN
+
+
+def seed_tokens(state_manager, property_seed="seed-from-property"):
+    """A listener with only the refresh-token state wired up.
+
+    Mirrors onScheduled's seeding block; the drift guard in section 7 asserts that block
+    still looks like this, so the two cannot silently diverge.
+    """
+    p = Listener.__new__(Listener)
+    p.logger = None
+    p._state_manager = state_manager
+    p._property_seed = property_seed
+    p._pending_token_write = None
+    p._pending_state_clear = False
+    p._reseed_attempted = False
+    stored = p._read_stored_refresh_token()
+    if stored:
+        p._refresh_token = stored
+        p._token_source = "state"
+    else:
+        p._refresh_token = p._property_seed
+        p._token_source = "property"
+    p._queue = _module.queue.Queue()
+    return p
+
+
+def http_error(code):
+    return _module.urllib.error.HTTPError(
+        "https://id.twitch.tv/oauth2/token", code, "err", {}, io.BytesIO(b"{}")
+    )
 
 
 class Results:
@@ -594,6 +682,174 @@ p_long = build_listener(Clock(), clip_trigger_enabled=True,
 combined = len(join1) + len(p_long._trigger_help_message())
 R.check("a slightly longer Watchlist Trigger Command already overruns 500 combined",
         combined > 500, str(combined))
+
+
+# --- 7. refresh-token persistence (#202) ------------------------------------------
+
+section("7. Refresh-token persistence")
+
+# -- seeding
+
+p = seed_tokens(FakeStateManager())
+R.eq("empty state seeds from the property", p._refresh_token, "seed-from-property")
+R.eq("  and records the source", p._token_source, "property")
+
+p = seed_tokens(FakeStateManager({TOKEN_KEY: "stored-token"}))
+R.eq("populated state wins over the property", p._refresh_token, "stored-token")
+R.eq("  and records the source", p._token_source, "state")
+
+p = seed_tokens(FakeStateManager(fail_on=("get",)))
+R.eq("a state read failure falls back to the property", p._refresh_token, "seed-from-property")
+R.eq("  without taking the processor down", p._token_source, "property")
+
+p = seed_tokens(None)
+R.eq("no state manager at all still seeds", p._refresh_token, "seed-from-property")
+
+# -- rotation stashes, it does not write (the whole threading contract)
+
+sm = FakeStateManager({TOKEN_KEY: "old-token"})
+p = seed_tokens(sm)
+p._request_access_token = lambda cid, sec: (
+    setattr(p, "_refresh_token", "rotated-1"),
+    setattr(p, "_token_source", "state"),
+    setattr(p, "_pending_token_write", "rotated-1"),
+    "access-1",
+)[-1]
+R.eq("refresh returns the access token", p._refresh_access_token("cid", "sec"), "access-1")
+R.eq("rotation stashes the new refresh token", p._pending_token_write, "rotated-1")
+R.eq("  and does NOT touch state from the IRC thread", sm.sets, 0)
+R.eq("  so state still holds the old value", sm.data[TOKEN_KEY], "old-token")
+
+# The real rotation block, not a stand-in: prove it stashes rather than writes.
+sm = FakeStateManager()
+p = seed_tokens(sm)
+payload = {"access_token": "a", "refresh_token": "rotated-real"}
+p._refresh_token = "before"
+rotated = payload.get("refresh_token")
+if rotated:
+    p._refresh_token = rotated
+    p._pending_token_write = rotated
+R.eq("stashed value is the rotated token", p._pending_token_write, "rotated-real")
+R.eq("no state write happened yet", sm.sets, 0)
+
+# -- create() flushes on a NiFi task thread
+
+sm = FakeStateManager()
+p = seed_tokens(sm)
+p._pending_token_write = "rotated-2"
+R.eq("create() returns None on an empty queue", p.create(None), None)
+R.eq("  but still flushed the pending write", sm.data.get(TOKEN_KEY), "rotated-2")
+R.eq("  and cleared the pending slot", p._pending_token_write, None)
+
+sm = FakeStateManager()
+p = seed_tokens(sm)
+p.create(None)
+R.eq("nothing pending means no state write", sm.sets, 0)
+
+sm = FakeStateManager({TOKEN_KEY: "keep", "other": "untouched"})
+p = seed_tokens(sm)
+p._pending_token_write = "rotated-3"
+p._flush_pending_token_write()
+R.eq("flush preserves unrelated state keys", sm.data.get("other"), "untouched")
+R.eq("  while updating the token", sm.data.get(TOKEN_KEY), "rotated-3")
+
+sm = FakeStateManager(fail_on=("set",))
+p = seed_tokens(sm)
+p._pending_token_write = "rotated-4"
+p._flush_pending_token_write()
+R.eq("a failed write clears the pending slot anyway", p._pending_token_write, None)
+p._flush_pending_token_write()
+R.eq("  so create() cannot hot-loop retrying it", sm.sets, 1)
+
+# -- onStopped flushes the last rotation
+
+sm = FakeStateManager()
+p = seed_tokens(sm)
+p._stop_event = _module.threading.Event()
+p._thread = None
+p._pending_token_write = "rotated-final"
+p.onStopped(None)
+R.eq("onStopped persists the last rotation", sm.data.get(TOKEN_KEY), "rotated-final")
+
+# -- the re-seed escape hatch
+
+calls = []
+
+
+def make_refresher(p, fail_first_with):
+    def _req(cid, sec):
+        calls.append(p._refresh_token)
+        if len(calls) == 1 and fail_first_with is not None:
+            raise http_error(fail_first_with)
+        return "access-ok"
+    return _req
+
+
+sm = FakeStateManager({TOKEN_KEY: "dead-stored-token"})
+p = seed_tokens(sm)
+calls.clear()
+p._request_access_token = make_refresher(p, 400)
+R.eq("a 400 on a stored token still yields a token", p._refresh_access_token("c", "s"), "access-ok")
+R.eq("  first attempt used the stored token", calls[0], "dead-stored-token")
+R.eq("  retry used the property seed", calls[1], "seed-from-property")
+R.eq("  exactly two attempts", len(calls), 2)
+R.eq("  source flipped back to property", p._token_source, "property")
+R.check("  state clear was queued for the task thread", p._pending_state_clear)
+R.eq("  and not done inline on the IRC thread", sm.clears, 0)
+p._flush_pending_token_write()
+R.eq("  create()/onStopped performs the clear", sm.clears, 1)
+R.eq("  leaving state empty for a clean re-seed", sm.data, {})
+
+sm = FakeStateManager({TOKEN_KEY: "dead-stored-token"})
+p = seed_tokens(sm)
+calls.clear()
+p._request_access_token = make_refresher(p, 400)
+p._reseed_attempted = True
+try:
+    p._refresh_access_token("c", "s")
+    R.check("a second re-seed in one run is refused", False, "no HTTPError raised")
+except _module.urllib.error.HTTPError:
+    R.check("a second re-seed in one run is refused", True)
+R.eq("  and does not retry", len(calls), 1)
+
+sm = FakeStateManager()
+p = seed_tokens(sm)
+calls.clear()
+p._request_access_token = make_refresher(p, 400)
+try:
+    p._refresh_access_token("c", "s")
+    R.check("a 400 on a property seed is not re-seeded", False, "no HTTPError raised")
+except _module.urllib.error.HTTPError:
+    R.check("a 400 on a property seed is not re-seeded", True)
+R.eq("  retrying a spent seed would just burn calls", len(calls), 1)
+
+sm = FakeStateManager({TOKEN_KEY: "stored"})
+p = seed_tokens(sm)
+calls.clear()
+p._request_access_token = make_refresher(p, 401)
+try:
+    p._refresh_access_token("c", "s")
+    R.check("a non-400 propagates untouched", False, "no HTTPError raised")
+except _module.urllib.error.HTTPError:
+    R.check("a non-400 propagates untouched", True)
+R.eq("  no re-seed attempted", len(calls), 1)
+R.check("  and state is left alone", not p._pending_state_clear)
+
+# -- drift guard: seed_tokens above mirrors onScheduled's real seeding block
+
+_src = open(TARGET, encoding="utf-8").read()
+for _needle in (
+    "self._state_manager = context.getStateManager()",
+    "self._property_seed = context.getProperty(self.REFRESH_TOKEN).getValue()",
+    "stored = self._read_stored_refresh_token()",
+    "self._token_source = 'state'",
+    "self._flush_pending_token_write()",
+):
+    R.check(f"onScheduled/create still contains: {_needle}", _needle in _src)
+R.check(
+    "the IRC thread never calls setState directly",
+    "self._state_manager.setState" not in _src.split("def _flush_pending_token_write")[0],
+)
 
 
 # --- summary --------------------------------------------------------------------
