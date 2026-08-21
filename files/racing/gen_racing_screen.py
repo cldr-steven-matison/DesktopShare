@@ -87,28 +87,34 @@ def button(id, x, y, w, h, text, action, bg=ORANGE, fg="#0f0f0f", size=30,
 
 # -------------------------------------------------------------- car panel (2)
 car = box("panel_car", 0, 0, W, H, "#000000", hidden="carHidden", children=[
-    label("c_brand", 0, 10, W, 34, 26, WHITE, "CLOUDERA"),
-    label("c_brand2", 0, 42, W, 40, 34, ORANGE, "RACING"),
-    box("c_rule", 34, 86, 300, 4, ORANGE),
-    label("c_greet", 0, 98, W, 30, 22, GREEN, ""),
-    label("c_prompt", 0, 130, W, 26, 20, MUTED, "PICK YOUR CAR"),
-    box("c_a", 24, 160, 320, 104, DARK, radius=12, click="racing.car_a",
+    # header bar
+    box("c_bar", 0, 6, W, 54, "#141414", children=[
+        label("c_brand", 0, 10, 190, 36, 28, WHITE, "CLOUDERA", "right"),
+        label("c_brand2", 194, 10, 170, 36, 28, ORANGE, " RACING", "left")]),
+    box("c_rule", 0, 60, W, 4, ORANGE),
+    # car 1 bar
+    box("c_a", 16, 76, 336, 92, DARK, radius=12, click="racing.car_a",
         bindings={"style.bgColor": "carABg"}, children=[
             {"type": "image", "id": "c_a_img",
-             "placement": {"mode": "absolute", "x": 14, "y": 15, "width": 56, "height": 74},
+             "placement": {"mode": "absolute", "x": 14, "y": 9, "width": 56, "height": 74},
              "layout": NONE,
              "imageProps": {"src": "${image.car_corolla}", "innerAlign": "contain"}},
-            label("c_a_t", 84, 24, 226, 34, 26, WHITE, "Toyota Corolla S", "left"),
-            label("c_a_s", 84, 58, 226, 26, 18, MUTED, "reliable · steady", "left")]),
-    box("c_b", 24, 274, 320, 104, DARK, radius=12, click="racing.car_b",
+            label("c_a_t", 84, 20, 240, 34, 26, WHITE, "Toyota Corolla S", "left"),
+            label("c_a_s", 84, 54, 240, 26, 18, MUTED, "reliable · steady", "left")]),
+    # car 2 bar
+    box("c_b", 16, 180, 336, 92, DARK, radius=12, click="racing.car_b",
         bindings={"style.bgColor": "carBBg"}, children=[
             {"type": "image", "id": "c_b_img",
-             "placement": {"mode": "absolute", "x": 14, "y": 15, "width": 56, "height": 74},
+             "placement": {"mode": "absolute", "x": 14, "y": 9, "width": 56, "height": 74},
              "layout": NONE,
              "imageProps": {"src": "${image.car_porsche}", "innerAlign": "contain"}},
-            label("c_b_t", 84, 24, 226, 34, 26, WHITE, "Porsche 911", "left"),
-            label("c_b_s", 84, 58, 226, 26, 18, MUTED, "speed · sharp", "left")]),
-    button("c_go", 24, 388, 320, 50, "START RACING", "racing.go", size=26),
+            label("c_b_t", 84, 20, 240, 34, 26, WHITE, "Porsche 911", "left"),
+            label("c_b_s", 84, 54, 240, 26, 18, MUTED, "speed · sharp", "left")]),
+    # text band — the deliberate gap between the car bars and START
+    label("c_greet", 0, 286, W, 30, 22, GREEN, ""),
+    label("c_prompt", 0, 316, W, 26, 18, MUTED, "tap a lane to steer"),
+    # start
+    button("c_go", 16, 352, 336, 88, "START RACING", "racing.go", size=30),
 ])
 
 # ------------------------------------------------------------- game panel (3)
@@ -122,10 +128,31 @@ game_children = [
 ]
 # Touch zones sit BEHIND the sprites: LVGL hit-testing skips non-clickable
 # objects, so a tap over a car/obstacle still reaches the zone underneath.
-game_children += [
-    box("g_tz_l", 0, ROAD_TOP, W // 2, ROAD_BOTTOM - ROAD_TOP, "#000000", click="racing.left"),
-    box("g_tz_r", W // 2, ROAD_TOP, W // 2, ROAD_BOTTOM - ROAD_TOP, "#000000", click="racing.right"),
-]
+# One tap goes straight to a lane: the road is split into three zones, each
+# targeting its own lane, so right->left is one tap, not two. They fire on
+# `pressed` (touch-down) rather than `clicked` (release + valid-press), which
+# is what makes a dodge feel immediate.
+LANE_ZONE_W = W // 3
+for zi in range(3):
+    game_children.append({
+        "type": "container", "id": "g_tz%d" % zi,
+        "placement": {"mode": "absolute", "x": zi * LANE_ZONE_W, "y": ROAD_TOP,
+                      "width": LANE_ZONE_W if zi < 2 else W - 2 * LANE_ZONE_W,
+                      "height": ROAD_BOTTOM - ROAD_TOP},
+        "layout": NONE,
+        "style": {"bgColor": "#000000", "padding": 0},
+        "commonProps": {"scrollable": False, "clickable": True},
+        # `pressed` is the fast path (touch-down). `clicked` is kept as a
+        # belt-and-braces second trigger in case pressed does not fire in this
+        # runtime; steerTo() is idempotent so a double-fire costs nothing.
+        "events": [
+            {"type": "pressed", "effects": [
+                {"type": "emitAction", "action": "racing.lane%d" % zi}]},
+            {"type": "clicked", "effects": [
+                {"type": "emitAction", "action": "racing.lane%d" % zi}]},
+        ],
+    })
+
 for x in (122, 246):
     game_children.append(
         box("g_div_%d" % x, x, ROAD_TOP, 2, ROAD_BOTTOM - ROAD_TOP, "#1e1e1e", clickable=False))
