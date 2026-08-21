@@ -21,10 +21,18 @@ A working playbook for building **NiFi 2.x + MiNiFi + EFM** flows programmatical
    kubectl exec <nifi-pod> -n $NS -- gunzip -c /opt/nifi/nifi-current/conf/flow.json.gz | jq '<selector>'
    ```
    Never edit blind from a remembered description of the flow.
+
+   **One carve-out: `flow.json` is truth for *structure and state*, not for whether a sensitive property is parameter-bound.** NiFi persists the **resolved** value of a `#{param}`-referenced sensitive property as `enc{...}` — byte-for-byte the same form as a genuine inline literal. `flow.json.gz` cannot tell the two apart, and a `GET /processors/{id}` can't either (it masks both as `********`). The authoritative check is the parameter context:
+   ```bash
+   GET /nifi-api/parameter-contexts/{id}
+   # -> .component.parameters[].parameter.referencingComponents[]   <- this list is the answer
+   ```
+   Reading `enc{}` as "literal, so the Parameter Context migration never happened" is a real trap: it once cost a third of a session and produced a wrong user-facing claim that credentials had regressed, plus a re-run of a migration that had been done weeks earlier and had held the whole time.
 2. **Never GET-then-PUT a processor entity that has sensitive properties.** NiFi returns `"********"` for a sensitive property on GET; PUT the returned entity back and you write that literal string over the real credential, destroying it. Instead:
    - Bind sensitive props to a **Parameter Context** (`#{param-name}`) — write-only via the API, immune to the mask. This is the only safe pattern for credentials inside a flow.
    - Or use a narrow-scope endpoint that sends only the field you're changing, e.g. `PUT /processors/{id}/run-status` (revision + state only).
    - Before any full-entity PUT, check that processor's `descriptors[...].sensitive` — this applies to every processor that has one, not just ones already known to hold credentials. `validationStatus: VALID` never proves a sensitive value is real; NiFi can't tell a genuine secret from the mask string.
+   - To check whether a given processor is *already* bound to a Parameter Context, use the context's `referencingComponents` (rule 1's carve-out) — not `flow.json.gz`, and not a `GET` of the processor. Neither of those can distinguish a reference from a literal.
 3. **Don't hand-patch a live Process Group while it's actively posting/queueing.** Route the change through the API from a trusted host, or rebuild → redeploy. Never inject hand-crafted data into a live trigger to shortcut a test — let the real pipeline fire it.
 4. **Keep changes scoped.** Make the change asked for, not the adjacent "obvious improvement." A rename is not a rewire is not a retype — bundling them turns a one-line review into a hunt.
 5. **Every flow change gets exported + committed.** A running canvas that isn't in version control is one restart from gone. Export the Process Group JSON after every real change.
