@@ -105,14 +105,32 @@ def show_matrix(screen):
     # WM_CLASS: real WM_CLASS strings ("chromium-browser.Chromium-browser")
     # don't contain a clean substring to match, but Chromium always appends
     # " - Chromium" to the title bar regardless of page content.
+    #
+    # Issue #206: add,fullscreen sets the fullscreen *state* but never raises
+    # or activates the window, and a window mapped by a daemon has no user
+    # timestamp, so Mutter's focus-stealing prevention could leave the matrix
+    # fullscreened *behind* whatever had focus — a second !matrix brought it
+    # up. So after fullscreening, `wmctrl -a` (raise + activate) and re-check
+    # that Chromium really is the active window, retrying for up to 6s. The
+    # final active-window name is appended to the log either way, so a future
+    # "sometimes" report has evidence to read.
     fullscreen_poll = (
         "for i in $(seq 1 240); do "
         "  if wmctrl -l | grep -qi -- ' - Chromium'; then "
         "    wmctrl -r 'Chromium' -b add,fullscreen; "
+        "    for j in $(seq 1 12); do "
+        "      wmctrl -a 'Chromium'; "
+        "      sleep 0.5; "
+        "      xdotool getactivewindow getwindowname 2>/dev/null "
+        "        | grep -qi -- 'Chromium' && break; "
+        "    done; "
         "    break; "
         "  fi; "
         "  sleep 0.25; "
-        "done"
+        "done; "
+        "active=$(xdotool getactivewindow getwindowname 2>/dev/null); "
+        f"echo \"[$(date +%Y-%m-%dT%H:%M:%S)] {screen}: fullscreen-poll done, "
+        f"active window: $active\" >> {LOG_PATH}"
     )
     subprocess.Popen(
         ["bash", "-c", fullscreen_poll],

@@ -260,8 +260,8 @@ def confirm_playing(screen, timeout=12.0):
     return None
 
 
-def restore_mpv(screen):
-    """Un-minimize the mpv window.
+def restore_mpv(screen, timeout=8.0):
+    """Un-minimize the mpv window and verify it actually reached the front.
 
     Confirmed live on this device (2026-08-02): after a /stop minimizes the
     window, an IPC `set_property fullscreen true` on the next /load re-adds
@@ -270,12 +270,44 @@ def restore_mpv(screen):
     behind everything. windowactivate clears HIDDEN properly. This is the same
     class of bug the Windows port hit from the other direction (mpv's own
     "window-minimized" IPC property did not actually iconify there).
+
+    Issue #206: a single fire-and-forget windowactivate sometimes left the
+    stream playing behind whatever had focus, and a second !load fixed it. Two
+    ways the one-shot could miss: on a cold start the IPC socket appears before
+    the X11 window is mapped, so the search found nothing to activate; and on a
+    load that replaces the matrix screensaver, the activate races the SIGKILLed
+    Chromium's fullscreen window — when that window dies a moment later, Mutter
+    hands focus to its idea of the most-recent window, not mpv. So: poll until
+    an mpv window exists, activate it, and re-check that it really is the
+    active window, retrying until the deadline. The retry is exactly what the
+    manual second !load was doing by hand.
     """
-    result = subprocess.run(
-        ["xdotool", "search", "--class", "mpv", "windowactivate", "%@"],
-        env=display_env(), capture_output=True, text=True,
-    )
-    return (result.stdout or "").strip() + (result.stderr or "").strip()
+    deadline = time.monotonic() + timeout
+    last = "no mpv window appeared"
+    while time.monotonic() < deadline:
+        found = subprocess.run(
+            ["xdotool", "search", "--class", "mpv"],
+            env=display_env(), capture_output=True, text=True,
+        )
+        ids = (found.stdout or "").split()
+        if not ids:
+            time.sleep(0.25)
+            continue
+        result = subprocess.run(
+            ["xdotool", "windowactivate", ids[-1]],
+            env=display_env(), capture_output=True, text=True,
+        )
+        time.sleep(0.3)  # let Mutter apply (or refuse) the activation
+        active = subprocess.run(
+            ["xdotool", "getactivewindow"],
+            env=display_env(), capture_output=True, text=True,
+        )
+        if (active.stdout or "").strip() in ids:
+            return f"active={ids[-1]}"
+        last = (f"activate did not stick (active={(active.stdout or '').strip()!r}, "
+                f"err={(result.stderr or '').strip()!r})")
+        time.sleep(0.4)
+    return last
 
 
 def minimize_mpv(screen):
@@ -324,7 +356,7 @@ class Handler(BaseHTTPRequestHandler):
                 # would otherwise play the stream invisibly behind everything.
                 # Both steps are needed — fullscreen alone does not clear
                 # _NET_WM_STATE_HIDDEN (see restore_mpv).
-                restore_mpv(screen)
+                restored = restore_mpv(screen)
                 send_ipc(screen, ["set_property", "fullscreen", True])
 
                 playing = confirm_playing(screen)
@@ -338,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
                     })
                     return
 
-                log(f"{screen}: loaded {url} (cold_start={started}, playing={playing})")
+                log(f"{screen}: loaded {url} (cold_start={started}, playing={playing}, restore={restored!r})")
                 self._respond(200, {"ok": True, "streamer": streamer,
                                     "screen": screen, "url": url,
                                     "cold_start": started, "playing": playing})
