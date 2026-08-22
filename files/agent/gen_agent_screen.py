@@ -36,7 +36,7 @@ CELL_GAP = 6
 
 def header():
     return pk.canvas("head", 0, 0, W, 46, bg=BLACK, children=[
-        pk.label("head_t", 16, 10, 210, 28, text="MICROFI AGENT",
+        pk.label("head_t", 16, 10, 210, 28, text="EFM AGENT",
                  role="body", size=22, color=tk.ORANGE, align="left"),
         pk.label("head_state", 226, 12, 126, 24, text="...",
                  role="body", size=18, color=tk.MUTED, align="right",
@@ -83,11 +83,15 @@ def processors():
 
 def metrics():
     """The four numbers the agent actually ships to EFM. Captions at the
-    footer floor, values in the value band -- the #205 sizing lesson."""
+    footer floor, values in the value band -- the #205 sizing lesson.
+
+    BEATS replaced CPU %: this agent reports cpuUtilization 0.0 on every
+    heartbeat, so the cell was a permanent zero. Heartbeats-received is a
+    number that actually moves, and it comes from EFM's own counter."""
     cells = [
         ("mx_uptime", "UPTIME", "--"),
         ("mx_mem", "MEM MB", "--"),
-        ("mx_cpu", "CPU %", "--"),
+        ("mx_beats", "BEATS", "--"),
         ("mx_queue", "QUEUE", "--"),
     ]
     cw = W // 4

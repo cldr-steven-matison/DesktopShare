@@ -67,11 +67,11 @@ car = pk.canvas("panel_car", 0, 0, W, H, bg="#000000", hidden="carHidden", child
     # reproduce the hand-tuned legacy pixel position (20, not the formula's
     # auto-centred 16) — see panelkit.tile()'s docstring.
     pk.tile("c_a", 16, 76, 336, 92, "${image.car_corolla}", "Toyota Corolla S",
-            "reliable · steady", "racing.car_a", img_pad=14, img_w=CAR_W,
+            "reliable - steady", "racing.car_a", img_pad=14, img_w=CAR_W,
             img_h=CAR_H, title_size=26, subtitle_size=18, title_y=20,
             bindings={"style.bgColor": "carABg"}),
     pk.tile("c_b", 16, 180, 336, 92, "${image.car_porsche}", "Porsche 911",
-            "speed · sharp", "racing.car_b", img_pad=14, img_w=CAR_W,
+            "speed - sharp", "racing.car_b", img_pad=14, img_w=CAR_W,
             img_h=CAR_H, title_size=26, subtitle_size=18, title_y=20,
             bindings={"style.bgColor": "carBBg"}),
     # text band — the deliberate gap between the car bars and START
@@ -91,7 +91,7 @@ game_children = [
     pk.label("g_clock", 206, 4, 60, 26, text="0:00", role="body", color=MUTED, size=19),
     pk.label("g_score", 266, 0, 96, 34, text="0", role="value", color=ORANGE,
               align="right", size=28),
-    pk.label("g_speed", 8, 32, 200, 22, text="Lv.1 · 60 km/h", role="body",
+    pk.label("g_speed", 8, 32, 200, 22, text="Lv.1 - 60 km/h", role="body",
               color=MUTED, align="left", size=16),
     pk.label("g_mode", 208, 32, 152, 22, text="", role="body", color=ORANGE,
               align="right", size=16),

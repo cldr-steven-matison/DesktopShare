@@ -12,9 +12,15 @@ could not have been added without this change. The root is now absolute,
 which is also what lets the clock, art and footer sit at fixed positions
 instead of stacking wherever the flow lands them.
 
-Every node id is unchanged from the flex version -- /clock, /prefix, /vehicle,
-/mission, /pad, /status, /meta, /topbar/nav_prev, /topbar/nav_next -- so
-app/app.js needs no edit. The clock keeps its clockColor/clockSize bindings.
+Every id app/app.js writes to is unchanged -- /clock, /prefix, /vehicle,
+/mission, /pad, /status, /meta. The clock keeps its clockColor/clockSize
+bindings.
+
+The nav moved (2026-08-21, reported from the glass and the simulator alike):
+the « / » glyphs were 64x44 targets in the top corners, and both were hard to
+hit. They are gone; navigation is now two half-panel tap zones over the middle
+band plus the screen swipe, which app.js debounces at 350 ms so one drag steps
+one launch.
 
 Run: python3 gen_tminus_screen.py
 """
@@ -37,24 +43,58 @@ AMBER = "#ffb000"
 # The art sits between the mission line and the footer, and stops short
 # of it: the first render ran the plume under "SLC-4E - Vandenberg".
 ART_Y, ART_H = 206, 168
+# The nav band covers the art and the gap under it, stopping at the footer.
+NAV_Y, NAV_H = ART_Y, 174
 
 
 def topbar():
-    """« and » stay as real tap targets -- the package README's gesture-bubble
-    finding means a swipe may never fire on this backend, so the taps are the
-    guaranteed path, not a decoration."""
+    """Brand only. The nav used to live up here as two 64x44 glyphs in the
+    top corners -- the two hardest pixels on the panel to hit with a thumb,
+    and reported as such from both the glass and the simulator. Navigation
+    moved to the middle band (nav_zones)."""
     return pk.canvas("topbar", 0, 0, W, 44, bg=BLACK, children=[
-        pk.label("nav_prev", 0, 0, 64, 44, text="«", role="value", size=28,
-                 color=tk.MUTED, click="tminus.prev"),
-        pk.label("brand", 64, 10, W - 128, 26, text="T-MINUS", role="body",
+        pk.label("brand", 0, 10, W, 26, text="T-MINUS", role="body",
                  size=20, color=AMBER),
-        pk.label("nav_next", W - 64, 0, 64, 44, text="»", role="value",
-                 size=28, color=tk.MUTED, click="tminus.next"),
     ])
+
+
+def nav_zones():
+    """Two half-width tap targets filling the middle band -- 184x174 each,
+    against 64x44 in a corner before. Left = previous launch, right = next.
+
+    They sit *behind* the art and the chevrons in child order, and the
+    passthrough only works because both of those are explicitly
+    non-clickable. That is not free: an `image` node defaults to
+    clickable:true in the runtime, so the first cut of this screen shipped
+    with the art swallowing every tap in the band -- panelkit trap 3, now
+    closed by `sprite()` and lint R6. Taps stay the guaranteed path; swipe
+    is the nicer one, but the package README's gesture-bubble finding says
+    a JSON-UI gesture may never reach an app node on this backend."""
+    return [
+        pk.canvas("nav_prev", 0, NAV_Y, W // 2, NAV_H, bg=BLACK,
+                  click="tminus.prev"),
+        pk.canvas("nav_next", W // 2, NAV_Y, W - W // 2, NAV_H, bg=BLACK,
+                  click="tminus.next"),
+    ]
+
+
+def nav_chevrons():
+    """Affordance only, drawn over the art: something has to say the middle
+    of the screen is tappable."""
+    cy = NAV_Y + (NAV_H - 44) // 2
+    return [
+        pk.label("nav_prev_g", 8, cy, 44, 44, text="<", role="value",
+                 size=40, color=tk.MUTED),
+        pk.label("nav_next_g", W - 52, cy, 44, 44, text=">", role="value",
+                 size=40, color=tk.MUTED),
+    ]
 
 
 def build():
     return pk.screen("home", bg=BLACK, children=[
+        # Nav zones first: everything drawn after them is non-clickable and
+        # falls through.
+    ] + nav_zones() + [
         topbar(),
         # T- / T+ / HOLD marker over the clock.
         pk.label("prefix", 0, 50, W, 22, text="T-", role="footer", size=16,
@@ -70,10 +110,11 @@ def build():
         pk.label("mission", 8, 182, W - 16, 28, text="", role="body", size=18,
                  color=tk.MUTED),
         # The art fills what used to be dead space between the mission line
-        # and the footer. Not clickable: taps fall through to nothing, which
-        # is correct -- navigation lives in the topbar and the swipe.
+        # and the footer. Not clickable: taps fall through to the nav zones
+        # underneath it, which is exactly the point.
         pk.sprite("art", 0, ART_Y, W, ART_H, src="${image.launch}",
                   align="contain"),
+    ] + nav_chevrons() + [
         pk.label("pad", 8, H - 68, W - 16, 22, text="", role="footer", size=16,
                  color=tk.MUTED),
         pk.label("status", 8, H - 46, W - 16, 22, text="", role="footer",

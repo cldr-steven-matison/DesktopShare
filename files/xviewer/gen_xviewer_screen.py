@@ -136,9 +136,9 @@ def media():
         pk.canvas("nav_next", W // 2, 0, W // 2, MEDIA_H, bg=BLACK, click="xviewer.next"),
         pk.sprite("card_img", 0, 0, W, MEDIA_H, src="", align="contain",
                   hidden="imgHidden"),
-        pk.label("chev_prev", 16, (MEDIA_H - 40) // 2, 40, 40, text="‹",
+        pk.label("chev_prev", 16, (MEDIA_H - 40) // 2, 40, 40, text="<",
                   role="value", size=32, color=tk.MUTED, align="center"),
-        pk.label("chev_next", W - 16 - 40, (MEDIA_H - 40) // 2, 40, 40, text="›",
+        pk.label("chev_next", W - 16 - 40, (MEDIA_H - 40) // 2, 40, 40, text=">",
                   role="value", size=32, color=tk.MUTED, align="center"),
     ])
 
