@@ -115,7 +115,7 @@ def topbar():
     replace the old 14px brand label + 12px status line (#205-style
     unreadable text). Both sit comfortably inside the body band (16-22)."""
     return pk.canvas("topbar", 0, 0, W, TOPBAR_H, bg=BLACK, children=[
-        pk.label("pos", 16, 2, 160, 24, text="1/1", role="body", size=18,
+        pk.label("pos", 16, 2, 160, 24, text="1/1", role="body", size=16,
                   color=tk.INK, align="left"),
         pk.label("status", 184, 2, 168, 24, text="", role="body", size=16,
                   color=tk.RED, align="right"),
@@ -190,7 +190,7 @@ def toolbar():
         pk.sprite("t_like_img", (like_w - like_img_w) // 2, 6, like_img_w,
                   like_img_h, src="${image.heart_off}", align="contain"),
         pk.label("t_like_c", 0, TOOLBAR_H - 22, like_w, 20, text="0",
-                  role="footer", size=15, color=tk.MUTED, align="center",
+                  role="footer", size=16, color=tk.MUTED, align="center",
                   bindings={"style.textColor": "likeColor"}),
     ])
 
@@ -199,7 +199,7 @@ def toolbar():
         pk.label("t_views_v", 0, 10, views_w, 34, text="0", role="value",
                   size=28, color=tk.INK, align="center"),
         pk.label("t_views_c", 0, 46, views_w, 20, text="VIEWS", role="footer",
-                  size=15, color=tk.MUTED, align="center"),
+                  size=16, color=tk.MUTED, align="center"),
     ])
 
     t_comments = pk.canvas("t_comments", x_comments, 0, comments_w, TOOLBAR_H,
@@ -207,7 +207,7 @@ def toolbar():
         pk.label("t_comments_v", 0, 10, comments_w, 34, text="0", role="value",
                   size=28, color=tk.INK, align="center"),
         pk.label("t_comments_c", 0, 46, comments_w, 20, text="REPLIES",
-                  role="footer", size=15, color=tk.MUTED, align="center"),
+                  role="footer", size=16, color=tk.MUTED, align="center"),
     ])
 
     t_clear = pk.canvas("t_clear", x_clear, 0, clear_w, TOOLBAR_H, bg=tk.RED,

@@ -37,9 +37,9 @@ CELL_GAP = 6
 def header():
     return pk.canvas("head", 0, 0, W, 46, bg=BLACK, children=[
         pk.label("head_t", 16, 10, 210, 28, text="EFM AGENT",
-                 role="body", size=22, color=tk.ORANGE, align="left"),
+                 role="body", size=20, color=tk.ORANGE, align="left"),
         pk.label("head_state", 226, 12, 126, 24, text="...",
-                 role="body", size=18, color=tk.MUTED, align="right",
+                 role="body", size=16, color=tk.MUTED, align="right",
                  bindings={"style.textColor": "stateColor"}),
     ])
 
@@ -61,10 +61,10 @@ def sweep():
 
 def beat():
     return pk.canvas("beat", 0, 96, W, 92, bg=BLACK, children=[
-        pk.label("beat_v", 0, 0, W, 62, text="--", role="hero", size=56,
+        pk.label("beat_v", 0, 0, W, 62, text="--", role="hero", size=48,
                  color=tk.MUTED, bindings={"style.textColor": "beatColor"}),
         pk.label("beat_cap", 0, 66, W, 20, text="SINCE LAST HEARTBEAT",
-                 role="footer", size=15, color=tk.MUTED),
+                 role="footer", size=16, color=tk.MUTED),
     ])
 
 
@@ -73,11 +73,11 @@ def processors():
         pk.label("proc_v", 0, 0, W, 54, text="--", role="hero", size=48,
                  color=tk.ORANGE, bindings={"style.textColor": "procColor"}),
         pk.label("proc_cap", 0, 56, W, 20, text="PROCESSORS RUNNING",
-                 role="footer", size=15, color=tk.MUTED),
+                 role="footer", size=16, color=tk.MUTED),
         pk.label("proc_list", 8, 78, W - 16, 22, text="", role="body",
-                 size=18, color=tk.INK),
+                 size=16, color=tk.INK),
         pk.label("proc_cat", 8, 100, W - 16, 18, text="", role="footer",
-                 size=15, color=tk.MUTED),
+                 size=16, color=tk.MUTED),
     ])
 
 
@@ -101,16 +101,16 @@ def metrics():
         kids.append(pk.label(cid + "_v", x, 4, cw, 36, text=val,
                              role="value", size=28, color=tk.INK))
         kids.append(pk.label(cid + "_c", x, 42, cw, 20, text=cap,
-                             role="footer", size=15, color=tk.MUTED))
+                             role="footer", size=16, color=tk.MUTED))
     return pk.canvas("mx", 0, 322, W, 66, bg=BLACK, children=kids)
 
 
 def footer():
     return pk.canvas("foot", 0, 396, W, 52, bg=BLACK, children=[
         pk.label("foot_age", 8, 0, W - 16, 20, text="connecting...",
-                 role="footer", size=15, color=tk.MUTED),
+                 role="footer", size=16, color=tk.MUTED),
         pk.label("foot_id", 8, 24, W - 16, 20, text="", role="footer",
-                 size=15, color=tk.MUTED),
+                 size=16, color=tk.MUTED),
     ])
 
 

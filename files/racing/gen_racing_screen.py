@@ -68,27 +68,27 @@ car = pk.canvas("panel_car", 0, 0, W, H, bg="#000000", hidden="carHidden", child
     # auto-centred 16) — see panelkit.tile()'s docstring.
     pk.tile("c_a", 16, 76, 336, 92, "${image.car_corolla}", "Toyota Corolla S",
             "reliable - steady", "racing.car_a", img_pad=14, img_w=CAR_W,
-            img_h=CAR_H, title_size=26, subtitle_size=18, title_y=20,
+            img_h=CAR_H, title_size=24, subtitle_size=16, title_y=20,
             bindings={"style.bgColor": "carABg"}),
     pk.tile("c_b", 16, 180, 336, 92, "${image.car_porsche}", "Porsche 911",
             "speed - sharp", "racing.car_b", img_pad=14, img_w=CAR_W,
-            img_h=CAR_H, title_size=26, subtitle_size=18, title_y=20,
+            img_h=CAR_H, title_size=24, subtitle_size=16, title_y=20,
             bindings={"style.bgColor": "carBBg"}),
     # text band — the deliberate gap between the car bars and START
-    pk.label("c_greet", 0, 286, W, 30, text="", role="body", color=GREEN, size=22),
+    pk.label("c_greet", 0, 286, W, 30, text="", role="body", color=GREEN, size=20),
     pk.label("c_prompt", 0, 316, W, 26, text="tap a lane to steer", role="body",
-              color=MUTED, size=18),
+              color=MUTED, size=16),
     # start
-    pk.button("c_go", 16, 352, W - 32, 88, "START RACING", "racing.go", size=30),
+    pk.button("c_go", 16, 352, W - 32, 88, "START RACING", "racing.go", size=28),
 ])
 
 # ------------------------------------------------------------- game panel (3)
 game_children = [
     pk.label("g_name", 8, 4, 120, 26, text="", role="body", color=WHITE,
-              align="left", size=19),
+              align="left", size=16),
     pk.label("g_lives", 130, 4, 76, 26, text="***", role="body", color=GREEN,
-              size=22, bindings={"style.textColor": "livesColor"}),
-    pk.label("g_clock", 206, 4, 60, 26, text="0:00", role="body", color=MUTED, size=19),
+              size=20, bindings={"style.textColor": "livesColor"}),
+    pk.label("g_clock", 206, 4, 60, 26, text="0:00", role="body", color=MUTED, size=16),
     pk.label("g_score", 266, 0, 96, 34, text="0", role="value", color=ORANGE,
               align="right", size=28),
     pk.label("g_speed", 8, 32, 200, 22, text="Lv.1 - 60 km/h", role="body",
@@ -149,18 +149,18 @@ game = pk.canvas("panel_game", 0, 0, W, H, bg="#000000", hidden="gameHidden",
 
 # -------------------------------------------------------------- over panel (4)
 over = pk.canvas("panel_over", 0, 0, W, H, bg="#000000", hidden="overHidden", children=[
-    pk.label("o_head", 0, 12, W, 34, text="RACE OVER", role="value", color=ORANGE, size=26),
+    pk.label("o_head", 0, 12, W, 34, text="RACE OVER", role="value", color=ORANGE, size=24),
     pk.canvas("o_rule", 60, 50, 248, 4, bg=ORANGE),
     pk.label("o_rank", 0, 58, W, 32, text="", role="value", color=WHITE, size=24),
-    pk.label("o_sub", 0, 90, W, 24, text="", role="footer", color=MUTED, size=15),
-    pk.label("o_score", 0, 114, W, 62, text="0", role="hero", color=ORANGE, size=52),
-    pk.label("o_stats", 0, 178, W, 26, text="", role="body", color=WHITE, size=18),
+    pk.label("o_sub", 0, 90, W, 24, text="", role="footer", color=MUTED, size=16),
+    pk.label("o_score", 0, 114, W, 62, text="0", role="hero", color=ORANGE, size=48),
+    pk.label("o_stats", 0, 178, W, 26, text="", role="body", color=WHITE, size=16),
     pk.label("o_board_h", 0, 206, W, 22, text="TOP OF THE BOARD", role="footer",
-              color=MUTED, size=15),
-    pk.label("o_b1", 0, 228, W, 26, text="", role="body", color=tk.GOLD, size=19),
-    pk.label("o_b2", 0, 254, W, 26, text="", role="body", color=tk.SILVER, size=19),
-    pk.label("o_b3", 0, 280, W, 26, text="", role="body", color=tk.BRONZE, size=19),
-    pk.button("o_again", 24, 320, 320, 84, "RACE AGAIN", "racing.again", size=30),
+              color=MUTED, size=16),
+    pk.label("o_b1", 0, 228, W, 26, text="", role="body", color=tk.GOLD, size=16),
+    pk.label("o_b2", 0, 254, W, 26, text="", role="body", color=tk.SILVER, size=16),
+    pk.label("o_b3", 0, 280, W, 26, text="", role="body", color=tk.BRONZE, size=16),
+    pk.button("o_again", 24, 320, 320, 84, "RACE AGAIN", "racing.again", size=28),
     pk.label("o_status", 0, 412, W, 24, text="", role="footer", color=MUTED, size=16),
 ])
 

@@ -101,13 +101,13 @@ def build():
                  color=AMBER),
         # The clock is the panel. app.js rewrites both its colour and its size
         # (a day-scale readout has to shrink to fit), hence the two bindings.
-        pk.label("clock", 0, 74, W, 68, text="--:--:--", role="hero", size=56,
+        pk.label("clock", 0, 74, W, 68, text="--:--:--", role="hero", size=48,
                  color=AMBER,
                  bindings={"style.textColor": "clockColor",
                            "style.fontSize": "clockSize"}),
-        pk.label("vehicle", 8, 148, W - 16, 32, text="", role="body", size=22,
+        pk.label("vehicle", 8, 148, W - 16, 32, text="", role="body", size=20,
                  color=tk.INK),
-        pk.label("mission", 8, 182, W - 16, 28, text="", role="body", size=18,
+        pk.label("mission", 8, 182, W - 16, 28, text="", role="body", size=16,
                  color=tk.MUTED),
         # The art fills what used to be dead space between the mission line
         # and the footer. Not clickable: taps fall through to the nav zones
@@ -119,7 +119,7 @@ def build():
                  color=tk.MUTED),
         pk.label("status", 8, H - 46, W - 16, 22, text="", role="footer",
                  size=16, color=tk.MUTED),
-        pk.label("meta", 8, H - 24, W - 16, 20, text="", role="footer", size=15,
+        pk.label("meta", 8, H - 24, W - 16, 20, text="", role="footer", size=16,
                  color=tk.DARK),
     ])
 

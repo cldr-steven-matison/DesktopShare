@@ -27,33 +27,37 @@ def rounded(draw, box, radius, fill):
 
 
 def icon():
-    """A monitor trace, not a line drawing.
+    """One bold pulse, one colour.
 
-    The first pass used a 5px stroke on a small inset plate; at 92px next to
-    RACING's full-bleed flag and T-MINUS's slab "T-" it read as a scratch.
-    This one is full-bleed, 9px strokes, and the spike runs most of the tile's
-    height so the shape is legible before you've focused on it.
+    Third pass. The first was a 5px stroke on an inset plate (a scratch at
+    92px); the second went full-bleed at 9px but kept two colours and a stray
+    green pip, so it still read as scribble next to its neighbours. Looking at
+    the four tiles together is what settled it: RACING is diagonal stripes,
+    T-MINUS is a "T-" letterform, X VIEWER is a big X -- every one of them a
+    single dominant shape you recognise before you focus. The agent tile was
+    the only one without a silhouette.
+
+    So: one spike, one colour, 14px strokes, running nearly the full height,
+    on a flat baseline that anchors it. Live-green rather than Cloudera orange
+    because two of the other three tiles are already orange and green is the
+    agent's own ONLINE colour -- the tile should be findable by colour alone in
+    a grid.
     """
     img = Image.new("RGBA", (SZ, SZ), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    # Full-bleed plate, matching the weight of the other launcher tiles.
     rounded(d, (0, 0, SZ - 1, SZ - 1), 20, DARK)
 
     mid = SZ // 2
-    # Baseline in, tall spike, baseline out. Hand-placed -- it only has to
-    # read at 92px.
-    d.line([(6, mid), (28, mid)], fill=ORANGE, width=9, joint="curve")
-    d.line([(28, mid), (36, mid - 12)], fill=ORANGE, width=9, joint="curve")
-    d.line([(36, mid - 12), (44, mid + 10)], fill=ORANGE, width=9, joint="curve")
-    # The beat itself, in live-green: up hard, down hard, back to baseline.
-    d.line([(44, mid + 10), (52, mid - 34)], fill=GREEN, width=9, joint="curve")
-    d.line([(52, mid - 34), (60, mid + 30)], fill=GREEN, width=9, joint="curve")
-    d.line([(60, mid + 30), (68, mid)], fill=GREEN, width=9, joint="curve")
-    d.line([(68, mid), (86, mid)], fill=ORANGE, width=9, joint="curve")
-
-    # Terminal pip -- the "still beating" dot the app's sweep also uses.
-    d.ellipse((76, mid - 9, 92 - 2, mid + 7), fill=GREEN)
+    w = 14
+    # Flat baseline in, one tall spike, flat baseline out. The spike is
+    # deliberately asymmetric (fast up, faster down, small overshoot) so it
+    # reads as a beat and not as a chevron.
+    d.line([(8, mid), (30, mid)], fill=GREEN, width=w, joint="curve")
+    d.line([(30, mid), (42, 16)], fill=GREEN, width=w, joint="curve")
+    d.line([(42, 16), (54, SZ - 18)], fill=GREEN, width=w, joint="curve")
+    d.line([(54, SZ - 18), (62, mid)], fill=GREEN, width=w, joint="curve")
+    d.line([(62, mid), (84, mid)], fill=GREEN, width=w, joint="curve")
     return img
 
 
