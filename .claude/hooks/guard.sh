@@ -4,88 +4,53 @@
 # Matcher is Bash|Edit|Write|MultiEdit|NotebookEdit (see .claude/settings.json) so
 # the claim backstop (rule B) can see file mutations, not just Bash.
 #
-# Bash-command rules:
-#   1. Confirm before any live-service redeploy/restart — a redeploy or single-pod
-#      restart of a service a running NiFi InvokeHTTP calls into kills the in-flight
-#      request (`unexpected end of stream`). This incident recurred 3x.
-#   2. git commit / push only when explicitly requested — EXCEPT the issue-finish
+# Bash-command rules. Only rule 1 can reach Steven; everything else resolves against
+# the model (see "THE TEST" at the emitters below):
+#   1. [ASK — the only one] Confirm before any live-service redeploy/restart — a
+#      redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls
+#      into kills the in-flight request (`unexpected end of stream`). Recurred 3x.
+#   2. [CTX] git commit / push only when explicitly requested — EXCEPT the issue-finish
 #      ritual, where commit+push are required (device-comms.md "Finishing an issue").
-#   3. Never start an ad-hoc kubectl port-forward / minikube tunnel / minikube
-#      service — the canonical set lives as zellij panes (kube-service-ports-efm.kdl);
-#      a duplicate on the same target silently orphans or hangs (2026-07-29, issue #11).
+#      A verified finish ritual auto-approves; everything else is handed to the model
+#      as a rule to obey, because "did Steven ask for this?" lives in the turn, which
+#      the hook cannot see. Advisory by design.
+#   3. [DENY on a real duplicate, else CTX] Never start an ad-hoc kubectl port-forward
+#      / minikube tunnel / minikube service — the canonical set lives as zellij panes
+#      (kube-service-ports-efm.kdl); a duplicate on the same target silently orphans
+#      or hangs (2026-07-29, issue #11). The hook runs the ss/pgrep check itself.
 #   4. Never mark an issue status:review/done while it still carries status:todo
 #      — the forbidden todo->review jump proves it was never claimed as in-progress.
 #      DENIES (not asks): the fix is a claim command the model runs itself.
-#   5. Before a processor-create/update call (a POST/PUT to a /processors endpoint
-#      carrying a `position`), state the flow shape + pitch and match it against
-#      layout.md. Prose in layout.md alone failed to stop two fresh EFM builds from
-#      landing at the cramped NiFi pitch (2026-07-30, issue #47).
-#   6. Never `gh issue close` an issue that isn't status:done yet — set the label
-#      FIRST, then close (device-comms.md "Closing an issue"). A close while the
+#   5. [CTX] Before a processor-create/update call (a POST/PUT to a /processors
+#      endpoint carrying a `position`), state the flow shape + pitch and match it
+#      against layout.md. Prose in layout.md alone failed to stop two fresh EFM builds
+#      from landing at the cramped NiFi pitch (2026-07-30, issue #47).
+#   6. [DENY] Never `gh issue close` an issue that isn't status:done yet — set the
+#      label FIRST, then close (device-comms.md "Closing an issue"). A close while the
 #      issue still carries todo/in-progress/review strands the label; six issues
-#      drifted this way on 2026-08-03. An inline done-flip in the same command passes.
-#   7. Never flip an issue to status:review/done with an uncommitted or unpushed tree
-#      — finishing is the ordered ritual commit->push->comment(sha)->flip
+#      drifted this way on 2026-08-03. An inline done-flip in the same command passes,
+#      and the guard auto-flips this device's own issues without saying anything.
+#   7. [CTX] Never flip an issue to status:review/done with an uncommitted or unpushed
+#      tree — finishing is the ordered ritual commit->push->comment(sha)->flip
 #      (device-comms.md "Finishing an issue"); a dirty flip strands the work and the
 #      comment's sha points at nothing pushed. Fails open (no git / no upstream).
-#   8. Never let a live write (POST/PUT/DELETE) to /nifi-api/ or /efm/api/ land
-#      before the nifi-and-ai skill has been loaded THIS session. Same failure shape
-#      as the claim-before-work problem below: prose in CLAUDE.md/incident-rules.md
-#      saying "load the skill first" was skipped anyway (2026-08-11, issue #136/#142
-#      — a live central-NiFi edit went out on the momentum of an earlier, DIFFERENT
-#      NiFi-adjacent task in the same session, wiring new logic directly into a
-#      running shared PG, violating the skill's own rule 8). Fixed the same way rule
-#      A below was fixed: the hook writes its own marker when it sees Skill(nifi-and-ai)
-#      go by, and blocks a live write while that marker is absent — no reliance on the
-#      model remembering. See lib-device.sh ds_nifi_skill_marker. DENIES (not asks)
-#      since 2026-08-21 (#192/#199): "load the skill" is a message for the model, and
-#      an ask parked a human purely to relay it. Rule 8b (2026-08-21, #199) covers
-#      the READ side without blocking it: the first NiFi/EFM read of a session with
-#      no marker gets an allow + additionalContext nudge, because #199's real cost
-#      was pre-skill READS (an SNI trap the skill documents, and a misread of
-#      flow.json.gz's enc{}), not a write.
+#   8. [DENY] No live write (POST/PUT/DELETE) to /nifi-api/ or /efm/api/ before
+#      Skill(nifi-and-ai) has loaded this session. The hook writes its own marker
+#      when it sees the Skill call. 8b: the first pre-skill READ is allowed with a
+#      nudge, not blocked.
+#   A. [AUTO] Engaging a still-todo issue for this device auto-claims it
+#      (status:in-progress) and tells the model. Fires on a MUTATING engagement
+#      (gh issue comment), not a read-only view.
+#   B. [CTX] Edit/Write while the claim marker is non-empty: claim it yourself.
+# Issue-number extraction goes through ds_issue_numbers (lib-device.sh).
+# Non-matching calls pass through. Fails open (exit 0) so a missing jq/gh never
+# blocks tool use.
 #
-# Claim-before-work (rule A + backstop B) — issue #51 rework, 2026-07-31.
-# Prose (device-comms.md), a session-start banner, and an "ask"-based guard all
-# failed 7x to make a session claim before working, because every one of them
-# ultimately asked the MODEL to run the claim, and:
-#   - a PreToolUse "ask" reason is shown only in the human prompt, never injected
-#     into the model's context (so the model was never actually told), and
-#   - under a low-friction permission mode the "ask" is auto-resolved with no human,
-#     and `gh issue *` is allow-listed, so the ask was silently swallowed anyway.
-# The fix removes the model from the loop:
-#   A. ENGAGING a still-todo issue for THIS device — the hook AUTO-CLAIMS it: it
-#      runs `gh issue edit N ... status:in-progress` ITSELF and injects
-#      `additionalContext` telling the model it was claimed. No model cooperation
-#      required, so no device can ignore it. Fires in plan mode and in subagents
-#      (both fire PreToolUse), which is where the 7th skip happened. NARROWED
-#      2026-08-21 (#192 audit): the trigger used to be `gh issue view N`, and a
-#      read-only view by an exploration sub-agent claimed an issue nobody was
-#      working — a view now only records the issue for Telegram-ping context, and
-#      the claim fires on the first MUTATING engagement (`gh issue comment N`;
-#      the edit/close transitions are owned by rules 4 and 6).
-#      If the auto-claim gh call fails (offline/perms), it falls back to recording N
-#      in the claim-pending marker and asking — the old behavior as a backstop only.
-#   B. An Edit/Write while the marker is non-empty asks you to claim the issue(s)
-#      you opened but auto-claim couldn't flip. checkin.sh clears stale markers at start.
-# All issue-number extraction goes through ds_issue_numbers (lib-device.sh) so the
-# `head -1` truncation (only the first issue in a chained command was seen) can't recur.
-#
-# On a match it returns permissionDecision "ask" (hazard rules — a decision only
-# Steven can make), "deny" (rules 4 and 8 — an instruction to the MODEL, which acts
-# on the reason and retries with nobody at the keyboard), or "allow" plus
-# additionalContext (auto-claim, auto-fix). Non-matching calls pass through. Fails
-# open (exit 0) throughout so a missing jq/gh never blocks all tool use.
-#
-# Permission bridge (issue #192, 2026-08-21). When ~/.claude/unattended is armed,
-# an "ask" is sent to Steven's phone through the reply bridge instead of parking the
-# session at a keyboard nobody is at; his yes/no decides, and silence falls back to
-# the desk prompt. Strictly opt-in — with the sentinel absent nothing changes, on
-# any device. See ds_bridge_decide below. Two constraints it is built around:
-#   - a PreToolUse command hook that exceeds its `timeout` is treated as a PASS and
-#     the tool RUNS, so the 180s poll must stay well under the 300s timeout set in
-#     .claude/settings.json. Never raise the poll without raising the timeout first.
-#   - the bridge never auto-allows on silence, a failed send, or an unclear reply.
+# Permission bridge (#192). An ask goes to Steven's phone via files/agent-ask.sh ->
+# ~/.claude/telegram-inbox.log and his yes/no decides. Always live as of 2026-08-22.
+# Never auto-allows on silence, a failed send, or an unclear reply — those fall
+# through to the desk prompt. The 180s poll must stay well under the 300s hook
+# timeout in .claude/settings.json: a hook that times out is treated as a PASS.
 
 command -v jq >/dev/null 2>&1 || exit 0
 
@@ -104,20 +69,16 @@ proj="${CLAUDE_PROJECT_DIR:-.}"
 marker=""
 command -v ds_claim_marker >/dev/null 2>&1 && marker="$(ds_claim_marker)"
 
-# ---- Decision emitters. WHICH ONE a rule uses is the point (issue #192) -----
-#   emit_ask       a decision only Steven can make (live redeploy, an unrequested
-#                  push). Parks the session at the keyboard UNLESS the phone bridge
-#                  is armed, in which case the question goes to Telegram and his
-#                  reply decides. Pass a short label as $2 for the phone message.
-#   emit_ask_local same prompt, NEVER bridged — for answers that need someone
-#                  looking at this screen.
-#   emit_deny      an INSTRUCTION TO THE MODEL, not a question for a human. deny
-#                  hands the reason back to the model and the turn continues, so it
-#                  fixes the problem and retries with nobody in the loop. Rules 4
-#                  and 8 used to be `ask`, which parked a human purely to relay a
-#                  message to the model (2026-08-21, #192: the rule 8 skill-load
-#                  prompt Steven pasted).
-#   emit_ctx       allow + tell the model why (auto-claim, auto-fix, bridge-approve).
+# ---- Decision emitters ------------------------------------------------------
+#   emit_ask       Steven's call. Phone first, desk prompt on silence. $2 = label.
+#   emit_ask_local same, never bridged.
+#   emit_deny      instruction to the MODEL; it fixes and retries, nobody in the loop.
+#   emit_ctx       allow + tell the model the rule it has to satisfy.
+#
+# THE TEST before adding a rule: can the MODEL answer this from the turn, the tree,
+# or a command it can run? Then it is not an ask. Only rule 1 survives that test.
+# Prefer ctx over deny where a retry can't clear the condition — an unsatisfiable
+# deny is an infinite loop.
 
 emit_json_ask() {
   # $1 = reason string. Shown in the permission prompt; blocks pending a decision.
@@ -154,25 +115,15 @@ emit_ctx() {
 }
 
 # ---- Permission bridge (issue #192) ----------------------------------------
-# With Steven away, a guard "ask" parks the session at a keyboard nobody is at.
-# When ~/.claude/unattended is armed, send the question to the phone through the
-# existing reply bridge (files/agent-ask.sh -> ~/.claude/telegram-inbox.log) and
-# decide on his answer instead. STRICTLY OPT-IN: sentinel absent and this is a
-# no-op, so guard behaves exactly as it always has on every other device.
-#
-# Synchronous poll, NOT the Monitor shape a session-level ask uses — a hook has no
-# session to hand a Monitor to. That makes the hook TIMEOUT the hard constraint: a
-# PreToolUse command hook that times out is treated as a PASS and the tool RUNS,
-# so the poll window must stay well under it. 180s of polling under the 300s
-# timeout in .claude/settings.json leaves 120s of headroom.
-#
-# It NEVER auto-allows on silence. Not armed, send failed, timed out, or an answer
-# that wasn't clearly yes/no -> return, and the caller falls through to the normal
-# desk prompt.
+# Send the ask to the phone (files/agent-ask.sh -> ~/.claude/telegram-inbox.log),
+# decide on the reply. ALWAYS LIVE since 2026-08-22 — it used to require
+# ~/.claude/unattended, which is normally down, so every ask went to the desk while
+# the (ungated) ping still fired: notified, no way to answer.
+# Synchronous poll, so the hook TIMEOUT is the constraint — a PreToolUse hook that
+# times out is treated as a PASS and the tool RUNS. 180s poll / 300s timeout.
+# NEVER auto-allows: send failed, timed out, or an unclear answer -> desk prompt.
 ds_bridge_decide() {
   local reason="$1" label="$2" inbox base cur line ans ask q n cmdline asktime ep body why
-  command -v ds_unattended >/dev/null 2>&1 || return 0
-  ds_unattended || return 0
   [ -f "$HOME/.env" ] || return 0
   grep -Eq '^ *(export +)?TOKEN=' "$HOME/.env" 2>/dev/null || return 0
   grep -Eq '^ *(export +)?CHAT_ID=' "$HOME/.env" 2>/dev/null || return 0
@@ -278,7 +229,7 @@ case "$tool" in
       # Name the file in the phone label — Edit-family tools carry no .command, so
       # without this the bridged ask arrived with zero context (#192 audit).
       fpath="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/null)"
-      emit_ask "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Flip it manually: gh issue edit <n> --remove-label status:todo --add-label status:in-progress" "guard rule B — $tool ${fpath:-(unknown file)} with #$nums still unclaimed"
+      emit_ctx "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Do it yourself as soon as gh is reachable: gh issue edit <n> --remove-label status:todo --add-label status:in-progress — then clear this marker ($marker). Allowed rather than asked on purpose: gh being offline is not a decision for Steven, and blocking your edits on it would strand the work twice."
     fi
     exit 0
     ;;
@@ -309,26 +260,16 @@ esac
 # (lib-device.sh); issue #192, Steven: "a bit of context will help a lot".
 command -v ds_note_last_tool >/dev/null 2>&1 && ds_note_last_tool "$cmd"
 
-# 7. Finish-ritual ordering — MUST run before the claim-clear block below, because the
-# standard finish flip (`gh issue edit N --remove-label status:in-progress --add-label
-# status:review`) mentions `status:in-progress` and would otherwise be swallowed by
-# claim-clear's early `exit 0`. Flipping an issue to status:review/done means the work is
-# delivered — but finishing is an ORDERED ritual (device-comms.md "Finishing an issue"):
-# commit -> push -> comment(sha) -> flip. If the tree still has uncommitted changes or
-# unpushed commits at the flip, steps 1-2 were skipped: the review hand-off strands the
-# work off every other device and the comment's sha (if any) points at nothing pushed.
-# Keys on --add-label status:(review|done), so a pure claim (--add-label status:in-progress)
-# never matches. Fails open (no git / no upstream).
+# 7. Finish-ritual ordering: commit -> push -> comment(sha) -> flip. MUST run before
+# the claim-clear block below, which would otherwise swallow the standard flip via its
+# early exit. Keys on --add-label status:(review|done), so a pure claim never matches.
+# Fails open (no git / no upstream).
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
    && printf '%s' "$cmd" | grep -Eq -- '--add-label[= ]+status:(review|done)' \
    && command -v git >/dev/null 2>&1; then
-  # Inline compliance (issue #192, 2026-08-20): the canonical chained one-liner
-  # `git add && git commit && git push && gh issue edit ... status:review` ALWAYS
-  # tripped this ask — the tree is of course dirty at hook time, the commit that
-  # cleans it is in the same chain. If the text BEFORE the flip contains both a
-  # commit and a push, the chain itself performs steps 1-2 in order — pass.
-  # %% (first occurrence) would truncate at a "gh issue edit" QUOTED INSIDE a commit
-  # message; % cuts at the last occurrence — the actual flip in a chained command.
+  # Inline compliance: if the text BEFORE the flip already commits and pushes, the
+  # chain performs steps 1-2 itself — pass. `%` (last occurrence) not `%%`, which
+  # would truncate at a "gh issue edit" quoted inside a commit message.
   pre_flip="${cmd%gh issue edit*}"
   if printf '%s' "$pre_flip" | grep -Eq 'git +([^;&|]* )?commit\b' \
      && printf '%s' "$pre_flip" | grep -Eq 'git +([^;&|]* )?push\b'; then
@@ -344,7 +285,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
     # schedule — their dirt must not park an unrelated issue finish.
     dirt="$(git -C "$repo7" status --porcelain 2>/dev/null | grep -v ' \.claude/')"
     if [ -n "$dirt" ]; then
-      emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree ($repo7) still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Commit + push this issue's files, put the sha in the comment, THEN flip. (If the remaining changes belong to OTHER issues you haven't finished yet and this issue's files are already committed+pushed, approve.)" "guard rule 7 — issue finish flip on a dirty tree ($repo7)"
+      emit_ctx "Finish-ritual ordering (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip status:review/done. The working tree ($repo7) still has uncommitted changes, so steps 1-2 look skipped — flipping now strands the work off every other device and leaves the comment's sha pointing at nothing. Before this flip lands: commit + push THIS issue's files and put the sha in the comment. If the leftover changes belong to OTHER issues and this issue's files are already committed+pushed, you are fine — carry on. Allowed rather than asked on purpose: this is a check you can run yourself (git status / git log @{u}..), not a decision for Steven."
     fi
     # Unpushed-commit check: ask ONLY when an unpushed subject references the very
     # issue being flipped — unpushed commits for OTHER issues are that work's
@@ -353,7 +294,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
     if [ -n "$unpushed" ]; then
       for fn in $(ds_issue_numbers "$cmd" edit); do
         if printf '%s' "$unpushed" | grep -q "#$fn\b"; then
-          emit_ask "Finishing an issue is an ORDERED ritual (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. Commits referencing #$fn are not yet pushed to upstream in $repo7 — push them so the sha in the issue comment is durable and visible to other devices, THEN flip." "guard rule 7 — finishing #$fn with commits still unpushed"
+          emit_ctx "Finish-ritual ordering (device-comms.md 'Finishing an issue'): commit -> push -> comment(sha) -> flip. Commits referencing #$fn are NOT yet pushed to upstream in $repo7 — push them now so the sha in the issue comment is durable and visible to other devices, then flip. Allowed rather than asked on purpose: pushing is something you can just do."
         fi
       done
     fi
@@ -395,21 +336,17 @@ if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/' \
   if [ -z "$nifi_marker" ]; then
     # lib-device.sh missing: the marker can't be checked at all, so this could be a
     # false trigger. That IS a look-at-the-screen call, and never a phone question.
-    emit_ask_local "Live write to /nifi-api/ or /efm/api/ detected. The nifi-and-ai skill marker could not be resolved (lib-device.sh missing), so the guard cannot tell whether the skill was loaded. Load it first: Skill(nifi-and-ai)."
+    # lib-device.sh missing means the guard itself is broken, not that Steven has a
+    # decision to make. Denying would loop (the marker can't be written without the
+    # lib), and asking parks him on a hook bug. Allow + instruct.
+    emit_ctx "Live write to /nifi-api/ or /efm/api/ detected, and the nifi-and-ai skill marker could not be resolved (lib-device.sh missing) — the guard cannot tell whether the skill was loaded. Load it NOW before this write if you have not already: Skill(nifi-and-ai) (agent/incident-rules.md 'NiFi flow edits'). Also flag to Steven that .claude/hooks/lib-device.sh is missing on this device — the guard is running degraded."
   elif [ ! -f "$nifi_marker" ]; then
     emit_deny "BLOCKED: live write to /nifi-api/ or /efm/api/ before the nifi-and-ai skill was loaded this session (agent/incident-rules.md 'NiFi flow edits' — load it before the first live write, not after; a clean prior task on a DIFFERENT system in the same session does not cover it: 2026-08-11, #136/#142; recurred 2026-08-21, #199). Load it now with Skill(nifi-and-ai) and then re-run this command — the guard writes its own marker when it sees the Skill call, so the retry will pass. This is a denial and not a prompt on purpose (#192): it is an instruction to you, not a decision for Steven, so nobody should have to be at the keyboard for it."
   fi
 fi
 
-# 8b. READ side of rule 8, added 2026-08-21 (#199). The block above deliberately
-# lets a plain GET through — skill rule 1 wants live state read BEFORE any edit, so
-# investigation must never be blocked. But #199's first cost was a READ: token
-# requests and GET /flow/process-groups/root went out before the skill was loaded,
-# and the pod-IP/SNI trap they then hit is documented verbatim in the skill
-# (references/flow-api.md section 5). Loading first would have cost zero debugging.
-# So: don't block, but INJECT the reminder into the model's context (emit_ctx) the
-# first time a session touches a NiFi/EFM surface without the marker. Once per
-# session — a second marker file makes sure this is a nudge, not a nag.
+# 8b. READ side of rule 8: never block a read, but nudge once per session when a
+# NiFi/EFM surface is touched with no skill marker (a second marker keeps it once).
 if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/|flow\.json\.gz|kubectl[[:space:]]+(exec|logs|cp)[^|;]*nifi'; then
   nifi_marker=""
   command -v ds_nifi_skill_marker >/dev/null 2>&1 && nifi_marker="$(ds_nifi_skill_marker)"
@@ -425,16 +362,10 @@ if printf '%s' "$cmd" | grep -Eq 'deploy\.sh|rollout restart|kubectl +delete +po
   emit_ask "Live-service redeploy/restart detected. Per agent/incident-rules.md (Live service restarts): a redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls into kills the in-flight request (unexpected end of stream) — this has bitten 3x. Before approving: dump the live NiFi flow and confirm no processor is running/mid-fetch, let in-flight ones drain, and confirm exactly one pod Running. This approval covers ONLY this one command." "guard rule 1 — live-service redeploy/restart"
 fi
 
-# 2. Commit / push only when explicitly asked — EXCEPT the issue-finish ritual, where
-#    commit+push are required (device-comms.md "Finishing an issue" / workflow.md).
-#    The hook VERIFIES the exception itself instead of asking (issue #192, 2026-08-20:
-#    the unconditional ask parked finish-ritual sessions at the keyboard). If the
-#    command — or, for a bare push, the unpushed commit subjects — references an
-#    issue #N that is claimed by THIS device (status:in-progress/review + device
-#    label, or status:done closed within the last 4h — the post-close doc-commit
-#    tail), that IS the sanctioned exception: allow with a context note. Anything
-#    unverifiable (no issue reference, not claimed here, gh offline) falls through
-#    to the ask, so an unrequested commit outside a finish ritual still prompts.
+# 2. Commit / push only when asked — except the issue-finish ritual, which the hook
+#    verifies itself: an issue #N in the command (or, for a bare push, in the unpushed
+#    subjects) that this device has claimed. Everything else is allowed with the rule
+#    attached, because "did Steven ask for this?" lives in the turn, not in the tree.
 if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; then
   finish_n=""; finish_why=""
   nums="$(printf '%s' "$cmd" | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
@@ -495,7 +426,10 @@ if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; 
     ds_note_session_issue "$finish_n" 2>/dev/null || true
     emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits."
   fi
-  emit_ask "git commit/push only when explicitly requested (agent/workflow.md). The one exception is the issue-FINISH ritual (device-comms.md 'Finishing an issue') — if this commit references the issue being finished (#N in the message), the guard auto-approves it without asking; this prompt means it could NOT verify that (no issue reference, issue not claimed by this device, or gh offline). Confirm this commit/push was asked for in the current turn before approving." "guard rule 2 — commit/push not verifiable as a finish ritual"
+  # Not verifiable as a finish ritual -> hand the rule to the model. Advisory by
+  # design: label/clock heuristics always mis-fire on the honest case, and this gate
+  # never blocked an unrequested commit anyway — it billed Steven for the correct one.
+  emit_ctx "Commit/push guard (agent/workflow.md): commit and push ONLY when Steven asked for it in this turn, or as the issue-FINISH ritual (device-comms.md 'Finishing an issue'). The guard could not verify this one as a finish ritual (no issue reference, issue not claimed by this device, or gh offline), so it is on YOU: if he did not ask for this commit and it is not a finish ritual, abandon it now and say what you would have committed instead. Do not commit unrequested work — no bundled 'while I was in there' commits."
 fi
 
 # 3. Ad-hoc port-forwards / tunnels. The canonical set lives as zellij panes
@@ -503,7 +437,29 @@ fi
 # orphans or hangs (2026-07-29, issue #11: a hung forward misdiagnosed cross-device
 # as tailnet flakiness; same session, a sub-agent's own untracked local forward hung too).
 if printf '%s' "$cmd" | grep -Eq '(^|[;&| ])kubectl +port-forward\b|(^|[;&| ])minikube +(tunnel|service)\b'; then
-  emit_ask "Ad-hoc port-forward/tunnel detected. Per agent/incident-rules.md (Port-forwards and tunnels): check for one already running first (ss -tlnp / ps aux | grep port-forward) and reuse it — the canonical set lives as zellij panes in kube-service-ports-efm.kdl, not background processes an agent owns. A duplicate on the same target can silently orphan or hang. If this is a genuine one-off (e.g. a sub-agent's own temporary test forward it will tear down before finishing), confirm that's the case before approving." "guard rule 3 — ad-hoc port-forward/tunnel"
+  # "Is one already up?" is answerable with ss/pgrep, so the hook answers it instead
+  # of asking Steven to run ss on its behalf: real duplicate -> deny, else allow.
+  dup=""
+  if printf '%s' "$cmd" | grep -Eq 'minikube +tunnel'; then
+    if pgrep -f 'minikube tunnel' >/dev/null 2>&1; then
+      dup="a 'minikube tunnel' is already running (pid $(pgrep -f 'minikube tunnel' 2>/dev/null | paste -sd, -))"
+    fi
+  else
+    lport="$(printf '%s' "$cmd" | grep -oE '[0-9]{2,5}:[0-9]{2,5}' | head -1 | cut -d: -f1)"
+    if [ -n "$lport" ]; then
+      listener="$(ss -tlnp 2>/dev/null | grep -E "[:.]${lport}[[:space:]]" | head -1 | sed 's/  */ /g')"
+      if [ -n "$listener" ]; then
+        dup="local port $lport already has a listener -> $listener"
+      else
+        existing="$(pgrep -af "port-forward.*[: ]${lport}:" 2>/dev/null | head -1)"
+        [ -n "$existing" ] && dup="a port-forward on $lport is already running -> $existing"
+      fi
+    fi
+  fi
+  if [ -n "$dup" ]; then
+    emit_deny "BLOCKED: duplicate port-forward/tunnel — $dup. Per agent/incident-rules.md (Port-forwards and tunnels), the canonical set lives as zellij panes in kube-service-ports-efm.kdl, not as background processes an agent owns; a duplicate on the same target silently orphans or hangs (2026-07-29, #11 — a hung forward was misdiagnosed cross-device as tailnet flakiness). REUSE the one above instead of starting another, and do not retry this command. If it is genuinely dead, say so and Steven will decide whether to restart that pane."
+  fi
+  emit_ctx "Starting a port-forward/tunnel: the guard checked and found nothing already bound to that target, so this is allowed. Per agent/incident-rules.md, the canonical forwards live as zellij panes (kube-service-ports-efm.kdl) — if this one is meant to be permanent it belongs in that layout, not as a process this session owns; if it is a one-off, tear it down before you finish."
 fi
 
 # 4. Marking an issue reviewed/done that was never claimed. device-comms.md forbids
@@ -563,7 +519,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+' \
           if [ -n "$mine" ] && gh issue edit "$n" ${old:+--remove-label "$old"} --add-label status:done >/dev/null 2>&1; then
             fixed="$fixed #$n"
           else
-            emit_ask "Issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)) and the guard could not auto-flip it (another device's issue, or gh edit failed). device-comms.md 'Closing an issue': set status:done FIRST, then close. Do it in one move: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'" "guard rule 6 — closing #$n without status:done"
+            emit_deny "BLOCKED: issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)) and the guard could not auto-flip it (another device's issue, or gh edit failed). device-comms.md 'Closing an issue': set status:done FIRST, then close. Do it in one move and re-run — the retry passes once the label is right: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'. This is a denial and not a prompt on purpose: it is an instruction to you, and the retry is yours to make."
           fi
         fi
       done
@@ -584,7 +540,7 @@ fi
 if printf '%s' "$cmd" | grep -Eq '/processors\b' \
    && printf '%s' "$cmd" | grep -Eq 'position' \
    && printf '%s' "$cmd" | grep -Eq -- '-X *(POST|PUT)|--data|--data-binary|(^|[[:space:]])-d[[:space:]]|componentConfiguration|requestId'; then
-  emit_ask "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. BEFORE approving, state out loud: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If this is a read (GET) or the numbers already match layout.md, approve." "guard rule 5 — processor create/update with an explicit position (state shape + pitch vs layout.md)"
+  emit_ctx "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. State out loud, before this lands: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If the numbers are already right, or this is a read (GET), carry on. Allowed rather than asked on purpose: reading layout.md and checking your own numbers is your job, not a question for Steven."
 fi
 
 # A. Auto-claim on ENGAGEMENT, not on sight (narrowed 2026-08-21, #192 audit: a
