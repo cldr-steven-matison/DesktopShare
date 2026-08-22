@@ -104,20 +104,24 @@ W = tk.W          # 368
 H = tk.H          # 448
 BLACK = "#000000"  # xviewer's own chrome black, distinct from tokens' BG (#0f0f0f)
 
-TOPBAR_H = 28
+TOPBAR_H = 46          # tall enough to hold its text clear of the rounded corner
 MEDIA_H = 220           # matches the backend's CARD_W x CARD_H contract exactly
 TOOLBAR_H = 84          # within the 76-88 tap-target band
 POST_TEXT_H = H - TOPBAR_H - MEDIA_H - TOOLBAR_H  # 116
 
 
 def topbar():
-    """Position ("n/N") on the left, status/error text on the right -- both
-    replace the old 14px brand label + 12px status line (#205-style
-    unreadable text). Both sit comfortably inside the body band (16-22)."""
+    """Position ("n/N") on the left, status/error text on the right.
+
+    Both sit at y=18, not y=2. The glass is a rounded rectangle: at 2px from
+    the top edge the corner arc eats ~38px of width, so text at the normal 16px
+    inset was inside the curve -- reported twice as "the 1/24 in the top corner
+    is not legible" / "too close". At y=18 the arc only wants 13px, so the
+    standard edge inset is safe again. Enforced by lint R10."""
     return pk.canvas("topbar", 0, 0, W, TOPBAR_H, bg=BLACK, children=[
-        pk.label("pos", 16, 2, 160, 24, text="1/1", role="body", size=16,
+        pk.label("pos", 16, 18, 160, 24, text="1/1", role="body", size=16,
                   color=tk.INK, align="left"),
-        pk.label("status", 184, 2, 168, 24, text="", role="body", size=16,
+        pk.label("status", 184, 18, 168, 24, text="", role="body", size=16,
                   color=tk.RED, align="right"),
     ])
 

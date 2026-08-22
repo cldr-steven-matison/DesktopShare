@@ -35,10 +35,12 @@ CELL_GAP = 6
 
 
 def header():
-    return pk.canvas("head", 0, 0, W, 46, bg=BLACK, children=[
-        pk.label("head_t", 16, 10, 210, 28, text="EFM AGENT",
+    """Title and state, both pushed to y>=18 so the rounded corner does not bite
+    into edge-anchored text (lint R10)."""
+    return pk.canvas("head", 0, 0, W, 52, bg=BLACK, children=[
+        pk.label("head_t", 16, 18, 210, 28, text="EFM AGENT",
                  role="body", size=20, color=tk.ORANGE, align="left"),
-        pk.label("head_state", 226, 12, 126, 24, text="...",
+        pk.label("head_state", 226, 20, 126, 24, text="...",
                  role="body", size=16, color=tk.MUTED, align="right",
                  bindings={"style.textColor": "stateColor"}),
     ])

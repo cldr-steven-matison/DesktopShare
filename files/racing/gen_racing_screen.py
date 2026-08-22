@@ -83,17 +83,25 @@ car = pk.canvas("panel_car", 0, 0, W, H, bg="#000000", hidden="carHidden", child
 ])
 
 # ------------------------------------------------------------- game panel (3)
+# The HUD lives in the 56px band above the road, squeezed from both sides: the
+# rounded corner eats width at the top (32px of inset at y=4, where the top row
+# used to sit) and ROAD_TOP is a hard floor at 56 -- and ROAD_TOP is also
+# hardcoded in app/app.js, so widening the band is a two-file change, not a
+# tweak here. So the rows move DOWN into the safe part of the arc and give back
+# the height: row 1 at y=14 (arc wants 17px, everything clears it) and row 2 at
+# y=38 tight against the rule. g_clock gives 12px to g_score so the score can
+# end at 351 instead of 362, which is what the arc allows at y=14.
 game_children = [
-    pk.label("g_name", 8, 4, 120, 26, text="", role="body", color=WHITE,
+    pk.label("g_name", 20, 14, 108, 24, text="", role="body", color=WHITE,
               align="left", size=16),
-    pk.label("g_lives", 130, 4, 76, 26, text="***", role="body", color=GREEN,
+    pk.label("g_lives", 130, 14, 76, 24, text="***", role="body", color=GREEN,
               size=20, bindings={"style.textColor": "livesColor"}),
-    pk.label("g_clock", 206, 4, 60, 26, text="0:00", role="body", color=MUTED, size=16),
-    pk.label("g_score", 266, 0, 96, 34, text="0", role="value", color=ORANGE,
+    pk.label("g_clock", 206, 14, 48, 24, text="0:00", role="body", color=MUTED, size=16),
+    pk.label("g_score", 255, 14, 96, 34, text="0", role="value", color=ORANGE,
               align="right", size=28),
-    pk.label("g_speed", 8, 32, 200, 22, text="Lv.1 - 60 km/h", role="body",
+    pk.label("g_speed", 8, 38, 200, 18, text="Lv.1 - 60 km/h", role="body",
               color=MUTED, align="left", size=16),
-    pk.label("g_mode", 208, 32, 152, 22, text="", role="body", color=ORANGE,
+    pk.label("g_mode", 208, 38, 152, 18, text="", role="body", color=ORANGE,
               align="right", size=16),
     pk.canvas("g_rule", 0, 52, W, 3, bg="#333333"),
 ]
