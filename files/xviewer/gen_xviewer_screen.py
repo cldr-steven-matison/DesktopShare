@@ -18,10 +18,9 @@ either path.
 Layout (368x448, four stacked absolute regions, no gaps/overlaps):
 
   y=0..28    topbar   -- "n/N" position (left) + status/error text (right)
-  y=28..248  media    -- 368x220 card image, PLUS two edge tap zones
-                         (left half / right half) wired to xviewer.prev /
-                         xviewer.next, plus small non-interactive chevron
-                         glyphs for affordance
+  y=28..248  media    -- 368x220 card image plus two non-interactive chevron
+                         glyphs. NO tap zones: navigation is the screen-root
+                         swipe and nothing else (#220)
   y=248..364 post_text -- wrapped post body, 20px
   y=364..448 toolbar   -- LIKE (heart image + count), VIEWS, COMMENTS
                          (replies) -- the #198 "tools" bar
@@ -29,22 +28,26 @@ Layout (368x448, four stacked absolute regions, no gaps/overlaps):
 Design decisions worth explaining to a future reader:
 
 - The old bottom bar crammed «, heart+likes, reposts, views, pos, » into one
-  48px flex row -- six things in 360px, hence 13-28px everything. This
-  rebuild moves navigation OFF the bottom bar entirely and onto the media
-  card itself: the left/right halves of the 368x220 image are absolute
-  canvas() tap zones for xviewer.prev/xviewer.next. That's a full 220px-tall,
-  184px-wide target per direction -- categorically bigger than a 40x36
-  corner glyph, and it reuses the exact z-order trick already proven in this
-  codebase (gen_agent_screen.py's `tapzone`): a non-clickable sibling (here,
-  the image itself, and the decorative chevron glyphs) sits ON TOP in child
-  order but LVGL hit-testing skips non-clickable objects, so the tap falls
-  through to the clickable canvas underneath. The nav zones are listed first
-  (bottom of the stack), the image and chevrons after (visually on top, but
-  inert to touch) -- so the photo renders untouched and unobstructed while
-  the whole card is still tap-navigable. The README's gesture-bubble section
-  (LV_OBJ_FLAG_GESTURE_BUBBLE) is why a screen-level swipe may never fire on
-  this backend in the first place -- this keeps a *guaranteed* tap path for
-  prev/next, per that same rationale, just relocated and enlarged.
+  48px flex row -- six things in 360px, hence 13-28px everything. #198 moved
+  navigation off that bar and onto the media card as two half-card tap zones.
+  #220 removed those too: navigation is now the swipe and only the swipe.
+
+  The zones had to go because a tap target laid over the area a finger drags
+  across IS the "tap and swipe collision" Steven reported. LVGL sends
+  LV_EVENT_GESTURE to the object under the finger and climbs parents only
+  while LV_OBJ_FLAG_GESTURE_BUBBLE is set, so a clickable zone takes the
+  press and the swipe leaves through the zone. The zone then fires on
+  `pressed` AND `released` (panelkit fires both on purpose), so one drag
+  scored two steps in whichever direction the drag STARTED, regardless of
+  which way it went.
+
+  What makes swipe-only safe now is the other half of #220: the runtime
+  clears GESTURE_BUBBLE on any node that declares a `gesture` event
+  (gui/brookesia_gui_lvgl/src/event.cpp overlay), so the screen root actually
+  receives the swipe instead of it climbing past to the LVGL screen -- the
+  thing the README's gesture-bubble section correctly predicted would never
+  fire. The LIKE tool is the only tap target left, and it is in the bottom
+  bar, not under the drag.
 
 - The bottom bar is genuinely a `tool_bar()`-shaped bar (#198's own docstring
   in panelkit.py names this exact bar), but it's hand-assembled here instead
@@ -136,17 +139,11 @@ def topbar():
 
 
 def media():
-    """368x220 media card. nav_prev/nav_next are absolute tap zones covering
-    the left/right halves of the whole card (0-184 / 184-368, full 220px
-    tall) -- listed first so they sit behind the image and chevrons in child
-    order. card_img and the chevron glyphs are never clickable, so a tap
-    anywhere on the photo falls through to whichever zone it lands in (the
-    same non-clickable-sibling passthrough gen_agent_screen.py's `tapzone`
-    uses). Both zones are >88px tall, so lint's R4 spacing rule doesn't apply
-    to them at all (same gating as racing's zero-gap lane thirds)."""
+    """368x220 media card. Nothing in it is clickable (#220): this is the band
+    the finger drags across, and a clickable child here takes the press and
+    swallows the swipe. The chevrons are affordance only -- they say which way
+    the card moves, they are not targets."""
     return pk.canvas("media", 0, TOPBAR_H, W, MEDIA_H, bg=BLACK, children=[
-        pk.canvas("nav_prev", 0, 0, W // 2, MEDIA_H, bg=BLACK, click="xviewer.prev"),
-        pk.canvas("nav_next", W // 2, 0, W // 2, MEDIA_H, bg=BLACK, click="xviewer.next"),
         pk.sprite("card_img", 0, 0, W, MEDIA_H, src="", align="contain",
                   hidden="imgHidden"),
         pk.label("chev_prev", 16, (MEDIA_H - 40) // 2, 40, 40, text="<",
@@ -231,12 +228,13 @@ def build():
         post_text(),
         toolbar(),
     ])
-    # Screen-level swipe gesture. panelkit.screen() has no `events` param --
-    # this is the same "raw dict, doesn't fit a primitive" escape hatch the
-    # README describes for racing's lane-touch zones. Shape matches the
-    # already-proven shipped app.js/home.json exactly (flat "action", not
-    # the pressed/released effects-wrapped shape _tap_events() emits -- this
-    # is a gesture listener, not a tap target, and lint's R2 exempts it).
+    # Screen-level swipe gesture -- since #220 the ONLY navigation path.
+    # panelkit.screen() has no `events` param, so this is the same "raw dict,
+    # doesn't fit a primitive" escape hatch the README describes for racing's
+    # lane-touch zones (flat "action", not the pressed/released effects-wrapped
+    # shape _tap_events() emits -- a gesture listener is not a tap target, and
+    # lint's R2 exempts it). The runtime clears LV_OBJ_FLAG_GESTURE_BUBBLE on
+    # this node so the swipe stops here.
     tree["events"] = [{"type": "gesture", "action": "xviewer.gesture"}]
     return tree
 

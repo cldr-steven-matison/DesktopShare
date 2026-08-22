@@ -16,11 +16,22 @@ Every id app/app.js writes to is unchanged -- /clock, /prefix, /vehicle,
 /mission, /pad, /status, /meta. The clock keeps its clockColor/clockSize
 bindings.
 
-The nav moved (2026-08-21, reported from the glass and the simulator alike):
-the « / » glyphs were 64x44 targets in the top corners, and both were hard to
-hit. They are gone; navigation is now two half-panel tap zones over the middle
-band plus the screen swipe, which app.js debounces at 350 ms so one drag steps
-one launch.
+Navigation is a SWIPE, and only a swipe (#220). Two earlier rounds tried taps:
+64x44 « / » glyphs in the top corners (unhittable), then two half-panel tap
+zones over the middle band (this file, 2026-08-21). Both were wrong for the
+same reason -- a tap target laid over the area a finger drags across collides
+with the drag:
+
+  * LVGL delivers LV_EVENT_GESTURE to the object under the finger, climbing
+    parents only while LV_OBJ_FLAG_GESTURE_BUBBLE is set. A clickable zone
+    takes the press, so the gesture leaves through the zone, not the screen.
+  * The zone then fires on `pressed` AND on `released` -- so a drag that
+    starts on the left half steps BACKWARD however you swiped.
+
+The zones are gone. The chevrons stay, non-clickable, as the affordance that
+says which way the panel moves. The screen-root `gesture` event is the only
+nav path, and it fires at most once per finger-down/up (LVGL latches
+`pointer.gesture_sent`), so app.js needs no debounce at all.
 
 Run: python3 gen_tminus_screen.py
 """
@@ -43,44 +54,25 @@ AMBER = "#ffb000"
 # The art sits between the mission line and the footer, and stops short
 # of it: the first render ran the plume under "SLC-4E - Vandenberg".
 ART_Y, ART_H = 206, 168
-# The nav band covers the art and the gap under it, stopping at the footer.
+# The band the chevrons sit in -- the art and the gap under it, stopping at
+# the footer. Nothing in it is clickable; it is where the swipe is expected.
 NAV_Y, NAV_H = ART_Y, 174
 
 
 def topbar():
     """Brand only. The nav used to live up here as two 64x44 glyphs in the
     top corners -- the two hardest pixels on the panel to hit with a thumb,
-    and reported as such from both the glass and the simulator. Navigation
-    moved to the middle band (nav_zones)."""
+    and reported as such from both the glass and the simulator. There is no
+    tap target anywhere on this screen any more (#220)."""
     return pk.canvas("topbar", 0, 0, W, 44, bg=BLACK, children=[
         pk.label("brand", 0, 10, W, 26, text="T-MINUS", role="body",
                  size=20, color=AMBER),
     ])
 
 
-def nav_zones():
-    """Two half-width tap targets filling the middle band -- 184x174 each,
-    against 64x44 in a corner before. Left = previous launch, right = next.
-
-    They sit *behind* the art and the chevrons in child order, and the
-    passthrough only works because both of those are explicitly
-    non-clickable. That is not free: an `image` node defaults to
-    clickable:true in the runtime, so the first cut of this screen shipped
-    with the art swallowing every tap in the band -- panelkit trap 3, now
-    closed by `sprite()` and lint R6. Taps stay the guaranteed path; swipe
-    is the nicer one, but the package README's gesture-bubble finding says
-    a JSON-UI gesture may never reach an app node on this backend."""
-    return [
-        pk.canvas("nav_prev", 0, NAV_Y, W // 2, NAV_H, bg=BLACK,
-                  click="tminus.prev"),
-        pk.canvas("nav_next", W // 2, NAV_Y, W - W // 2, NAV_H, bg=BLACK,
-                  click="tminus.next"),
-    ]
-
-
 def nav_chevrons():
-    """Affordance only, drawn over the art: something has to say the middle
-    of the screen is tappable."""
+    """Affordance only, drawn over the art, and deliberately NOT clickable:
+    something has to say which way the panel moves when you slide it."""
     cy = NAV_Y + (NAV_H - 44) // 2
     return [
         pk.label("nav_prev_g", 8, cy, 44, 44, text="<", role="value",
@@ -92,9 +84,8 @@ def nav_chevrons():
 
 def build():
     return pk.screen("home", bg=BLACK, children=[
-        # Nav zones first: everything drawn after them is non-clickable and
-        # falls through.
-    ] + nav_zones() + [
+        # Nothing on this screen is clickable. That is the point: a clickable
+        # child under the finger swallows the swipe (see the module docstring).
         topbar(),
         # T- / T+ / HOLD marker over the clock.
         pk.label("prefix", 0, 50, W, 22, text="T-", role="footer", size=16,
@@ -110,8 +101,10 @@ def build():
         pk.label("mission", 8, 182, W - 16, 28, text="", role="body", size=16,
                  color=tk.MUTED),
         # The art fills what used to be dead space between the mission line
-        # and the footer. Not clickable: taps fall through to the nav zones
-        # underneath it, which is exactly the point.
+        # and the footer. Not clickable -- an `image` node defaults to
+        # clickable:true in the runtime, and a clickable node under the finger
+        # is exactly what stops the swipe from reaching the screen root
+        # (panelkit trap 3, closed by sprite() and lint R6).
         pk.sprite("art", 0, ART_Y, W, ART_H, src="${image.launch}",
                   align="contain"),
     ] + nav_chevrons() + [
@@ -128,6 +121,10 @@ def main():
     tree = build()
     # Screen-level swipe, same raw-dict escape hatch the other apps use --
     # a gesture listener isn't a tap target and has no panelkit primitive.
+    # The screen root is the ONLY thing on this panel that reacts to touch.
+    # The runtime clears LV_OBJ_FLAG_GESTURE_BUBBLE on a node that declares a
+    # `gesture` event (#220, gui/brookesia_gui_lvgl/src/event.cpp overlay), so
+    # the swipe stops climbing here instead of running past to the LVGL screen.
     tree["events"] = [{"type": "gesture", "action": "tminus.gesture"}]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f:
