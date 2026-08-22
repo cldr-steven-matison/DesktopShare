@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkin.sh\"",
-            "timeout": 30,
+            "timeout": 60,
             "statusMessage": "Session check-in: git pull + device issue inbox"
           }
         ]

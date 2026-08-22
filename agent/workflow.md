@@ -15,8 +15,9 @@ how you work once you're synced.
 
 ## Branches
 
-- **One branch per issue in this repo: `issue-<n>-<slug>`.** Create it at the start of working an issue (`git checkout -b issue-<n>-<short-slug>` off `main`) and keep that issue's changes on it, so each agent operates on its own files and a commit only ever stages that issue's work. The checkout is shared, so only one issue's changes live in the working tree at a time — switch branches to change which issue is active.
-- **Other repos may still work directly on `main`.** `cso-operator-app` in particular does (see its `CLAUDE.md`). If you're unsure whether a repo wants a branch, ask before creating one.
+- **Branch only for heavy, cross-device work — not every issue.** Most issues are small: one file, one session, done directly on `main`. Create an `issue-<n>-<slug>` branch (`git checkout -b issue-<n>-<short-slug>` off `main`) only when the work is genuinely going to span multiple files and multiple sessions — often across devices — before it's ready to land. The branch exists to isolate that kind of in-flight work, not as a default per-issue ritual.
+- **If unsure, ask before creating one.** Same for `cso-operator-app` and other repos that work directly on `main` by default (see its own `CLAUDE.md`).
+- Once a branch is created and merged, keep it — issue branches are never deleted.
 - Commit/push discipline is unchanged: commit and push only when explicitly asked; working-tree changes stay uncommitted by default.
 
 ## Live infra vs. docs
