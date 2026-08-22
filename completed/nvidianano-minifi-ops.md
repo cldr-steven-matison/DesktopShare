@@ -84,7 +84,7 @@ Applied and verified 2026-08-22:
 |---|---|---|---|
 | NvidiaNano | 1,245,184 B | 7,462 B | 167× |
 | WindowsDesktop | 1,310,720 B | 5,799 B | 226× |
-| StarlinkAI | 1,245,184 B | *not yet* — filed as #215 (needs the device) | — |
+| StarlinkAI | 1,245,184 B | 12,945 B | 96× |
 
 **How to tell it took:** EFM tags the metric with `agentManifestId`, so the fix shows up as a
 *series split*, not as a falling number. The old `agentManifestId="minifi"` series stops
