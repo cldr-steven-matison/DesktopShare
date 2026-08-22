@@ -1,152 +1,116 @@
 #!/usr/bin/env python3
-"""Generate the sprite PNGs for tunastreet.racing (#205).
+"""Generate the sprite PNGs for tunastreet.racing (#205, #221).
 
-The panel draws real vehicles and villains, not coloured blocks. Each sprite is
-a redraw of the browser game's inline SVG (services/game/index.html) at panel
-scale: 44x44 obstacles, 56x74 cars. PNG (not JPEG) because the S3 ROM decoder
-is baseline-only and these need clean flat colour plus hard edges.
+The sprites are the browser game's own inline SVGs, rasterised at panel scale --
+not redrawn by hand. `extract()` lifts the `<svg>` literals straight out of the
+upstream game's single-file source (`services/game/index.html` in the
+`cloudera-racing-standalone` checkout) and vendors them into
+`upstream_sprites.json` next to this script, so the generator still runs on a
+device that has no upstream checkout. Point RACING_UPSTREAM at the checkout, or
+pass --refresh, to re-vendor after upstream changes.
 
-Run: python3 gen_racing_art.py   (needs PIL; the tuna-starlink venv has it)
+Each sprite is rasterised at 6x, cropped to its ink bounds and scaled to fill
+its declared slot (44x44 obstacles, 56x74 cars). The crop matters: upstream's
+viewBoxes carry generous whitespace, which at 44px would leave the drawn shape
+much smaller than the 44px hit box the game tests against. PNG with a fully
+transparent ground -- an opaque backdrop renders as a visible black box around
+every sprite on the panel's true-black road.
+
+Run: ~/venv/bin/python3 gen_racing_art.py   (needs cairosvg + PIL)
 """
+import io
+import json
 import os
+import re
+import sys
 
-from PIL import Image, ImageDraw
+import cairosvg
+from PIL import Image
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+VENDORED = os.path.join(HERE, "upstream_sprites.json")
+UPSTREAM = os.environ.get(
+    "RACING_UPSTREAM",
+    os.path.expanduser("~/cloudera-racing-standalone"),
+)
 OUT = "/home/tunas/waveshare-devices/amoled-1.8-v2/apps/tunastreet.racing/res/images"
+
 OBS = 44
 CAR_W, CAR_H = 56, 74
-# RGBA with a fully transparent ground: an opaque backdrop renders as a visible
-# black box around every sprite on the panel's true-black road.
-BG = (0, 0, 0, 0)
+SUPERSAMPLE = 6
 
-
-def new(w, h):
-    img = Image.new("RGBA", (w, h), BG)
-    return img, ImageDraw.Draw(img)
-
-
-def save(img, name):
-    img.save(os.path.join(OUT, name))
-    print("wrote", name, img.size)
-
-
-# ---------------------------------------------------------------- the villains
-def cone():
-    img, d = new(OBS, OBS)
-    d.polygon([(22, 5), (38, 39), (6, 39)], fill=(245, 166, 35))
-    d.rectangle([4, 38, 40, 43], fill=(200, 130, 20))
-    d.rectangle([14, 22, 30, 27], fill=(255, 255, 255))
-    return img
-
-
-def barrier():
-    img, d = new(OBS, OBS)
-    d.polygon([(22, 4), (37, 13), (37, 31), (22, 40), (7, 31), (7, 13)],
-              fill=(229, 72, 77))
-    d.rectangle([12, 20, 32, 25], fill=(255, 255, 255))
-    return img
-
-
-def drum():
-    img, d = new(OBS, OBS)
-    d.rounded_rectangle([12, 6, 32, 38], radius=3, fill=(192, 197, 204))
-    d.rectangle([15, 3, 29, 8], fill=(138, 143, 152))
-    d.rectangle([13, 16, 31, 20], fill=(107, 112, 121))
-    d.rectangle([13, 26, 31, 30], fill=(107, 112, 121))
-    return img
-
-
-def rock():
-    img, d = new(OBS, OBS)
-    d.ellipse([8, 10, 36, 36], fill=(138, 143, 152))
-    d.ellipse([13, 15, 21, 23], fill=(107, 112, 121))
-    d.ellipse([23, 22, 32, 31], fill=(107, 112, 121))
-    return img
-
-
-def hazard():
-    img, d = new(OBS, OBS)
-    d.rounded_rectangle([5, 14, 39, 30], radius=2, fill=(245, 166, 35))
-    for x in (6, 16, 26):
-        d.line([(x, 30), (x + 9, 14)], fill=(28, 28, 28), width=4)
-    return img
-
-
-def databricks():
-    """The red villain — stacked chevrons, from the game's dbSVG()."""
-    img, d = new(OBS, OBS)
-    d.rounded_rectangle([2, 2, 42, 42], radius=6, fill=(255, 54, 33))
-    for i, y in enumerate((12, 19, 26, 33)):
-        d.line([(9, y), (22, y - 6), (35, y)], fill=(255, 255, 255), width=3, joint="curve")
-    return img
-
-
-def snowflake():
-    """The blue villain — the bear, from the game's bearSVG()."""
-    img, d = new(OBS, OBS)
-    d.ellipse([2, 2, 42, 42], fill=(41, 181, 232))
-    d.ellipse([7, 6, 17, 16], fill=(232, 232, 238))
-    d.ellipse([27, 6, 37, 16], fill=(232, 232, 238))
-    d.ellipse([9, 12, 35, 36], fill=(240, 240, 246))
-    d.ellipse([15, 18, 20, 24], fill=(41, 181, 232))
-    d.ellipse([24, 18, 29, 24], fill=(41, 181, 232))
-    d.ellipse([17, 25, 27, 32], fill=(212, 184, 150))
-    d.ellipse([20, 25, 25, 29], fill=(34, 34, 34))
-    return img
-
-
-def iceberg():
-    """The power-up — white peak over blue water, from icebergSVG()."""
-    img, d = new(OBS, OBS)
-    d.ellipse([2, 2, 42, 42], fill=(26, 107, 181))
-    d.rectangle([2, 24, 42, 42], fill=(21, 87, 160))
-    d.polygon([(22, 6), (34, 24), (10, 24)], fill=(232, 244, 248))
-    d.polygon([(22, 6), (28, 17), (22, 20), (16, 17)], fill=(204, 232, 244))
-    d.polygon([(10, 24), (34, 24), (30, 37), (14, 37)], fill=(122, 184, 216))
-    return img
-
-
-# -------------------------------------------------------------------- the cars
-def car(kind):
-    """Top-down car, from the game's carSVG() — Corolla white, 911 silver/red."""
-    img, d = new(CAR_W, CAR_H)
-    cx = CAR_W // 2
-    if kind == "corolla":
-        body, trim, glass = (242, 242, 242), (204, 34, 0), (42, 58, 90)
-        d.ellipse([4, 3, CAR_W - 4, CAR_H - 3], fill=body)
-        d.rounded_rectangle([14, 8, 42, 24], radius=4, fill=(17, 17, 17))
-        d.rounded_rectangle([14, 50, 42, 66], radius=4, fill=(17, 17, 17))
-        d.rounded_rectangle([17, 20, 39, 33], radius=3, fill=glass)
-        d.rounded_rectangle([17, 44, 39, 55], radius=3, fill=(26, 42, 58))
-        d.rounded_rectangle([20, 33, 36, 44], radius=2, fill=(232, 232, 232))
-        d.rectangle([5, 30, 9, 44], fill=trim)
-        d.rectangle([47, 30, 51, 44], fill=trim)
-    else:
-        body, hood, cabin = (200, 200, 204), (180, 180, 184), (176, 48, 16)
-        d.ellipse([3, 4, CAR_W - 3, CAR_H - 4], fill=body)
-        d.ellipse([12, 6, 44, 24], fill=(212, 212, 216))
-        d.rounded_rectangle([15, 26, 41, 52], radius=5, fill=cabin)
-        d.rounded_rectangle([17, 29, 26, 39], radius=2, fill=(200, 64, 32))
-        d.rounded_rectangle([30, 29, 39, 39], radius=2, fill=(200, 64, 32))
-        d.rounded_rectangle([17, 41, 26, 49], radius=2, fill=(200, 64, 32))
-        d.rounded_rectangle([30, 41, 39, 49], radius=2, fill=(200, 64, 32))
-        d.rounded_rectangle([18, 18, 38, 26], radius=3, fill=(42, 58, 90))
-        d.rounded_rectangle([15, 56, 41, 62], radius=2, fill=hood)
-    for wx, wy in ((2, 14), (CAR_W - 12, 14), (1, CAR_H - 26), (CAR_W - 11, CAR_H - 26)):
-        d.ellipse([wx, wy, wx + 10, wy + 16], fill=(34, 34, 34))
-        d.ellipse([wx + 3, wy + 4, wx + 7, wy + 12], fill=(150, 150, 150))
-    return img
-
-
+# panel sprite name -> key in upstream_sprites.json. The upstream obstacle
+# array has seven entries; the panel carries five of them plus the two
+# villains and the power-up. obs0 (warning triangle) and obs6 (wrench) are
+# upstream types this app does not spawn.
 SPRITES = {
-    "obs_cone.png": cone, "obs_barrier.png": barrier, "obs_drum.png": drum,
-    "obs_rock.png": rock, "obs_hazard.png": hazard,
-    "obs_databricks.png": databricks, "obs_snowflake.png": snowflake,
-    "obs_iceberg.png": iceberg,
+    "obs_cone.png": ("obs2", OBS, OBS),
+    "obs_barrier.png": ("obs1", OBS, OBS),
+    "obs_drum.png": ("obs5", OBS, OBS),
+    "obs_rock.png": ("obs4", OBS, OBS),
+    "obs_hazard.png": ("obs3", OBS, OBS),
+    "obs_databricks.png": ("databricks", OBS, OBS),
+    "obs_snowflake.png": ("snowflake", OBS, OBS),
+    "obs_iceberg.png": ("iceberg", OBS, OBS),
+    "car_corolla.png": ("car_corolla", CAR_W, CAR_H),
+    "car_porsche.png": ("car_porsche", CAR_W, CAR_H),
 }
 
+
+def extract():
+    """Lift the inline <svg> literals out of the upstream game's index.html."""
+    path = os.path.join(UPSTREAM, "services", "game", "index.html")
+    src = open(path).read()
+
+    def after(fn, count):
+        m = re.search(r"function\s+%s\s*\(" % fn, src)
+        if not m:
+            raise SystemExit("upstream changed: no %s() in %s" % (fn, path))
+        return re.findall(r"<svg[\s\S]*?</svg>", src[m.start():m.start() + 6000])[:count]
+
+    out = {
+        "databricks": after("dbSVG", 1)[0],
+        "snowflake": after("bearSVG", 1)[0],
+        "iceberg": after("icebergSVG", 1)[0],
+    }
+    out["car_corolla"], out["car_porsche"] = after("carSVG", 2)
+    for i, svg in enumerate(after("obsSVG", 7)):
+        out["obs%d" % i] = svg
+    if len(out) != 12:
+        raise SystemExit("upstream changed: extracted %d sprites, expected 12" % len(out))
+    return out
+
+
+def load(refresh):
+    if refresh or not os.path.exists(VENDORED):
+        sprites = extract()
+        with open(VENDORED, "w") as fh:
+            json.dump(sprites, fh, indent=1, sort_keys=True)
+            fh.write("\n")
+        print("vendored %d upstream SVGs -> %s" % (len(sprites), VENDORED))
+        return sprites
+    return json.load(open(VENDORED))
+
+
+def render(svg, w, h):
+    """Rasterise, crop to ink, scale to fill w x h, centred on transparent."""
+    png = cairosvg.svg2png(
+        bytestring=svg.encode(), output_width=w * SUPERSAMPLE, output_height=h * SUPERSAMPLE
+    )
+    big = Image.open(io.BytesIO(png)).convert("RGBA")
+    box = big.getbbox()
+    if box:
+        big = big.crop(box)
+    scale = min(w / big.width, h / big.height)
+    size = (max(1, round(big.width * scale)), max(1, round(big.height * scale)))
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    img.alpha_composite(big.resize(size, Image.LANCZOS), ((w - size[0]) // 2, (h - size[1]) // 2))
+    return img
+
+
 if __name__ == "__main__":
-    for name, fn in SPRITES.items():
-        save(fn(), name)
-    save(car("corolla"), "car_corolla.png")
-    save(car("porsche"), "car_porsche.png")
+    sprites = load("--refresh" in sys.argv)
+    for name, (key, w, h) in SPRITES.items():
+        img = render(sprites[key], w, h)
+        img.save(os.path.join(OUT, name))
+        print("wrote", name, img.size)
