@@ -3449,7 +3449,7 @@
           "Cooldown Seconds": "10",
           "Trigger Vote Count": "3",
           "Watchlist Cooldown Seconds": "60",
-          "Clip Trigger Enabled": "false",
+          "Clip Trigger Enabled": "true",
           "Command Prefix": "!load",
           "Watchlist Command": "!watchlist",
           "Trigger Vote Window Seconds": "120",
