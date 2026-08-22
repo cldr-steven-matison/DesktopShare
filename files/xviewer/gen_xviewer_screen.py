@@ -24,7 +24,7 @@ Layout (368x448, four stacked absolute regions, no gaps/overlaps):
                          glyphs for affordance
   y=248..364 post_text -- wrapped post body, 20px
   y=364..448 toolbar   -- LIKE (heart image + count), VIEWS, COMMENTS
-                         (replies), CLEAR -- the #198 "tools" bar
+                         (replies) -- the #198 "tools" bar
 
 Design decisions worth explaining to a future reader:
 
@@ -48,15 +48,24 @@ Design decisions worth explaining to a future reader:
 
 - The bottom bar is genuinely a `tool_bar()`-shaped bar (#198's own docstring
   in panelkit.py names this exact bar), but it's hand-assembled here instead
-  of calling tool_bar() directly: two of its four items (VIEWS, COMMENTS)
+  of calling tool_bar() directly: two of its three items (VIEWS, COMMENTS)
   need a two-line value-over-caption stat shape (a number and a label under
   it, the same shape gen_agent_screen.py's metrics() row uses) which none of
   tool_bar()'s three item kinds (image+caption, compact single-line, plain
   button) produce on their own. So this bar reuses tool_bar()'s own numbers
-  (touch.target_gap_min gap, tool_bar()'s image-branch sizing formula for
-  the heart) but lays all four out directly via canvas()/label()/sprite()
-  so LIKE, VIEWS, COMMENTS and CLEAR read as one consistent row of four
-  84px-tall boxes -- all comfortably inside the 76-88 tap-target band.
+  (tool_bar()'s image-branch sizing formula for the heart) but lays all
+  three out directly via canvas()/label()/sprite() so LIKE, VIEWS and
+  COMMENTS read as one consistent row of three 84px-tall boxes -- all
+  comfortably inside the 76-88 tap-target band.
+
+- There is no fourth CLEAR tool (#218). It emitted `xviewer.clear` on BOTH
+  `pressed` and `released` -- one tap ran two full feed refetches -- and
+  the backend has no server-side "clear" at all, only `?refresh=1`, which
+  returns the same 25 posts. So the whole visible effect of the button was
+  "snap back to card 1", which is what "clear button doesnt actually clear,
+  gets stuck on first one" describes. The 60s periodic refresh already does
+  the only real work it did, so the tool was removed rather than relabelled,
+  and its 84px went back to the three tools that remain.
 
 - The old 14px "X Viewer" brand label is dropped. The launcher icon already
   brands the app; at this size, giving that row's pixels back to content
@@ -159,32 +168,29 @@ def post_text():
 
 def toolbar():
     """The #198 tools bar: LIKE (heart image + count), VIEWS, COMMENTS
-    (replies), CLEAR. Four 84px-tall boxes (within the 76-88 band), 40px
-    gaps (touch.target_gap_min), widths sized to the total width exactly
-    (48 + 40 + 68 + 40 + 68 + 40 + 64 == 368) -- see the module docstring for
-    why this doesn't just call tool_bar() directly.
+    (replies). Three 84px-tall boxes (within the 76-88 band), sized to the
+    total width exactly (116 + 10 + 116 + 10 + 116 == 368) -- see the module
+    docstring for why this doesn't just call tool_bar() directly, and why
+    there is no fourth CLEAR box (#218).
 
     LIKE's image sizing mirrors tool_bar()'s own image-branch formula
     (img_h = h - 26 when a caption is present, img_w = min(iw - 12, img_h))
     so it reads as the same design system even though it's assembled here by
     hand.
 
-    Spacing: the 40px minimum is a rule about two *tap targets* being far
-    enough apart to disambiguate a slightly-off tap (lint R4 only looks at
-    nodes with events, and only when both sit inside the tap-target band).
-    VIEWS and COMMENTS are readouts, not targets, so spending 40px on either
-    side of them buys nothing and costs the captions their room -- the first
-    render clipped COMMENTS to "OMMENT" and pushed CLEAR past both its
-    edges. They're packed at 8px instead, and the two real targets (LIKE and
-    CLEAR) end up 200px apart, five times the minimum.
+    Spacing: lint R4's 40px minimum is a rule about two *tap targets* being
+    far enough apart to disambiguate a slightly-off tap -- it only looks at
+    nodes with events, and only when both sit inside the tap-target band.
+    LIKE is now the only target on this bar, so the gap is a purely visual
+    one: three equal boxes at 10px, which reads as a row rather than as
+    three separate widgets.
     """
-    like_w, views_w, comments_w, clear_w = 84, 88, 88, 84
-    gap = 8
+    like_w = views_w = comments_w = 116
+    gap = 10
     x_like = 0
     x_views = x_like + like_w + gap
     x_comments = x_views + views_w + gap
-    x_clear = x_comments + comments_w + gap
-    assert x_clear + clear_w == W, "toolbar item widths must fill the panel exactly"
+    assert x_comments + comments_w == W, "toolbar item widths must fill the panel exactly"
 
     like_img_h = TOOLBAR_H - 26
     like_img_w = min(like_w - 12, like_img_h)
@@ -214,15 +220,8 @@ def toolbar():
                   role="footer", size=16, color=tk.MUTED, align="center"),
     ])
 
-    t_clear = pk.canvas("t_clear", x_clear, 0, clear_w, TOOLBAR_H, bg=tk.RED,
-                         radius=tk.RADIUS, click="xviewer.clear", children=[
-        pk.label("t_clear_t", 0, (TOOLBAR_H - 32) // 2, clear_w, 32,
-                  text="CLEAR", role="body", size=20, color=tk.INK,
-                  align="center"),
-    ])
-
     return pk.canvas("toolbar", 0, TOPBAR_H + MEDIA_H + POST_TEXT_H, W, TOOLBAR_H,
-                      bg=BLACK, children=[t_like, t_views, t_comments, t_clear])
+                      bg=BLACK, children=[t_like, t_views, t_comments])
 
 
 def build():
