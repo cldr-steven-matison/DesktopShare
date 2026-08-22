@@ -144,6 +144,16 @@ Use Terminal History when the *journey* is instructive (iteration, rollbacks, de
 
 **The one thing to scrub:** paste commands freely, but never paste secret *values* or command *output* that contains them. A `kubectl get secret ... | base64 --decode` command in the history is fine — the decoded password it prints is not. Same rule as everywhere else in this repo (see `agent/incident-rules.md`).
 
+## Reporting work — issue comments and wrap-ups
+
+The finish-ritual comment and the session wrap-up follow the same rules as everything else here, plus one of their own:
+
+**A detour you had to be pulled out of is not a finding.** If a tangent got cut short — you were chasing something that turned out to be irrelevant, or Steven interrupted to say it was a waste of time — that tangent is dead. It does not come back as a bullet in the issue comment, a "one thing worth flagging" note, or a line in the summary. Drop it silently and report the work that was asked for.
+
+Writing it up anyway reads as billing him for your own mistake: he already paid for the time once in interruption, and the write-up spends his attention on it a second time. A side-observation earns a mention only when it **blocks the work** or **he asked about it**. Everything else goes nowhere.
+
+The related tell to catch earlier: an intermittent failure you cannot reproduce is not a lead worth pulling on mid-task. Note it to yourself, finish the job.
+
 ## What to strip
 
 - LLM tells: "delve," "leverage," "in the fast-paced world of," "certainly!" openings, em-dashes used for emphasis where a period would do, sentence-endings that summarize what you just said.
