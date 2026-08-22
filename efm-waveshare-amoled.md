@@ -214,6 +214,35 @@ exist. Everything below is flashed and verified.
   apps untouched, and prints a before/after inventory plus free space. Post-flash inventory: 5 apps
   staged, **1.70 MB free** of the 5 MB partition.
 
+## Two panel facts learned the hard way (2026-08-21 evening)
+
+Both were found by Steven on the glass and are now enforced by the kit
+(`sprite()` / `label()` raise, lint R6/R7) rather than remembered:
+
+- **No FreeType — the panel font is LVGL's built-in Montserrat, ASCII only.**
+  Anything above `0x7E` renders as a white "tofu" box. `‹ › « »` and every
+  `·` separator shipped that way, and read as broken buttons rather than
+  missing glyphs. The boot log warns about it once per label:
+  `Font asset 'default' requires FreeType support, fallback to built-in Montserrat`.
+  Panel text — including anything a backend composes into a payload — is ASCII.
+- **An `image` node defaults to `clickable:true`** (`parser_node.cpp`
+  `default_clickable_for_node_type`; `label` defaults to false). A decorative
+  picture drawn over a tap zone swallows every tap that lands on it. T-MINUS's
+  launch art covered its whole nav band and no tap ever produced a
+  `/tminus/step`; the X viewer's card zones and racing's car-choice pictures
+  had it too. Declare `clickable:false` on every decorative image.
+
+Related, at the app layer: a panelkit tap target emits its action on **both**
+`pressed` and `released` (deliberately — a lone `released` can be swallowed),
+so any *stateful* handler needs a debounce or one tap counts twice. The X
+viewer was advancing two cards per tap.
+
+**A backend access log is the best device-side instrument we have.** JS
+`brookesia.print` output did not reach the UART in any capture this session, so
+serial only proves the platform is alive. What the board *requests* — or
+doesn't — is what identifies the bug: no `/tminus/step` proved taps were dead,
+and no `/xviewer/img/profile.jpg` proved a request was never issued.
+
 ## Next
 
 5. **Ember (#184) product redesign** — Grok's court, on the proven package/backend rails.
