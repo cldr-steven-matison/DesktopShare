@@ -120,8 +120,10 @@ The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
 4. **Agent baked in + ONLINE** — `microfi-1cdbd47b8584 | AMOLED | ONLINE`, Brookesia home + agent
    on one boot. Class manifest re-pinned to the 6-processor id
    `c265dbcf-93f0-4f94-b0ed-5865c1512f6c`, then to the 7-processor id
-   `05dfbcef-128e-4d93-aa46-baa95ef36730` when GetIMU landed (DELETE + POST
-   `/efm/api/agent-class-manifest-config` — POST alone won't overwrite, PUT 500s). MicroFi tree changes: `microfi_agent_start()` extraction
+   `05dfbcef-128e-4d93-aa46-baa95ef36730` when GetIMU landed, then to the 8-processor id
+   `da9b1cec-9db6-42f7-ad28-d78e82330d50` when DisplayMessage landed (#227; DELETE + POST
+   `/efm/api/agent-class-manifest-config` — POST alone won't overwrite, PUT 500s; create new
+   Designer nodes only *after* the pin lands or they never resolve). MicroFi tree changes: `microfi_agent_start()` extraction
    (`src/agent.cpp`), `CONFIG_MICROFI_WIFI_ADOPT_EXISTING` adopt-mode in `wifi.cpp`. XIAO
    regression passed (`pio run -e esp32s3-8mb`, run as `python -m platformio` on Windows).
 

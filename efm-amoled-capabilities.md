@@ -216,11 +216,61 @@ for whoever picks it up:
    `microfi2/camera/#`, so the IMU topic needs its own `ConsumeMQTT → PublishKafka` PG when a Kafka
    landing is wanted (rule 8: its own PG, not inlined into `SparkPlug`).
 
-### Still a decision — the demo/chapter mapping
+### Chapter mapping — decided on #227 (2026-08-24)
 
-The flows are specified; what they *feed* isn't. IMU accel/gyro from the desk panel is a candidate
-for the Ch12/Ch20 story, but that hasn't been pinned to an actual chapter need — that mapping is the
-remaining open question on #191.
+**Ch12 (EFM and MicroFi) capstone, tracked on #178.** The IMU flows and the DisplayMessage
+round-trip are MicroFi custom processors closing a loop on the array — no Sparkplug framing — so they
+are Ch12 structural content (final MicroFi flows / custom processors). Ch20 keeps the Sparkplug B story;
+Flow B (`GetIMU → PublishSparkplug`) is the Ch20 tie-in if the panel is ever wanted alongside the other
+Sparkplug hardware. What gets screenshotted for Ch12: the AMOLED class flow in the Designer, the
+`AmoledImuBridge` / `AmoledShakeToDisplay` PGs on `mynifi`, and the status tile showing a flow-sent
+message.
+
+## #227 as-built — IMU into Kafka, shake-as-trigger, DisplayMessage (2026-08-24)
+
+Rung 2 is on the glass. Three pieces, all live on WindowsDesktop:
+
+1. **`AmoledImuBridge` PG on `mynifi`** (own PG beside `MicroFi2CameraBridge`, same shape):
+   `ConsumeMQTT(microfi/amoled/imu, client nifi-amoled-imu) → PublishKafka(amoled.imu)`, `failure` →
+   `LogKafkaFailure`. Export: [`files/AmoledImuBridge.json`](files/AmoledImuBridge.json).
+2. **Flow A′ published**: `GetIMU` `Motion Threshold (g)=0.3`. Rest on the desk is |accel| ≈ 1.014 g,
+   0.014 g off 1 g — 20 s at rest = zero messages (was 1 Hz). Threshold is on |accel|−1 g only; gyro
+   bias (`gy` ≈ 18 dps on this unit) plays no part.
+3. **`DisplayMessage` built** — MicroFi `src/processors/display_message.cpp` (sink, `INPUT_REQUIRED`,
+   one property `Message`: blank = FlowFile content), whole file behind `MICROFI_BOARD_DISPLAY_MESSAGE`
+   like `get_imu.cpp`. The seam is a spinlock-guarded single-slot mailbox
+   (`include/microfi/display_message.h`, `src/display_message.cpp`: text + seq + post time) — the
+   engine task writes it, the #185 status tile's 1 s refresh reads it into two new labels
+   (`message #N (Ns ago)` + the text). **No new Brookesia dependency**: the tile already owns the GUI
+   runtime, the processor only touches the mailbox. Manifest `da9b1cec-9db6-42f7-ad28-d78e82330d50`
+   (8 processors). XIAO `esp32s3-8mb` regression passed (flash 59.0%).
+
+**Class flow is now 4 nodes** — the `kMaxFlowNodes=4` cap forced the shape:
+`GetIMU(0.3) → PublishMQTT` **+** `ListenHTTP(:8095 /message) → DisplayMessage`. `UpdateAttribute`
+was dropped from Flow A′: its `device`/`sensor` attributes never left the board (MQTT carries content
+only), so nothing downstream changed. Export:
+[`files/issue-227/amoled-class-flow-imu-shake-displaymessage.json`](files/issue-227/amoled-class-flow-imu-shake-displaymessage.json).
+
+**Array side — `AmoledShakeToDisplay` PG on `mynifi`** (running):
+`ConsumeKafka(amoled.imu, group AmoledShakeToDisplay, latest) → EvaluateJsonPath(ax/ay/az) →
+ReplaceText("SHAKE HH:mm:ss  ax= ay= az=") → InvokeHTTP POST http://192.168.1.202:8095/message`;
+`Retry` self-loops with 1 min expiration (a stale shake is worthless on the glass), `Failure`/`No Retry` →
+`LogPostFailure`. Board IP from ARP on the agent MAC (`1c:db:d4:7b:85:84`). The NiFi pod reaches the
+LAN board directly (200 in ~0.3 s from `mynifi-0`). Export:
+[`files/AmoledShakeToDisplay.json`](files/AmoledShakeToDisplay.json).
+
+Round trip: bump the panel → `microfi/amoled/imu` → `amoled.imu` → NiFi → `ListenHTTP` → mailbox →
+Agent tile. Proven end-to-end up to the tile with a hand POST from the NiFi pod; the bump itself is a
+hands-on check.
+
+Gotchas that cost a step:
+- **Create Designer nodes only after the manifest re-pin has landed.** A `DisplayMessage` node created
+  before `agent-class-manifest-config` pointed at the new manifest stayed
+  `not an available Processor type` even after the palette listed it — delete and recreate the node.
+- MicroFi manifests give every processor a `success` relationship, sinks included: auto-terminate it on
+  `DisplayMessage` (and `LogAttribute`) or validation fails.
+- A WSL crash mid-build leaves truncated `.obj` files that `ldgen` rejects (`file format not
+  recognized`); delete every non-ELF `.obj` under `build/` and rebuild, no clean needed.
 
 ## The full sense plan — all six as EFM flows (high-level)
 
