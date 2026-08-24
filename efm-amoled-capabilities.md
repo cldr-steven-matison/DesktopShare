@@ -260,8 +260,11 @@ LAN board directly (200 in ~0.3 s from `mynifi-0`). Export:
 [`files/AmoledShakeToDisplay.json`](files/AmoledShakeToDisplay.json).
 
 Round trip: bump the panel → `microfi/amoled/imu` → `amoled.imu` → NiFi → `ListenHTTP` → mailbox →
-Agent tile. Proven end-to-end up to the tile with a hand POST from the NiFi pod; the bump itself is a
-hands-on check.
+Agent tile. Verified 2026-08-24: real bumps land on `amoled.imu` (silent at rest, 1–3 samples per shake),
+every event reaches the board as an `InvokeHTTP` 200, and the board's serial shows `DisplayMessage` writing
+the mailbox. **Render caveat:** the mailbox is drawn by the native `microfi.agent.status` app, which has been
+`.visible = false` since #197 — the runtime `AGENT` app reads only the `:8094` backend. A flow-sent string is
+on the board but not on a screen you can open; surfacing it is a follow-up, not part of #227.
 
 Gotchas that cost a step:
 - **Create Designer nodes only after the manifest re-pin has landed.** A `DisplayMessage` node created
