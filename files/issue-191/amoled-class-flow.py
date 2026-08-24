@@ -46,7 +46,7 @@ SPECS = {
             {"key": "http", "type": "ListenHTTP", "pos": (800, 100),
              "props": {"Base Path": "/play", "Listening Port": "8095"}, "auto": []},
             {"key": "play", "type": "PlayAudio", "pos": (800, 400),
-             "props": {"Interrupt": "true"}, "auto": ["success"]},
+             "props": {"Interrupt": "true", "Volume": "100"}, "auto": ["success"]},
         ],
         "connections": [("src", "mqtt"), ("http", "play")],
     },

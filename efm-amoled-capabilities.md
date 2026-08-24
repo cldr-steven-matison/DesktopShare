@@ -303,8 +303,12 @@ duration/distance/speed and the direction-locked swipe direction. Properties: `E
 
 `gesture` ∈ `tap` (Release, no direction, short) | `hold` | `swipe_up|down|left|right` | `press`.
 Attributes mode carries `touch.gesture/x/y/x2/y2/duration_ms` (8-attribute cap, as with GetIMU).
-`Down` is +y (screen coordinates). Serial confirms `microfi.proc.touch: subscribed to Display touch
-gestures (events=release)` on the first tick after the flow applied.
+`Down` is +y (screen coordinates). Verified on `microfi/amoled/touch` 2026-08-24 with real gestures:
+
+```
+{"gesture":"tap","event":"release","x":179,"y":237,"x2":179,"y2":237,"duration_ms":153,"distance_px":0.0,"speed":0.00,"ts":1082337044}
+{"gesture":"swipe_up","event":"release","x":136,"y":447,"x2":83,"y2":79,"duration_ms":280,"distance_px":371.8,"speed":1.33,"ts":1086030112}
+```
 
 **PlayAudio (sink).** Plays a **URL**, not audio bytes — a MicroFi FlowFile carries at most 256 bytes
 of content, so a clip can never ride the flow; the board pulls it. The URL is the FlowFile content
@@ -318,9 +322,15 @@ Properties: `Audio URL`, `Volume` (0–100, applied once per flow apply, blank =
 
 Clips on the board: `waveshare-devices/amoled-1.8-v2/sounds/*.wav|mp3` are staged into
 `littlefs/sounds/` at configure time (overlay `main/CMakeLists.txt`, not the wiped apps stage root) —
-first clip `chimes.wav` (216 KB, 44.1 kHz stereo). `file://littlefs/sounds/chimes.wav` played end
-to end on the first try: `AUDIO_PROCESSOR: Starting playback … io_file` → `RUNNING` → `FINISHED`,
-`microfi.proc.audio: playing … for FlowFile id=37`.
+first clip `chimes.wav` (216 KB, 44.1 kHz stereo). `file://littlefs/sounds/chimes.wav` ran end
+to end on the first try (`AUDIO_PROCESSOR: Starting playback … io_file` → `RUNNING` → `FINISHED`) —
+**but was inaudible.** Pins, AXP2101 rails, PA (GPIO46) and the two-instance ES8311 declaration all
+match xiaozhi's V2 board and upstream's own boards; the difference is the **V2 amplifier path is
+quiet** (Waveshare's own `12_i2s_codec` example switches its speaker default from 70 to 90 when it
+detects V2 hardware). Brookesia's default is 75. `Volume=100` on the PlayAudio node + a louder, longer
+clip (`alarm01.wav`, Windows Media, 5.5 s) is what Steven heard — eyes-on/ears-on 2026-08-24. The
+class flow carries `Volume: 100` now (v6). Staging note: `sounds/` is copied at *configure* time —
+adding a clip needs `idf.py reconfigure` (or a CMake touch) before the build picks it up.
 
 **Class flow (v5, export [`files/issue-191/amoled-class-flow-touch-playaudio.json`](files/issue-191/amoled-class-flow-touch-playaudio.json)):**
 `GetTouch(Release, JSON) → PublishMQTT(microfi/amoled/touch, client amoled-touch)` **+**
@@ -417,7 +427,7 @@ then the egress flow.
 2. **GetPower** — skipped for now (Steven, 2026-08-24: rails/temp is not demo-worthy yet).
 3. **DisplayMessage** — done 2026-08-24 (#227 as-built above).
 4. **GetTouch** — done 2026-08-24 (rungs 4+5 as-built above).
-5. **PlayAudio** — done 2026-08-24; codec arbitration turned out to be Brookesia's mixer, not ours.
+5. **PlayAudio** — done 2026-08-24 (heard at Volume=100); codec arbitration is Brookesia's mixer, not ours.
 6. **CaptureAudio** — audio in; hardest; needs a buffer-placement plan *and* an egress decision.
 
 ### Cross-cutting, still open
