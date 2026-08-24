@@ -60,9 +60,16 @@ auto-registry, its own `idf_component.yml`). Four changes make it a passenger in
 3. **Volatile-only storage.** Factory Brookesia has no `littlefs` partition, so `storage_init()`
    returns `NotFound` and flow defs re-arrive from EFM each boot. `main.cpp` already handles this and
    the ESP32-C3 env already ships it. No partition-table change.
-4. **6-processor set** — `GenerateFlowFile`, `LogAttribute`, `UpdateAttribute`, `PublishMQTT`,
-   `ListenHTTP`, `PublishSparkplug`. `CaptureImage` is out (no OV2640; drops the `esp32-camera`
-   dependency), `GetGPIO`/`SetGPIO` are out (control lines behind the TCA9554).
+4. **7-processor set** — `GenerateFlowFile`, `LogAttribute`, `UpdateAttribute`, `PublishMQTT`,
+   `ListenHTTP`, `PublishSparkplug`, **`GetIMU`** (QMI8658 accel/gyro, added 2026-08-24 under #191 —
+   the board's first sense as a processor; class manifest `05dfbcef-128e-4d93-aa46-baa95ef36730`).
+   `CaptureImage` is out (no OV2640; drops the `esp32-camera` dependency), `GetGPIO`/`SetGPIO` are
+   out (control lines behind the TCA9554). `GetIMU` lives in MicroFi `src/processors/get_imu.cpp`
+   behind `MICROFI_BOARD_QMI8658` (defined only by the AMOLED overlay CMake, so the XIAO builds see
+   an empty translation unit) and pulls `waveshare/qmi8658` via the component's `idf_component.yml`
+   (which also has to declare `joltwallet/littlefs`, or the first real dependency solve prunes it).
+   Class flow as published: `GetIMU → UpdateAttribute(device=amoled, sensor=imu) → PublishMQTT`
+   on `microfi/amoled/imu` (export: `files/issue-191/amoled-flow-a-getimu-mqtt.json`).
 
 Liveness is a read-only 112 × 112 tile — agent id, class, IP, manifest hash, flow name, heartbeat age,
 WiFi state. Registered as a native **`IApp`** (Brookesia v0.8 API — `systems::phone::App` /
@@ -112,8 +119,9 @@ The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
 3. **S3 fit spike GO** — `system/super` (launcher + JS runtime + App Store) runs on the 8 MB S3.
 4. **Agent baked in + ONLINE** — `microfi-1cdbd47b8584 | AMOLED | ONLINE`, Brookesia home + agent
    on one boot. Class manifest re-pinned to the 6-processor id
-   `c265dbcf-93f0-4f94-b0ed-5865c1512f6c` (DELETE + POST `/efm/api/agent-class-manifest-config` —
-   POST alone won't overwrite, PUT 500s). MicroFi tree changes: `microfi_agent_start()` extraction
+   `c265dbcf-93f0-4f94-b0ed-5865c1512f6c`, then to the 7-processor id
+   `05dfbcef-128e-4d93-aa46-baa95ef36730` when GetIMU landed (DELETE + POST
+   `/efm/api/agent-class-manifest-config` — POST alone won't overwrite, PUT 500s). MicroFi tree changes: `microfi_agent_start()` extraction
    (`src/agent.cpp`), `CONFIG_MICROFI_WIFI_ADOPT_EXISTING` adopt-mode in `wifi.cpp`. XIAO
    regression passed (`pio run -e esp32s3-8mb`, run as `python -m platformio` on Windows).
 
@@ -265,7 +273,7 @@ kubectl exec -n cld-streaming ssb-postgresql-68d79f94b7-jv265 -- psql -U postgre
 
 # re-pin the Designer palette after the trimmed manifest registers
 curl -X POST -H "Content-Type: application/json" \
-  -d '{"agentClassName":"AMOLED","agentManifestId":"<new-6-processor-manifest-id>"}' \
+  -d '{"agentClassName":"AMOLED","agentManifestId":"<new-manifest-id>"}' \
   http://192.168.1.121:10090/efm/api/agent-class-manifest-config
 curl http://192.168.1.121:10090/efm/api/agent-class-manifest-config/AMOLED
 ```

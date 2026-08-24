@@ -123,7 +123,7 @@ mapping, registered with `MICROFI_REGISTER_PROCESSOR`. It owns the sensor outrig
 | **Read Interval** | `1 s` | Poll period; one FlowFile per read. |
 | **Output Format** | `JSON` | `JSON` (values as content) or `Attributes` (values as `imu.*` attributes) — mirrors `GenerateFlowFile`'s `Data Format`. |
 | **Accel Full Scale** | `4g` | QMI8658 supports ±2/4/8/16 g. |
-| **Gyro Full Scale** | `512dps` | QMI8658 supports ±16 … 2048 dps. |
+| **Gyro Full Scale** | `512dps` | The driver's range set is 32/64/128/256/512/1024/2048/4096 dps (checked against the `waveshare/qmi8658` header at build time — not 16…2048 as first written). |
 | **Motion Threshold (g)** | `0` | `0` = every read emits. `>0` = emit only when \|accel\|−1g exceeds it — the shake-as-trigger variant baked into the source (see constraint below). |
 
 Relationship: **success**. JSON output shape (one FlowFile per read):
@@ -132,8 +132,14 @@ Relationship: **success**. JSON output shape (one FlowFile per read):
 {"ax":0.01,"ay":-0.02,"az":0.99,"gx":0.4,"gy":-0.1,"gz":0.0,"temp":31.2,"ts":172...}
 ```
 
-(accel in g, gyro in dps, temp °C.) **Confirm the exact property strings against the pinned
-`nifi-minifi-cpp` version at build time** — same caveat as every processor spec in this repo.
+(accel in g, gyro in dps, temp °C.) As built (2026-08-24, MicroFi `06a765e`): `ts` is
+**microseconds since boot** (`esp_timer_get_time()` — the RTC is an un-adopted sense, so there is no
+wall clock to report); the driver's non-m/s² mode returns **milli-g**, scaled to g in the processor
+(first flash on the desk read `az=-1009`); `Attributes` mode emits `imu.ax…imu.gz` only — `imu.temp`
+does not fit under the FlowFile's 8-attribute cap (`source` + `tickIndex` + six axes); the JSON is 97–98
+bytes, well under the 256-byte content ceiling. `Read Interval` is a minimum gap between emits, not a
+sample rate — the engine's own scheduling period still drives `on_trigger`. `UpdateAttribute` on this
+agent has no dynamic properties: the literals go in `Attribute 1 Name`/`Attribute 1 Value` … `4`.
 
 ### Constraints these flows are built around (from the XIAO/MicroFi history)
 
@@ -196,12 +202,19 @@ topic carries events, not a 1 Hz stream — the "shake → alert" demo without a
 This is `device:WindowsDesktop` work (board + `waveshare-devices` tree live there) — the sequence,
 for whoever picks it up:
 
-1. Add `get_imu.cpp` to the AMOLED source list in the overlay's `microfi_agent/CMakeLists.txt`
-   (per-device source-list choice; XIAOs unchanged), add `esp_board_manager` to `REQUIRES`.
-2. Regression gate: `pio run -e esp32s3-8mb` builds; MicroFi-1/2/3 stay ONLINE.
-3. Re-pin the AMOLED class manifest: **`DELETE` then `POST`** `/efm/api/agent-class-manifest-config`
-   (POST alone won't overwrite; PUT 500s) — GetIMU then shows in the Designer palette.
-4. Push **Flow C first** (prove the sensor read is real), then **Flow A**, then **B**.
+1. ✅ `get_imu.cpp` in the AMOLED source list of the overlay's `microfi_agent/CMakeLists.txt`
+   (waveshare-devices `d337e8c`), `esp_board_manager` + `esp_driver_i2c` in `REQUIRES`,
+   `MICROFI_BOARD_QMI8658=1` compile definition, `idf_component.yml` with `waveshare/qmi8658 ^2.0.0`
+   **and** `joltwallet/littlefs` (the first manifest in that dir triggers a full solve that prunes
+   any dependency not declared).
+2. ✅ `pio run -e esp32s3-8mb` builds (empty TU on the XIAO). MicroFi-1/2/3 were already
+   `MISSING`/unreachable since 2026-08-22 evening — untouched by this work, not a regression.
+3. ✅ Class manifest re-pinned to `05dfbcef-128e-4d93-aa46-baa95ef36730` (7 processors).
+4. ✅ Flow C proven on serial (`LogAttribute` at 1 Hz, `source=GetIMU`), then replaced by **Flow A**
+   — live on `microfi/amoled/imu`, `az=-1.01` flat on the desk. Flow B not built. **Not yet bridged
+   into NiFi**: the live `ConsumeMQTT` filters are `test/sensor/data`, `spBv1.0/#` and
+   `microfi2/camera/#`, so the IMU topic needs its own `ConsumeMQTT → PublishKafka` PG when a Kafka
+   landing is wanted (rule 8: its own PG, not inlined into `SparkPlug`).
 
 ### Still a decision — the demo/chapter mapping
 
