@@ -4,7 +4,7 @@
 >
 > **Scope decision (explicit):** This is about **Flink**. Agents run as **Flink jobs on a Flink cluster** — we are *not* using Flink Agents' pure-Python "run without Flink" local mode as a runtime. Local execution is dev-test only, never a demo path.
 >
-> **Headline finding:** Flink Agents 0.3.1 needs Flink **≥ 1.20.3**; CSA 1.5.0 ships Flink **1.20.1** — just below the floor. So agents get their **own Flink cluster** (`flink:1.20.5-java17` + flink-agents built from source) stood up by the *same* Flink Kubernetes Operator that CSA installs. **On WindowsDesktop that agents cluster is the only Flink cluster** — SSB is scaled to zero here and no `FlinkDeployment` exists (§4.2). See **§4 Evaluations**.
+> **Headline finding:** Flink Agents 0.3.1 needs Flink **≥ 1.20.3**; CSA 1.5.0 ships Flink **1.20.1** — just below the floor. So agents get their **own Flink cluster** (`flink:1.20.5-java17` + flink-agents built from source) stood up by the *same* Flink Kubernetes Operator that CSA installs. On WindowsDesktop SSB had been scaled to zero for performance; it was **spun back up 2026-08-24** and its `ssb-session-admin` session cluster (Flink 1.20.1) is live again next to where the agents cluster will go (§4.2). See **§4 Evaluations**.
 
 ---
 
@@ -45,7 +45,7 @@ Grounded in the source README and tree (branch `feat/flink-pipeline-supervisor` 
 We don't build a Flink runtime from scratch; the **Flink Kubernetes Operator** (installed by CSA, running) manages the agents cluster. See [`flink-plan.md`](flink-plan.md) for the CSA install detail and [`CLAUDE-CHECKIN.md`](CLAUDE-CHECKIN.md) for per-device paths/ports.
 
 ```
-MiNiFi (edge) → EFM → NiFi (CFM) → Kafka (CSM/Strimzi) → [SSB: scaled to 0 on this host]
+MiNiFi (edge) → EFM → NiFi (CFM) → Kafka (CSM/Strimzi) → Flink/SSB (CSA operator, ssb-session-admin)
                                           │
                                           ▼
               Flink Agents cluster (own FlinkDeployment, flink:1.20.5 + flink-agents 0.3.1)
@@ -57,14 +57,14 @@ MiNiFi (edge) → EFM → NiFi (CFM) → Kafka (CSM/Strimzi) → [SSB: scaled to
 
 | Ratatoskr assumes | WindowsDesktop reality (`cld-streaming` unless noted) |
 |---|---|
-| Docker Compose JobManager/TaskManager | A **dedicated agents `FlinkDeployment`** managed by `flink-kubernetes-operator:1.13-csaop1.5.0-b275` (1/1 Running, cluster-scoped RBAC). CSA's own SSB (`ssb-mve`/`ssb-sse` `1.20.1-csaop1.5.0-b275`) is **scaled to 0/0** and **no `FlinkDeployment`/`FlinkSessionJob` exists in any namespace** — the agents cluster will be the only one. ServiceAccount `flink` + Role `flink` (pods/configmaps/deployments CRUD) already exist in the namespace; the operator's admission webhook requires `spec.serviceAccount`. |
+| Docker Compose JobManager/TaskManager | A **dedicated agents `FlinkDeployment`** managed by `flink-kubernetes-operator:1.13-csaop1.5.0-b275` (1/1 Running, cluster-scoped RBAC). CSA's own SSB (`ssb-mve`/`ssb-sse` `1.20.1-csaop1.5.0-b275`) had been scaled to 0/0 for performance (streamers doc "Scale down idle services"); **scaled back to 1 on 2026-08-24** and `POST /api/v2/flink/session-cluster` (SSB REST, basic auth) re-created **`ssb-session-admin`** — FlinkDeployment STABLE, `flink-extended:1.20.1-csaop1.5.0-b275`, `flinkVersion: v1_20`, `serviceAccount: flink`, JM/TM 2 CPU / 2G each (the `cso-level-2-cpu-tuning.md` patch is **not** applied — re-apply if the node gets tight), REST at `ssb-session-admin-rest:8081`. ServiceAccount `flink` + Role `flink` (pods/configmaps/deployments CRUD) exist in the namespace; the operator's admission webhook requires `spec.serviceAccount`. |
 | "Studio Kafka" `:9094` | **Strimzi Kafka** (CSM) `my-cluster-kafka-bootstrap.cld-streaming.svc:9092` (plain) — Strimzi 0.49.1 (`kafka-operator:0.49.1.1.6.0-b99`), Kafka 4.1.1. CR-managed topics live here: `game_metrics`, `gaming-pc-stream-load`, `new_clips`, `processed_clips`, `processed_gifs`, `twitch_chat_activity`. (The Mac's `txn1`/`new_audio`/`new_documents` are not on this host.) |
 | NiFi monitoring lab (Compose NiFi) | **CFM NiFi 2.6.0** `mynifi-0` (`cfm-streaming`, `cfm-nifi-k8s:3.0.0-b126-nifi_2.6.0.4.3.4.0-234`). In-cluster API `https://mynifi-web.cfm-streaming.svc.cluster.local:8443/nifi-api` — port **must** be explicit and the hostname must be the service DNS name (Jetty SNI). **EFM 2.3.1** at `http://efm.cld-streaming.svc:10090` (host: `127.0.0.1:10090` via the tunnel pane). |
 | Cloudera AI Inference (optional) | **vLLM** `svc/vllm-service:8000` (`default` ns), `vllm/vllm-openai:v0.25.0` on the **RTX 4060** (`nvidia.com/gpu: 1`), model `Qwen/Qwen2.5-3B-Instruct` (bitsandbytes, 32k ctx), started with `--enable-auto-tool-choice --tool-call-parser qwen3_coder` — tool-calling is already on. Also `whisper-service:8001`, `qdrant:6333`, `embedding-server-service:80` (all Running). |
 | Cowrie honeypot | Not deployed — **swapped for a CSO-native source** (§8 #3): `twitch_chat_activity`. |
 | Prometheus/Grafana | `prometheus-*` and `prometheus-grafana` are **0/0** on this host — observability is optional Phase-5 work, not a Phase-1 assumption. |
 
-**Capacity budget (the real constraint):** node allocatable 16 CPU / 23.5 Gi; requests 40 % CPU / 42 % mem, but **actual use 16.5 Gi (68 %)** — roughly **7 Gi real headroom**. Size the agents JM/TM at **1–1.5 Gi each**, with `kubernetes.*.limit-factor` per [`cso-level-2-cpu-tuning.md`](cso-level-2-cpu-tuning.md) ("Memory is the next bottleneck").
+**Capacity budget (the real constraint):** node allocatable 16 CPU / 23.5 Gi; requests 40 % CPU / 42 % mem, but **actual use 17.7 Gi (73 %) with SSB + its session JM up** (the scale-up cost ~1.2 Gi; TMs add ~2 Gi each when a job runs) — roughly **5–6 Gi real headroom**. Size the agents JM/TM at **1–1.5 Gi each**, with `kubernetes.*.limit-factor` per [`cso-level-2-cpu-tuning.md`](cso-level-2-cpu-tuning.md) ("Memory is the next bottleneck").
 
 **Host toolchain:** Python 3.12.3, Docker 29.2.1, Java 21, **no maven** — so flink-agents is built inside the Docker build stage (§4.6), never on the host.
 
@@ -86,12 +86,12 @@ Outward + live-cluster evaluation of the load-bearing feasibility questions. Fir
 | **CSA operator 1.5.0-b275 ships Flink 1.20.1** (`ssb-mve/sse:1.20.1`, `flink-extended:1.20.1`), flink-k8s-operator **1.13** | live `kubectl` image inspect, both hosts |
 | Official images: `flink:1.20.5-java17` (also java11/8; **no java21 on 1.20**), `2.1.3-java17`, `2.2.1`, `2.3.0`. No official flink-agents image — everyone builds their own | Docker Hub `flink` library |
 
-**Verdict:** CSA's **1.20.1 is below the 1.20.3 floor.** flink-agents targets the 1.20 line and intra-1.20.x drift is usually minor, so submit-onto-SSB *might* work — but it's unverified, below the documented minimum, **and on WindowsDesktop there is no SSB cluster running to try it on.** Agents get their own Flink cluster at a supported version.
+**Verdict:** CSA's **1.20.1 is below the 1.20.3 floor.** flink-agents targets the 1.20 line and intra-1.20.x drift is usually minor, so submit-onto-SSB *might* work — but it's unverified and below the documented minimum. Agents get their own Flink cluster at a supported version; `ssb-session-admin` is up again on WindowsDesktop, so the Phase-0 spike can actually be run here.
 
 ### 4.2 Runtime — agents get their own Flink cluster
 
-1. **Dedicated agents `FlinkDeployment` — RECOMMENDED, GREEN.** Session-mode cluster `flink-agents` in `cld-streaming`, `flinkVersion: v1_20`, image built from `flink:1.20.5-java17` + flink-agents 0.3.1 (§4.6), `serviceAccount: flink`, `imagePullPolicy: Never` (image built into minikube's daemon via `eval $(minikube docker-env)`, the `cso-operator-app` pattern). JM/TM 1–1.5 Gi each (§3 budget). Agent jobs submit here via the cluster's Flink REST (§4.6). **This is the spine of the build and, on this host, the only Flink cluster.**
-2. **Submit onto CSA's SSB session cluster (Flink 1.20.1) — AMBER, optional, currently impossible here.** Requires `kubectl scale deploy ssb-mve ssb-sse --replicas=1` first (they were scaled down for the Streamers pipeline — `streamers/cso-operator-app-streamers.md` "Scale down idle services"), which re-creates `ssb-session-admin`. Only pursue as a Phase-0 spike if the narrative is wanted; option 1 stands alone.
+1. **Dedicated agents `FlinkDeployment` — RECOMMENDED, GREEN.** Session-mode cluster `flink-agents` in `cld-streaming`, `flinkVersion: v1_20`, image built from `flink:1.20.5-java17` + flink-agents 0.3.1 (§4.6), `serviceAccount: flink`, `imagePullPolicy: Never` (image built into minikube's daemon via `eval $(minikube docker-env)`, the `cso-operator-app` pattern). JM/TM 1–1.5 Gi each (§3 budget). Agent jobs submit here via the cluster's Flink REST (§4.6). **This is the spine of the build.**
+2. **Submit onto CSA's SSB session cluster (Flink 1.20.1) — AMBER, optional, runnable now.** `ssb-session-admin` is live (§3). If it ever gets scaled down again: `kubectl scale deploy ssb-mve ssb-sse -n cld-streaming --replicas=1`, then `POST /api/v2/flink/session-cluster` on SSE (`:18121`, basic auth from `ssb-ssb-users-secret`) — SSB creates the session cluster lazily, a running SSE alone doesn't. Only pursue as the Phase-0 spike if the "agents on the same Flink as SSB" narrative is wanted; option 1 stands alone.
 3. **Bump CSA — future.** A newer csa-operator shipping Flink ≥1.20.3 would make option 2 green. Out of scope.
 
 **Session vs application mode:** **session mode** — one long-lived agents cluster; agent jobs come and go — matches Ratatoskr's model (CLI/Studio submit many small jobs to a standing cluster). The application-mode `PythonDriver` pattern proven on this host (`completed/flink-minikube-gpu-working-2.md`) stays the fallback if per-agent isolation is ever needed.
@@ -109,7 +109,7 @@ All in-cluster DNS, no `/etc/hosts`, no port-forwards — the same hostnames `cs
 
 ### 4.5 Net effect on the plan
 
-Feasible **today** on a dedicated agents Flink cluster (§4.2 option 1) at a supported Flink version, without depending on CSA matching the flink-agents floor. Every agent, monitor, ReAct runbook, and Studio pipeline runs as a Flink job. Phase 0 is optional, non-blocking, and needs SSB scaled back up first.
+Feasible **today** on a dedicated agents Flink cluster (§4.2 option 1) at a supported Flink version, without depending on CSA matching the flink-agents floor. Every agent, monitor, ReAct runbook, and Studio pipeline runs as a Flink job. Phase 0 is optional and non-blocking; SSB is up so it can run any time.
 
 ### 4.6 Build + submit facts (WindowsDesktop)
 
@@ -124,7 +124,7 @@ Feasible **today** on a dedicated agents Flink cluster (§4.2 option 1) at a sup
 
 | Ratatoskr component | CSO-version target | Notes / effort |
 |---|---|---|
-| `deploy/docker-compose*.yml` | **Dedicated agents `FlinkDeployment`** (session mode, `cld-streaming`, SA `flink`) via flink-k8s-operator 1.13, plus `k8s/` manifests mirroring `cso-operator-app/k8s/` | Biggest structural change. Only Flink cluster on this host (§4.2). |
+| `deploy/docker-compose*.yml` | **Dedicated agents `FlinkDeployment`** (session mode, `cld-streaming`, SA `flink`) via flink-k8s-operator 1.13, plus `k8s/` manifests mirroring `cso-operator-app/k8s/` | Biggest structural change. Second Flink cluster on the operator, next to `ssb-session-admin` (§4.2). |
 | `deploy/Dockerfile` (`ratatoskr build`) | **Multi-stage agents image** (§4.6): maven stage builds flink-agents `release-0.3.1` → `flink:1.20.5-java17` runtime; built with `eval $(minikube docker-env)`, `imagePullPolicy: Never` | Source build, not a jar copy. |
 | `ratatoskr up` / `down` | Apply/delete the `FlinkDeployment` + Control API/dashboard via `scripts/deploy.sh` (echoing `cso-operator-app`: docker-env → build → apply → `rollout restart` → `rollout status`) | Confirm-before-restart rule applies (`agent/incident-rules.md`). |
 | `ratatoskr kafka up` (Studio Kafka) | No-op — point at **Strimzi bootstrap**; new topics via `KafkaTopic` CRs | Reuse `cld-streaming` brokers; don't stand up a second Kafka. |
@@ -169,9 +169,9 @@ Repo name: **`cso-operator-flink-agents`** (§8 #1 — resolved). Still DesktopS
 
 ## 7. Phased build plan
 
-Each phase is independently demoable; stop-and-review between phases. Build host: **WindowsDesktop** (#231). Phase 0 is optional and needs SSB scaled back up (§4.2).
+Each phase is independently demoable; stop-and-review between phases. Build host: **WindowsDesktop** (#231). Phase 0 is optional (§4.2).
 
-- **Phase 0 — Amber-path spike (optional, gated).** Only if SSB is scaled to 1 again: test whether the flink-agents `dist/flink-1.20` build loads on CSA's **1.20.1** `ssb-session-admin`: submit `workflow_counter`, watch it in the Flink UI. Green → agents *may also* ride CSA's cluster; not green → stay on the dedicated cluster (the default regardless).
+- **Phase 0 — Amber-path spike (optional).** Test whether the flink-agents `dist/flink-1.20` build loads on CSA's **1.20.1** `ssb-session-admin`: submit `workflow_counter`, watch it in the Flink UI. Green → agents *may also* ride CSA's cluster; not green → stay on the dedicated cluster (the default regardless).
 - **Phase 1 — Agents Flink cluster + control plane.** Build the agents image (§4.6) into minikube's daemon; apply `flink/flinkdeployment.yaml` (session mode, SA `flink`, 1–1.5 Gi JM/TM, pemja classloader key); confirm the Flink UI is reachable (a new `kube-service-ports-efm.kdl` pane for the JM REST service — propose the pane, don't ad-hoc forward). Port `ratatoskr/` backend; `flink_client.py` → the agents cluster's Flink REST; `GET /v1/health` green. CLI `agent list`/`describe`/`run` submits `workflow_counter` **as a Flink job** via `/jars/{id}/run`. **End state for #231's minimum: the job is visible in the Flink UI.**
 - **Phase 2 — Workflow agents on real targets.** `workflow_nifi_monitor` (Flink job) against `mynifi-web`+EFM; `workflow_kafka_monitor` against Strimzi. Heal phase pinned to `monitor` (read-only). Wire guardrails: no GET-then-PUT, confirm-before-restart.
 - **Phase 3 — ReAct + LLM.** ReAct agent Flink jobs use the `vllm` integration; `react_nifi_runbook` + `incident_scribe` produce runbooks. HITL approve-before-mutate before any `safe`/`lab` heal.
