@@ -498,6 +498,37 @@ Then: `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh`
 
 Stable across rebuilds: gateway host (`srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site`) and the MCP `.env` are fixed for this tenant + prefix. **Only the CRNs churn** — the script re-resolves them.
 
+### Run it cheap (model + orchestration — applies to the whole rollout)
+
+This entire weekly rollout — `redeploy.sh` **and** the CDW Trino leg — is *deterministic
+orchestration*: launch a tested script, watch a log, swap one CRN, launch the next script. It
+needs a low model and almost no model turns. In impact order:
+
+1. **Switch to a low model first.** `/model sonnet` (Haiku for the pure watch-and-launch) BEFORE
+   kicking off. Opus buys nothing for running tested scripts — reserve it for genuine diagnosis.
+   This device's configured default is already `sonnet`; don't start these on Opus.
+2. **Don't wake the model per phase.** Background the long jobs and filter the progress monitor to
+   **terminal states only** — `== DONE`, `PLAY RECAP`, failure signatures — not every
+   `[N/8]`/`TASK`. The raw monitor line is already visible; restating each in prose is ~15
+   full-context model turns (several cache-cold across the 18-min Impala / CDW-activate waits) for
+   zero added information.
+3. **Chain the two legs into one command, no model in the loop.** `redeploy.sh` step 2/6 writes the
+   fresh `ENV_CRN` to `config.env`; the CRN re-resolve + playbook launch is scriptable, so Monday
+   becomes one background job with one completion ping:
+   ```bash
+   # append after redeploy.sh step 8:
+   . "$DEMO/config.env"                        # fresh ENV_CRN, written by step 2/6
+   cd "$HOME/Documents/GitHub/trino-demo"
+   sed -i '' "s|env_crn: .*|env_crn: \"$ENV_CRN\"|" provision-trino-vw.yml   # BSD sed (macOS)
+   source "$HOME/.venvs/clouderacloud/bin/activate"
+   ansible-playbook provision-trino-vw.yml -v
+   ```
+   The env CRN churns every rebuild — always take it from `config.env`, never a committed default.
+   Private subnet IDs survive the reaper (`0 destroyed`), so they don't need re-resolving.
+4. **Diagnose with grep, not full-file reads** — a big read persists in every later context window.
+
+Mirrored in [`cloudera-trino-plan.md`](cloudera-trino-plan.md) "Run it cheap" — keep the two in sync.
+
 ## Resources
 
 - **This plan's scripts:** [cldr-steven-matison/iceberg-rest-catalog-demo](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo) — `test-rest-catalog.sh`, `redeploy.sh`, `seed-impala.py`, and the `athena/`, `flink/`, `k8s/`, `nifi/`, `sql/` dirs (creds/keys gitignored)
