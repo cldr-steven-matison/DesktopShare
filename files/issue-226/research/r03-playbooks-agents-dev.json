@@ -1,0 +1,280 @@
+{
+  "bucket": "r03-playbooks-agents-dev",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md",
+      "title": "CLI Coding Agent (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Points Claude Code, OpenCode, and Codex CLI at a local Qwen3.6 model served via Ollama's native 'launch' integration on DGX Spark, with no env vars or config files required.",
+      "facts": [
+        {"claim": "OS/versions: Ubuntu 24.04.3 LTS (DGX OS 7.3.1 base); Ollama v0.15+ required for `ollama launch`; last updated 04/16/2026.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Model variants: qwen3.6:latest (~24GB, 256K context), qwen3.6:35b-a3b-nvfp4 (~22GB, NVFP4), qwen3.6:35b-a3b-q8_0 (~39GB), qwen3.6:35b-a3b-bf16 (~71GB full precision).", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Install: `curl -fsSL https://ollama.com/install.sh | sh` then `ollama pull qwen3.6`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Claude Code launch: `curl -fsSL https://claude.ai/install.sh | bash` then `ollama launch claude --model qwen3.6`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "OpenCode launch: `ollama launch opencode --model qwen3.6`. Codex CLI launch: `npm install -g @openai/codex` then `ollama launch codex --model qwen3.6`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Playbook states: 'Use Ollama's built-in launch method to start [agent] against your local model. No environment variables or config files are required.' Setup takes 15-25 minutes; rollback = stop Ollama and delete ~/.ollama/models.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"}
+      ],
+      "relevance_to_us": "Direct answer for 'how does Claude Code point at a local model on Spark' (ch15/ch16/ch17) — `ollama launch claude --model qwen3.6` is the exact wiring, zero config files. Confirms Steven's existing vLLM Qwen2.5-3B setup on WindowsDesktop is a different (manual endpoint) pattern vs. this Ollama-native one; worth comparing for the guide's local-agent chapter.",
+      "feeds": ["ch15", "ch16", "ch17"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/hermes-agent/README.md",
+      "title": "Run Hermes Agent with Local Models (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Deploys the always-on Hermes Agent TUI against a local vLLM-served Qwen3.6-35B-A3B-NVFP4 model, with an optional Telegram gateway that runs as a systemd service.",
+      "facts": [
+        {"claim": "Install: `curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/hermes-agent/README.md"},
+        {"claim": "Model: nvidia/Qwen3.6-35B-A3B-NVFP4, served by vLLM as an OpenAI-compatible API on http://localhost:8000/v1 (port 8000).", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/hermes-agent/README.md"},
+        {"claim": "Setup: launch vLLM serving Qwen3.6, run installer selecting 'Blank Slate', point installer at http://localhost:8000/v1, configure Telegram via `hermes gateway setup`, verify with `hermes` TUI command.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/hermes-agent/README.md"},
+        {"claim": "Quoted: 'The gateway runs as a system service, so the agent stays reachable across reboots without anyone logging in.'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/hermes-agent/README.md"},
+        {"claim": "Documentation verified against Hermes Agent v0.18.0 (2026.7.1); last updated 2026-06-12.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/hermes-agent/README.md"}
+      ],
+      "relevance_to_us": "Same vLLM/OpenAI-endpoint pattern (localhost:8000/v1) Steven already runs on WindowsDesktop for Qwen2.5-3B — this shows the Spark-native equivalent scaled to a 35B NVFP4 model, plus a systemd-service always-on agent pattern useful for ch16 (agentic validation loops).",
+      "feeds": ["ch15", "ch16"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md",
+      "title": "Run NemoClaw with a Local LLM (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "NemoClaw is NVIDIA's reference stack for running OpenClaw always-on assistants more safely, wrapping OpenClaw in the OpenShell sandbox with local vLLM inference, installed via a single curl-bash script.",
+      "facts": [
+        {"claim": "Quoted definition: 'NVIDIA NemoClaw' is 'an open-source reference stack that simplifies running OpenClaw always-on assistants more safely,' integrating OpenShell runtime for security with local vLLM inference.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Install command: `curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Default model: qwen3.6-35b-a3b-nvfp4, local vLLM inference on DGX Spark; web UI port auto-assigned (commonly 18789 or 18790).", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Prereqs: DGX Spark (GB10) hardware, latest DGX OS, Ubuntu 24.04+, Docker 28.x+, Node.js 22.16+ (auto-installed if missing).", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Key commands: `nemoclaw onboard` (custom setup), `nemoclaw my-assistant dashboard-url --quiet`, `nemoclaw my-assistant connect`, `nemoclaw my-assistant status`, `nemoclaw uninstall --yes`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Full install ~30-60 minutes including model download.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"}
+      ],
+      "relevance_to_us": "NemoClaw = the productized 'agent sandbox + always-on assistant' pattern for ch16 (local agentic validation loops); its single-command install and CLI surface (`nemoclaw <name> status/connect/dashboard-url`) is a clean model for a Spark-hosted Claude-adjacent validation agent.",
+      "feeds": ["ch16", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw-applications/README.md",
+      "title": "Set Up Example NemoClaw Agents (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Four ready-to-run NemoClaw sample applications (news digest, dev agent, deck reviewer, calendar negotiator), all running inside OpenShell sandboxes with policy-based egress control and Nemotron 3 Super 120B via Ollama.",
+      "facts": [
+        {"claim": "Four applications: Daily Personal News Digest (Telegram delivery), Software Development Agent (reads project dir, plans/implements/self-reviews/reports), Deck Reviewer (red-teams docs for consistency/sourcing/accessibility), Calendar Negotiator (meeting negotiation respecting focus blocks/timezones).", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw-applications/README.md"},
+        {"claim": "Model: Nemotron 3 Super 120B via Ollama (configurable); inference endpoint `inference.local` or a cloud provider.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw-applications/README.md"},
+        {"claim": "Commands: `nemoclaw list`, `nemoclaw $SANDBOX_NAME status`, `nemoclaw $SANDBOX_NAME policy-add --from-file ./preset.yaml --yes`, `openshell policy get $SANDBOX_NAME --full`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw-applications/README.md"},
+        {"claim": "File transfer into sandbox: `tar czf - -C ~/source . | nemoclaw $SANDBOX_NAME exec -- bash -lc 'mkdir -p /sandbox/path && tar xzf - -C /sandbox/path'`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw-applications/README.md"},
+        {"claim": "Policy changes hot-reload without rebuild; filesystem policy changes require rebuild. Network egress requires explicit allowlists — default is blocked. Local model scheduling has DNS resolution limitations; cloud models work without workaround.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw-applications/README.md"}
+      ],
+      "relevance_to_us": "The 'Software Development Agent' sample (plan→implement→self-review→report inside a sandbox) is nearly a template for ch16's local agentic validation loop; the default-deny egress + explicit allowlist policy model is directly reusable guidance for a Spark-hosted Claude Code sandbox.",
+      "feeds": ["ch16", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md",
+      "title": "OpenClaw (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "OpenClaw is a local-first, privacy-preserving always-on AI agent for DGX Spark, configured to point at a local vLLM-served Qwen3.6-35B-A3B-NVFP4 endpoint with a 262,144-token context window.",
+      "facts": [
+        {"claim": "Quoted: OpenClaw is 'a local-first AI agent that runs on your machine' combining memory, adaptation, continuous operation, and file/app context access, emphasizing on-device privacy.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"},
+        {"claim": "Install: `curl -fsSL https://openclaw.ai/install.sh | bash`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"},
+        {"claim": "vLLM must be launched separately (following the vLLM playbook, Qwen3.6 agent-ready model), verified via `curl http://localhost:8000/v1/models`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"},
+        {"claim": "Configuration file: `nano ~/.openclaw/openclaw.json`. Model: nvidia/Qwen3.6-35B-A3B-NVFP4; endpoint http://localhost:8000/v1 (OpenAI-compatible); context window 262,144 tokens.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"},
+        {"claim": "OpenClaw supports 'terminal access' and 'file system access' skills for developer workflows (install assistance, debugging), which the doc flags as carrying elevated security risk requiring careful skill management.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"}
+      ],
+      "relevance_to_us": "Base layer that NemoClaw wraps with OpenShell sandboxing — useful to show the guide's readers the unsandboxed vs. sandboxed tradeoff explicitly (ch16, ch17 cost/blast-radius control).",
+      "feeds": ["ch16", "ch17"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md",
+      "title": "Secure Long Running AI Agents with OpenShell (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "OpenShell is NVIDIA's open-source sandbox runtime providing kernel-level isolation with declarative YAML policies for filesystem, network, and privilege control around long-running agents; wires a local vLLM inference provider and deploys OpenClaw inside a sandbox.",
+      "facts": [
+        {"claim": "Quoted: OpenShell is 'an open-source sandbox runtime that wraps the agent in kernel-level isolation with declarative YAML policies,' with default-deny outbound network policy and real-time policy-decision monitoring.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md"},
+        {"claim": "Prereqs: DGX Spark 128GB unified memory, Ubuntu 24.04 (DGX OS), Docker Engine + NVIDIA Container Toolkit, Python 3.12+, `uv`, NVIDIA Sync configured, network access to PyPI and HuggingFace.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md"},
+        {"claim": "Install steps: `nvidia-smi`, `docker info`, `python3 --version` to verify; `sudo nvidia-ctk runtime configure --runtime=docker`; `curl -LsSf https://raw.githubusercontent.com/NVIDIA/OpenShell/main/install.sh | sh`; serve model with vLLM on port 8000 with `--host 0.0.0.0`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md"},
+        {"claim": "Provider setup: `openshell provider create --name local-vllm --type openai --credential OPENAI_API_KEY=not-needed --config OPENAI_BASE_URL=http://MACHINE_IP:8000/v1` then `openshell inference set --provider local-vllm --model nvidia/Qwen3.6-35B-A3B-NVFP4`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md"},
+        {"claim": "Sandbox deploy: `openshell sandbox create --keep --tty --forward 18789 --name dgx-demo --from openclaw -- openclaw-start`. OpenShell v0.0.37+ manages the gateway as a systemd user service. Playbook serves the 35B model at 0.4 GPU memory utilization. Last updated 06/12/2026.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md"},
+        {"claim": "Doc quote: 'no system is perfect' — recommends isolation (clean VM), test accounts, vetting community skills, network restrictions, and credential cleanup as layered controls rather than perfect risk elimination.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md"}
+      ],
+      "relevance_to_us": "This is the concrete 'agent sandbox' answer for ch16 — kernel isolation + YAML policy + OpenAI-compatible provider pointed at local vLLM is the exact pattern for a bounded local agentic validation loop that can safely run Claude Code style automation on Spark without host-level blast radius.",
+      "feeds": ["ch16", "ch17"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-agent-chatbot/README.md",
+      "title": "Build and Deploy a Multi-Agent Chatbot (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Docker-composed multi-agent chatbot on DGX Spark: a gpt-oss-120B supervisor coordinating a Deepseek-Coder:6.7B coding sub-agent and Qwen3-Embedding-4B retrieval, served via llama.cpp/TensorRT-LLM with MCP-based tool access.",
+      "facts": [
+        {"claim": "Models: Supervisor gpt-oss-120B (~63GB), Coding Agent Deepseek-Coder:6.7B-Instruct (~7GB), Embedding Qwen3-Embedding-4B (~4GB); total disk ~74GB for downloads.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-agent-chatbot/README.md"},
+        {"claim": "Architecture: llama.cpp servers + TensorRT-LLM servers for inference, GPU-accelerated document retrieval, MCP servers exposed as supervisor-agent tools, backend API on localhost:8000, frontend UI on localhost:3000.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-agent-chatbot/README.md"},
+        {"claim": "Setup: `sudo usermod -aG docker $USER && newgrp docker`; clone `github.com/NVIDIA/dgx-spark-playbooks`; `cd nvidia/multi-agent-chatbot/assets`; `chmod +x model_download.sh && ./model_download.sh`; `docker compose -f docker-compose.yml -f docker-compose-models.yml up -d --build`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-agent-chatbot/README.md"},
+        {"claim": "Cleanup: `docker compose ... down` then `docker volume rm \"$(basename \"$PWD\")_postgres_data\"` (uses Postgres). Memory usage ~120GB of 128GB available. Deploy 10-20 min; model downloads 30 min-2 hours. Last updated November 20, 2025.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-agent-chatbot/README.md"}
+      ],
+      "relevance_to_us": "Shows a mixed llama.cpp+TensorRT-LLM multi-model serving pattern with MCP tool exposure and Postgres state — good ch11/ch21 demo reference for a Flink-Agents-adjacent or NiFi-fronted multi-agent build; the ~120GB of 128GB memory footprint is a concrete concurrency/capacity data point for ch6.",
+      "feeds": ["ch21", "ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md",
+      "title": "RAG Application in AI Workbench (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "GUI-driven deployment of NVIDIA's pre-built agentic RAG example project via AI Workbench's 'Clone Project' flow, requiring an NVIDIA API key and a Tavily web-search API key; the playbook itself does not document the underlying vector DB/embedding/LLM stack.",
+      "facts": [
+        {"claim": "Repository: https://github.com/NVIDIA/workbench-example-agentic-rag, cloned via the AI Workbench GUI 'Clone Project' button.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"},
+        {"claim": "Requires two API keys: NVIDIA API key from https://org.ngc.nvidia.com/setup/api-keys (must have 'Public API Endpoints' permission) and a Tavily API key from https://tavily.com/.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"},
+        {"claim": "Hardware target: NVIDIA Grace Blackwell GB10 Superchip System; interface is a Gradio web UI. Last updated 10/28/2025.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"},
+        {"claim": "No specific vector DB, embedding model, or LLM version is documented in this README — the WebFetch summary explicitly notes the guide 'abstains from detailing underlying technologies' and containerization abstracts the stack from the user.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"}
+      ],
+      "relevance_to_us": "Weak as a direct RAG-stack reference (component details opaque); flag for ch15 that the actual embedding/vector-db choices need to come from the linked workbench-example-agentic-rag repo itself, not this playbook page, if the guide wants exact versions.",
+      "feeds": ["ch15", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md",
+      "title": "Text to Knowledge Graph on DGX Spark (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Docker-Compose stack that converts unstructured documents into an interactive knowledge graph using local Ollama LLM inference (default Llama 3.1 8B), ArangoDB with BM25 search, and a Next.js/Three.js WebGPU 3D visualization frontend.",
+      "facts": [
+        {"claim": "Setup: `git clone https://github.com/NVIDIA/dgx-spark-playbooks`, `cd nvidia/txt2kg/assets`, `./start.sh`; access web UI at http://localhost:3001.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"},
+        {"claim": "Stack: LLM inference via Ollama with GPU acceleration (default Llama 3.1 8B), graph database ArangoDB with BM25 search, Three.js WebGPU rendering for visualization, Next.js frontend, Docker Compose + NVIDIA Container Toolkit deployment.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"},
+        {"claim": "Additional model pull: `docker exec ollama-compose ollama pull <model-name>`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"},
+        {"claim": "Ollama tuning env vars used: OLLAMA_FLASH_ATTENTION=1, OLLAMA_KEEP_ALIVE=30m, OLLAMA_MAX_LOADED_MODELS=1, OLLAMA_KV_CACHE_TYPE=q8_0.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"},
+        {"claim": "Setup ~2-3 min, model download 5-10 min. Last updated January 8, 2025 (predates most other playbooks — verify against live repo before citing as current).", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"}
+      ],
+      "relevance_to_us": "ArangoDB + BM25 + local Ollama extraction is a concrete alternative knowledge-store pattern to Qdrant for a local knowledge base (ch15); the Ollama env-var tuning knobs (KEEP_ALIVE, MAX_LOADED_MODELS, KV_CACHE_TYPE) are directly reusable for any Spark Ollama deployment in the guide.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md",
+      "title": "Video Search and Summarization (VSS) (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Deploys NVIDIA's Video Search and Summarization AI Blueprint on DGX Spark, pairing a local Cosmos Reason 2 8B vision-language model with a remote LLM endpoint (recommended nvidia-nemotron-nano-9b-v2) for video Q&A, summarization, and real-time alerts.",
+      "facts": [
+        {"claim": "Prereqs: DGX OS 7.4.0+, driver 580.95.05+, CUDA 13.0, NGC API key, 10GB+ storage in /tmp/.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md"},
+        {"claim": "Models: local VLM Cosmos Reason 2 8B; remote LLM via build.nvidia.com or self-hosted, recommended nvidia/nvidia-nemotron-nano-9b-v2.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md"},
+        {"claim": "Repo: `git clone https://github.com/NVIDIA-AI-Blueprints/video-search-and-summarization.git`, `git checkout tags/v3.2.0`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md"},
+        {"claim": "Launch: `export NGC_CLI_API_KEY='...'`, `export LLM_ENDPOINT_URL=https://your-llm-endpoint.com`, `deploy/docker/scripts/dev-profile.sh up -p base -H DGX-SPARK --use-remote-llm --llm nvidia/nvidia-nemotron-nano-9b-v2`; Agent UI at http://localhost:7777 or http://<SPARK_IP>:7777.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md"},
+        {"claim": "Setup 30-45 min; rollback via `deploy/docker/scripts/dev-profile.sh down`. Last updated 06/17/2026.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md"}
+      ],
+      "relevance_to_us": "Concrete VLM+RAG pipeline for edge-AI video use cases (ch13/ch21 demo material) — pairs a local vision model with a remote text LLM, a hybrid pattern worth contrasting with the guide's local-only inference chapters (ch4/ch5).",
+      "feeds": ["ch13", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/live-vlm-webui/README.md",
+      "title": "Live VLM WebUI (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "pipx-installed real-time webcam-to-VLM streaming UI on DGX Spark, defaulting to Ollama-served gemma3:4b with GPU monitoring and customizable prompts.",
+      "facts": [
+        {"claim": "Install: `curl -fsSL https://ollama.com/install.sh | sh`, `ollama pull gemma3:4b`; then `sudo apt install -y pipx`, `pipx ensurepath`, `pipx install live-vlm-webui`, `live-vlm-webui`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/live-vlm-webui/README.md"},
+        {"claim": "Access at https://<SPARK_IP>:8090. VLM backend endpoint (Ollama default): http://localhost:11434/v1; alternatives include NVIDIA API Catalog, OpenAI, or custom endpoints.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/live-vlm-webui/README.md"},
+        {"claim": "Model alternatives listed: gemma3:4b (default, lightweight), llama3.2-vision:11b, qwen2.5-vl:7b.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/live-vlm-webui/README.md"},
+        {"claim": "Time estimate 20-30 minutes; risk level Low; requires a webcam and 10GB+ storage.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/live-vlm-webui/README.md"}
+      ],
+      "relevance_to_us": "Lightweight edge-AI/VLM demo (ch13/ch21) usable as a quick sensor-tie-in for MicroFi/AMOLED-class devices feeding a Spark-hosted VLM over the LAN.",
+      "feeds": ["ch13", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md",
+      "title": "Vibe Coding in VS Code (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Configures DGX Spark to serve GPT-OSS 120B via Ollama over the network so a remote VS Code + Continue.dev install can use it as a coding assistant, including opening the Ollama systemd service and firewall port.",
+      "facts": [
+        {"claim": "Install/serve: `curl -fsSL https://ollama.com/install.sh | sh`, `ollama pull gpt-oss:120b`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md"},
+        {"claim": "Remote access config: `sudo systemctl edit ollama` (to bind beyond localhost), `sudo systemctl daemon-reload`, `sudo systemctl restart ollama`, `sudo ufw allow 11434/tcp`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md"},
+        {"claim": "Verify from client: `curl -v http://YOUR_SPARK_IP:11434/api/version`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md"},
+        {"claim": "VS Code ARM64 install via downloaded .deb: `sudo dpkg -i DOWNLOADED_PACKAGE_NAME`. Tooling: Continue.dev VS Code extension points at the remote Ollama endpoint.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md"},
+        {"claim": "Last updated 10/21/2025; no specific software versions listed otherwise.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md"}
+      ],
+      "relevance_to_us": "Direct pattern for ch3/ch15: exposing Ollama on 0.0.0.0:11434 through ufw so other array devices (e.g. WindowsDesktop VS Code) can use Spark as a shared coding-model host — same firewall-rule consideration as the existing EFM/Kafka LAN port-forward practice.",
+      "feeds": ["ch3", "ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vscode/README.md",
+      "title": "VS Code (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Installs VS Code natively (ARM64 .deb) on DGX Spark for desktop development, or configures NVIDIA Sync + SSH key auth for remote VS Code access, including hosting a local LLM code assistant.",
+      "facts": [
+        {"claim": "Desktop install: `wget https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-arm64 -O vscode-arm64.deb`, `sudo dpkg -i vscode-arm64.deb`, `sudo apt-get install -f`, `code &`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vscode/README.md"},
+        {"claim": "Remote setup: install NVIDIA Sync, configure SSH key auth, launch VS Code through the Sync app for automatic remote connection.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vscode/README.md"},
+        {"claim": "Coverage includes an 'LLM code assistant hosting option' alongside extension installation, git integration testing, and integrated terminal use. ARM64-only. Duration 5 minutes; last updated July 23, 2026.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vscode/README.md"},
+        {"claim": "Uninstall: `sudo apt-get remove code`, optionally delete `~/.config/Code` and `~/.vscode`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vscode/README.md"}
+      ],
+      "relevance_to_us": "Baseline dev-environment setup for ch3/ch15 if the guide recommends developing directly on the Spark box (matching how other array devices are worked from directly) rather than purely remote.",
+      "feeds": ["ch3", "ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-to-your-spark/README.md",
+      "title": "Set Up Local Network Access (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Covers connecting a laptop to DGX Spark over the local network via NVIDIA Sync or manual SSH, including mDNS hostname resolution and port-forwarding for web apps like the DGX Dashboard.",
+      "facts": [
+        {"claim": "NVIDIA Sync install (Debian/Ubuntu): add gpg key + apt repo `deb https://workbench.download.nvidia.com/stable/linux/debian default proprietary`, then `sudo apt install nvidia-sync`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-to-your-spark/README.md"},
+        {"claim": "Manual connect: `ssh -V` to verify, `ping spark-abcd.local` to test mDNS, `ssh <USERNAME>@<SPARK_HOSTNAME>.local` for initial connection.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-to-your-spark/README.md"},
+        {"claim": "Port forwarding for web apps: `ssh -L 11000:localhost:11000 <USERNAME>@<SPARK_HOSTNAME>.local`; DGX Dashboard runs on localhost:11000.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-to-your-spark/README.md"},
+        {"claim": "Time estimate 5-10 minutes; risk 'Low — SSH setup involves credential configuration but no system-level changes to the DGX Spark device.'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-to-your-spark/README.md"}
+      ],
+      "relevance_to_us": "Day-1 LAN join pattern for ch3 — the .local mDNS hostname convention plus SSH port-forwarding for the Dashboard is the minimum-viable way to bring the Spark onto the home LAN before Tailscale.",
+      "feeds": ["ch3"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/tailscale/README.md",
+      "title": "Set up Tailscale on Your Spark (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Installs and authenticates Tailscale on DGX Spark for secure remote-access mesh networking, using the official Tailscale apt repo for Ubuntu noble, with matching client setup on other devices.",
+      "facts": [
+        {"claim": "Prereqs: DGX OS with Ubuntu 20.04+, sudo privileges, internet on both Spark and client devices, an identity provider account (Google/GitHub/Microsoft) for auth. Time estimate 15-30 min initial, 5 min per additional device.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/tailscale/README.md"},
+        {"claim": "SSH server install if needed: `sudo apt install -y openssh-server`, `sudo systemctl enable ssh --now --no-pager`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/tailscale/README.md"},
+        {"claim": "Tailscale install: add keyring `curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg`, add repo list `.../noble.tailscale-keyring.list`, `sudo apt install -y tailscale`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/tailscale/README.md"},
+        {"claim": "Authenticate with `sudo tailscale up`. Client devices join with the same identity-provider account; Linux clients also run `sudo tailscale up`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/tailscale/README.md"},
+        {"claim": "Rollback: 'Tailscale can be completely removed with `sudo apt remove tailscale`' and network routing automatically reverts to defaults.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/tailscale/README.md"}
+      ],
+      "relevance_to_us": "Directly maps to ch3's Tailscale plan for joining NvidiaSpark-1 to the array's mesh network — exact apt-repo/keyring commands for Ubuntu noble, ready to drop into the guide.",
+      "feeds": ["ch3"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/dgx-dashboard/README.md",
+      "title": "DGX Dashboard (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "The DGX Dashboard is a web UI on port 11000 providing system update management, GPU/resource telemetry monitoring, and an integrated per-user JupyterLab environment on DGX Spark.",
+      "facts": [
+        {"claim": "Quoted: dashboard provides 'a graphical interface for system updates, resource monitoring, and an integrated JupyterLab environment.'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/dgx-dashboard/README.md"},
+        {"claim": "Dashboard server port: 11000. JupyterLab uses per-user assigned ports stored in `/opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/dgx-dashboard/README.md"},
+        {"claim": "Check JupyterLab port: `cat /opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml`. Remote tunnel for both: `ssh -L 11000:localhost:11000 -L <ASSIGNED_PORT>:localhost:<ASSIGNED_PORT> <USERNAME>@<SPARK_DEVICE_IP>`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/dgx-dashboard/README.md"},
+        {"claim": "No explicit DGX OS version number given in this README; last update November 21, 2025, described as minor copyedits only.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/dgx-dashboard/README.md"}
+      ],
+      "relevance_to_us": "Port 11000 dashboard + per-user JupyterLab is the ch14 observability starting point for Spark, and a natural companion to whatever prometheus exporters the guide adds for GPU telemetry.",
+      "feeds": ["ch14"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/register-to-brev/README.md",
+      "title": "Register DGX Spark to Brev (DGX Spark Playbooks)",
+      "kind": "playbook",
+      "summary": "Registers DGX Spark as a managed compute node with NVIDIA Brev, enabling remote access, team GPU-environment sharing, and Launchable-based standardized environments; README omits the actual registration command.",
+      "facts": [
+        {"claim": "Quoted: Brev 'makes GPU environments remotely accessible, shareable, and easy to standardize using preconfigured setups called Launchables.'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/register-to-brev/README.md"},
+        {"claim": "Deregister: `brev deregister`. Troubleshoot connectivity: `brev refresh`. Change org: `brev set <my-org>`.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/register-to-brev/README.md"},
+        {"claim": "Prereqs: NVIDIA Brev account created at login.brev.nvidia.com, DGX Spark already set up, admin/root or sudo access.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/register-to-brev/README.md"},
+        {"claim": "The extraction notes the README states registration is interactive ('In the CLI, you'll be walked through registration') but does not print the exact initial registration command; estimated time 5-10 minutes, risk level Low.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/register-to-brev/README.md"}
+      ],
+      "relevance_to_us": "Optional ch3/ch21 mention for remote-team GPU sharing via Brev Launchables — lower priority than Tailscale for a home-lab single-operator setup but worth a callout for the 'team access' angle.",
+      "feeds": ["ch3", "ch21"]
+    }
+  ],
+  "open_questions": [
+    "Which coding-agent launch pattern does the guide want to standardize on: Ollama-native `ollama launch claude --model ...` (cli-coding-agent) or manual OpenAI-compatible endpoint pointing (vLLM-based hermes-agent/openclaw/openshell pattern)? They imply different install footprints.",
+    "rag-ai-workbench's README does not document its actual vector DB/embedding/LLM stack — needs a follow-up fetch of https://github.com/NVIDIA/workbench-example-agentic-rag directly if ch15 wants exact RAG component versions.",
+    "txt2kg's README is dated January 8, 2025 — much older than the other playbooks (most 2025-11 through 2026-07) — worth verifying it hasn't been superseded or removed before citing as current guidance.",
+    "register-to-brev's README omits the actual initial `brev` registration command; if ch3/ch21 wants to show Brev onboarding end-to-end, that command needs sourcing from Brev's own docs, not this playbook."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "Claude Code on DGX Spark is wired to a local model purely via Ollama's native integration: `ollama launch claude --model qwen3.6`, with no environment variables or config files required.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md",
+      "why_it_matters": "This is the single most direct answer to ch15/ch16's core question (how do we point Claude Code at a local model on the Spark) and should anchor that chapter's quickstart."
+    },
+    {
+      "claim": "OpenShell provides kernel-level sandbox isolation with declarative YAML policies (default-deny network egress) and is configured to route inference through a local vLLM OpenAI-compatible endpoint via `openshell provider create --type openai --config OPENAI_BASE_URL=http://MACHINE_IP:8000/v1`.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openshell/README.md",
+      "why_it_matters": "This is the concrete 'agent sandbox' mechanism the guide's ch16 (local agentic validation loops) needs to describe safe, bounded automated-agent execution on the Spark box."
+    },
+    {
+      "claim": "Vibe Coding playbook exposes Ollama beyond localhost via `sudo systemctl edit ollama` + `sudo ufw allow 11434/tcp`, letting a remote VS Code/Continue.dev client on another machine use the Spark as a shared model host.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vibe-coding/README.md",
+      "why_it_matters": "Matches the array's existing LAN port-forward + firewall-rule pattern (per-port Windows Firewall allow rules for EFM/Kafka) — ch3/ch15 should flag the same firewall step is needed here, or the endpoint silently stays localhost-only."
+    }
+  ],
+  "fetch_failures": []
+}

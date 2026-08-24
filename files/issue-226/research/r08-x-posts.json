@@ -1,0 +1,258 @@
+{
+  "bucket": "r08-x-posts",
+  "sources": [
+    {
+      "url": "https://x.com/jmurillocode/status/2091598658425004160",
+      "title": "jmurillocode — DGX Spark model-choice review (seed bookmark 1)",
+      "kind": "x-post",
+      "summary": "Extended hands-on review of LLM performance on DGX Spark. Reports Qwen3.6-35B-A3B at 128 tok/s with speculative decoding; DeepSeek V4 Flash ranked #1 for reliability at 284B params / 1M token context; Qwen3.8-27B at 253 tok/s total across ten concurrent requests. Concludes MoE models win single-stream, dense models win under concurrent load. Aug 23, 2026, 108 likes / 10,584 views.",
+      "facts": [
+        {"claim": "Qwen3.6-35B-A3B reaches 128 tok/s with speculative decoding enabled", "url": "https://api.fxtwitter.com/status/2091598658425004160"},
+        {"claim": "DeepSeek V4 Flash: 284B parameters, 1 million token context, ranked #1 for reliability", "url": "https://api.fxtwitter.com/status/2091598658425004160"},
+        {"claim": "Qwen3.8-27B: 253 tok/s total throughput across ten simultaneous requests", "url": "https://api.fxtwitter.com/status/2091598658425004160"},
+        {"claim": "MoE models excel at single-request latency; dense models handle concurrent load better", "url": "https://api.fxtwitter.com/status/2091598658425004160", "evidence": "author's stated conclusion across the benchmark set"}
+      ],
+      "relevance_to_us": "Direct model-choice data point for ch4/ch6: confirms the MoE-vs-dense tradeoff we need to document, plus a concrete concurrent-throughput number for Qwen3.8-27B relevant to any multi-tenant NiFi->LLM chapter.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://x.com/huchkw/status/2089385814086262981",
+      "title": "huchkw — GPU clock-limit power/thermal tuning (seed bookmark 2)",
+      "kind": "x-post",
+      "summary": "Japanese-language post: `sudo nvidia-smi -lgc 0,2200` caps GB10 clock at 2200 MHz. Running Qwen3.8-27B-NVFP4 with the cap cost only 0.47% average throughput while cutting GPU temperature 4.25°C and power draw 24.3%. Aug 17, 2026.",
+      "facts": [
+        {"claim": "`sudo nvidia-smi -lgc 0,2200` limits GB10 to 2200 MHz max clock", "url": "https://api.fxtwitter.com/status/2089385814086262981"},
+        {"claim": "Measured on Qwen3.8-27B-NVFP4: -0.47% avg TPS, -4.25°C GPU temp, -24.3% power draw", "url": "https://api.fxtwitter.com/status/2089385814086262981"}
+      ],
+      "relevance_to_us": "A concrete, cheap thermal/power-management tuning step for ch1/ch14 (observability) if the Spark runs hot in a home-lab enclosure alongside the other array devices.",
+      "feeds": ["ch6", "ch14"]
+    },
+    {
+      "url": "https://x.com/MinLiBuilds/status/2089377416032735716",
+      "title": "MinLiBuilds — DGX Spark vs dual RTX 4090 buying advice (seed bookmark 3)",
+      "kind": "x-post",
+      "summary": "Chinese-language post arguing against buying DGX Spark specifically to serve Qwen3.8-27B, citing bandwidth mismatch (GB10 273 GB/s vs RTX 4090 dual ~2000 GB/s, RTX 5090 1792 GB/s) and citing 6.7 tok/s BF16 / 10 tok/s FP8 / 25 tok/s peak NVFP4+MTP6 as too slow for that model class on Spark. Aug 17, 2026.",
+      "facts": [
+        {"claim": "GB10 memory bandwidth quoted as 273 GB/s vs dual RTX 4090 ~2000 GB/s vs RTX 5090 1792 GB/s", "url": "https://api.fxtwitter.com/status/2089377416032735716"},
+        {"claim": "Qwen3.8-27B on DGX Spark: 6.7 tok/s official BF16, 10 tok/s FP8, 25 tok/s peak NVFP4+MTP6", "url": "https://api.fxtwitter.com/status/2089377416032735716"},
+        {"claim": "Cost delta cited as ~30,000 RMB between the two build options", "url": "https://api.fxtwitter.com/status/2089377416032735716"}
+      ],
+      "relevance_to_us": "Counterpoint / caution for ch1 and ch4: bandwidth-bound model classes (dense 20-30B at low batch) are a bad fit for Spark vs. a multi-GPU rig — informs the 'what NOT to run here' section next to ch6's MoE guidance.",
+      "feeds": ["ch1", "ch4", "ch6"]
+    },
+    {
+      "url": "https://x.com/light_foundry/status/2080548348566880326",
+      "title": "Light Foundry Notes — GLM-5.2 744B speculative decoding on 8x cluster",
+      "kind": "x-post",
+      "summary": "Technical deep-dive: GLM-5.2 (744B) on an 8x DGX Spark cluster reaches 48 tok/s single-stream decode via speculative decoding (MTP), versus 273 GB/s bandwidth intuition suggesting a much lower ceiling. ~11 forward rounds/sec x ~4.4 accepted tokens/round = ~48 tok/s. Official NVFP4 build without MTP only got 24.4 tok/s. Includes a `vllm serve QuantTrio/GLM-5.2-Int4-Int8Mix` command with TP=8, chunked prefill, prefix caching, speculative decoding flags. Jul 24, 2026.",
+      "facts": [
+        {"claim": "GLM-5.2 744B on 8x DGX Spark: 48 tok/s single-stream decode with MTP speculative decoding, vs 24.4 tok/s on the official NVFP4 build without it", "url": "https://x.com/light_foundry/status/2080548348566880326", "evidence": "https://api.fxtwitter.com/light_foundry/status/2080548348566880326"},
+        {"claim": "Mechanism: ~11 forward passes/sec x ~4.4 accepted tokens/round via MTP turns bandwidth-limited forward throughput into higher decode tok/s", "url": "https://x.com/light_foundry/status/2080548348566880326", "evidence": "https://api.fxtwitter.com/light_foundry/status/2080548348566880326"},
+        {"claim": "KV pool sized at 892,638 tokens in the tested config", "url": "https://x.com/light_foundry/status/2080548348566880326", "evidence": "https://api.fxtwitter.com/light_foundry/status/2080548348566880326"}
+      ],
+      "relevance_to_us": "Best technical evidence found for ch6 (speculative decoding beating raw bandwidth) and ch22 (multi-Spark scale-out) — a real 8-node cluster running a 744B model with a copyable vLLM invocation.",
+      "feeds": ["ch6", "ch22"]
+    },
+    {
+      "url": "https://x.com/filicroval/status/2086863885059936720",
+      "title": "filicroval — Muse Glimmer 30B DFlash recipe, reproducible GB10 benchmark",
+      "kind": "x-post",
+      "summary": "Muse Glimmer 30B on single DGX Spark/GX10: 29.6 tok/s with DFlash speculative decoding vs 11.9 tok/s baseline (2.49x). Packaged as a reproducible recipe: pinned weights + SHA-256s, llama.cpp built for GB10/SM121, baseline+DFlash benchmarks, thermal/power/memory measurements, and tool-calling/vision/code checks. Aug 10, 2026. Repo: github.com/sxuff/muse-glimmer-dgx-spark.",
+      "facts": [
+        {"claim": "Muse Glimmer 30B: 29.6 tok/s with DFlash vs 11.9 tok/s baseline (2.49x raw decode throughput)", "url": "https://x.com/filicroval/status/2086863885059936720", "evidence": "https://api.fxtwitter.com/filicroval/status/2086863885059936720"},
+        {"claim": "Reproducible recipe includes llama.cpp compiled specifically for GB10/SM121", "url": "https://x.com/filicroval/status/2086863885059936720", "evidence": "https://api.fxtwitter.com/filicroval/status/2086863885059936720"}
+      ],
+      "relevance_to_us": "A model of what a well-documented reproducible GB10 benchmark repo looks like — useful template pattern for our own ch16 validation-loop scripts and ch6 model notes.",
+      "feeds": ["ch6", "ch16"]
+    },
+    {
+      "url": "https://x.com/anemll/status/2077271758768583051",
+      "title": "Anemll — vLLM TP=2 DeepSeek V4 Flash overlay for 2x DGX Spark",
+      "kind": "x-post",
+      "summary": "Published and tested a vLLM 0.25.1 compatibility overlay with TP=2 reference deployment for DeepSeek V4 Flash (DSpark/NVFP4) across 2x DGX Spark/ASUS GX10 systems — integration fixes, a live dashboard, deployment tooling, reproducible benchmarks. Jul 15, 2026. Repo: github.com/Anemll/dspark-vllm-gx10.",
+      "facts": [
+        {"claim": "TP=2 vLLM deployment of DeepSeek V4 Flash across 2x DGX Spark, packaged with a live dashboard and deployment tooling", "url": "https://x.com/anemll/status/2077271758768583051", "evidence": "https://api.fxtwitter.com/anemll/status/2077271758768583051"}
+      ],
+      "relevance_to_us": "Concrete 2-node tensor-parallel deployment example for ch22/ch4 — a real GitHub overlay we could evaluate for our own multi-Spark scale-out plan.",
+      "feeds": ["ch4", "ch22"]
+    },
+    {
+      "url": "https://x.com/sudoingX/status/2082664715717910675",
+      "title": "Sudo su — community ask: what to run on a second linked DGX Spark",
+      "kind": "x-post",
+      "summary": "User's second DGX Spark arriving, asks the community what to load on the combined 256GB, what's worth clustering, wiring/tensor-parallelism/ConnectX tuning advice, promises to share findings. Jul 30, 2026, 52 likes/12 replies. Context: plans to run GLM 5.2, Nemotron, DeepSeek V4 Flash across both.",
+      "facts": [
+        {"claim": "Poster frames the exact planning questions a 2-node Spark buyer faces: model choice for 256GB combined, ConnectX tuning, serving stack", "url": "https://x.com/sudoingX/status/2082664715717910675", "evidence": "https://api.fxtwitter.com/sudoingX/status/2082664715717910675"}
+      ],
+      "relevance_to_us": "Useful as a structuring device for ch22 — the exact FAQ a reader planning multi-Spark would ask; the reply thread (not fetched) likely has more community answers worth mining later.",
+      "feeds": ["ch22"]
+    },
+    {
+      "url": "https://x.com/MiaAI_lab/status/2084629608062673379",
+      "title": "Mia (MiaAI-Lab) — Ultimate DGX Spark Switch Guide",
+      "kind": "x-post",
+      "summary": "Guide for choosing a network switch to cluster >3 DGX Sparks. MikroTik CRS504 (~$759, up to 4 nodes @100GbE), CRS804 (~$1,200, four 400G QSFP56-DD ports, needs breakout cables for 8 nodes @200G), CRS812 (~$1,200 alternative, mixed 200G/100G). Aug 4, 2026, 404 likes/24,824 views.",
+      "facts": [
+        {"claim": "MikroTik CRS504 ~$759 supports up to 4 DGX Sparks at 100GbE each", "url": "https://x.com/MiaAI_lab/status/2084629608062673379", "evidence": "https://api.fxtwitter.com/MiaAI_lab/status/2084629608062673379"},
+        {"claim": "MikroTik CRS804 ~$1,200: four 400G QSFP56-DD ports, breakout cables needed to fan out to 8 nodes at 200G", "url": "https://x.com/MiaAI_lab/status/2084629608062673379", "evidence": "https://api.fxtwitter.com/MiaAI_lab/status/2084629608062673379"}
+      ],
+      "relevance_to_us": "Hard networking-gear numbers for ch22 (multi-Spark scale-out) if we ever plan beyond a single NvidiaSpark-1 device; also useful context for ch3 (joining the LAN) on ConnectX-7 switch economics.",
+      "feeds": ["ch22", "ch3"]
+    },
+    {
+      "url": "https://x.com/amasawa_seiji/status/2016070738399396276",
+      "title": "amasawa_seiji — gpt-oss-120b on 2-node DGX Spark called from Claude Code",
+      "kind": "x-post",
+      "summary": "Japanese post: launched gpt-oss-120b via vLLM across 2 DGX Spark nodes and called it from Claude Code — startup 'surprisingly smooth', ~52 tok/s, no issues. Jan 27, 2026.",
+      "facts": [
+        {"claim": "gpt-oss-120b served via vLLM on 2x DGX Spark, invoked from Claude Code, ~52 tok/s", "url": "https://x.com/amasawa_seiji/status/2016070738399396276", "evidence": "https://api.fxtwitter.com/amasawa_seiji/status/2016070738399396276"}
+      ],
+      "relevance_to_us": "Direct precedent for our own ch15/ch16 goal: Claude Code pointed at a local Spark-served model as its backend — this is literally the pattern we want for the local knowledge-base/validation-loop chapters.",
+      "feeds": ["ch15", "ch16"]
+    },
+    {
+      "url": "https://x.com/MinLiBuilds/status/2090341938507714600",
+      "title": "MinLiBuilds — DGX Spark vs GPU pricing debate (follow-up post)",
+      "kind": "x-post",
+      "summary": "Chinese post: community debate 'DGX Spark or GPU?' has intensified as GPU prices spike (driven by MiniMax H3, Qwen3.8-27G demand, and modified 64G/96G 5090 cards from Huaqiangbei gray market). Notes RTX PRO 6000D up ~50% in a week, 5090 ~¥40,000/card, 4090 ~¥27,000/card. Argues Spark's 128GB unified memory becomes more attractive as GPU prices rise, for 70-100B+ MoE models and ultra-long context, at the cost of peak single-token throughput. Aug 20, 2026.",
+      "facts": [
+        {"claim": "RTX PRO 6000D price rose ~50% in one week (Aug 2026); 5090 ~¥40,000/card, 4090 ~¥27,000/card in the same market", "url": "https://x.com/MinLiBuilds/status/2090341938507714600", "evidence": "https://api.fxtwitter.com/MinLiBuilds/status/2090341938507714600"},
+        {"claim": "Author's follow-up to the seed post: Spark's value case strengthens for MoE/long-context as raw-GPU prices spike", "url": "https://x.com/MinLiBuilds/status/2090341938507714600", "evidence": "https://api.fxtwitter.com/MinLiBuilds/status/2090341938507714600"}
+      ],
+      "relevance_to_us": "Same author as seed bookmark 3, three days later reversing tone toward Spark as GPU market prices moved — good ch1/ch4 'buy vs rent vs discrete GPU' economics narrative arc.",
+      "feeds": ["ch1", "ch4"]
+    },
+    {
+      "url": "https://x.com/andrewchen/status/2083582537461608862",
+      "title": "andrew chen (a16z) — DeepSeek V4 Flash on dual DGX Spark",
+      "kind": "x-post",
+      "summary": "a16z general partner: 'just installed DeepSeek V4 Flash 0731 on my dual DGX sparks for some weekend testing!' Aug 1, 2026, 347 likes/87,964 views — high-visibility endorsement from a well-known VC.",
+      "facts": [
+        {"claim": "High-profile VC (a16z GP, 435K followers) running DeepSeek V4 Flash on dual DGX Spark as a hobby weekend project", "url": "https://x.com/andrewchen/status/2083582537461608862", "evidence": "https://api.fxtwitter.com/andrewchen/status/2083582537461608862"}
+      ],
+      "relevance_to_us": "Signal of mainstream/investor attention on multi-Spark setups for ch22 framing — not a technical source but useful as a 'this is now a normal thing to do' citation.",
+      "feeds": ["ch22"]
+    },
+    {
+      "url": "https://x.com/aijoey/status/2056028249159852358",
+      "title": "Joey — Qwen3.6-35B-A3B NVFP4 Atlas recipe reproduction",
+      "kind": "x-post",
+      "summary": "Tested Qwen3.6-35B-A3B-NVFP4 on single GB10 using the public Atlas recipe (TP=1, NVFP4 weights, FP8 KV cache, speculative decoding, prefix caching, ctx 4096, concurrency 1): got 176.66 tok/s decode vs the publicly claimed 202.63 tok/s. Calls it 'still a strong local result' and states 'reproducible numbers > benchmark vibes.' May 17, 2026.",
+      "facts": [
+        {"claim": "Qwen3.6-35B-A3B-NVFP4 on single GB10, Atlas TP=1, ctx4096/concurrency1: 176.66 tok/s decode, vs 202.63 tok/s publicly claimed", "url": "https://x.com/aijoey/status/2056028249159852358", "evidence": "https://api.fxtwitter.com/aijoey/status/2056028249159852358"}
+      ],
+      "relevance_to_us": "Good ch4/ch6 example of a reproducibility gap between vendor benchmark claims and independent verification — worth flagging for our own ch16 validation-loop methodology (verify, don't trust the marketing number).",
+      "feeds": ["ch4", "ch6", "ch16"]
+    },
+    {
+      "url": "https://x.com/DerekColley_/status/2072226175666061598",
+      "title": "Derek Colley — reaction to PCMag's 2x DGX Spark daisy-chain hands-on",
+      "kind": "x-post",
+      "summary": "Reacts to PCMag's mainstream hands-on clustering two DGX Sparks daisy-chained in a living room; says he's run 2x Sparks as his daily driver for months and notes the article missed compilation OOM crashes he's lived through. Jul 1, 2026.",
+      "facts": [
+        {"claim": "PCMag published a mainstream hands-on of two daisy-chained DGX Sparks in a home setting", "url": "https://x.com/DerekColley_/status/2072226175666061598", "evidence": "https://api.fxtwitter.com/DerekColley_/status/2072226175666061598"},
+        {"claim": "Long-term 2-node owner reports compilation OOM crashes as a real-world gotcha not covered by the mainstream piece", "url": "https://x.com/DerekColley_/status/2072226175666061598", "evidence": "https://api.fxtwitter.com/DerekColley_/status/2072226175666061598"}
+      ],
+      "relevance_to_us": "Practical caveat for ch22: real long-term 2-node owners hit build/compile OOM issues that press coverage misses — worth chasing PCMag's original piece and this reply thread for more detail.",
+      "feeds": ["ch22"]
+    },
+    {
+      "url": "https://x.com/bridgemindai/status/2042233571578880371",
+      "title": "BridgeMind — vibe-coding model shootout on DGX Spark",
+      "kind": "x-post",
+      "summary": "Compares local coding-model latency/quality on DGX Spark: Qwen 3.5 122B took 69s to respond 'Hi how are you' (unusable), Gemma 4 was fast but produced wrong output, GPT-OSS 120B was 'the sweet spot' — fast, capable, working HTML. Concludes local open models 'are not replacing Claude Opus 4.6 or Codex with GPT 5.4. Not even close. But they're getting better every month.' References their own DGX Spark Bench at bridgebench.ai. Apr 9, 2026, 388 likes/57,526 views.",
+      "facts": [
+        {"claim": "Qwen 3.5 122B: 69 seconds to first response on DGX Spark — deemed unusable for coding-agent latency", "url": "https://x.com/bridgemindai/status/2042233571578880371", "evidence": "https://api.fxtwitter.com/bridgemindai/status/2042233571578880371"},
+        {"claim": "GPT-OSS 120B judged the best local coding-agent fit on Spark of the three tested", "url": "https://x.com/bridgemindai/status/2042233571578880371", "evidence": "https://api.fxtwitter.com/bridgemindai/status/2042233571578880371"},
+        {"claim": "Author's explicit verdict: local open models are not yet a Claude Opus 4.6/Codex GPT-5.4 replacement, though improving monthly", "url": "https://x.com/bridgemindai/status/2042233571578880371", "evidence": "https://api.fxtwitter.com/bridgemindai/status/2042233571578880371"}
+      ],
+      "relevance_to_us": "Directly on-point for ch4/ch17: sets realistic expectations for what a local Spark model can/can't do as a coding-agent backend, and reinforces our own ch17 'what stays local vs. what still needs Anthropic tokens' framing.",
+      "feeds": ["ch4", "ch17"]
+    },
+    {
+      "url": "https://x.com/sgl_project/status/2088281320422322413",
+      "title": "SGLang — Day-0 Qwen3.8-27B support, RTX 5090 vs DGX Spark numbers",
+      "kind": "x-post",
+      "summary": "SGLang announces Day-0 support for Qwen3.8-27B: 206.1 tok/s decode on a single RTX 5090 (NVFP4 + DSpark), vs 38.28 tok/s decode on DGX Spark. Aug 14, 2026, 1,125 likes.",
+      "facts": [
+        {"claim": "Qwen3.8-27B decode: 206.1 tok/s on RTX 5090 (NVFP4+DSpark) vs 38.28 tok/s on DGX Spark", "url": "https://x.com/sgl_project/status/2088281320422322413", "evidence": "https://api.fxtwitter.com/sgl_project/status/2088281320422322413"}
+      ],
+      "relevance_to_us": "A clean apples-to-apples number for ch6: same model, same-day SGLang support, ~5.4x gap between discrete-GPU bandwidth and Spark's 273 GB/s for this specific dense 27B model — good evidence for the 'bandwidth-bound model, wrong hardware' warning next to the seed bookmark 3 claim.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://x.com/NVIDIAAP/status/2076879361504903645",
+      "title": "NVIDIA Asia Pacific — 4-node Spark cluster, 700B inference, enterprise framing",
+      "kind": "x-post",
+      "summary": "Official NVIDIA APAC post: DGX Spark now scales to 4 clustered nodes, enabling inference on models up to 700B parameters with near-linear scaling for fine-tuning/RL workloads; 128GB per node scaling to the full 4-node config; pitched at enterprise teams; mentions Tile IR and cuTile Python for carrying kernels to cloud with minimal code changes. Jul 14, 2026, 349 likes/33,266 views.",
+      "facts": [
+        {"claim": "Official NVIDIA claim: 4-node DGX Spark cluster supports inference on models up to 700B parameters, with 'near-linear' scaling for fine-tuning and RL", "url": "https://x.com/NVIDIAAP/status/2076879361504903645", "evidence": "https://api.fxtwitter.com/NVIDIAAP/status/2076879361504903645"},
+        {"claim": "Tile IR and cuTile Python are positioned as the code-portability path from Spark clusters to cloud GPUs with minimal changes", "url": "https://x.com/NVIDIAAP/status/2076879361504903645", "evidence": "https://api.fxtwitter.com/NVIDIAAP/status/2076879361504903645"}
+      ],
+      "relevance_to_us": "Vendor-official ceiling number (700B @ 4 nodes) for ch22, and the Tile IR/cuTile portability claim is directly relevant to ch20 ('same code two backends') — worth verifying against NVIDIA's own docs rather than trusting the tweet alone.",
+      "feeds": ["ch20", "ch22"]
+    },
+    {
+      "url": "https://x.com/_himorishige/status/2085591301668671557",
+      "title": "HiMorishige — team-shared RAG on 3x DGX Spark with NVIDIA RAG Blueprint + MCP",
+      "kind": "x-post",
+      "summary": "Japanese post: built a self-contained team-shared RAG environment using NVIDIA RAG Blueprint across 3 DGX Sparks, connected via MCP; linked devclassmethod.jp article covers Claude Code/opencode MCP integration and Japanese-language performance. Aug 7, 2026, 15 likes/3,715 views.",
+      "facts": [
+        {"claim": "NVIDIA RAG Blueprint deployed across 3x DGX Spark as a team-shared, fully local RAG environment wired via MCP", "url": "https://x.com/_himorishige/status/2085591301668671557", "evidence": "https://api.fxtwitter.com/_himorishige/status/2085591301668671557"},
+        {"claim": "Integrates with Claude Code and opencode via MCP per the linked writeup (dev.classmethod.jp/articles/dgx-spark-nvidia-rag-blueprint-mcp/)", "url": "https://x.com/_himorishige/status/2085591301668671557", "evidence": "https://api.fxtwitter.com/_himorishige/status/2085591301668671557"}
+      ],
+      "relevance_to_us": "The closest real-world precedent found for our exact ch15 goal (local AI knowledge base for Claude Code via MCP+Qdrant) — the linked classmethod.jp article is worth a direct follow-up fetch in a docs-focused research pass.",
+      "feeds": ["ch15", "ch16"]
+    },
+    {
+      "url": "https://x.com/RedHat_AI/status/2059479583280242908",
+      "title": "Red Hat AI — RHEL 10 on DGX Spark, glass-box agent tracing with MLflow",
+      "kind": "x-post",
+      "summary": "RHEL 10 on DGX Spark: run SLMs locally for medium-low complexity tasks, use the 128GB unified memory for larger LLMs, get 'glass-box agent tracing with embedded MLflow before anything hits prod'; same RHEL foundation from desk to OpenShift. May 27, 2026. Dev preview link: red.ht/42HZQDr.",
+      "facts": [
+        {"claim": "Red Hat markets RHEL 10 + DGX Spark with embedded MLflow for pre-production agent tracing", "url": "https://x.com/RedHat_AI/status/2059479583280242908", "evidence": "https://api.fxtwitter.com/RedHat_AI/status/2059479583280242908"},
+        {"claim": "Positioning: same RHEL foundation spans desk (DGX Spark) to OpenShift in production", "url": "https://x.com/RedHat_AI/status/2059479583280242908", "evidence": "https://api.fxtwitter.com/RedHat_AI/status/2059479583280242908"}
+      ],
+      "relevance_to_us": "Enterprise/observability angle adjacent to our Cloudera-on-K8s story — RHEL/OpenShift 'desk to prod' framing is a useful comparison point for ch9 (CSO operators on aarch64) and ch14 (observability), even though our stack is k3d not OpenShift.",
+      "feeds": ["ch9", "ch14"]
+    },
+    {
+      "url": "https://x.com/degenpiz/status/2076030273679171908",
+      "title": "DEGENPIZ — DGX Spark cost-of-ownership vs rented cloud GPU",
+      "kind": "x-post",
+      "summary": "Linked article: DGX Spark ($4,699, 20-core Arm CPU, Blackwell GPU, 128GB unified memory, 4TB NVMe, 5.9x5.9x2in/1.2kg) framed as 'turns rented AI bills into owned infrastructure that ships real agents.' Cites 30-day cost comparison: cloud $1,870+ vs local $47 electricity, ~97% savings. Jul 11, 2026, 163,697 views.",
+      "facts": [
+        {"claim": "30-day cost comparison cited: cloud GPU rental $1,870+ vs DGX Spark electricity $47, ~97% savings", "url": "https://x.com/degenpiz/status/2076030273679171908", "evidence": "https://api.fxtwitter.com/degenpiz/status/2076030273679171908"},
+        {"claim": "DGX Spark physical specs restated: $4,699, 20-core Arm CPU, 128GB unified memory, 4TB NVMe, 5.9x5.9x2in, 1.2kg", "url": "https://x.com/degenpiz/status/2076030273679171908", "evidence": "https://api.fxtwitter.com/degenpiz/status/2076030273679171908"}
+      ],
+      "relevance_to_us": "ch17 cost-control chapter: a concrete cloud-vs-local $/month comparison to cite (with the caveat that it's a linked article's framing, not independently verified) — worth cross-checking against our own actual electricity/cloud numbers before quoting the 97% figure.",
+      "feeds": ["ch17"]
+    }
+  ],
+  "open_questions": [
+    "Several fxtwitter fetches returned AI-summarized/paraphrased text rather than guaranteed-verbatim quotes (the tool processes content through a small model) — for any figure we plan to publish verbatim in the guide, re-verify against the live x.com post or a screenshot before quoting.",
+    "Model names appearing in these 2026 posts (Qwen3.6-35B-A3B, Qwen3.8-27B, DeepSeek V4 Flash, GLM-5.2, Muse Glimmer 30B, MiniMax H3) are all past this agent's knowledge cutoff — treat as accurately reported by the sources but unverifiable against prior knowledge.",
+    "PCMag's original 2x-DGX-Spark daisy-chain article (referenced by @DerekColley_) was not fetched directly — worth pulling for ch22 if a docs/press bucket exists.",
+    "dev.classmethod.jp's full DGX Spark + NVIDIA RAG Blueprint + MCP article (linked from @_himorishige) was not fetched — highly relevant to ch15, should be fetched directly in a docs-focused pass.",
+    "@sudoingX's reply thread (12 replies) likely contains additional community multi-Spark answers not captured here — worth a follow-up if time allows.",
+    "The NVIDIA official 'Connect Two Sparks' doc (build.nvidia.com/spark/connect-two-sparks/overview) surfaced in search but belongs in the NVIDIA-docs bucket, not here — flagging so another bucket owner picks it up."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "GLM-5.2 (744B) on an 8x DGX Spark cluster reaches 48 tok/s single-stream decode via MTP speculative decoding, vs 24.4 tok/s on the official NVFP4 build without it",
+      "url": "https://x.com/light_foundry/status/2080548348566880326",
+      "why_it_matters": "This is the strongest evidence in the bucket that speculative decoding, not raw bandwidth, is the lever that makes large dense/MoE models usable on Spark clusters — directly shapes ch6's guidance and the ch22 scale-out story."
+    },
+    {
+      "claim": "Same-model, same-day comparison: Qwen3.8-27B decodes at 206.1 tok/s on a single RTX 5090 vs 38.28 tok/s on DGX Spark (both via SGLang NVFP4)",
+      "url": "https://x.com/sgl_project/status/2088281320422322413",
+      "why_it_matters": "Clean apples-to-apples evidence for the 'wrong hardware for this model class' warning echoed independently by both seed bookmark @MinLiBuilds posts — should anchor a ch4/ch6 caution box about dense 20-30B models on Spark."
+    },
+    {
+      "claim": "NVIDIA's own claim: DGX Spark scales to 4 clustered nodes, enabling inference on models up to 700B parameters with near-linear scaling for fine-tuning/RL",
+      "url": "https://x.com/NVIDIAAP/status/2076879361504903645",
+      "why_it_matters": "This is a vendor marketing claim (not an independent benchmark) that sets the ceiling expectation for ch22 multi-Spark scale-out planning; needs verification against NVIDIA's own technical docs, not taken at face value from the tweet."
+    }
+  ],
+  "fetch_failures": []
+}

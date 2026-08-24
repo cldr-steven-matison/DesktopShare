@@ -1,0 +1,181 @@
+{
+  "bucket": "r10-cloudera-aws",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/cloudera-labs/cdp-tf-quickstarts/main/README.md",
+      "title": "cloudera-labs/cdp-tf-quickstarts README",
+      "kind": "github-repo",
+      "summary": "Terraform quickstart repo for provisioning CDP Public Cloud environments and the AWS/Azure/GCP prerequisite cloud resources, wrapping Cloudera's terraform-cdp-modules.",
+      "facts": [
+        {"claim": "Prerequisites: an AWS/Azure/GCP account, a Cloudera on Cloud account (60-day free trial available), Terraform v0.13+, and a configured CDP credentials file plus cloud provider auth.", "url": "https://raw.githubusercontent.com/cloudera-labs/cdp-tf-quickstarts/main/README.md", "evidence": "\"An AWS, Azure, or GCP account\"; \"A Cloudera on Cloud account (60-day free trial available)\"; \"Terraform v0.13 or higher\""},
+        {"claim": "terraform.tfvars requires env_prefix (<=12 chars, lowercase/numbers/hyphens), aws_region, and deployment_template (public/semi-private/private).", "url": "https://raw.githubusercontent.com/cloudera-labs/cdp-tf-quickstarts/main/README.md", "evidence": "env_prefix must be 12 characters or less; deployment_template accepts \"public,\" \"semi-private,\" or \"private\" patterns"},
+        {"claim": "Initial deployment takes up to 60 minutes; teardown/cleanup takes approximately 20 minutes.", "url": "https://raw.githubusercontent.com/cloudera-labs/cdp-tf-quickstarts/main/README.md", "evidence": "Initial deployment: up to 60 minutes; Resource cleanup: approximately 20 minutes"},
+        {"claim": "After the base environment is up, Data Hubs and Data Services are added afterward via the management console or CLI, not by this base terraform run.", "url": "https://raw.githubusercontent.com/cloudera-labs/cdp-tf-quickstarts/main/README.md", "evidence": "enables subsequent addition of \"Data Hubs and Data Services\" via the management console or CLI"}
+      ],
+      "relevance_to_us": "This is the fastest documented path to stand up a CDP Public Cloud AWS environment for the Spark<->Cloudera-on-AWS integration chapters (ch18/ch19); ~60min stand-up, ~20min teardown makes it usable for demo cycles.",
+      "feeds": ["ch18", "ch19", "ch21"]
+    },
+    {
+      "url": "https://github.com/aws-ia/terraform-cloudera-cdp",
+      "title": "aws-ia/terraform-cloudera-cdp (AWS Partner Solution)",
+      "kind": "github-repo",
+      "summary": "AWS-authored (aws-ia) Partner Solution Terraform module that deploys a full CDP Public Cloud environment on AWS: HA across 3 AZs, VPC with public/private subnets, NAT gateways, NLBs, ASGs for environment/data lake/data hub, RDS PostgreSQL multi-AZ, cross-account IAM, and an S3 bucket for data/metadata/logs/audit storage locations.",
+      "facts": [
+        {"claim": "Module provisions infra spanning 3 Availability Zones with public+private subnets, NAT gateways, Network Load Balancers, ASGs for CDP environments/data lake/data hubs, RDS PostgreSQL multi-AZ, two required security groups, cross-account IAM roles, and an S3 bucket with data/metadata/logs/audit locations.", "url": "https://github.com/aws-ia/terraform-cloudera-cdp", "evidence": "NAT gateways for outbound traffic; Network Load Balancers for routing; Auto Scaling groups for CDP environments, data lakes, and data hubs; Amazon RDS PostgreSQL multi-AZ database cluster; Two security groups (required by CDP); Cross-account IAM roles and policies; S3 bucket with storage locations for data, metadata, logs, and audit"},
+        {"claim": "Required variables include env_prefix, aws_region, aws_key_pair (existing keypair), deployment_template (private/semi-private/public), and ingress_extra_cidrs_and_ports.", "url": "https://github.com/aws-ia/terraform-cloudera-cdp", "evidence": "Essential inputs include: env_prefix ... aws_region ... aws_key_pair ... deployment_template ... ingress_extra_cidrs_and_ports"}
+      ],
+      "relevance_to_us": "Alternate, AWS-blessed IaC path to the same CDP Public Cloud environment as cdp-tf-quickstarts; ingress_extra_cidrs_and_ports is the lever for allowing an external NiFi/Kafka client CIDR (e.g. home LAN or Tailscale exit node) in.",
+      "feeds": ["ch18", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/requirements-aws/topics/mc-aws-req-vpc.html",
+      "title": "VPC and subnets (CDP Public Cloud AWS requirements)",
+      "kind": "cloudera-doc",
+      "summary": "CDP Public Cloud AWS VPC/subnet prerequisites: bring your own VPC + 2+ subnets, DNS must be enabled, subnets need Kubernetes discovery tags.",
+      "facts": [
+        {"claim": "You select an existing VPC and two or more subnets when registering an AWS environment; VPC/subnets should be created and managed outside Cloudera as a best practice.", "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/requirements-aws/topics/mc-aws-req-vpc.html", "evidence": "you will be asked to select a VPC and two or more subnets... cloud provider prerequisites such as a VPC and subnets should be created and managed outside of Cloudera"},
+        {"claim": "DNS must be enabled on the VPC; VPC and subnets must be tagged 'shared' for Kubernetes discovery, private subnets tagged kubernetes.io/role/internal-elb:1 and public subnets kubernetes.io/role/elb:1.", "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/requirements-aws/topics/mc-aws-req-vpc.html", "evidence": "You must enable DNS for the VPC. Additionally, tag the VPC and the subnets as shared... tag private subnets with the kubernetes.io/role/internal-elb:1 tag and public subnets with the kubernetes.io/role/elb:1 tag"},
+        {"claim": "The CDP control plane runs in Cloudera's own master account/VPC; each customer gets its own sub-account/VPC, with cross-account IAM roles and SSL routing management traffic between them.", "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/getting-started/topics/cdp-creating_and_managing_cdp_deployments.html", "evidence": "the CDP control plane resides in a Cloudera master account in its own VPC, each customer account has its own sub-account and unique VPC, and cross-account IAM roles and SSL technologies route management traffic"}
+      ],
+      "relevance_to_us": "Concrete VPC networking checklist for ch18/ch19 setup instructions; the tagging requirements are exactly the kind of easy-to-miss step that breaks a first Public Cloud environment registration.",
+      "feeds": ["ch18", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/dataflow/cloud/about-inbound-connections.html",
+      "title": "Inbound Connections (Cloudera DataFlow / CDF Public Cloud)",
+      "kind": "cloudera-doc",
+      "summary": "CDF Public Cloud feature giving a NiFi flow deployment a stable public hostname with TLS/mTLS so an external client (outside the CDP environment, e.g. a home-LAN or edge NiFi) can stream data in.",
+      "facts": [
+        {"claim": "Inbound connections provide a stable hostname allowing streaming from an external source application into a CDF flow deployment in the same environment; available for both AWS and Azure.", "url": "https://docs.cloudera.com/dataflow/cloud/about-inbound-connections.html", "evidence": "a stable hostname allowing you to stream data from an external source application to a Cloudera DataFlow deployment located in the same environment"},
+        {"claim": "Endpoint requires an SSLContextService using the auto-created TLS context; server cert for the hostname is signed by a public root CA, and a single Intermediate CA signs client certs (public cert downloadable) for mTLS.", "url": "https://docs.cloudera.com/dataflow/cloud/about-inbound-connections.html", "evidence": "SSLContextService configured that can work with the TLS context auto created during flow deployment; Server certificate corresponding to the hostname, signed by public root CA; Single Intermediate CA for signing client certificates, with public certificate available for download"},
+        {"claim": "All NiFi Listen-family processors (including custom processors) are supported behind an inbound connection; for a listen processor to support external connections it needs a StandardRestrictedSSLContextService named exactly 'Inbound SSL Context Service', auto-populated at cluster deployment.", "url": "https://docs.cloudera.com/dataflow/cloud/develop-flow-definitions/topics/cdf-configuring-inbound-connection-support.html", "evidence": "Cloudera Data Flow supports all listen processors, including Custom Processors... an external StandardRestrictedSSLContextService must be created for the processor, and it must be named Inbound SSL Context Service"}
+      ],
+      "relevance_to_us": "This is the concrete mechanism for 'NiFi on home LAN/Tailscale pushes into CDF on AWS' (ch10/ch18/ch20): use ListenHTTP/Listen* + Inbound SSL Context Service, connect over mTLS to the auto-provisioned public hostname/load balancer, no manual security group work needed on the Cloudera side.",
+      "feeds": ["ch10", "ch18", "ch19", "ch20"]
+    },
+    {
+      "url": "https://community.cloudera.com/t5/What-s-New-Cloudera/Cloudera-DataFlow-for-the-Public-Cloud-introduces-Inbound/ba-p/343616",
+      "title": "Cloudera DataFlow for the Public Cloud introduces Inbound Connections",
+      "kind": "cloudera-blog",
+      "summary": "Announcement blog for the Inbound Connections feature and the Kafka ReadyFlow use case.",
+      "facts": [
+        {"claim": "There is a ListenHTTP-based 'filter to Kafka' ReadyFlow that performs schema validation on incoming events (via Schema Registry) before sending them to a Kafka topic.", "url": "https://community.cloudera.com/t5/What-s-New-Cloudera/Cloudera-DataFlow-for-the-Public-Cloud-introduces-Inbound/ba-p/343616", "evidence": "a ListenHTTP filter to Kafka ReadyFlow that performs schema validation for incoming events using Cloudera's Schema Registry before sending the events to a Kafka topic"}
+      ],
+      "relevance_to_us": "Off-the-shelf ReadyFlow pattern for ch10/ch20: DGX Spark local NiFi -> HTTPS POST into a CDF Public Cloud ListenHTTP inbound connection -> validated -> Kafka on Data Hub, no direct Kafka broker exposure needed.",
+      "feeds": ["ch10", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cdf-datahub/7.3.1/connecting-kafka/topics/kafka-dh-connect-clients-outside-vpc.html",
+      "title": "Connecting Kafka clients to Cloudera Data Hub provisioned clusters (outside VPC)",
+      "kind": "cloudera-doc",
+      "summary": "Exact steps/requirements for an external (outside-VPC) Kafka client to reach a Data Hub Kafka cluster on AWS directly (as opposed to going through CDF inbound connections).",
+      "facts": [
+        {"claim": "The VPC must be assigned a public IP; inbound and outbound traffic must be enabled on the Kafka broker port, default 9093.", "url": "https://docs.cloudera.com/cdf-datahub/7.3.1/connecting-kafka/topics/kafka-dh-connect-clients-outside-vpc.html", "evidence": "verify that your virtual network (VPC or Vnet) is assigned a public IP address... verify that both inbound and outbound traffic is enabled on the port used by Kafka brokers for secure communication. The default port is 9093"},
+        {"claim": "External client auth uses security.protocol=SASL_SSL, sasl.mechanism=PLAIN, with the FreeIPA cert (downloaded from Management Console > Environment > FreeIPA tab) imported into the client truststore via Java keytool, plus workload username/password set in Management Console > User Management.", "url": "https://docs.cloudera.com/cdf-datahub/7.3.1/connecting-kafka/topics/kafka-dh-connect-clients-outside-vpc.html", "evidence": "security.protocol=SASL_SSL; sasl.mechanism=PLAIN; Download the FreeIPA certificate from Management Console > Environments > [Your Environment] > FreeIPA tab; Import certificate into client truststore using Java Keytool"},
+        {"claim": "Broker hostnames must be obtained per-cluster from Cloudera Manager (Data Hub cluster > Kafka service > Instances) and hardcoded into client config; no fixed DNS naming pattern is documented.", "url": "https://docs.cloudera.com/cdf-datahub/7.3.1/connecting-kafka/topics/kafka-dh-connect-clients-outside-vpc.html", "evidence": "Retrieve Kafka broker hostnames from Cloudera Manager by navigating to your Data Hub cluster > Kafka service > Instances section"}
+      ],
+      "relevance_to_us": "Direct-Kafka path (vs. the CDF inbound-connection path) for a DGX Spark client producing straight into Data Hub Kafka: port 9093, SASL_SSL/PLAIN, FreeIPA cert + workload creds. Good ch18/ch19 fallback when CDF isn't in the picture.",
+      "feeds": ["ch18", "ch19", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/runtime/7.3.1/overview/topics/cr-ds-cloudera-iceberg-rest-catalog.html",
+      "title": "Cloudera Iceberg REST Catalog overview",
+      "kind": "cloudera-doc",
+      "summary": "Cloudera's server-side Apache Iceberg REST Catalog Open API implementation, extended with Ranger/Knox security/governance, exposing Iceberg table metadata to third-party engines.",
+      "facts": [
+        {"claim": "Cloudera Iceberg REST Catalog is based on the Apache Iceberg REST Catalog Open API, extended with Ranger (authorization) and Knox (gateway) for enterprise security/governance.", "url": "https://docs.cloudera.com/runtime/7.3.1/overview/topics/cr-ds-cloudera-iceberg-rest-catalog.html", "evidence": "a server-side implementation based on Apache Iceberg REST Catalog Open API, extended with enterprise-grade security and governance through Apache Ranger and Apache Knox"},
+        {"claim": "The catalog exposes Iceberg table metadata to REST-enabled third-party compute engines/tools including Spark, Trino, Snowflake, AWS Athena, AWS EMR Spark, and Databricks; Amazon Athena has been shown connecting via this REST catalog to query Cloudera-maintained data.", "url": "https://docs.cloudera.com/runtime/7.3.1/overview/topics/cr-ds-cloudera-iceberg-rest-catalog.html", "evidence": "enables the server to expose Iceberg table metadata to REST-enabled third-party compute engines and tools like Spark, Trino, Snowflake, AWS Athena, AWS EMR Spark, and Databricks"}
+      ],
+      "relevance_to_us": "For ch19/ch20: a DGX Spark local Iceberg/NiFi pipeline can, in principle, target Cloudera's Iceberg REST Catalog on Public Cloud Data Hub as an external REST client the same way Athena/EMR do — needs the same Knox/Ranger-fronted auth as other Cloudera-on-AWS endpoints (unverified specifics; flagged in open_questions).",
+      "feeds": ["ch19", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html",
+      "title": "Cloudera AI Inference service Configuration and Sizing",
+      "kind": "cloudera-doc",
+      "summary": "Sizing guide for Cloudera AI Inference (the CAII/NIM-embedded service) on AWS: instance types, GPU counts, and storage sizing formula, worked through a Llama 3.1 70B FP16 example.",
+      "facts": [
+        {"claim": "Recommended AWS instance type is g5.12xlarge (optimal cost efficiency: 1 instance handles 2 replicas normal load, autoscales a 2nd instance at peak/rolling-update); g5.48xlarge is the less cost-efficient single-node-headroom alternative.", "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html", "evidence": "one that has 0-2 instances of the g5.12xlarge instance type... g5.48xlarge... offering all resource headroom on a single node"},
+        {"claim": "Worked example, Llama 3.1 70B FP16 with 2 replicas (tensor parallelism 2, i.e. 2x A10G GPUs per replica): normal traffic needs 4 A10G GPUs, peak traffic 6 A10G GPUs, rolling update needs 8 additional A10G GPUs simultaneously.", "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html", "evidence": "Each model replica requires 2 A10G GPUs (tensor parallelism of two); Normal traffic: 4 A10G GPUs (2 replicas); Peak traffic: 6 A10G GPUs (3 replicas); Rolling update capacity: 8 additional A10G GPUs needed simultaneously"},
+        {"claim": "Storage sizing formula S = So + sum(ri*Si) + Sc; worked Llama 3.1 70B FP16 x2 replicas example: ~40GB OS + ~296GB model artifacts (2x148GB) + ~20GB container images -> recommend 512GB (rounded up from 356GB calculated).", "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html", "evidence": "Operating system: ~40 GB; Model artifacts: ~296 GB (2 × 148 GB); Container images: ~20 GB; Recommended total: 512 GB (rounded up from 356 GB calculation)"}
+      ],
+      "relevance_to_us": "Direct comparison numbers for ch5/ch19/ch20 'same code two backends': DGX Spark runs Llama-class models unified-memory/local at ~1 PFLOP FP4 vs. AWS g5.12xlarge (2xA10G per replica, SASL costs, 512GB+ storage) for the same workload on Cloudera AI Inference/NIM.",
+      "feeds": ["ch5", "ch19", "ch20"]
+    },
+    {
+      "url": "https://www.cloudera.com/blog/business/cloudera-introduces-ai-inference-service-with-nvidia-nim.html",
+      "title": "Cloudera Introduces AI Inference Service With NVIDIA NIM",
+      "kind": "cloudera-blog",
+      "summary": "Cloudera blog on the AI Inference service, built on NVIDIA NIM and Triton Inference Server.",
+      "facts": [
+        {"claim": "Cloudera AI Inference is built with tight integration of NVIDIA NIM and NVIDIA Triton Inference Server for inference performance on NVIDIA GPUs.", "url": "https://www.cloudera.com/blog/business/cloudera-introduces-ai-inference-service-with-nvidia-nim.html", "evidence": "Cloudera AI Inference service is built with tight integration of NVIDIA NIM and NVIDIA Triton Inference Server, providing industry-leading inference performance on NVIDIA GPUs"},
+        {"claim": "NVIDIA NIM offers three optimization profiles: Latency (higher tensor parallelism, minimizes TTFT/ITL), Throughput (maximizes tokens/GPU), Generic (flexible GPU choice, lower performance).", "url": "https://www.cloudera.com/blog/business/cloudera-introduces-ai-inference-service-with-nvidia-nim.html", "evidence": "Latency (minimizing Time to First Token and Inter-Token Latency using higher tensor parallelism), Throughput (maximizing token throughput per GPU), and Generic (providing the most flexibility in choosing GPU models at the cost of lower performance)"},
+        {"claim": "As of the July 2025 Cloudera on Cloud release, GPU-instance-type validators were added during NVIDIA model deployment to prevent misconfigurations.", "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/release-summaries/topics/announcement-202507.html", "evidence": "Validators for GPU instance types were implemented during the deployment of NVIDIA models to prevent misconfigurations as of the July 2025 release"}
+      ],
+      "relevance_to_us": "Confirms the direct NIM parity story for ch5/ch19: same NIM profiles (Latency/Throughput/Generic) that would run locally on DGX Spark are the ones Cloudera AI Inference exposes on AWS GPU instances.",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://cloudera-labs.github.io/cloudera-ce-aws/",
+      "title": "Cloudera On Premise Community Edition on AWS (cloudera-ce-aws)",
+      "kind": "cloudera-doc",
+      "summary": "cloudera-labs' Terraform+Ansible bundle to stand up a full Cloudera Private Cloud Base 'Community Edition' cluster on AWS EC2 — a ring-fenced 10-node cluster reachable only via SSH and reverse HTTPS proxies, aimed at CDP Base / on-prem-style deployment on cloud infra (distinct from CDP Public Cloud SaaS).",
+      "facts": [
+        {"claim": "Deploys a ring-fenced 10-node cluster on AWS accessible only via SSH and reverse HTTPS proxies, with topology options for Ozone-enabled base, Kafka, Flink, NiFi, CSA, and ECS clusters.", "url": "https://cloudera-labs.github.io/cloudera-ce-aws/", "evidence": "10-node cluster... with multiple topology options including Ozone-enabled base, Kafka, Flink, NiFi, CSA, and ECS clusters... ring-fenced... accessible only via SSH and reverse HTTPS proxies"},
+        {"claim": "All tooling (Terraform, Ansible, all collections) is baked into an Ansible execution-environment container image; local requirements are just git, a Python venv, pip-installed ansible-core/ansible-navigator, a container runtime (Docker/Podman), AWS SSO, and a Cloudera license.", "url": "https://cloudera-labs.github.io/cloudera-ce-aws/", "evidence": "Every dependency — Terraform, Ansible, all the collections — is baked into an Ansible execution-environment container image. Locally you need almost nothing: git clone, Python virtual environment, pip install ansible-core ansible-navigator, plus a container runtime (Docker or Podman) and two credentials: AWS SSO and a Cloudera license"},
+        {"claim": "Full deployment via a single ansible-navigator run takes approximately 40-50 minutes; the cluster includes self-contained DNS, Kerberos, database, and Auto-TLS (ACME-managed TLS termination on the reverse proxy), and is adaptable via config.yml overrides.", "url": "https://cloudera-labs.github.io/cloudera-ce-aws/", "evidence": "The full deployment takes approximately 40–50 minutes... self-contained DNS, Kerberos, database, and TLS services... ACME-managed TLS termination on the reverse proxy... adaptable — you can override any default via config.yml"},
+        {"claim": "License file must be the text file, not the .zip, set via CDP_LICENSE_FILE env var; AWS SSO credentials expire after 8 hours and must be refreshed if playbooks fail with credential errors.", "url": "https://cloudera-labs.github.io/cloudera-ce-aws/getting-started/index.html", "evidence": "Use the text file of the license, not the .zip file... export CDP_LICENSE_FILE=LOCAL_FILE_PATH_TO_YOUR_LICENSE... AWS SSO credentials expire after 8 hours. If playbooks fail with credential errors, refresh your session"}
+      ],
+      "relevance_to_us": "This is the CDP Base/CE-on-AWS deployment path for ch18/ch21: a real 10-node topology (with NiFi, Kafka, Flink, CSA options) in ~40-50min from a container, ring-fenced behind SSH+reverse-HTTPS rather than exposed brokers — the architecture an external NiFi/Kafka client would need a jump host or proxy to reach, not direct broker access like Public Cloud Data Hub allows. Neither this page nor its Getting Started page states amd64-vs-arm64 architecture explicitly — flagged in open_questions, needs confirming from the repo's terraform/ansible source directly (not fetchable here per the no-git/no-gh rule).",
+      "feeds": ["ch18", "ch21"]
+    },
+    {
+      "url": "https://community.cloudera.com/t5/Developer-Blogs/Getting-Started-with-Cloudera-Community-Edition-on-AWS-in/ba-p/414416",
+      "title": "Getting Started with Cloudera Community Edition on AWS in One Command",
+      "kind": "cloudera-blog",
+      "summary": "Companion blog post to cloudera-ce-aws promoting the one-command deploy experience.",
+      "facts": [],
+      "relevance_to_us": "Secondary pointer confirming cloudera-ce-aws is the current 'one command' CE-on-AWS story; content overlapped with the project doc site already captured above so no new distinct facts extracted.",
+      "feeds": ["ch18", "ch21"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/aws-refarch/topics/cloudera-private-link-network-iam-requirement.html",
+      "title": "AWS IAM requirements (VPC option only) — CDP Public Cloud reference architecture",
+      "kind": "cloudera-doc",
+      "summary": "Reference-architecture-level IAM/network prerequisite doc for private-link-style CDP Public Cloud AWS deployments, part of the broader environment-registration prerequisite set alongside VPC/subnets.",
+      "facts": [
+        {"claim": "CDP Public Cloud deployment requires cloud provider prerequisites first: a virtual network and subnets, storage accounts (S3), and access roles/identities and policies (cross-account IAM).", "url": "https://docs.cloudera.com/cdp-public-cloud/cloud/aws-refarch/topics/cloudera-private-link-network-iam-requirement.html", "evidence": "a set of cloud provider prerequisites needs to be provided first, including a virtual network and subnets, storage accounts, and access roles/identities and policies"}
+      ],
+      "relevance_to_us": "Rounds out the ch18 prerequisite checklist (VPC/subnets + IAM roles + S3) that both the manual console path and the Terraform quickstarts ultimately automate.",
+      "feeds": ["ch18"]
+    }
+  ],
+  "open_questions": [
+    "Exact DNS naming pattern and load balancer type (NLB/ALB, public or internal-facing) behind a CDF Public Cloud Inbound Connection endpoint on AWS were not documented on the pages fetched — only that a stable hostname + public-root-CA-signed server cert + intermediate CA for client certs is auto-provisioned. Needs the 'Create an Inbound Connection Endpoint' and client-config pages for the concrete hostname/port.",
+    "Whether cloudera-ce-aws (CE/CDP Base on AWS) images/binaries are strictly amd64/x86_64-only, or whether any arm64 (Graviton) path exists, was not stated on the fetched doc-site pages — the project README/getting-started pages never mention architecture at all. This needs checking the repo's Ansible role defaults or AMI-selection variables directly, which this task's no-git/no-gh restriction prevented.",
+    "No pricing/cost-per-hour numbers were found for either CDP Public Cloud (beyond '60-day free trial') or cloudera-ce-aws EC2 costs (10-node cluster instance types/sizes were never enumerated) — only deploy/teardown timings.",
+    "GPU support on CDP Base/CE specifically (vs. CDP Public Cloud's Cloudera AI Inference) is documented generically for 'CDP Private Cloud Base' (P3+ EC2, YARN GPU scheduling, Cgroups isolation) via a 7.1.8 docs page, but it's unclear whether that applies unmodified inside the cloudera-ce-aws 10-node AWS topology or needs separate GPU node-group work.",
+    "Iceberg REST Catalog's exact AWS Data Hub deployment/auth path (Knox/Ranger token flow an external DGX-Spark-local client would use) was only found at an overview level, not a how-to-connect-externally level."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "CDF Public Cloud Inbound Connections give a NiFi flow deployment a stable public hostname with auto-provisioned mTLS (public-root-CA server cert + Cloudera intermediate CA for client certs), and any Listen* processor (including custom ones) can sit behind it by attaching a StandardRestrictedSSLContextService named exactly 'Inbound SSL Context Service' — this is the mechanism for a home-LAN/DGX-Spark NiFi to push into Cloudera on AWS without exposing raw Kafka brokers.",
+      "url": "https://docs.cloudera.com/dataflow/cloud/about-inbound-connections.html",
+      "why_it_matters": "This is the core ch10/ch18/ch20 integration pattern (local NiFi -> AWS Cloudera) and dictates the flow design: use ListenHTTP + the exact-named SSL context service, not manual security-group/port exposure."
+    },
+    {
+      "claim": "Direct external Kafka access to a Data Hub cluster on AWS requires the VPC to have a public IP, port 9093 open both directions, and client auth via security.protocol=SASL_SSL / sasl.mechanism=PLAIN with a FreeIPA cert imported into the truststore plus workload username/password.",
+      "url": "https://docs.cloudera.com/cdf-datahub/7.3.1/connecting-kafka/topics/kafka-dh-connect-clients-outside-vpc.html",
+      "why_it_matters": "This is the fallback/alternate integration path (bypassing CDF) for a DGX-Spark Kafka producer to reach Data Hub directly; the exact port (9093) and auth mechanism (SASL_SSL/PLAIN + FreeIPA cert) are load-bearing for any client config we write in ch18-20."
+    },
+    {
+      "claim": "Cloudera AI Inference's documented AWS sizing example uses g5.12xlarge (2x A10G GPUs per model replica, tensor-parallel-2) as the cost-optimal instance type, needing 4 A10G GPUs at normal load and up to 8 simultaneously during a rolling update, with ~512GB storage recommended for a Llama 3.1 70B FP16 x2-replica deployment.",
+      "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html",
+      "why_it_matters": "Gives concrete GPU-count/instance-type/storage numbers to contrast against DGX Spark's single-box unified-memory footprint for the same model class in the ch5/ch19/ch20 'same code, two backends' cost/capacity comparison."
+    }
+  ],
+  "fetch_failures": [
+    "https://docs.cloudera.com/dataflow/cloud/inbound-connections-clients/topics/cdf-inbound-connections-tutorial-invoke-http-endpoint-curl.html — HTTP 404 Not Found",
+    "https://docs.nvidia.com/cloudera/prod_certified-for-cloudera.html — page returned only nav-shell content, no extractable GPU certification detail"
+  ]
+}

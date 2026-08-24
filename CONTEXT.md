@@ -18,6 +18,7 @@ hostname. Full specs and per-device paths: `CLAUDE-CHECKIN.md`.
 - **FTF3XR2065** — the Cloudera work Mac (M4 Pro, arm64); local minikube, golden-source + CDP access.
 - **Stevens-MacBook-Pro** — the personal Intel Mac (x86_64); authoring only, no cluster.
 - **droplet** — `nifi.sceneserver.net`, the public DigitalOcean NiFi host.
+- **NvidiaSpark-1** — the NVIDIA **DGX Spark** (GB10 Grace Blackwell, 128 GB unified, aarch64), arriving; desk-class local-AI host + on-box k3d/CSO + EFM agent. Planning: `nvidia-dgx-spark-plan.md`. **Naming rule:** "DGX Spark" is the box, "Apache Spark" is the engine — never bare "Spark" in a Cloudera-integration sentence.
 
 ## Cloudera stack
 

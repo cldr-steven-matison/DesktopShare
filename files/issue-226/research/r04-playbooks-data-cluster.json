@@ -1,0 +1,235 @@
+{
+  "bucket": "r04-playbooks-data-cluster",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cuda-x-data-science/README.md",
+      "title": "CUDA-X Data Science (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Two Jupyter notebooks showing cuDF (pandas-like) and cuML (scikit-learn algorithms: LinearSVC, UMAP, HDBSCAN) GPU acceleration on DGX Spark, with minimal code changes from the CPU versions. Does not mention Apache Spark or the RAPIDS Accelerator for Apache Spark.",
+      "facts": [
+        {"claim": "Install via conda: rapids=26.06, python=3.12, cuda-version=13.0, plus jupyter, hdbscan, umap-learn", "evidence": "conda create -n rapids-test -c rapidsai -c conda-forge -c nvidia rapids=26.06 python=3.12 'cuda-version=13.0' jupyter hdbscan umap-learn", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cuda-x-data-science/README.md"},
+        {"claim": "Demo processes 8GB of strings data", "evidence": "\"8GB of strings data\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cuda-x-data-science/README.md"},
+        {"claim": "Setup takes 20-30 minutes; each notebook runs 2-3 minutes; requires CUDA 13 minimum", "evidence": "\"20-30 minutes\" setup, \"2-3 minutes\" per notebook", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cuda-x-data-science/README.md"},
+        {"claim": "No Apache Spark / RAPIDS-Accelerator-for-Spark content; no benchmark numbers or GPU memory figures given", "evidence": "playbook covers cuDF/cuML standalone only, no quantitative speedup metrics", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cuda-x-data-science/README.md"}
+      ],
+      "relevance_to_us": "This is the closest official playbook to an Apache-Spark/RAPIDS bridge but it explicitly does NOT touch Apache Spark — it's standalone cuDF/cuML. For ch18/ch9 we'd need to separately validate RAPIDS Accelerator for Apache Spark (Cloudera CDP) compatibility on aarch64/GB10 ourselves; this playbook only proves cuDF/cuML run on the Spark's GB10 GPU.",
+      "feeds": ["ch18", "ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-two-sparks/README.md",
+      "title": "Connect Two DGX Spark systems (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Direct point-to-point 200GbE ConnectX-7 connection between two DGX Spark units using one QSFP cable, with netplan or ip-addr manual config. No bandwidth numbers or NCCL results included.",
+      "facts": [
+        {"claim": "One QSFP cable gives direct 200GbE connection between two units", "evidence": "\"One QSFP cable for direct 200GbE connection between two devices\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-two-sparks/README.md"},
+        {"claim": "Static IP scheme: Node1 192.168.100.10/24 + 192.168.101.10/24; Node2 192.168.100.11/24 + 192.168.101.11/24", "evidence": "IP addressing scheme as listed", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-two-sparks/README.md"},
+        {"claim": "Persistent config via /etc/netplan/40-cx7.yaml; temporary via `ip addr add` (resets on reboot)", "evidence": "two configuration methods described", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-two-sparks/README.md"},
+        {"claim": "Verification: `ibdev2netdev` for interface Up state, `ip addr show enp1s0f1np1`, `ssh <IP> hostname`", "evidence": "verification commands listed", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-two-sparks/README.md"},
+        {"claim": "\"full bandwidth can be achieved with just one QSFP cable\" — no numeric bandwidth or NCCL test results given", "evidence": "quoted claim, no supporting numbers", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-two-sparks/README.md"}
+      ],
+      "relevance_to_us": "Exact netplan/IP pattern to replicate if we ever pair NvidiaSpark-1 with a second unit; ch22 scale-out foundation.",
+      "feeds": ["ch22"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-three-sparks/README.md",
+      "title": "Connect Three DGX Spark in Ring Topology (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Three-node ring topology using two CX-7 ports per node (four IPs per node), forming Node1-Node2-Node3-Node1 ring over 200GbE QSFP links. Offers an automated cluster-setup script (discover-sparks, --run-nccl-test) or manual netplan config. No bandwidth numbers given.",
+      "facts": [
+        {"claim": "Ring wiring: Node1 Port0->Node2 Port1, Node2 Port0->Node3 Port1, Node3 Port0->Node1 Port1", "evidence": "ring topology cabling description", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-three-sparks/README.md"},
+        {"claim": "Each node has 4 CX-7 logical interfaces all requiring IPs for symmetric clustering (e.g. enp1s0f0np0, enP2p1s0f0np0, enp1s0f1np1, enP2p1s0f1np1)", "evidence": "interface naming + IP scheme per node", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-three-sparks/README.md"},
+        {"claim": "Automated setup script runs discover-sparks (passwordless SSH) and supports --run-nccl-test flag", "evidence": "\"Automated approach\" description", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-three-sparks/README.md"},
+        {"claim": "Setup duration ~1 hour including validation, Medium risk level", "evidence": "\"1 hour including validation\" with \"Medium\" risk level", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/connect-three-sparks/README.md"}
+      ],
+      "relevance_to_us": "Ring topology is the no-switch multi-Spark option; relevant if we scale to 3 units without buying a 200GbE switch. ch22.",
+      "feeds": ["ch22"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-sparks-through-switch/README.md",
+      "title": "Connect Multiple DGX Spark through a Switch (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Switch-based scale-out (4+ nodes) requiring a QSFP switch with >=4 QSFP56-DD ports at >=200Gbps each, all ports on one bridge/L2 domain. DHCP or static two-subnet addressing; exact netplan YAML given; verification includes ethtool speed check for 200000Mb/s.",
+      "facts": [
+        {"claim": "Switch must have at least 4 QSFP56-DD ports at 200Gbps each, all in a single bridge/L2 domain", "evidence": "\"a QSFP switch with at least 4 QSFP56-DD ports (at least 200Gbps each)\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-sparks-through-switch/README.md"},
+        {"claim": "Static config uses two separate subnets per node's two logical interfaces (192.168.100.x/24 and 192.168.101.x/24) to avoid NCCL routing conflicts", "evidence": "static netplan YAML example with two ethernets blocks", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-sparks-through-switch/README.md"},
+        {"claim": "Link speed verification via `sudo ethtool enp1s0f1np1 | grep Speed` should read 200000Mb/s; if lower, disable switch port auto-negotiation and force 200Gbps", "evidence": "ethtool verification step", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-sparks-through-switch/README.md"},
+        {"claim": "Method scales beyond 4 nodes by adding more Sparks to the same switch bridge; no numeric bandwidth/NCCL results published", "evidence": "\"same methodology scales beyond four nodes\"; \"does not provide specific bandwidth measurements\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-sparks-through-switch/README.md"}
+      ],
+      "relevance_to_us": "The switch-based path is what a lab growing beyond 2-3 units (ch22 multi-Spark scale-out) needs; exact netplan snippet is directly reusable.",
+      "feeds": ["ch22"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md",
+      "title": "NCCL for Multiple DGX Spark (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Builds NCCL v2.30.7-1 from source with Blackwell (sm_121/compute_121) gencode, builds nccl-tests, and runs mpirun-based all_gather_perf bandwidth tests across 2-4+ nodes. Notes 200Gbps aggregate bandwidth per node target; no measured GB/s or tok/s given; suggests TRT-LLM or vLLM as the next-step inference workload.",
+      "facts": [
+        {"claim": "NCCL built from source: git clone -b v2.30.7-1 https://github.com/NVIDIA/nccl.git; make -j src.build NVCC_GENCODE=\"-gencode=arch=compute_121,code=sm_121\"", "evidence": "build command block", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md"},
+        {"claim": "Requires libopenmpi-dev; env vars UCX_NET_DEVICES, NCCL_SOCKET_IFNAME, OMPI_MCA_btl_tcp_if_include set to the interface name (e.g. enP7s7)", "evidence": "env var block", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md"},
+        {"claim": "Ring topology (3-node) adds NCCL_IB_SUBNET_AWARE_ROUTING=1 and NCCL_NET_PLUGIN=none", "evidence": "ring-topology-specific env vars", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md"},
+        {"claim": "Test commands: nccl-tests all_gather_perf via mpirun -np [N] -H <IPs>; high-bandwidth variant uses -b 16G -e 16G -f 2", "evidence": "mpirun command blocks", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md"},
+        {"claim": "200Gbps aggregate bandwidth per node is the documented target; no actual measured GB/s, tok/s, or context-length numbers provided; next-step workloads suggested are TRT-LLM or vLLM", "evidence": "\"200Gbps\" target; \"does not provide specific tok/s metrics\"; \"TRT-LLM or vLLM inference\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md"},
+        {"claim": "30-minute setup duration, medium risk level", "evidence": "\"30-minute setup duration with medium risk level\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nccl/README.md"}
+      ],
+      "relevance_to_us": "Exact NCCL build/env recipe for multi-Spark; critical prerequisite if ch22 scale-out ever runs distributed inference/training across units. No official multi-node tok/s numbers exist yet from NVIDIA — open question flagged.",
+      "feeds": ["ch22", "ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemo-fine-tune/README.md",
+      "title": "Fine-tune with NeMo (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Docker-based NeMo AutoModel (nvcr.io/nvidia/nemo-automodel:26.02) fine-tuning demo covering LoRA (Llama-3.1-8B), QLoRA (Meta-Llama-3-70B), and full SFT (Qwen3-8B) on the SQuAD dataset. States support for '1-70B parameter' models but gives no memory/time/loss numbers.",
+      "facts": [
+        {"claim": "Docker image nvcr.io/nvidia/nemo-automodel:26.02, doc last updated 03/04/2026", "evidence": "\"NeMo Version: 26.02 (from Docker image nvcr.io/nvidia/nemo-automodel:26.02)\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemo-fine-tune/README.md"},
+        {"claim": "Three fine-tune paths: LoRA on Llama-3.1-8B, QLoRA on Meta-Llama-3-70B, full SFT on Qwen3-8B", "evidence": "three approaches listed with model names", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemo-fine-tune/README.md"},
+        {"claim": "Example config filenames like llama3_2_1b_squad_peft.yaml; commands use --step_scheduler.max_steps 20 and --packed_sequence.packed_sequence_size 1024", "evidence": "config filename and param flags", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemo-fine-tune/README.md"},
+        {"claim": "Doc claims '1-70B parameter' model support on DGX Spark but provides no GPU memory, training time, or loss/eval numbers for the 128GB unified memory system", "evidence": "\"supports 1-70B parameter models but doesn't specify memory requirements or throughput data\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemo-fine-tune/README.md"}
+      ],
+      "relevance_to_us": "70B QLoRA fine-tune fitting in 128GB unified memory is a load-bearing claim for our fine-tune chapters but is unverified by NVIDIA's own doc — no memory ceiling numbers given. Should be empirically tested on NvidiaSpark-1.",
+      "feeds": ["ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/pytorch-fine-tune/README.md",
+      "title": "Fine-tune with PyTorch (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Docker (nvcr.io/nvidia/pytorch:25.11-py3) based fine-tuning across Llama 3.2 3B (full SFT), Llama 3.1 8B (LoRA), and Llama 3.1 70B (LoRA + QLoRA variants) using the Alpaca dataset (default 512 samples). No memory/time/loss metrics given; 30-45 min setup+run estimate, actual duration 'varies depending on model size'.",
+      "facts": [
+        {"claim": "Container: docker pull nvcr.io/nvidia/pytorch:25.11-py3", "evidence": "\"docker pull nvcr.io/nvidia/pytorch:25.11-py3\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/pytorch-fine-tune/README.md"},
+        {"claim": "Four model configs: Llama 3.2 3B full SFT, Llama 3.1 8B LoRA, Llama 3.1 70B LoRA and QLoRA (4-bit)", "evidence": "\"Full SFT\" 3B, \"LoRA\" 8B/70B, \"QLoRA\" 70B", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/pytorch-fine-tune/README.md"},
+        {"claim": "Alpaca dataset, default --dataset_size 512 samples; seq length 2048, LoRA rank default 8, 1 epoch default", "evidence": "config defaults listed", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/pytorch-fine-tune/README.md"},
+        {"claim": "No GPU memory usage, training duration, or loss/eval numbers provided; estimated 30-45 min for setup+run", "evidence": "\"documentation omits GPU memory usage, training duration, loss curves, and evaluation metrics\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/pytorch-fine-tune/README.md"}
+      ],
+      "relevance_to_us": "Vanilla PyTorch fine-tune path as an alternative to NeMo/Unsloth/LLaMA-Factory; same 3B/8B/70B model tiers repeat across playbooks, suggesting these are the tested reference sizes for the 128GB box.",
+      "feeds": ["ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/unsloth/README.md",
+      "title": "Unsloth on DGX Spark (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Minimal setup guide: pip install --no-deps unsloth unsloth_zoo bitsandbytes inside nvcr.io/nvidia/pytorch:25.11-py3, example model unsloth/Meta-Llama-3.1-8B-bnb-4bit. Repeats Unsloth's generic marketing claim of 2x/30x speedup (not DGX-Spark-measured); no DGX-specific benchmark numbers.",
+      "facts": [
+        {"claim": "Install: pip install --no-deps unsloth unsloth_zoo bitsandbytes, run in nvcr.io/nvidia/pytorch:25.11-py3", "evidence": "install command + container", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/unsloth/README.md"},
+        {"claim": "Example model: unsloth/Meta-Llama-3.1-8B-bnb-4bit", "evidence": "\"Example model: unsloth/Meta-Llama-3.1-8B-bnb-4bit\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/unsloth/README.md"},
+        {"claim": "Doc repeats Unsloth's own generic claim '2x faster on single GPU, up to 30x in multi-GPU setups' — NOT a DGX Spark measurement", "evidence": "\"claims to speed up training (e.g. 2x faster on single GPU, up to 30x in multi-GPU setups)\" -- explicitly flagged as \"General, not DGX-specific\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/unsloth/README.md"}
+      ],
+      "relevance_to_us": "Caution: the 2x/30x Unsloth speedup figure that shows up in marketing/X posts is Unsloth's own generic claim carried into this playbook verbatim, not a DGX-Spark-specific benchmark. Do not cite it as Spark hardware data.",
+      "feeds": ["ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-factory/README.md",
+      "title": "LLaMA Factory Fine-tuning (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "LoRA fine-tune of Qwen3-4B via the official LLaMA Factory repo (examples/train_lora/qwen3_lora_sft.yaml), PyTorch+CUDA 13.0, doc dated 2026-02-18. This is the ONLY fine-tune playbook with actual measured training results: 3.0 epochs, loss 0.9993, ~14m32s, 3.749 samples/sec, 11,076,559 GF total FLOPs. Flags a UMA buffer-cache/memory-flush gotcha.",
+      "facts": [
+        {"claim": "Model: Qwen3-4B, method: LoRA, config examples/train_lora/qwen3_lora_sft.yaml", "evidence": "\"Model: Qwen3 (4B parameter version)\", \"Configuration file: examples/train_lora/qwen3_lora_sft.yaml\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-factory/README.md"},
+        {"claim": "Measured training run: 3.0 epochs, training loss 0.9993, duration ~14 min 32 sec, throughput 3.749 samples/sec, total FLOPs 11,076,559 GF", "evidence": "\"Epochs: 3.0\", \"Training loss: 0.9993\", \"Training duration: Approximately 14 minutes, 32 seconds\", \"Throughput: 3.749 samples per second\", \"Total FLOPs: 11,076,559 GF\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-factory/README.md"},
+        {"claim": "Time estimate: 30-60 min setup, 1-7 hours training depending on model/dataset size; needs >50GB storage", "evidence": "\"30-60 minutes for initial setup, 1-7 hours for training\"; \"Storage: >50GB\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-factory/README.md"},
+        {"claim": "Gotcha: 'many applications still updating to take advantage of UMA' can cause memory issues despite adequate capacity, requiring manual buffer-cache flush", "evidence": "quoted UMA limitation", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-factory/README.md"}
+      ],
+      "relevance_to_us": "This is the single fine-tune playbook with real measured numbers (loss, samples/sec, FLOPs) — cite these as the concrete DGX Spark fine-tune baseline for ch6/ch22 rather than the unmeasured NeMo/PyTorch/Unsloth playbooks. Also the UMA buffer-cache gotcha is a real operational note worth carrying into ch1/ch2.",
+      "feeds": ["ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/flux-finetuning/README.md",
+      "title": "FLUX.1 Dreambooth LoRA Fine-tuning (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Multi-concept Dreambooth LoRA fine-tune of FLUX.1-dev 12B image model, exploiting the 128GB UMA to hold DiT + CLIP text encoder + T5 text encoder + autoencoder simultaneously. Two example concepts trained on 6-7 images each; ~90 min training, ~3 min per 1024px generated image.",
+      "facts": [
+        {"claim": "Model: FLUX.1-dev 12B, technique: multi-concept Dreambooth LoRA, on 128GB unified memory", "evidence": "\"fine-tuning of FLUX.1-dev 12B model using multi-concept Dreambooth LoRA... with 128GB unified memory\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/flux-finetuning/README.md"},
+        {"claim": "Setup/download 30-45 min, training ~90 min, image generation ~3 min per 1024px image", "evidence": "\"Setup/downloads: 30-45 minutes\"; \"Training duration: Approximately 90 minutes\"; \"Image generation: ~3 minutes per high-resolution 1024px image\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/flux-finetuning/README.md"},
+        {"claim": "Example concepts: 'Toy Jensen' (6 images, trigger 'tjtoy toy') and 'DGX Spark GPU' (7 images, trigger 'sparkgpu gpu')", "evidence": "concept/image-count/trigger-phrase detail", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/flux-finetuning/README.md"},
+        {"claim": "UMA lets DiT, CLIP text encoder, T5 text encoder, and autoencoder load simultaneously, cited as enabled by DGX Spark's unified memory", "evidence": "\"Unified Memory Architecture (UMA) enables dynamic memory sharing between GPU and CPU\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/flux-finetuning/README.md"},
+        {"claim": "Commands: docker build -f Dockerfile.train -t flux-train .; sh launch_train.sh; sh launch_comfyui.sh (ComfyUI at localhost:8188)", "evidence": "docker/launch command block", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/flux-finetuning/README.md"}
+      ],
+      "relevance_to_us": "Good demo candidate (ch21) showing off 128GB UMA capacity holding a full 12B diffusion pipeline's four sub-models simultaneously — a concrete, non-LLM proof point of the unified-memory story for ch1.",
+      "feeds": ["ch6", "ch1"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/jax/README.md",
+      "title": "Optimized JAX (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "Tutorial teaching NumPy-style Python compiled to GPU via JAX (jit/grad/vmap/pmap, XLA) using a self-organizing-map (SOM) algorithm as the running example, progressing from NumPy baseline through 3 optimized JAX implementations. No fixed benchmark numbers — users record their own comparative metrics.",
+      "facts": [
+        {"claim": "Docker build/run: docker build -t jax-on-spark .; docker run --gpus all -p 8080:8080 jax-on-spark", "evidence": "docker command block", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/jax/README.md"},
+        {"claim": "Target system: NVIDIA Spark, Blackwell architecture, ARM64, CUDA 13.0.1+", "evidence": "\"Target System: NVIDIA Spark with Blackwell architecture, ARM64 processor, CUDA 13.0.1+\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/jax/README.md"},
+        {"claim": "No fixed benchmark numbers given; users compare NumPy baseline vs basic JAX port vs optimized JAX vs multi-GPU (pmap) version themselves", "evidence": "\"Rather than providing specific numbers, the playbook demonstrates comparative benchmarking methodology\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/jax/README.md"},
+        {"claim": "Estimated duration 2-3 hours including setup, tutorials, validation", "evidence": "\"Estimated Duration: 2-3 hours\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/jax/README.md"}
+      ],
+      "relevance_to_us": "Minor relevance to our five chapters (not RAPIDS/fine-tune/clustering-specific); noted for completeness only.",
+      "feeds": ["ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md",
+      "title": "cuTile Kernels (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "cuTile Python DSL kernels (via NVIDIA TileGym v1.3.0) compiling to Tile IR, targeting sm_121 (DGX Spark) or sm_103 (B300). Covers attention (FMHA/MLA), matmul/BMM/GroupGEMM, RMSNorm, RoPE, SiLU/SwiGLU/Softmax, dropout kernels in fp16-fp8. Contains real DGX-Spark-vs-B300 benchmark numbers including an end-to-end Qwen2-7B tok/s figure.",
+      "facts": [
+        {"claim": "Install: docker pull nvcr.io/nvidia/cuda:13.2.0-devel-ubuntu22.04; pip install --pre torch==2.9.1 --index-url https://download.pytorch.org/whl/cu130; git clone TileGym, checkout v1.3.0, pip install .", "evidence": "install command block", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md"},
+        {"claim": "DGX Spark (sm_121) FMHA at seq_len=8192 achieves 88.9 TFLOPS, ~1.73ms optimized latency", "evidence": "\"DGX Spark (sm_121) - FMHA at seq_len=8192: 88.9 TFLOPS (latency: ~1.73ms optimized)\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md"},
+        {"claim": "B300 (sm_103) FMHA: 465 TFLOPS at seq 1024, 1,159 TFLOPS at seq 8192 -- 13.7-15.1x speedup vs Spark", "evidence": "B300 scaling numbers + speedup ratio", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md"},
+        {"claim": "End-to-end Qwen2-7B inference: DGX Spark 18.52 tokens/sec vs B300 257.33 tokens/sec (13.9x improvement)", "evidence": "\"DGX Spark: 18.52 tokens/sec\", \"B300: 257.33 tokens/sec (13.9x improvement)\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md"},
+        {"claim": "Nsight Systems 2025.1.3 used for profiling", "evidence": "\"Nsight Systems: 2025.1.3\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md"}
+      ],
+      "relevance_to_us": "This is a rare NVIDIA-published concrete tok/s number for DGX Spark: 18.52 tok/s for Qwen2-7B end-to-end with cuTile kernels, directly comparable against B300's 257 tok/s -- useful load-bearing baseline for ch6 concurrency/perf-expectations chapter (context: single-stream, not batched/concurrent).",
+      "feeds": ["ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/portfolio-optimization/README.md",
+      "title": "Portfolio Optimization (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "End-to-end GPU-accelerated Mean-CVaR portfolio optimization using NVIDIA cuOpt (LP/MILP solvers) plus cuML (Kernel Density Estimation for scenario generation). No Apache Spark mentions, no dataset size or speedup numbers given.",
+      "facts": [
+        {"claim": "Uses cuOpt LP/MILP solvers + cuML KDE for Mean-CVaR risk modeling with scenario-based tail-risk", "evidence": "\"end-to-end GPU-accelerated workflow using NVIDIA cuOpt and NVIDIA cuML to solve large-scale portfolio optimization problems\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/portfolio-optimization/README.md"},
+        {"claim": "No Apache Spark mentions in this playbook at all", "evidence": "\"No Apache Spark mentions appear in this playbook documentation\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/portfolio-optimization/README.md"},
+        {"claim": "No specific dataset size or speedup metrics; only notes portfolios 'often contain thousands of assets'", "evidence": "\"no specific dataset sizes or performance speedup metrics\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/portfolio-optimization/README.md"},
+        {"claim": "Runtime ~20 min first run, ~7 min for full notebook processing", "evidence": "\"~20 minutes (first run); ~7 minutes for full notebook processing\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/portfolio-optimization/README.md"}
+      ],
+      "relevance_to_us": "Good ch21 demo candidate (finance vertical) but not directly an Apache-Spark/RAPIDS-Accelerator proof point; cuOpt is a separate NVIDIA library from cuDF/RAPIDS Accelerator for Spark.",
+      "feeds": ["ch18"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/single-cell/README.md",
+      "title": "Single-cell RNA Sequencing (dgx-spark-playbooks)",
+      "kind": "nvidia-doc",
+      "summary": "GPU-accelerated scRNA-seq analysis via rapids-singlecell (a RAPIDS-powered scverse-ecosystem library mirroring the Scanpy API), using cuPy/cuML/cuGraph/cuDF underneath. Pipeline covers loading/QC/filtering/clustering(PCA+UMAP)/batch-correction(Harmony)/differential-expression. Runs from a RAPIDS 25.10 notebooks container.",
+      "facts": [
+        {"claim": "rapids-singlecell stack uses cuPy (arrays), cuML (ML algos), cuGraph (graph processing), cuDF (dataframes)", "evidence": "\"rapids-singlecell, described as 'a RAPIDS powered library in the scverse ecosystem'... cuPy... cuML... cuGraph... cuDF\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/single-cell/README.md"},
+        {"claim": "GPU implementation computes exact nearest-neighbor graph vs Scanpy CPU's approximate NN search, so small result differences vs CPU are expected and valid", "evidence": "\"computes the exact graph; consequently, small differences in results are expected and valid\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/single-cell/README.md"},
+        {"claim": "Setup script pulls RAPIDS 25.10 notebooks container, launches JupyterLab at http://127.0.0.1:8888", "evidence": "\"pulls RAPIDS 25.10 notebooks container and launches JupyterLab at http://127.0.0.1:8888\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/single-cell/README.md"},
+        {"claim": "Measured runtime breakdown: total ~130 sec (~2-3 min); data loading ~1.7s; preprocessing ~21s; clustering+DE post-processing ~104s", "evidence": "\"Total notebook processing: ~2-3 minutes (~130 seconds)\"; \"Data loading: ~1.7 seconds\"; \"Preprocessing: ~21 seconds\"; \"Post-processing... ~104 seconds\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/single-cell/README.md"},
+        {"claim": "Hardware: GB10 Superchip, minimum 40GB unified memory, 30GB+ storage; dataset file dli_census.h5ad (size undisclosed); first run ~15 min including setup", "evidence": "\"Minimum 40GB unified memory\", \"30GB+ available storage\", \"dli_census.h5ad\", \"~15 minutes for first execution\"", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/single-cell/README.md"}
+      ],
+      "relevance_to_us": "Best RAPIDS-stack-in-action example with real measured timings; the cuPy/cuML/cuGraph/cuDF combo mirrors what a Cloudera-side RAPIDS Accelerator for Apache Spark job stack would use, useful analogy for ch18 even though this playbook itself doesn't touch Apache Spark.",
+      "feeds": ["ch18"]
+    }
+  ],
+  "open_questions": [
+    "None of the connect-two/three/switch/NCCL playbooks publish actual measured bandwidth (GB/s) or NCCL all_gather results for DGX Spark despite running the tests -- only the 200Gbps link-speed target is documented. Need to run these tests ourselves on NvidiaSpark-1 (+ a second unit, if/when acquired) to get real numbers for ch22.",
+    "No official NVIDIA multi-node inference tok/s or context-length numbers exist for DGX Spark clusters (NCCL playbook explicitly stops at 'next step: TRT-LLM or vLLM' without providing figures) -- ch6/ch22 concurrency claims will need empirical validation on our own hardware.",
+    "NeMo fine-tune playbook claims '1-70B parameter' support on DGX Spark but gives zero GPU memory, time, or loss numbers -- the 70B QLoRA-on-128GB-unified-memory claim is unverified by NVIDIA's own doc and should be tested directly.",
+    "None of the RAPIDS/cuDF/cuML/cuOpt data-science playbooks (cuda-x-data-science, portfolio-optimization) mention Apache Spark or the RAPIDS Accelerator for Apache Spark at all -- the ch18 CDP-on-AWS/RAPIDS-Accelerator-for-Spark integration story is not covered by any official DGX Spark playbook and needs separate research (Cloudera docs / RAPIDS Accelerator for Apache Spark project) outside this bucket's source set.",
+    "cuTile Kernels playbook's Qwen2-7B 18.52 tok/s figure is presumably single-stream/single-request -- unclear if this represents batch=1 or a specific concurrency level; worth confirming before quoting in ch6."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "LLaMA Factory playbook: measured LoRA fine-tune of Qwen3-4B on DGX Spark completed in ~14m32s at 3.749 samples/sec, loss 0.9993 after 3 epochs, 11,076,559 GF total FLOPs -- the only playbook in this bucket with real measured fine-tune numbers.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-factory/README.md",
+      "why_it_matters": "This is the single concrete, NVIDIA-published fine-tune performance data point for DGX Spark in the whole playbooks set; ch6/ch22 should cite this rather than the unmeasured NeMo/PyTorch/Unsloth playbooks, and set expectations that other playbooks' claims (e.g. 70B on 128GB) are unverified until we test them ourselves."
+    },
+    {
+      "claim": "cuTile Kernels playbook: DGX Spark end-to-end Qwen2-7B inference measured at 18.52 tokens/sec, vs B300's 257.33 tokens/sec (13.9x faster).",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cutile-kernels/README.md",
+      "why_it_matters": "Rare official DGX-Spark-specific tok/s number, useful for setting realistic single-GPU expectations in ch6 (perf/concurrency chapter) -- shows DGX Spark is a dev/prototyping box, not a production-throughput inference box, relative to B300."
+    },
+    {
+      "claim": "None of NVIDIA's official DGX Spark playbooks (CUDA-X Data Science, Portfolio Optimization, or any other) mention Apache Spark or the RAPIDS Accelerator for Apache Spark -- they only use standalone cuDF/cuML/cuOpt.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cuda-x-data-science/README.md",
+      "why_it_matters": "Directly affects ch18's premise: there is no NVIDIA-validated DGX-Spark + Apache-Spark/RAPIDS-Accelerator integration path documented anywhere in this playbook repo; the CDP Base on AWS RAPIDS Accelerator for Apache Spark story must be built/validated independently, not copied from an existing playbook."
+    },
+    {
+      "claim": "Unsloth playbook's '2x faster / up to 30x multi-GPU' speedup claim is Unsloth's own generic marketing figure carried into the NVIDIA doc verbatim, explicitly NOT a DGX-Spark-measured benchmark.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/unsloth/README.md",
+      "why_it_matters": "This number is likely to circulate in X posts/community discussion as if it were DGX-Spark-specific; the guide must not cite it as hardware-measured data without a caveat."
+    }
+  ]
+}

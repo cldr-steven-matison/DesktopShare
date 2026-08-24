@@ -1,0 +1,276 @@
+{
+  "bucket": "r02-playbooks-inference",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md",
+      "title": "dgx-spark-playbooks README (index)",
+      "kind": "github-repo",
+      "summary": "Index of NVIDIA's official DGX Spark playbook repo; lists directory paths for every inference/optimization playbook.",
+      "facts": [
+        {"claim": "vLLM playbook lives at nvidia/vllm/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "SGLang playbook lives at nvidia/sglang/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "TRT-LLM playbook lives at nvidia/trt-llm/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "NIM on Spark playbook lives at nvidia/nim-llm/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "NVFP4 Quantization playbook lives at nvidia/nvfp4-quantization/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "Speculative Decoding playbook lives at nvidia/speculative-decoding/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "Ollama playbook lives at nvidia/ollama/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "Open WebUI with Ollama playbook lives at nvidia/open-webui/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "LM Studio playbook lives at nvidia/lm-studio/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "llama.cpp playbook lives at nvidia/llama-cpp/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "Nemotron Models playbook lives at nvidia/nemotron/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "Multi-modal Inference playbook lives at nvidia/multi-modal-inference/", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"}
+      ],
+      "relevance_to_us": "Master map of every DGX Spark inference playbook path for direct raw-README fetches; used to drive the rest of this bucket's research.",
+      "feeds": ["ch4", "ch5", "ch20"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md",
+      "title": "vLLM on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for serving models with vLLM on DGX Spark, covering single-node, multi-node, and Qwen3.6/DiffusionGemma-specific launch recipes.",
+      "facts": [
+        {"claim": "NGC vLLM image tag is nvcr.io/nvidia/vllm:26.05.post1-py3", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "Multi-node (2 Sparks) uses nvcr.io/nvidia/vllm:26.05-py3; multi-node via switch uses nvcr.io/nvidia/vllm:26.02-py3", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "Qwen3.6-35B-A3B-NVFP4 served via vllm/vllm-openai:latest with --tensor-parallel-size 1 --kv-cache-dtype fp8 --attention-backend flashinfer --moe-backend marlin --gpu-memory-utilization 0.4 --max-model-len 262144 --max-num-seqs 4 --max-num-batched-tokens 8192", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "API endpoint runs on port 8000; Ray dashboard on port 8265", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "DGX Spark's Unified Memory Architecture (UMA) can cause memory issues requiring manual cache flush: sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "NGC 26.05 vLLM image doesn't include Ray by default for multi-node; scripts must patch it in first", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "Multi-node networking should use the high-speed QSFP interface (typically enp1s0f1np1) with NCCL/UCX/GLOO env vars set", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"},
+        {"claim": "Supported models include Llama 3.3 70B (NVFP4), Qwen3 8B/14B/32B, Gemma 4 series, Phi-4 reasoning, MiniMax M2.5 (multi-node), 405B quantized (testing only)", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md"}
+      ],
+      "relevance_to_us": "Primary reference for standing up vLLM on the incoming NvidiaSpark-1 box, including exact image tags and the UMA cache-flush gotcha that will recur across every inference stack.",
+      "feeds": ["ch4", "ch6", "ch20"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md",
+      "title": "SGLang on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for serving models with SGLang on DGX Spark.",
+      "facts": [
+        {"claim": "Docker image tag is lmsysorg/sglang:latest-cu130", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"},
+        {"claim": "Server launched via python3 -m sglang.launch_server --model-path <model> --host 0.0.0.0 --port 30000 --trust-remote-code --tp 1 --attention-backend flashinfer --mem-fraction-static 0.75", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"},
+        {"claim": "HTTP API port is 30000", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"},
+        {"claim": "NVFP4 quantization enabled with --quantization modelopt_fp4 flag", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"},
+        {"claim": "Estimated setup/validation time is 30 minutes", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"},
+        {"claim": "Supported models include Nemotron-3-Nano-Omni-30B-A3B-Reasoning (BF16), Llama-3.1-8B-Instruct (FP8, NVFP4), Qwen3 8B/14B/32B, Phi-4 multimodal/reasoning", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"},
+        {"claim": "Requires >20GB disk space", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md"}
+      ],
+      "relevance_to_us": "Second serving-stack option alongside vLLM/TRT-LLM/llama.cpp for the ch4/ch20 'same code two backends' comparison work.",
+      "feeds": ["ch4", "ch6", "ch20"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md",
+      "title": "TensorRT-LLM on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for serving models with TensorRT-LLM on DGX Spark, single- and multi-node.",
+      "facts": [
+        {"claim": "Docker image tag is nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc13", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "LLM API port is 8355, VLM API port is 8356", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "Supported models include Llama-3.1-8B-Instruct (FP8/NVFP4), Qwen3-235B-A22B (NVFP4, multi-node only), Nemotron-3-Nano-Omni-30B (BF16/FP8/NVFP4), Phi-4-multimodal-instruct, GPT-OSS-20B/120B (MXFP4)", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "40GB+ GPU VRAM required for 70B models", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "TRT_LLM_DISABLE_LOAD_WEIGHTS_IN_PARALLEL=1 needed to avoid memory pressure during parallel weight loading", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "Multi-node entrypoint script fails silently if port 2233 is occupied", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "System clock skew causes 'Error validating Root CA Certificate'; fix with sudo timedatectl set-ntp true", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "Setup duration is 45-60 minutes for single-node full deployment", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"},
+        {"claim": "Multi-node uses OpenMPI with hostfile, network interfaces enp1s0f0np0/enp1s0f1np1, tp_size=2 across two nodes over QSFP", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/trt-llm/README.md"}
+      ],
+      "relevance_to_us": "Reference stack for ch6 (spec-decode/NVFP4/MoE) and ch20 comparisons; NTP gotcha and silent port-2233 failure are worth flagging in the runbook.",
+      "feeds": ["ch4", "ch6", "ch20"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md",
+      "title": "NIM on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for running NVIDIA NIM microservices on DGX Spark.",
+      "facts": [
+        {"claim": "Primary image is nvcr.io/nim/meta/llama-3.1-8b-instruct-dgx-spark:latest; alternative nvcr.io/nim/teams/qwen/containers/qwen3-32b-dgx-spark", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md"},
+        {"claim": "OpenAI-compatible API exposed on port 8000 at /v1/chat/completions, model id meta/llama-3.1-8b-instruct", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md"},
+        {"claim": "Requires NGC API key (86-character format with == suffix) via docker login nvcr.io", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md"},
+        {"claim": "Requires --shm-size=16GB minimum recommended", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md"},
+        {"claim": "Disk space needed is 10-50GB depending on model; setup takes 15-30 minutes", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md"}
+      ],
+      "relevance_to_us": "Direct source for ch5 (NIM on Spark / Cloudera AI Inference parity) — the exact container run command and NGC auth flow to script into the chapter.",
+      "feeds": ["ch5", "ch20"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md",
+      "title": "NVFP4 Quantization on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for post-training NVFP4 quantization using NVIDIA Model Optimizer, then serving the result with vLLM.",
+      "facts": [
+        {"claim": "Uses NVIDIA Model Optimizer v0.45.0 cloned from github.com/NVIDIA/Model-Optimizer at branch 0.45.0", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"},
+        {"claim": "Example model is Qwen/Qwen3.6-35B-A3B, a 70GB download; quantized output needs ~25GB more, ~100GB total free storage", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"},
+        {"claim": "Recipe huggingface/qwen3_5_moe/ptq/w4a16_nvfp4-fp8_attn-kv_fp8_cast is recommended for DGX Spark interactive use (weight-only NVFP4 MLPs, FP8 attention/KV)", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"},
+        {"claim": "Measured memory reduction ~3.5x vs FP16, ~1.8x vs FP8; accuracy loss typically <1% vs FP8", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"},
+        {"claim": "vLLM versions below 26.05 lack W4A16 NVFP4 support; transformers below 5.2 doesn't support Qwen3.6", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"},
+        {"claim": "Default calibration dataset nvidia/Nemotron-Post-Training-Dataset-v2 is gated; cnn_dailymail offered as an alternative", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"},
+        {"claim": "Total time estimate is 1.5-3 hours, dominated by model download", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md"}
+      ],
+      "relevance_to_us": "Core source for ch6 (NVFP4/MoE-vs-dense) — exact quantization recipe names and measured memory/accuracy tradeoffs to cite verbatim.",
+      "feeds": ["ch6", "ch20"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md",
+      "title": "Speculative Decoding on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook covering EAGLE-3 and draft-target speculative decoding with TensorRT-LLM, single- and multi-node.",
+      "facts": [
+        {"claim": "TRT-LLM image used is nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc12", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"},
+        {"claim": "EAGLE-3 example: base openai/gpt-oss-120b, draft nvidia/gpt-oss-120b-Eagle3-long-context, default max_draft_len 5", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"},
+        {"claim": "Draft-target example: base nvidia/Llama-3.3-70B-Instruct-FP4, draft nvidia/Llama-3.1-8B-Instruct-FP4, default max_draft_len 4", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"},
+        {"claim": "Multi-node example: base nvidia/Qwen3-235B-A22B-FP4, draft nvidia/Qwen3-235B-A22B-Eagle3, max_draft_len 3, tp_size 2", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"},
+        {"claim": "Qwen3-235B-A22B exceeds 128GB single-Spark memory even with FP4 + Eagle3, requiring the 2-node 256GB combined config", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"},
+        {"claim": "Setup takes 10-20 minutes plus model download time; server ports are 8000 default, 8355 for the multi-node example", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"},
+        {"claim": "Multi-node requires -e HF_TOKEN in docker exec AND -x HF_TOKEN in the mpirun invocation for token propagation", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md"}
+      ],
+      "relevance_to_us": "Direct source for ch6 speculative-decoding coverage; the 128GB single-Spark ceiling for 235B-class models is a hard planning constraint for any multi-Spark ch22 scale-out design.",
+      "feeds": ["ch6", "ch22"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/ollama/README.md",
+      "title": "Ollama on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for installing and running Ollama on DGX Spark, including NVIDIA Sync remote-tunnel setup.",
+      "facts": [
+        {"claim": "Install via curl -fsSL https://ollama.com/install.sh | sh", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/ollama/README.md"},
+        {"claim": "API port is 11434", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/ollama/README.md"},
+        {"claim": "Recommended models: qwen2.5:32b (18GB), llama3.1:8b, codellama:13b, phi3.5:3.8b", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/ollama/README.md"},
+        {"claim": "Remote access requires NVIDIA Sync with 'Ollama Server' enabled and the SSH tunnel kept active", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/ollama/README.md"},
+        {"claim": "Initial setup 10-15 minutes, model download 2-3 minutes", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/ollama/README.md"}
+      ],
+      "relevance_to_us": "Lightweight local-model option for ch7/ch15 local knowledge base work; port 11434 and the NVIDIA Sync tunnel requirement matter for ch3 LAN-join planning.",
+      "feeds": ["ch4", "ch7", "ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/open-webui/README.md",
+      "title": "Open WebUI with Ollama on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for running Open WebUI as a frontend to Ollama on DGX Spark.",
+      "facts": [
+        {"claim": "Container image is ghcr.io/open-webui/open-webui:ollama", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/open-webui/README.md"},
+        {"claim": "Remote access via NVIDIA Sync uses port 12000; desktop manual setup uses port 8080", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/open-webui/README.md"},
+        {"claim": "Disk space: 7GB for the container image plus 25GB for qwen3.6:latest or 15GB for gpt-oss:latest", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/open-webui/README.md"},
+        {"claim": "Run command: docker run -d -p 8080:8080 --gpus=all -v open-webui:/app/backend/data -v open-webui-ollama:/root/.ollama --name open-webui ghcr.io/open-webui/open-webui:ollama", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/open-webui/README.md"},
+        {"claim": "Selecting a model in the UI loads it onto the GPU, which can take up to 30 seconds", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/open-webui/README.md"}
+      ],
+      "relevance_to_us": "Quick chat-UI option to demo local inference (ch15/ch21 demos); port map (8080 local / 12000 via NVIDIA Sync) is worth noting alongside the Ollama entry.",
+      "feeds": ["ch7", "ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/lm-studio/README.md",
+      "title": "LM Studio on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for installing and running LM Studio (llmster CLI) on DGX Spark.",
+      "facts": [
+        {"claim": "Install via curl -fsSL https://lmstudio.ai/install.sh | bash", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/lm-studio/README.md"},
+        {"claim": "Server start command is lms server start --bind 0.0.0.0 --port 1234", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/lm-studio/README.md"},
+        {"claim": "Supported example models: nvidia/nemotron-3-nano-omni, qwen/qwen3.6-35b-a3b, openai/gpt-oss-120b", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/lm-studio/README.md"},
+        {"claim": "Minimum 65GB GPU memory (70GB+ recommended) and 65GB+ storage required", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/lm-studio/README.md"},
+        {"claim": "Setup time estimate 15-30 minutes depending on download speed", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/lm-studio/README.md"}
+      ],
+      "relevance_to_us": "Alternative desktop-style local model server; useful as one more option in ch4/ch7 tier comparisons but lower priority than vLLM/Ollama for headless server use.",
+      "feeds": ["ch4", "ch7"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md",
+      "title": "llama.cpp on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for building and running llama.cpp's llama-server on DGX Spark with GPU offload and MTP speculative decoding.",
+      "facts": [
+        {"claim": "Build flags: cmake -B build -DGGML_NATIVE=ON -DGGML_CUDA=ON -DGGML_CURL=ON -DGGML_RPC=ON -DCMAKE_CUDA_ARCHITECTURES=121a-real", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md"},
+        {"claim": "GPU architecture target is sm_121 (Blackwell)", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md"},
+        {"claim": "Example model unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL served on port 30000; ~35GB model download", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md"},
+        {"claim": "MTP speculative decoding enabled with --spec-type draft-mtp --spec-draft-n-max 3", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md"},
+        {"claim": "Build time 5-10 minutes; default max concurrent requests is 4; total estimated time ~30 minutes plus download", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md"},
+        {"claim": "~30GB free RAM and ~40GB free disk needed for the example model", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/llama-cpp/README.md"}
+      ],
+      "relevance_to_us": "GGUF/CPU-friendly inference path; sm_121 build flag and MTP spec-decode flags are worth carrying into ch4/ch6 as the lightest-weight local option.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemotron/README.md",
+      "title": "Nemotron Model Family on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for serving the Nemotron 3 Nano Omni and Nemotron 3 Super model family via vLLM and TensorRT-LLM.",
+      "facts": [
+        {"claim": "Nemotron Nano served via vllm/vllm-openai:v0.20.0 with pip install vllm[audio], --served-model-name=nemotron_3_nano_omni, --max-num-seqs 8, --max-model-len 131072, --gpu-memory-utilization 0.8, port 8000", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemotron/README.md"},
+        {"claim": "Nemotron Super via vLLM uses vllm/vllm-openai:cu130-nightly with model nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4, --kv-cache-dtype fp8, --gpu-memory-utilization 0.90, --max-model-len 1000000, --quantization fp4", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemotron/README.md"},
+        {"claim": "Nemotron Super via TensorRT-LLM uses nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc9, trtllm-serve, --max_batch_size 8 --tp_size 1 --ep_size 1 --max_seq_len 1048576, port 8123", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemotron/README.md"},
+        {"claim": "Environment variables required for Nemotron Super vLLM: VLLM_NVFP4_GEMM_BACKEND=marlin, VLLM_ALLOW_LONG_MAX_MODEL_LEN=1, VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm, VLLM_USE_FLASHINFER_MOE_FP4=0", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemotron/README.md"},
+        {"claim": "cu130-nightly image required (not pinned releases) to avoid MoE/NVFP4 kernel errors", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemotron/README.md"}
+      ],
+      "relevance_to_us": "Nemotron is NVIDIA's flagship model family for Spark demos; exact env vars and image tags for both vLLM and TensorRT-LLM paths directly serve ch4/ch5/ch21 demo planning.",
+      "feeds": ["ch4", "ch5", "ch6", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-modal-inference/README.md",
+      "title": "Multi-modal Inference on DGX Spark playbook",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook for running image-generation multi-modal models (Flux.1, SDXL) on DGX Spark via TensorRT diffusion demo scripts.",
+      "facts": [
+        {"claim": "Container is nvcr.io/nvidia/pytorch:25.11-py3", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-modal-inference/README.md"},
+        {"claim": "Supported models: Flux.1 Dev, Flux.1 Schnell, SDXL (xl-1.0)", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-modal-inference/README.md"},
+        {"claim": "FP16 Flux.1 Schnell requires >48GB VRAM for native export", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-modal-inference/README.md"},
+        {"claim": "Scripts sourced from github.com/NVIDIA/TensorRT demo/Diffusion directory", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-modal-inference/README.md"},
+        {"claim": "Estimated duration 45-90 minutes including downloads and optimization", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/multi-modal-inference/README.md"}
+      ],
+      "relevance_to_us": "Not on the direct ch1-22 chat-LLM path but relevant to ch13 edge-AI use cases and ch21 demos if a visual-gen demo is wanted.",
+      "feeds": ["ch7", "ch21"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/new-pre-built-sglang-docker-images-for-nvidia-dgx-spark/360656",
+      "title": "New pre-built sglang Docker Images for NVIDIA DGX Spark (NVIDIA Developer Forums)",
+      "kind": "forum",
+      "summary": "Community/vendor thread by a third-party image builder (scitrera) publishing pre-built SGLang images for DGX Spark, with measured cluster throughput and gotchas, updated over multiple releases through Feb 2026.",
+      "facts": [
+        {"claim": "Initial images (2026-02-15): scitrera/dgx-spark-sglang:0.5.8-t4 (Transformers 4.57.6) and 0.5.8-t5 (Transformers 5.1.0), built on SGLang 0.5.8, PyTorch 2.10.0, CUDA 13.1.1, FlashInfer 0.6.3", "url": "https://forums.developer.nvidia.com/t/new-pre-built-sglang-docker-images-for-nvidia-dgx-spark/360656"},
+        {"claim": "2026-02-16 benchmark on a 4-node DGX Spark cluster with tensor parallelism running Qwen3-Coder-Next: prompt processing 2598-7253 tokens/second depending on context length, time-to-first-response ~200ms to 36+ seconds depending on sequence length", "url": "https://forums.developer.nvidia.com/t/new-pre-built-sglang-docker-images-for-nvidia-dgx-spark/360656"},
+        {"claim": "2026-02-26 update: scitrera/dgx-spark-sglang:0.5.9-t4 and 0.5.9-t5, FlashInfer upgraded to 0.6.4", "url": "https://forums.developer.nvidia.com/t/new-pre-built-sglang-docker-images-for-nvidia-dgx-spark/360656"},
+        {"claim": "Full-precision models consume all 128GB VRAM on a single DGX Spark; recommendation is to use the FP8 version to fit on one Spark, with the sparkrun orchestration tool", "url": "https://forums.developer.nvidia.com/t/new-pre-built-sglang-docker-images-for-nvidia-dgx-spark/360656"},
+        {"claim": "Qwen3.5-122B-A10B INT4 produced garbled output on SGLang; a vLLM recipe was offered as workaround pending SGLang fixes", "url": "https://forums.developer.nvidia.com/t/new-pre-built-sglang-docker-images-for-nvidia-dgx-spark/360656"}
+      ],
+      "relevance_to_us": "Real multi-Spark throughput numbers (2.6k-7.3k tok/s prompt processing on a 4-node cluster) directly serve ch22 scale-out planning and ch6 MoE-vs-dense; also flags a live SGLang INT4/MoE correctness bug to avoid.",
+      "feeds": ["ch6", "ch22"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832",
+      "title": "New pre-built vLLM Docker Images for NVIDIA DGX Spark (NVIDIA Developer Forums)",
+      "kind": "forum",
+      "summary": "Community/vendor thread by scitrera publishing pre-built vLLM images for DGX Spark ahead of official NGC releases, with measured per-model tok/s and version-mix rationale, updated through late Jan 2026.",
+      "facts": [
+        {"claim": "Initial release 2026-01-16: scitrera/dgx-spark-vllm:0.13.0-t4 (vLLM 0.13.0, PyTorch 2.9.1, CUDA 13.0.2, Transformers 4.57.5); 0.14.0rc2-t4/t5 (vLLM 0.14.0rc2, PyTorch 2.10.0-rc6, CUDA 13.1.0, Transformers 4.57.5/5.0.0rc3). Both include Ray for multi-node.", "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832"},
+        {"claim": "2026-01-21: 0.14.0-t4/t5 added with PyTorch 2.10.0, NCCL 2.29.2-1, plus a GLM-4.7-Flash patch in -t5", "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832"},
+        {"claim": "2026-01-26: 0.14.1-t4/t5 released — vLLM 0.14.1, PyTorch 2.10.0, CUDA 13.1.0, Transformers 4.57.6/5.0.0, FlashInfer 0.6.2", "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832"},
+        {"claim": "Measured: Qwen3-32B dense FP16 on 0.14.0-t4 gave only ~3.5 tok/s generation — 'DGX Spark isn't so great at dense FP16'", "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832"},
+        {"claim": "Measured: Qwen3-30B-A3B-Instruct-2507 (MoE, ~3B active params) on 0.14.0-t4/t5 gave 7.0 tok/s generation / 9.3 tok/s prompt", "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832"},
+        {"claim": "Measured: Qwen3-Coder-30B-A3B-FP8 on official nvcr.io/nvidia/vllm:25.12.post1-py3 gave 30.8 tok/s generation at 131k context, with prefix caching working perfectly", "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832"}
+      ],
+      "relevance_to_us": "Directly load-bearing for ch6 (MoE-vs-dense throughput claim: dense FP16 ~3.5 tok/s vs FP8 MoE 30.8 tok/s on the same box) — cite the exact numbers when writing that chapter's argument for MoE/quantized models on Spark.",
+      "feeds": ["ch4", "ch6", "ch20"]
+    }
+  ],
+  "open_questions": [
+    "Do the third-party scitrera image tags (dgx-spark-vllm, dgx-spark-sglang) remain maintained/pulled as of Aug 2026, or has NVIDIA's own NGC vllm/sglang cadence superseded them for our build?",
+    "What NGC/vLLM/SGLang/TRT-LLM image tags are current as of Aug 2026 (all fetched playbooks and forum posts dated Jan-Feb 2026 or the playbook repo's 'main' snapshot) — re-check versions immediately before provisioning NvidiaSpark-1.",
+    "Does the official NIM llama-3.1-8b-instruct-dgx-spark image have measured tok/s anywhere, or only the community vLLM/SGLang numbers found here?",
+    "Is there a maintained multi-Spark orchestration tool (the forum mentions 'sparkrun') worth adopting for ch22 scale-out, and where is its source?"
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "On the same DGX Spark, dense Qwen3-32B FP16 vLLM serving measured only ~3.5 tok/s generation, while quantized/MoE models (Qwen3-30B-A3B MoE: 7.0 tok/s; Qwen3-Coder-30B-A3B-FP8: 30.8 tok/s at 131k context) ran far faster — this is the empirical basis for recommending MoE/FP8/NVFP4 models over dense FP16 on Spark in ch6.",
+      "url": "https://forums.developer.nvidia.com/t/new-pre-built-vllm-docker-images-for-nvidia-dgx-spark/357832",
+      "why_it_matters": "Directly shapes the ch6 model-selection guidance and any 'is Spark good enough' claim in ch4/ch20 — needs to be double-checked against official NVIDIA benchmarks, not just one forum poster's numbers, before being stated as fact in the guide."
+    },
+    {
+      "claim": "NVFP4 quantization via NVIDIA Model Optimizer measured ~3.5x memory reduction vs FP16 and <1% accuracy loss vs FP8 for the Qwen3.6-35B-A3B example.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nvfp4-quantization/README.md",
+      "why_it_matters": "Core justification for recommending NVFP4 as the default quantization path for large models on the 128GB-unified-memory Spark in ch6."
+    },
+    {
+      "claim": "A single DGX Spark's 128GB unified memory is insufficient for Qwen3-235B-A22B even at FP4 with Eagle3 speculative decoding — the playbook's own multi-node example requires two Sparks (256GB combined) for this model.",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/speculative-decoding/README.md",
+      "why_it_matters": "Hard capacity ceiling that should drive ch22's multi-Spark scale-out design and set expectations for which model sizes are single-box-only vs. require clustering."
+    }
+  ],
+  "fetch_failures": []
+}

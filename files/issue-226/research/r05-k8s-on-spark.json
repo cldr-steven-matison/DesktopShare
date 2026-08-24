@@ -1,0 +1,192 @@
+{
+  "bucket": "r05-k8s-on-spark",
+  "sources": [
+    {
+      "url": "https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/",
+      "title": "Setting Up a K3s Kubernetes Cluster on NVIDIA DGX Spark with Full GPU Support",
+      "kind": "blog",
+      "summary": "Walkthrough for installing k3s with Docker as the container runtime on DGX Spark, then adding the NVIDIA GPU Operator via helm with driver/toolkit disabled since DGX OS ships them preinstalled.",
+      "facts": [
+        {"claim": "Docker runtime is set as default nvidia via `sudo nvidia-ctk runtime configure --runtime=docker --set-as-default` then `sudo systemctl restart docker`", "url": "https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/", "evidence": "Docker Runtime Configuration section"},
+        {"claim": "k3s install command used: `curl -sfL https://get.k3s.io | sh -s - --docker --write-kubeconfig-mode 644 --disable traefik`", "url": "https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/", "evidence": "K3s Installation section"},
+        {"claim": "GPU Operator installed via `helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator --create-namespace --set driver.enabled=false --set toolkit.enabled=false --wait` because DGX Spark drivers/toolkit are pre-installed", "url": "https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/", "evidence": "Helm & NVIDIA GPU Operator section"},
+        {"claim": "GPU capacity verified with `kubectl get nodes -o json | jq '.items[].status.capacity'` looking for \"nvidia.com/gpu\": \"1\"", "url": "https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/", "evidence": "GPU Verification section"},
+        {"claim": "This guide uses k3s with Docker as the container runtime, not containerd", "url": "https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/", "evidence": "Key Notes bullet"}
+      ],
+      "relevance_to_us": "This is the base recipe we'd start from for k3d/k3s-with-GPU on our incoming NvidiaSpark-1, though it uses Docker runtime rather than containerd (the second Collabnix article gives the containerd path we'd more likely use with k3d/k3s default containerd).",
+      "feeds": ["ch8", "ch9"]
+    },
+    {
+      "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/",
+      "title": "NVIDIA DGX Spark + Kubernetes: Run GPU Workloads on the GB10 Grace Blackwell Superchip",
+      "kind": "blog",
+      "summary": "More detailed containerd-based k3s+GPU-Operator recipe for GB10, including the critical unified-memory device-plugin fix (v0.17.4+), time-slicing config, and a troubleshooting table.",
+      "facts": [
+        {"claim": "GB10's unified memory makes the classic device plugin crash because nvmlDeviceGetMemoryInfo returns \"Not Supported\"; fix is device plugin version >= v0.17.4", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Critical Fix: Unified Memory Architecture (UMA) section"},
+        {"claim": "Hardware baseline cited: GB10 chip, 128 GB LPDDR5x unified (arm64), driver 580.95.05 (CUDA 12.x), K8s K3s v1.30+, device plugin v0.17.4+", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Hardware Baseline section"},
+        {"claim": "containerd runtime configured via `sudo nvidia-ctk runtime configure --runtime=containerd --config=/var/lib/rancher/k3s/agent/etc/containerd/config.toml.tmpl --set-as-default`", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Exact Setup Steps step 1"},
+        {"claim": "GPU Operator installed with `--set devicePlugin.version=v0.17.4` alongside driver.enabled=false and toolkit.enabled=false", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Exact Setup Steps step 3"},
+        {"claim": "Time-slicing ConfigMap example exposes 1 physical GPU as 4 schedulable slices via `sharing.timeSlicing.resources` with replicas: 4, applied and then `kubectl patch clusterpolicy/cluster-policy -n gpu-operator --type merge -p '{\"spec\":{\"devicePlugin\":{\"config\":{\"name\":\"time-slicing-config\",\"default\":\"any\"}}}}'`", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Enable GPU Time-Slicing section"},
+        {"claim": "\"Memory-Usage: Not Supported\" in nvidia-smi is expected/benign on unified-memory iGPU; per-process GPU memory still shows, only the aggregate field is blank", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Key Gotchas & Behavior section"},
+        {"claim": "MIG is unavailable on GB10 -- time-slicing is the only GPU-sharing mechanism (no hard memory isolation, temporal sharing only)", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Time-slicing characteristics / MIG unavailable bullets"},
+        {"claim": "Troubleshooting table: \"error getting device memory: Not Supported\" -> old device plugin, fix use v0.17.4+; node shows 0 GPU capacity -> plugin crashed, check `kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset`; pods stuck Pending -> apply time-slicing config; CUDA OOM -> lower --gpu-memory-utilization to 0.8", "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/", "evidence": "Common Troubleshooting table"}
+      ],
+      "relevance_to_us": "This is the single most load-bearing source for ch8/ch9 -- gives the exact device-plugin version floor and the UMA memory-reporting quirk we need to document so ch9's CSO-operator-on-aarch64 chapter doesn't misread 'Not Supported' as a broken cluster.",
+      "feeds": ["ch8", "ch9"]
+    },
+    {
+      "url": "https://collabnix.com/docker-compose-vs-kubernetes-on-nvidia-dgx-spark-which-setup-should-you-choose-for-nim-microservices/",
+      "title": "Docker Compose vs Kubernetes on NVIDIA DGX Spark: Which Setup Should You Choose for NIM Microservices?",
+      "kind": "blog",
+      "summary": "Decision framework comparing docker-compose and k3s Kubernetes for running NVIDIA NIM microservices on a single vs multi-node DGX Spark deployment.",
+      "facts": [
+        {"claim": "Docker Compose deploys in roughly 10 minutes vs roughly 30 minutes for Kubernetes (K3s) on DGX Spark, per the article's own estimate", "url": "https://collabnix.com/docker-compose-vs-kubernetes-on-nvidia-dgx-spark-which-setup-should-you-choose-for-nim-microservices/", "evidence": "Setup Complexity & Speed bullet"},
+        {"claim": "GPU performance of NIM containers is described as identical between compose and k8s -- difference is only in orchestration overhead", "url": "https://collabnix.com/docker-compose-vs-kubernetes-on-nvidia-dgx-spark-which-setup-should-you-choose-for-nim-microservices/", "evidence": "GPU Resource Management section"},
+        {"claim": "Recommendation: choose Kubernetes when managing two or more Spark nodes needing production-grade scheduling; choose docker-compose for single-node dev/prototyping", "url": "https://collabnix.com/docker-compose-vs-kubernetes-on-nvidia-dgx-spark-which-setup-should-you-choose-for-nim-microservices/", "evidence": "Decision Framework section"},
+        {"claim": "Both setups reportedly use port 8000 for the NIM HTTP API and demonstrate with Llama 3.1 8B Instruct", "url": "https://collabnix.com/docker-compose-vs-kubernetes-on-nvidia-dgx-spark-which-setup-should-you-choose-for-nim-microservices/", "evidence": "Key Specifications section"}
+      ],
+      "relevance_to_us": "Useful for ch5 (NIM on Spark parity) and ch8's framing of when k3d/k8s is even worth it on a single-node Spark before we scale to multi-Spark (ch22).",
+      "feeds": ["ch8"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772",
+      "title": "Local Kubernetes Cluster with K3s on Nvidia DGX Spark",
+      "kind": "forum",
+      "summary": "NVIDIA developer forum thread (Dec 2025) where user shahizat posted a working k3s+GPU recipe for serving Qwen3-4B via vLLM on DGX Spark; community follow-ups suggested Talos Linux as an alternative and reported a working network-operator based multi-node setup.",
+      "facts": [
+        {"claim": "User shahizat's guide (dated Dec 26, 2025) modified /etc/docker/daemon.json to set NVIDIA Container Runtime as default, restarted Docker, then ran `curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=\"--docker --write-kubeconfig-mode 644 --disable=traefik\" sh -`", "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772", "evidence": "Initial Setup Guide section"},
+        {"claim": "Deployment manifests included a 50GB PVC, a Secret for Hugging Face token, a Deployment requesting `nvidia.com/gpu: 1`, and a Service on port 8000; pod reached Running after 38 minutes", "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772", "evidence": "Key Configuration Steps, step 4"},
+        {"claim": "Commenter justin.garrison (Dec 27, 2025) suggested Talos Linux 1.12 with an optimized 6.18 kernel as an alternative Kubernetes-first OS approach for DGX Spark", "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772", "evidence": "Community Responses section"},
+        {"claim": "Commenter sakshamconsul later reported implementing the network-operator for multi-node GPU+RDMA configs and published a reference repo", "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772", "evidence": "Community Responses section"}
+      ],
+      "relevance_to_us": "Confirms the k3s+Docker-runtime path is community-validated on real GB10 hardware, and flags Talos Linux as a documented alternative worth a footnote in ch2/ch9.",
+      "feeds": ["ch8", "ch9"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646",
+      "title": "Invalid Runtime Name: nvidia",
+      "kind": "forum",
+      "summary": "NVIDIA developer forum thread confirming this Docker GPU-runtime error occurs on DGX Spark/GB10 ARM64; root cause is the preinstalled nvidia-container-toolkit not being configured for Docker, fixed by `nvidia-ctk runtime configure`.",
+      "facts": [
+        {"claim": "User AndrewMyers reported (Nov 8, 2025) `docker: Error response from daemon: unknown or invalid runtime name: nvidia` on DGX Spark/GB10 ARM64 despite nvidia-container-toolkit 1.18.0-1 being installed", "url": "https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646", "evidence": "Context / The Problem sections"},
+        {"claim": "Moderator aniculescu (Dec 10, 2025) said root cause was that the toolkit came preinstalled on DGX Spark but wasn't fully configured for user access, not a buildkit corruption issue", "url": "https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646", "evidence": "Root Cause section"},
+        {"claim": "Fix: run `nvidia-ctk runtime configure`, which generates /etc/docker/daemon.json with a `runtimes.nvidia` entry (path nvidia-container-runtime), then `service docker restart`", "url": "https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646", "evidence": "The Solution section"},
+        {"claim": "A follow-up clarification (Dec 11, 2025) noted `--gpus=all` alone may be sufficient on DGX Spark without explicitly specifying the nvidia runtime", "url": "https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646", "evidence": "Important Note section"}
+      ],
+      "relevance_to_us": "First failure mode to check in ch2/ch8's day-1 setup runbook if a fresh DGX Spark's docker GPU test fails before we even get to k3s/k3d.",
+      "feeds": ["ch2", "ch8"]
+    },
+    {
+      "url": "https://github.com/NVIDIA/NemoClaw/issues/878",
+      "title": "Bug: Embedded k3s in OpenShell gateway fails on DGX Spark GB10 (ARM64, Ubuntu 24.04, cgroup v2)",
+      "kind": "github-issue",
+      "summary": "Report of an embedded k3s instance (inside a different product's gateway container, OpenShell/NemoClaw) failing to initialize on DGX Spark GB10 due to cgroup v2 kubelet errors, even though standalone GPU workloads on the same host work fine.",
+      "facts": [
+        {"claim": "System pods get stuck CrashLoopBackOff/Pending with kubelet error \"Failed to kill all the processes attached to cgroup\" err='os: process not initialized' on DGX Spark GB10, ARM64 Ubuntu 24.04, cgroup v2", "url": "https://github.com/NVIDIA/NemoClaw/issues/878", "evidence": "Core Problem section"},
+        {"claim": "The failure is isolated to k3s orchestration -- standalone GPU workloads (a ~70GB Nemotron vLLM) run fine on the same host, confirming GPU/network infra itself is not the problem", "url": "https://github.com/NVIDIA/NemoClaw/issues/878", "evidence": "Indirect GPU Impact section"},
+        {"claim": "Environment: Ubuntu 24.04 LTS, Docker 28.x, cgroup v2, OpenShell CLI 0.0.7-0.0.13; issue persisted despite setting Docker's default-cgroupns-mode to \"host\"", "url": "https://github.com/NVIDIA/NemoClaw/issues/878", "evidence": "Key Technical Details / Direct DGX Spark Relevance sections"}
+      ],
+      "relevance_to_us": "A cautionary data point for ch8: cgroup v2 + embedded/nested k3s on GB10 can hit kubelet-level cgroup failures unrelated to GPU access itself -- worth a troubleshooting note if we ever nest k3d/k3s inside another container runtime on the Spark.",
+      "feeds": ["ch8"]
+    },
+    {
+      "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s",
+      "title": "dgx-spark-vllm-k8s",
+      "kind": "github-repo",
+      "summary": "Production-oriented repo deploying DeepSeek-V4-Flash on a two-node DGX Spark K3s cluster with tensor parallelism, NCCL-over-RDMA, and detailed UMA memory-limit tuning for vLLM.",
+      "facts": [
+        {"claim": "Two GB10 nodes (spark-0 control-plane+head, spark-1 worker) run vLLM with tensor-parallel-size 2 over NCCL/RoCEv2 RDMA on a direct 200GbE QSFP link (eth2, 192.168.74.0/30)", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Core Architecture section"},
+        {"claim": "Container `resources.limits.memory` caps GPU allocations too on UMA; of ~119.67 GiB nvidia-smi reports, ~24-29 GiB is CUDA driver/hardware reserved, leaving ~90-95 GiB effective CUDA-usable memory", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Critical Hardware Detail: UMA Memory Architecture section"},
+        {"claim": "Working container memory limit found empirically: 85 GiB too low (OOM-killed during model load), 93 GiB stable, 95 GiB too high (can't schedule, exceeds node allocatable)", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Memory Limit Requirements section"},
+        {"claim": "Infra prerequisites table: K3s v1.32+ or Talos Linux, Cilium CNI >=1.18 (native routing), Multus (Siderolabs install-cni), Spiderpool 1.2.x, GPU Operator v26.3.2", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Kubernetes Infrastructure Prerequisites table"},
+        {"claim": "vLLM crash leaves ~31 GiB in leaked CUDA contexts per cycle; after 3-4 crash-loops free memory drops below required threshold; fix is `nvidia-smi --gpu-reset -i 0` on startup", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Critical Production Fixes: GPU Reset section"},
+        {"claim": "Worker pods must run with NO liveness/readiness probes in --headless mode, since probe failures on the headless worker kill the pod and hang NCCL for the head", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Probe Configuration bullet"},
+        {"claim": "Decode throughput measured at ~17-42 tokens/second (varies by context size) at 0.75 GPU memory utilization, 1M context, 2 concurrent sequences, fp8 KV cache; time-to-first-token ~6.3s at 32K input", "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s", "evidence": "Performance Characteristics section"}
+      ],
+      "relevance_to_us": "The most concrete real-world multi-node GB10 Kubernetes GPU-memory-limit tuning example we found -- directly useful for ch6 (concurrency/GPU memory) and ch22 (multi-Spark scale-out) as well as ch9's UMA guidance; the exact GiB thresholds are worth citing verbatim.",
+      "feeds": ["ch8", "ch9", "ch6", "ch22"]
+    },
+    {
+      "url": "https://github.com/vroomfondel/dgxarley",
+      "title": "dgxarley",
+      "kind": "github-repo",
+      "summary": "Ansible-driven, experimental/dev-labeled repo standing up a heterogeneous K3s cluster (x86_64 control plane + 4x DGX Spark ARM64 compute nodes) for distributed SGLang inference, with detailed Multus/CNI-path and NVIDIA device-plugin mount gotchas specific to K3s.",
+      "facts": [
+        {"claim": "Cluster is 1 control plane (HP EliteDesk 800 G4, x86_64) + 4 DGX Spark ARM64 compute nodes connected via QSFP mesh, running SGLang pipeline-parallel serving of nvidia/MiniMax-M2.5-NVFP4 by default", "url": "https://github.com/vroomfondel/dgxarley", "evidence": "Hardware Architecture / Core Capabilities sections"},
+        {"claim": "K3s stores CNI plugin configs at /var/lib/rancher/k3s/agent/etc/cni/net.d rather than the standard /etc/cni/net.d, requiring the Multus daemon container to mount the parent /var/lib/rancher/k3s/data so symlink targets resolve", "url": "https://github.com/vroomfondel/dgxarley", "evidence": "Multus CNI Path Patching section"},
+        {"claim": "NVIDIA device plugin needs a hostPath mount of /driver-root for NVML library discovery -- missing it causes silent fallback to CPU-based device resolution; CDI spec generation needs a writable /var/run/cdi mount, not read-only /etc/cdi", "url": "https://github.com/vroomfondel/dgxarley", "evidence": "NVIDIA Device Plugin Configuration section"},
+        {"claim": "Time-slicing default is 4 replicas per physical GPU in this repo's device-plugin config", "url": "https://github.com/vroomfondel/dgxarley", "evidence": "GPU-Specific Technical Notes point 1 / Time-slicing trade-off"},
+        {"claim": "Measured NCCL bus bandwidth: 9.78 GB/s over RoCE vs 2.12 GB/s over TCP socket transport (4.6x speedup), requiring SR-IOV VFs, host-side IPv4 config, and privileged pod access to RDMA hardware", "url": "https://github.com/vroomfondel/dgxarley", "evidence": "NCCL Transport Optimization section"},
+        {"claim": "Project explicitly marked \"development/experimental\", provided as-is, not warrantied for production", "url": "https://github.com/vroomfondel/dgxarley", "evidence": "Project Maturity section"}
+      ],
+      "relevance_to_us": "Concrete K3s+Multus+device-plugin mount gotchas (driver-root hostPath, CNI path under /var/lib/rancher/k3s) that would bite us if we ever multi-node beyond a single NvidiaSpark-1; flag as experimental-tier evidence, not a vetted recipe.",
+      "feeds": ["ch9", "ch22"]
+    },
+    {
+      "url": "https://k3d.io/stable/usage/advanced/cuda/",
+      "title": "k3d docs: Using GPUs / CUDA",
+      "kind": "other",
+      "summary": "Official k3d documentation on enabling CUDA/GPU support: requires building a custom k3s node image on a non-Alpine (CUDA) base because the NVIDIA container runtime isn't supported on Alpine, plus explicit RuntimeClass and per-pod runtimeClassName usage.",
+      "facts": [
+        {"claim": "CUDA workloads require the NVIDIA Container Runtime and containerd must be configured to use it; the native k3s image is Alpine-based and \"the NVIDIA container runtime is not supported on Alpine yet\"", "url": "https://k3d.io/stable/usage/advanced/cuda/", "evidence": "Prerequisites / Why a Custom Image is Needed sections"},
+        {"claim": "The documented fix is a custom Dockerfile that swaps the base to something like nvidia/cuda:12.4.1-base-ubuntu22.04, installs the container toolkit, runs `nvidia-ctk runtime configure --runtime=containerd`, copies in the k3s binaries, and bundles the NVIDIA device plugin daemonset manifest at /var/lib/rancher/k3s/server/manifests/", "url": "https://k3d.io/stable/usage/advanced/cuda/", "evidence": "Dockerfile Structure section"},
+        {"claim": "You must explicitly add `runtimeClassName: nvidia` to every Pod spec that needs the GPU (a RuntimeClass with the nvidia handler must also be defined)", "url": "https://k3d.io/stable/usage/advanced/cuda/", "evidence": "Device Plugin Configuration section"},
+        {"claim": "Cluster launched with the custom image via `k3d cluster create gputest --image=$IMAGE --gpus=1`; the doc does not specify which GPU architectures/models are supported, only that the NVIDIA Container Toolkit must be on the host", "url": "https://k3d.io/stable/usage/advanced/cuda/", "evidence": "Deployment section"}
+      ],
+      "relevance_to_us": "This is the general k3d-CUDA recipe (not GB10-specific); no source we found documents anyone actually running k3d (as opposed to plain k3s) on a real DGX Spark -- open question for ch8/ch9 whether the Alpine-base swap is even needed given DGX OS already runs an Ubuntu-based host with containerd, or whether k3d's Docker-in-Docker layer adds friction on unified memory.",
+      "feeds": ["ch8"]
+    },
+    {
+      "url": "https://github.com/NVIDIA/k8s-device-plugin/releases",
+      "title": "NVIDIA/k8s-device-plugin releases",
+      "kind": "github-repo",
+      "summary": "Release notes page for the NVIDIA Kubernetes device plugin; the model's extraction found v0.17.4 (Sept 9, 2024) noted as \"Ignore errors getting device memory using NVML\" -- the closest documented tie to the UMA nvmlDeviceGetMemoryInfo issue, and v0.18.0 changing GPU memory units from MB to MiB.",
+      "facts": [
+        {"claim": "v0.17.4 release notes include the line \"Ignore errors getting device memory using NVML\"", "url": "https://github.com/NVIDIA/k8s-device-plugin/releases", "evidence": "v0.17.4 entry, per fetched release notes"},
+        {"claim": "v0.18.0 release notes include \"Use MiB instead of MB for gpu-memory\"", "url": "https://github.com/NVIDIA/k8s-device-plugin/releases", "evidence": "v0.18.0 entry, per fetched release notes"},
+        {"claim": "The fetched release notes contain no explicit mention of GB10, DGX Spark, or ARM64/aarch64 by name in the versions checked (v0.17.3, v0.17.4, v0.18.0)", "url": "https://github.com/NVIDIA/k8s-device-plugin/releases", "evidence": "Summary section of the fetch"}
+      ],
+      "relevance_to_us": "Confirms the Collabnix article's \"v0.17.4 fixes UMA memory errors\" claim maps to a real release note (\"Ignore errors getting device memory using NVML\") even though NVIDIA's own notes don't name GB10/DGX Spark explicitly -- worth citing both together in ch9 rather than either alone. Caveat: this was a fetch-tool summarization of the releases page, not a raw diff -- verify the exact v0.17.4 changelog text directly before quoting it in the guide.",
+      "feeds": ["ch8", "ch9"]
+    },
+    {
+      "url": "https://docs.k3s.io/advanced#nvidia-container-runtime-support",
+      "title": "K3s docs: NVIDIA Container Runtime Support (Advanced)",
+      "kind": "other",
+      "summary": "Official k3s documentation section on NVIDIA runtime support: install nvidia-container-runtime packages, then install/restart k3s, which auto-detects and wires in the NVIDIA runtime to containerd's config.toml -- no manual config.toml.tmpl edits required in the base case.",
+      "facts": [
+        {"claim": "Steps: follow https://nvidia.github.io/libnvidia-container/ to add the nvidia-container repo, install packages such as nvidia-container-runtime, cuda-drivers-fabricmanager-515, nvidia-headless-515-server, then install or restart k3s", "url": "https://docs.k3s.io/advanced#nvidia-container-runtime-support", "evidence": "Installation Steps 1-3"},
+        {"claim": "K3s automatically adds NVIDIA runtimes to the containerd configuration depending on what runtime executables are found on the host -- no custom config.toml.tmpl is required in the documented base case", "url": "https://docs.k3s.io/advanced#nvidia-container-runtime-support", "evidence": "Key Points / No Custom config.toml.tmpl Required sections"},
+        {"claim": "Detection can be verified with `grep nvidia /var/lib/rancher/k3s/agent/etc/containerd/config.toml`", "url": "https://docs.k3s.io/advanced#nvidia-container-runtime-support", "evidence": "Verify detection step"},
+        {"claim": "If NVIDIA runtime is not set as the containerd default, pods must set `runtimeClassName: nvidia` (a built-in RuntimeClass k3s ships)", "url": "https://docs.k3s.io/advanced#nvidia-container-runtime-support", "evidence": "Pod specification requirement / RuntimeClass available bullets"}
+      ],
+      "relevance_to_us": "The canonical, version-agnostic k3s+NVIDIA baseline; note it contradicts nothing in the Collabnix guides but is simpler -- k3s can auto-detect the runtime without the explicit `nvidia-ctk runtime configure --config=.../config.toml.tmpl` step some blog guides show, worth testing both paths on the real NvidiaSpark-1 for ch8.",
+      "feeds": ["ch8", "ch9"]
+    }
+  ],
+  "open_questions": [
+    "No source found documents anyone actually running k3d (as opposed to plain k3s) directly on a real DGX Spark GB10 -- the k3d-CUDA doc is generic guidance only. Confirm on our own NvidiaSpark-1 whether k3d's Docker-in-Docker node containers even need the Alpine-base swap, given DGX OS's host is already Ubuntu/containerd-based.",
+    "NVIDIA's own k8s-device-plugin release-notes text for v0.17.4 was retrieved via a fetch-tool summarization rather than the raw page/changelog diff -- re-verify the exact wording (\"Ignore errors getting device memory using NVML\") directly against https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4 before quoting it as a direct citation.",
+    "GPU Operator version to standardize on is unclear: Collabnix's guide passes --set devicePlugin.version=v0.17.4 explicitly; dgx-spark-vllm-k8s's prerequisites table cites GPU Operator v26.3.2 as a whole-chart version. These are two different version namespaces (device-plugin sub-component vs whole operator chart) and need reconciling before ch9 picks one pinned recipe.",
+    "Whether k3s should run with --docker (Docker runtime, as most guides here use) or plain containerd (k3s's default) on our actual NvidiaSpark-1 is unresolved -- both paths appear in different sources; pick one during day-1 setup (ch2/ch8) and document why.",
+    "The NemoClaw #878 cgroup-v2 kubelet failure is on an embedded/nested k3s inside a different product's gateway container, not a bare k3s install -- unclear whether this risk applies to a straightforward k3s/k3d install on the bare DGX OS host; worth a quick smoke test rather than assuming it will recur."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "GB10's unified memory makes the classic NVIDIA device plugin fail on nvmlDeviceGetMemoryInfo (\"Not Supported\"), and the fix is device plugin version v0.17.4 or newer.",
+      "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/",
+      "why_it_matters": "This is the single gating fact for whether GPU pods even schedule on a GB10 k8s node -- getting the device-plugin version wrong means `nvidia.com/gpu` capacity never appears and every GPU workload in ch9-ch11 silently stays Pending. Must be verified directly against the real device-plugin changelog and tested on our own NvidiaSpark-1 before it goes in the guide as fact rather than blog claim."
+    },
+    {
+      "claim": "On DGX Spark UMA, container resources.limits.memory caps GPU allocation too -- effective CUDA-usable memory is roughly 90-95 GiB out of the ~119.67 GiB nvidia-smi reports, with ~93 GiB found as the stable working container memory limit for a large model.",
+      "url": "https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s",
+      "why_it_matters": "Directly determines how ch6 (concurrency/GPU memory) and ch9 size pod memory requests/limits for any GPU workload on the Spark -- getting this wrong causes either OOM-kills or unschedulable pods, and this is the only source with concrete measured GiB thresholds rather than a general statement."
+    },
+    {
+      "claim": "MIG is unavailable on GB10; time-slicing (temporal sharing only, no hard memory isolation) is the only GPU-sharing mechanism available in Kubernetes on the Spark.",
+      "url": "https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/",
+      "why_it_matters": "Sets the ceiling on multi-tenant GPU sharing strategy for ch8/ch9 -- if we plan any multi-workload GPU isolation story for the guide, MIG is off the table and we must design around time-slicing's lack of memory isolation, which changes how safely we can co-locate NiFi/Flink GPU workloads with LLM inference on the same Spark node."
+    }
+  ],
+  "fetch_failures": []
+}

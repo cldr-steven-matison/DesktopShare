@@ -1,0 +1,176 @@
+{
+  "bucket": "r11-cso-arm64",
+  "sources": [
+    {
+      "url": "https://docs-archive.cloudera.com/csa-operator/1.1/release-notes/topics/csa-op-system-requirements.html",
+      "title": "CSA Operator 1.1 System Requirements",
+      "kind": "cloudera-doc",
+      "summary": "Official Cloudera Streaming Analytics (CSA/Flink) Operator system requirements page. Lists Kubernetes/OpenShift version requirements, admin access, kubectl/helm, and log-collection requirements. Contains no mention of CPU architecture whatsoever.",
+      "facts": [
+        {"claim": "CSA Operator system requirements page has zero mention of x86-64, arm64, aarch64, Graviton, or Apple Silicon.", "url": "https://docs-archive.cloudera.com/csa-operator/1.1/release-notes/topics/csa-op-system-requirements.html", "evidence": "WebFetch of the page returned: 'no CPU architecture support is mentioned... architecture specifications are absent from this documentation.'"},
+        {"claim": "CSA Operator requires: any CNCF-certified Kubernetes distribution, admin rights, kubectl/oc, helm, and long-term log collection for CSA Operator components.", "url": "https://docs.cloudera.com/csa-operator/index.html"}
+      ],
+      "relevance_to_us": "CSA Operator (Flink) architecture support is UNSTATED by Cloudera docs — neither confirmed nor denied for arm64. Must be tested empirically on the DGX Spark rather than assumed from docs.",
+      "feeds": ["ch11", "ch9"]
+    },
+    {
+      "url": "https://docs-archive.cloudera.com/csm-operator/1.0/release-notes/topics/csm-op-system-req.html",
+      "title": "CSM Operator 1.0 System Requirements",
+      "kind": "cloudera-doc",
+      "summary": "Official Cloudera Streams Messaging (CSM/Strimzi/Kafka) Operator system requirements page. Same pattern as CSA: OpenShift 4.10+/RKE2 1.23+, CNCF compliance, admin/kubectl/helm/Prometheus prerequisites. No CPU architecture statement at all.",
+      "facts": [
+        {"claim": "CSM Operator system requirements page has no statements about x86-64, arm64, aarch64, Graviton, or Apple Silicon.", "url": "https://docs-archive.cloudera.com/csm-operator/1.0/release-notes/topics/csm-op-system-req.html", "evidence": "WebFetch: 'There are no statements about x86-64, arm64, aarch64, Graviton, or Apple Silicon... in the provided content.'"},
+        {"claim": "CSM Operator supports OpenShift 4.10+ and RKE2 1.23+, and complies with CNCF standards for Kubernetes distributions.", "url": "https://docs-archive.cloudera.com/csm-operator/1.0/release-notes/topics/csm-op-system-req.html"},
+        {"claim": "A Prometheus install in the same cluster is recommended for collecting Kafka/Strimzi metrics.", "url": "https://docs-archive.cloudera.com/csm-operator/1.0/release-notes/topics/csm-op-system-req.html"}
+      ],
+      "relevance_to_us": "CSM Operator (Kafka/Strimzi) architecture support is UNSTATED by Cloudera docs. Cloudera's CSM Operator wraps upstream Strimzi, so whatever arch Strimzi itself supports upstream is the practical ceiling (see Strimzi 0.27.0 fact below) — but Cloudera has not published which Strimzi build/arch its own operator images ship.",
+      "feeds": ["ch9", "ch10"]
+    },
+    {
+      "url": "https://docs-archive.cloudera.com/cfm-operator/2.8.0/release-notes/topics/cfm-op-system-reqs.html",
+      "title": "CFM Operator 2.8.0 System Requirements",
+      "kind": "cloudera-doc",
+      "summary": "Official Cloudera Flow Management (CFM/NiFi) Operator system requirements page. Confirmed via direct WebFetch to contain no architecture statement of any kind.",
+      "facts": [
+        {"claim": "CFM Operator system requirements page contains no statement about CPU architecture (x86-64, arm64, aarch64, Graviton, Apple Silicon).", "url": "https://docs-archive.cloudera.com/cfm-operator/2.8.0/release-notes/topics/cfm-op-system-reqs.html", "evidence": "WebFetch: 'there is no statement about CPU architecture support... for CFM Operator. The system requirements section does not mention or address processor architecture compatibility.'"}
+      ],
+      "relevance_to_us": "CFM Operator (NiFi) — the most-used operator in our current WindowsDesktop stack — has zero published architecture guidance at 2.8.0. Could not confirm the 2.11.0 requirements page loaded a distinct page (search results kept surfacing 2.8.0/2.9.0 archive pages instead of the 2.11.0 live doc); treat 2.11.0's stance as UNKNOWN pending a direct fetch of docs.cloudera.com/cfm-operator/2.11.0/release-notes/.",
+      "feeds": ["ch9", "ch10"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cfm-operator/2.11.0/index.html",
+      "title": "CFM Operator 2.11.0 Documentation Index",
+      "kind": "cloudera-doc",
+      "summary": "Landing page for the current (2.11.0) CFM Operator docs: sections are Release Notes, Installation, NiFi Deployment Configuration, NiFi Registry Deployment Configuration, and Component Versions. No system-requirements/architecture page is linked directly from the index itself in the fetched excerpt.",
+      "facts": [
+        {"claim": "The 2.11.0 index page's visible sections (Release Notes, Installation, NiFi Deployment Configuration, NiFi Registry Deployment Configuration, Component Versions) do not include a dedicated architecture/platform-support page in the fetched excerpt.", "url": "https://docs.cloudera.com/cfm-operator/2.11.0/index.html"}
+      ],
+      "relevance_to_us": "Confirms the doc structure but not a direct answer; the release notes / system-requirements sub-page for 2.11.0 specifically was not successfully isolated in this pass — open item.",
+      "feeds": ["ch9"]
+    },
+    {
+      "url": "https://github.com/strimzi/strimzi-kafka-operator/releases/tag/0.27.0",
+      "title": "Strimzi Kafka Operator 0.27.0 Release Notes",
+      "kind": "github-repo",
+      "summary": "Upstream Strimzi (the Kafka operator Cloudera's CSM Operator wraps) added multi-arch container images for x86_64/AMD64 and AArch64/ARM64 starting at version 0.27.0. Documented as experimental for ARM64 at that release: no known issues but not tested to the same rigor as AMD64.",
+      "facts": [
+        {"claim": "Strimzi 0.27.0 introduced 'Multi-arch container images with support for x86_64 / AMD64 and AArch64 / ARM64 platforms.'", "url": "https://github.com/strimzi/strimzi-kafka-operator/releases/tag/0.27.0", "evidence": "Direct quote extracted from release notes via WebFetch."},
+        {"claim": "At 0.27.0, ARM64 support was called out as experimental — 'while no known issues exist, the ARM64 builds do not yet receive the same rigorous testing as their AMD64 counterparts.'", "url": "https://github.com/strimzi/strimzi-kafka-operator/releases/tag/0.27.0"}
+      ],
+      "relevance_to_us": "CONFIRMED: upstream Strimzi has shipped arm64 images since 0.27.0 (a 2021-era release), long enough that arm64 Strimzi should now be mature. This is the strongest positive signal for ch9 — but it says nothing about whether Cloudera's CSM Operator build/registry actually publishes arm64 variants of its own wrapped images.",
+      "feeds": ["ch9", "ch10", "ch12"]
+    },
+    {
+      "url": "https://issues.apache.org/jira/browse/NIFI-9177",
+      "title": "[NIFI-9177] Provide ARM64 docker Images for Apache Nifi",
+      "kind": "github-issue",
+      "summary": "Apache NiFi JIRA ticket requesting/tracking arm64 Docker image support, resolved — Apache NiFi's official Docker Hub image now supports linux/arm64 as of resolution.",
+      "facts": [
+        {"claim": "Recent apache/nifi Docker Hub image versions (2.4.0, 2.7.2 confirmed by manifest layer listings) include arm64 architecture layers.", "url": "https://hub.docker.com/layers/apache/nifi/2.7.2/images/sha256-a671443eb4dad501d9fbed4946a30a4c4f2498f76afeff67a175b0f4d6da4b9a", "evidence": "WebSearch surfaced Docker Hub 'Image Layer Details' pages for apache/nifi:2.4.0 and 2.7.2 specifically referencing arm64 layers; a follow-up direct WebFetch of hub.docker.com/r/apache/nifi's overview page did not itself render architecture badges (page content was generic), so this is search-result-derived, not directly re-confirmed by fetch."},
+        {"claim": "Related JIRA NIFI-9554 tracks 'Support building and running NiFi on arm64/aarch64 platforms such as Apple Silicon M1 Macs.'", "url": "https://issues.apache.org/jira/browse/NIFI-9554"}
+      ],
+      "relevance_to_us": "CONFIRMED at the upstream Apache NiFi level: apache/nifi Docker Hub images are multi-arch (amd64+arm64) as of NiFi 2.x. This is the fallback path if Cloudera's own CFM Operator image registry turns out to be amd64-only — run vanilla Apache NiFi 2.x in a plain deployment on the DGX Spark instead of via CFM Operator.",
+      "feeds": ["ch9", "ch10"]
+    },
+    {
+      "url": "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc",
+      "title": "Implementing multi-arch container images in Cloudera's Release Engineering CI/CD process",
+      "kind": "blog",
+      "author_note": "Cloudera Engineering Medium blog",
+      "summary": "Cloudera's own Release Engineering blog post describing work to add multi-arch (amd64/arm64/Apple Silicon arm/v8) image builds into Cloudera's CI/CD pipeline. Direct WebFetch of the article was blocked (HTTP 403), so content is only known via the WebSearch snippet, not independently re-verified.",
+      "facts": [
+        {"claim": "Cloudera's Release Engineering CI/CD process was able to build container images for multiple platforms, including amd64, arm64, and Apple Silicon (arm/v8), and framed shipping arm64 images as preparing for future customer demand.", "url": "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc", "evidence": "WebSearch snippet only — direct WebFetch returned HTTP 403 Forbidden, so this claim is NOT independently confirmed by full-page read, only by the search engine's extracted snippet."}
+      ],
+      "relevance_to_us": "Important lead but UNVERIFIED at full-article level (fetch blocked). Suggests Cloudera has arm64 build capability internally but does not confirm any specific CFM/CSA/CSM operator image is currently published as multi-arch on container.repository.cloudera.com. Worth a manual re-fetch/registry probe from a real session with registry/docker access (this sub-agent could not run curl/docker per its rules).",
+      "feeds": ["ch9", "ch12"]
+    },
+    {
+      "url": "https://docs.cloudera.com/operational-database/cloud/managing-database/topics/cod-aws-graviton-steps.html",
+      "title": "Creating AWS Graviton-based Cloudera Operational Database clusters",
+      "kind": "cloudera-doc",
+      "summary": "Confirms Cloudera Operational Database (COD, a different CDP service, not CSO) supports AWS Graviton2/Graviton4 (ARM64) instance creation with an explicit ARM64 architecture selector in the CDP UI.",
+      "facts": [
+        {"claim": "Cloudera Operational Database cluster deployments on AWS Graviton environments are generally available; supported Graviton versions are Graviton2 (I4G instances) and Graviton4 (I8G instances); users select 'ARM64' as the Architecture from a drop-down when creating Graviton-based clusters.", "url": "https://docs.cloudera.com/operational-database/cloud/managing-database/topics/cod-aws-graviton-steps.html"}
+      ],
+      "relevance_to_us": "CONFIRMED but for the WRONG product family — this is Cloudera Operational Database (HBase-based), not Cloudera Streaming Operators (CFM/CSA/CSM). It does establish that Cloudera as a company ships production ARM64/Graviton support for at least one CDP Public Cloud service, so ARM64 is not an unprecedented ask for them — but it is not evidence CSO specifically supports it.",
+      "feeds": ["ch18", "ch19", "ch9"]
+    },
+    {
+      "url": "https://community.cloudera.com/t5/What-s-New-Cloudera/Get-started-with-Cloudera-Data-Engineering-on-AWS-Graviton/ba-p/391477",
+      "title": "Get started with Cloudera Data Engineering on AWS Graviton and reduce costs by up to 20%",
+      "kind": "cloudera-blog",
+      "summary": "Cloudera Data Engineering (CDE, Spark-as-a-service on CDP) announced AWS Graviton3 support for compute nodes, another CDP Public Cloud service (not CSO) with confirmed ARM64 support.",
+      "facts": [
+        {"claim": "Cloudera Data Engineering supports AWS Graviton3 instances for service compute nodes, available by default to customers meeting component version requirements.", "url": "https://community.cloudera.com/t5/What-s-New-Cloudera/Get-started-with-Cloudera-Data-Engineering-on-AWS-Graviton/ba-p/391477"}
+      ],
+      "relevance_to_us": "Second confirmed CDP Public Cloud service (alongside COD) with production Graviton/ARM64 support, again NOT the Streaming Operators. Reinforces that Cloudera treats ARM64 support as service-by-service, opt-in, and not yet extended (per available docs) to CFM/CSA/CSM.",
+      "feeds": ["ch18", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cem/2.3.0/using-minifi-java-agent-container-image/topics/cem-download-minifi-java-agent-image.html",
+      "title": "Download MiNiFi Java Agent image",
+      "kind": "cloudera-doc",
+      "summary": "Cloudera Edge Management (CEM) docs page for downloading the MiNiFi Java agent container image. Direct WebFetch found no architecture statement on this specific page — contradicts an earlier WebSearch-engine-generated summary that claimed 'multiple platforms including x86 and ARM' (that claim could not be verified on the actual page content).",
+      "facts": [
+        {"claim": "The MiNiFi Java agent container-image download page, as actually fetched, does not state which CPU architectures/platforms the image supports (no x86, ARM, arm64, aarch64, or multi-arch language found in the page content).", "url": "https://docs.cloudera.com/cem/2.3.0/using-minifi-java-agent-container-image/topics/cem-download-minifi-java-agent-image.html", "evidence": "Direct WebFetch of the page: 'there is no statement about which CPU architectures or platforms the MiNiFi Java Docker image is released for... does not mention x86, ARM, arm64, aarch64, or multi-architecture support.'"}
+      ],
+      "relevance_to_us": "IMPORTANT CORRECTION: an earlier WebSearch synthesis claimed MiNiFi Java images cover 'x86 and ARM,' but the direct page fetch found no such statement. Treat MiNiFi Java container-image architecture as UNKNOWN pending a real registry probe (docker manifest inspect) — the search-engine claim should not be trusted without a primary-source quote.",
+      "feeds": ["ch12", "ch9"]
+    },
+    {
+      "url": "https://github.com/apache/flink-kubernetes-operator/pkgs/container/flink-kubernetes-operator",
+      "title": "Apache flink-kubernetes-operator container package (GHCR)",
+      "kind": "github-repo",
+      "summary": "GitHub Container Registry page for the official Apache flink-kubernetes-operator image, which per WebSearch results is available with linux/arm64 support alongside amd64.",
+      "facts": [
+        {"claim": "Official Apache Flink Kubernetes Operator docker images on GHCR include linux/arm64 platform support.", "url": "https://github.com/apache/flink-kubernetes-operator/pkgs/container/flink-kubernetes-operator", "evidence": "WebSearch-engine synthesis, not independently re-confirmed by a direct WebFetch quote in this pass — flag as search-derived."},
+        {"claim": "The official upstream Flink docker images (arm64v8/flink on Docker Hub) support both amd64 and arm64v8 architectures.", "url": "https://hub.docker.com/r/arm64v8/flink/"}
+      ],
+      "relevance_to_us": "Upstream Apache Flink + Flink Kubernetes Operator appear to be multi-arch, which matters because Cloudera's CSA Operator is explicitly built on top of the Apache Flink Kubernetes Operator (per the CSA Operator overview: 'It is based on the Apache Flink Kubernetes Operator and offers the same set of features'). If Cloudera's CSA build doesn't diverge from upstream's build pipeline, arm64 is plausible — but Cloudera's own docs never state this, so it remains an inference, not a confirmed fact, until tested on the DGX Spark.",
+      "feeds": ["ch11", "ch9"]
+    },
+    {
+      "url": "https://docs.cloudera.com/csa-operator/1.4/index.html",
+      "title": "CSA Operator overview — built on Apache Flink Kubernetes Operator",
+      "kind": "cloudera-doc",
+      "summary": "States CSA Operator's architecture directly: it is based on the Apache Flink Kubernetes Operator and offers the same feature set, acting as a control plane for Flink application lifecycle management.",
+      "facts": [
+        {"claim": "'Cloudera Streaming Analytics Operator for Kubernetes allows you to deploy and manage the Cloudera Streaming Analytics components of Cloudera, Flink and Cloudera SQL Stream Builder, as container applications on Kubernetes. It is based on the Apache Flink Kubernetes Operator and offers the same set of features as the Flink Operator supports, acting as a control plane to manage the deployment lifecycle of Flink applications using the operator pattern.'", "url": "https://docs.cloudera.com/csa-operator/1.4/index.html"}
+      ],
+      "relevance_to_us": "Establishes the direct upstream lineage (CSA Operator = Cloudera build of Apache Flink Kubernetes Operator + SQL Stream Builder), which is the basis for the arm64 inference above.",
+      "feeds": ["ch11", "ch9"]
+    }
+  ],
+  "open_questions": [
+    "Does the CFM Operator 2.11.0 release notes / system-requirements page (as opposed to the 2.8.0 archive page confirmed here) say anything about architecture? Could not isolate the exact 2.11.0 sub-URL via search; needs a direct browse of docs.cloudera.com/cfm-operator/2.11.0/release-notes/.",
+    "Does container.repository.cloudera.com actually publish arm64 manifests for the CFM/CSA/CSM operator images and their wrapped NiFi/Flink/Strimzi images? This requires `docker manifest inspect` or `crane manifest` against the real registry (needs registry credentials/docker access) — this sub-agent could not run docker/curl per its rules.",
+    "Full content of the Cloudera Engineering Medium article on multi-arch CI/CD (403'd on direct fetch) — worth a retry from a session with different network/auth, or via web.archive.org.",
+    "Does Cloudera state anywhere that CDP Base (the on-prem/self-managed CSO deployment target, as opposed to CDP Public Cloud services like CDE/COD) supports Graviton/ARM64 at all, given CSO explicitly targets 'any CNCF-certified Kubernetes' rather than a specific cloud VM family?",
+    "MiNiFi C++ (as opposed to Java) architecture support on aarch64 was not investigated in this pass — worth a follow-up since C++ MiNiFi is more likely to be the edge-agent choice for an EFM agent class on the DGX Spark (ch12)."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "None of the CFM Operator, CSA Operator, or CSM Operator official Cloudera documentation pages (system requirements / release notes) make ANY statement about CPU architecture — no mention of x86-64, arm64, aarch64, Graviton, or Apple Silicon in any of the three product lines' requirements docs as directly fetched.",
+      "url": "https://docs-archive.cloudera.com/csm-operator/1.0/release-notes/topics/csm-op-system-req.html",
+      "why_it_matters": "The chapter cannot claim Cloudera 'supports' or 'doesn't support' arm64 for CSO — Cloudera's own docs are silent. The only honest framing is: architecture is unstated by Cloudera, upstream components (Strimzi since 0.27.0, Apache NiFi 2.x Docker images, Apache Flink/Flink K8s Operator) are confirmed multi-arch, and the real test is whether Cloudera's own wrapped/rebuilt images on container.repository.cloudera.com are multi-arch — which requires an actual registry probe, not a docs read."
+    },
+    {
+      "claim": "Strimzi (which Cloudera's CSM Operator wraps) has shipped multi-arch x86_64/arm64 images since v0.27.0, with arm64 flagged experimental at that release.",
+      "url": "https://github.com/strimzi/strimzi-kafka-operator/releases/tag/0.27.0",
+      "why_it_matters": "This is the single strongest positive upstream signal for arm64 viability in the CSO stack — it's a primary-source quote, not a search synthesis. But it's several years old at this point (0.27.0 was a 2021 release) — current Strimzi arm64 maturity should be much better, though this needs a check against whatever Strimzi version Cloudera CSM Operator actually bundles."
+    },
+    {
+      "claim": "Apache NiFi's official Docker Hub images (2.4.0, 2.7.2 confirmed) contain arm64 layers.",
+      "url": "https://hub.docker.com/layers/apache/nifi/2.7.2/images/sha256-a671443eb4dad501d9fbed4946a30a4c4f2498f76afeff67a175b0f4d6da4b9a",
+      "why_it_matters": "Gives a concrete fallback path (run vanilla apache/nifi 2.x container instead of via CFM Operator) if Cloudera's own CFM Operator NiFi image build turns out to be amd64-only on the real registry."
+    },
+    {
+      "claim": "The MiNiFi Java agent container-image download doc page, when directly fetched, contains NO architecture statement — contradicting an earlier, unverified WebSearch-engine synthesis that claimed 'x86 and ARM' support.",
+      "url": "https://docs.cloudera.com/cem/2.3.0/using-minifi-java-agent-container-image/topics/cem-download-minifi-java-agent-image.html",
+      "why_it_matters": "Flags a case where the search engine's own summary was NOT corroborated by the primary source — a caution for ch12 (EFM agent class on the DGX Spark): do not repeat the 'MiNiFi Java supports ARM' claim without a direct registry/manifest check."
+    }
+  ],
+  "fetch_failures": [
+    "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc — HTTP 403 Forbidden on direct WebFetch; content only known via WebSearch snippet, not independently verified"
+  ]
+}

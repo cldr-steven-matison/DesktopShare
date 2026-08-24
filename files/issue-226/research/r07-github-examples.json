@@ -1,0 +1,322 @@
+{
+  "bucket": "r07-github-examples",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md",
+      "title": "awesome-dgx-spark (bidual)",
+      "kind": "github-repo",
+      "summary": "A community-curated index of ~250 DGX Spark repos, organized by category (setup, vLLM, llama.cpp, SGLang, other engines, fine-tuning, quantization/NVFP4, models/benchmarks, multi-node, image/media, audio/speech, science/HPC, remote access, OS/containers, monitoring, community).",
+      "facts": [
+        {"claim": "The list contains 246 numbered repos as of this fetch, spanning every category we needed (inference engines, monitoring, benchmarks, multi-node, RAG, coding agents).", "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md"}
+      ],
+      "relevance_to_us": "This is the master map for anything DGX-Spark-community-related; use it as the first stop before searching GitHub directly for future chapters (ch4-ch22).",
+      "feeds": ["ch4", "ch22"]
+    },
+    {
+      "url": "https://github.com/croll83/llama.cpp-dgx",
+      "title": "croll83/llama.cpp-dgx",
+      "kind": "github-repo",
+      "summary": "Deprecated (as of May 2026) llama.cpp fork tuned for GB10/SM 12.1, kept only as reference for TurboQuant TQ3_0 KV kernels and DFlash MTP speculative-decode integration. Upstream llama.cpp now beats it with native MTP.",
+      "facts": [
+        {"claim": "GB10 measured decode: JSON workload 68.7 tok/s (65% spec-decode acceptance), math 45.7 tok/s (46%), code 38.3 tok/s (47%), prose w/ thinking 27.1 tok/s, all at np=2 c=262144.", "url": "https://github.com/croll83/llama.cpp-dgx", "evidence": "README benchmark table"},
+        {"claim": "GPU-resident footprint ~37.7-40 GiB out of 128 GiB unified memory (NVFP4 weights 15.5 GiB + KV/DFlash ring ~16 GiB + draft model/buffers ~6 GiB).", "url": "https://github.com/croll83/llama.cpp-dgx"},
+        {"claim": "Build: cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=121a-real; upstream now gets 45-85% acceptance vs this fork's 13-20%, with 13-26 tok/s decode on the same hardware.", "url": "https://github.com/croll83/llama.cpp-dgx"}
+      ],
+      "relevance_to_us": "Confirms upstream llama.cpp (not a fork) is now the right choice for GB10 CUDA arch 121a builds — relevant to ch4/ch6 stack decisions and to any local knowledge-base model we run cheaply on the Spark for ch15/ch16 loops.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://github.com/mark-ramsey-ri/sglang-dgx-spark",
+      "title": "mark-ramsey-ri/sglang-dgx-spark",
+      "kind": "github-repo",
+      "summary": "Automation scripts to deploy SGLang across 1-N DGX Spark nodes, from single-box to InfiniBand-connected clusters, with tensor parallelism and benchmarking baked in.",
+      "facts": [
+        {"claim": "Container lmsysorg/sglang:v0.5.10.post1-cu130 (SGLang 0.5.10, CUDA 13.0.1, ARM64); GB10 sm120, ~120GB unified memory per node.", "url": "https://github.com/mark-ramsey-ri/sglang-dgx-spark"},
+        {"claim": "GPT-OSS 120B across 2 DGX Spark: ~75 tok/s output, ~150 tok/s total throughput, ~2.7s TTFT, ~58ms inter-token latency (older lmsysorg/sglang:spark image; newer image benchmarks pending).", "url": "https://github.com/mark-ramsey-ri/sglang-dgx-spark"},
+        {"claim": "Multi-node uses passwordless SSH, direct QSFP cable for 2 nodes or switched fabric for 3+, NCCL_IB_HCA/NCCL_NET_GDR_LEVEL=5 for RDMA, no Ray dependency; WORKER_HOST/WORKER_IB_IP env lists drive launch.", "url": "https://github.com/mark-ramsey-ri/sglang-dgx-spark"}
+      ],
+      "relevance_to_us": "Direct template for a multi-Spark SGLang deployment once we have 2+ Sparks (ch22); the NCCL RDMA env-var pattern is reusable for any of our multi-node work.",
+      "feeds": ["ch4", "ch22"]
+    },
+    {
+      "url": "https://github.com/mark-ramsey-ri/trt-dgx-spark",
+      "title": "mark-ramsey-ri/trt-dgx-spark",
+      "kind": "github-repo",
+      "summary": "Companion project to the SGLang one, same author, automating TensorRT-LLM deployment across 1-N DGX Spark nodes via Docker Swarm + OpenMPI.",
+      "facts": [
+        {"claim": "TensorRT-LLM container 1.2.1 (stable, multi-arch incl. ARM64, released 2026-04-20); PyTorch backend recommended for Spark; OpenAI-compatible REST via trtllm-serve.", "url": "https://github.com/mark-ramsey-ri/trt-dgx-spark"},
+        {"claim": "Presets for 13 popular models (Qwen, Llama, Mistral, Gemma, Phi-4, GPT-OSS variants) with per-model context-length/batch-size tuning.", "url": "https://github.com/mark-ramsey-ri/trt-dgx-spark"},
+        {"claim": "start_cluster.sh auto-detects single vs multi-node and skips Swarm overhead for a lone GPU; multi-node needs layer-2 bridged switch (3+) or direct QSFP (2), passwordless SSH+sudo on every worker.", "url": "https://github.com/mark-ramsey-ri/trt-dgx-spark"}
+      ],
+      "relevance_to_us": "A third serving-engine option (alongside vLLM/SGLang) worth benchmarking for ch4/ch6; TensorRT-LLM 1.2.1 is the current ARM64-supported version to pin.",
+      "feeds": ["ch4", "ch22"]
+    },
+    {
+      "url": "https://github.com/antirez/ds4",
+      "title": "antirez/ds4 (DwarfStar)",
+      "kind": "github-repo",
+      "summary": "A narrow, purpose-built C inference engine (not a general GGUF runner) from antirez (Redis creator), targeting DeepSeek V4 Flash with secondary GLM 5.2/DeepSeek V4 PRO support, across Metal/CUDA/ROCm.",
+      "facts": [
+        {"claim": "DGX Spark GB10 128GB, Q2 Flash model: 2048-token ctx = 825.76 t/s prefill / 18.05 t/s generation; 65536-token ctx = 822.98 t/s prefill / 13.84 t/s generation.", "url": "https://github.com/antirez/ds4", "evidence": "README benchmark table"},
+        {"claim": "Comparison point: MacBook Pro M5 Max gets 790.18 t/s prefill / 39.35 t/s generation at 2048 ctx on the same model — GB10 wins prefill, loses generation at this config.", "url": "https://github.com/antirez/ds4"},
+        {"claim": "Dedicated build target `make cuda-spark`; model loading/prompt rendering/tool calls/KV state/HTTP server/coding agent are built and tested together as one unit.", "url": "https://github.com/antirez/ds4"}
+      ],
+      "relevance_to_us": "Concrete third-party evidence that GB10 prefill throughput is strong but generation tok/s lags a high-end Apple Silicon box at short context — useful counterpoint for ch6 (NVFP4/spec-decode/concurrency) claims and for setting realistic expectations in ch20 (same code two backends).",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://github.com/ateska/dgx-spark-prometheus",
+      "title": "ateska/dgx-spark-prometheus",
+      "kind": "github-repo",
+      "summary": "Single-binary Go Prometheus exporter for DGX Spark exposing CPU/GPU/memory/storage/network metrics, installed as a systemd service.",
+      "facts": [
+        {"claim": "Exposes CPU usage/temp/freq, GPU utilization/temp/freq/power, RAM total/used bytes, disk I/O and capacity, network rx/tx bytes and packets.", "url": "https://github.com/ateska/dgx-spark-prometheus"},
+        {"claim": "Serves metrics on port 9835; recommended Prometheus scrape interval 5s.", "url": "https://github.com/ateska/dgx-spark-prometheus"},
+        {"claim": "Built from source with Go, binary+systemd unit copied to /usr/local/bin; transferable via scp to additional Sparks for identical install.", "url": "https://github.com/ateska/dgx-spark-prometheus"}
+      ],
+      "relevance_to_us": "Directly plugs into our existing Grafana/Prometheus posture (ch14 observability) — this is the cheapest way to get a Spark node scraped into the same fleet board we'd use for EFM/K8s; port 9835 is worth reserving.",
+      "feeds": ["ch14"]
+    },
+    {
+      "url": "https://github.com/DanTup/dgx_dashboard",
+      "title": "DanTup/dgx_dashboard",
+      "kind": "github-repo",
+      "summary": "A Dockerized, network-accessible dashboard replacing the built-in DGX Spark dashboard — GPU power/CPU/temps plus Docker container management, binds 0.0.0.0 so no SSH tunnel needed.",
+      "facts": [
+        {"claim": "Shows GPU power draw, CPU usage, GPU/system temps, memory in correct GB/GiB units, list of Docker containers with CPU/mem usage and Start/Stop buttons, live stats in browser tab title.", "url": "https://github.com/DanTup/dgx_dashboard"},
+        {"claim": "Distributed via GHCR image, pull-and-run with optional Docker-socket mount for container visibility; update = stop/remove container, re-run.", "url": "https://github.com/DanTup/dgx_dashboard"}
+      ],
+      "relevance_to_us": "Lightweight alternative/companion to Prometheus+Grafana for a quick single-node view, and a Docker-container-control UI we don't currently have (ch14).",
+      "feeds": ["ch14"]
+    },
+    {
+      "url": "https://github.com/chappa-ai-llc/spark-smi",
+      "title": "chappa-ai-llc/spark-smi",
+      "kind": "github-repo",
+      "summary": "Python/curses TUI system monitor purpose-built for hybrid ARM+unified-memory+RDMA hardware like DGX Spark, with a cluster fleet page and network-fabric validation page.",
+      "facts": [
+        {"claim": "Four pages: overview, advanced detail (per-GPU clocks/PCIe links/RDMA counters/thermal zones/SMART), cluster fleet view (up to 8 nodes side-by-side, compact matrix beyond that), fabric validation (bandwidth/latency stress test between nodes).", "url": "https://github.com/chappa-ai-llc/spark-smi"},
+        {"claim": "Install via pipx (recommended on Ubuntu 24.04's externally-managed Python) or venv; cluster mode uses `spark-smi --serve` on remote nodes + `spark-smi -l --cluster host1,host2,host3` on the viewer, unreachable nodes fade after 3x poll interval.", "url": "https://github.com/chappa-ai-llc/spark-smi"},
+        {"claim": "Reads /proc, /sys/class, /sys/class/infiniband for hardware discovery; optional perftest/iperf3 for fabric tests, spbm driver for power rails.", "url": "https://github.com/chappa-ai-llc/spark-smi"}
+      ],
+      "relevance_to_us": "Best-fit terminal tool for quick multi-Spark fleet checks (ch14, ch22) without standing up Grafana; the fabric-validation page is directly useful once we have 2+ Sparks on InfiniBand/RoCE.",
+      "feeds": ["ch14", "ch22"]
+    },
+    {
+      "url": "https://github.com/DanTup/spark-evals",
+      "title": "DanTup/spark-evals",
+      "kind": "github-repo",
+      "summary": "Generated leaderboard site over ~29 model/quantization configurations on DGX Spark, using multipass VM sandboxing and both a 'current' (evo eval, aider polyglot, swe-rebench) and 'legacy' (Inspect AI: bfcl, bigcodebench, IfEvalCode) eval suite.",
+      "facts": [
+        {"claim": "Runs in a multipass VM: `multipass launch --cpus 12 --disk 50G --memory 32G --name spark-evals`.", "url": "https://github.com/DanTup/spark-evals"},
+        {"claim": "Legacy table reports wall-clock + token counts (e.g. '19h 58m, 507k in, 3,112k out') rather than tok/s; current leaderboard reports only accuracy %, no throughput.", "url": "https://github.com/DanTup/spark-evals"}
+      ],
+      "relevance_to_us": "Useful accuracy-only comparison source for ch4/ch6 model selection, but does NOT give us tok/s numbers — pair with jvr0x/dgx-spark-bench or Weschera/spark-bench for throughput.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://github.com/jvr0x/dgx-spark-bench",
+      "title": "jvr0x/dgx-spark-bench",
+      "kind": "github-repo",
+      "summary": "Closed-loop concurrency benchmark harness focused on agentic workloads (many parallel long-context sessions rather than single-user chat), with a public GitHub Pages dashboard and a token-rate simulator.",
+      "facts": [
+        {"claim": "Drives OpenAI-compatible endpoints with unique prompt prefixes per request to defeat prefix-caching inflation; captures aggregate throughput, per-session tok/s, and TTFT/ITL percentiles.", "url": "https://github.com/jvr0x/dgx-spark-bench"},
+        {"claim": "Results are schema-validated with pinned provenance; dashboard at jvr0x.github.io/dgx-spark-bench is plain HTML/CSS/JS, companion token-rate simulator at tok-sim; results/manifest.json only lists actually-measured runs. MIT licensed.", "url": "https://github.com/jvr0x/dgx-spark-bench"}
+      ],
+      "relevance_to_us": "Best template we found for our own reproducible agentic-workload benchmark harness (ch16 local agentic validation loop, ch6 concurrency claims) — the anti-prefix-cache-inflation trick and pinned-provenance manifest pattern are worth copying.",
+      "feeds": ["ch6", "ch16"]
+    },
+    {
+      "url": "https://github.com/Weschera/spark-bench",
+      "title": "Weschera/spark-bench",
+      "kind": "github-repo",
+      "summary": "76-scenario / 12-domain LLM eval suite emphasizing agentic capability (tool use, multi-turn, code execution, injection resistance) with a weighted TrueScore composite metric and a live leaderboard site.",
+      "facts": [
+        {"claim": "TrueScore weights: Quality 55%, Calibration 25%, Reliability 15%, Efficiency 1.5%, Responsiveness 3.5% — speed deliberately capped at 5% combined so throughput can't mask poor quality.", "url": "https://github.com/Weschera/spark-bench"},
+        {"claim": "v6.7.1 single-Spark leaderboard top 5: DeepSeek V4 Flash (spec-off) 92.0, DeepSeek V4 Flash (DSpark) 86.7, Qwopus AWQ 85.8, Aeon Ultimate MM NVFP4 85.3, Gemma 4 26B-A4B 84.6.", "url": "https://github.com/Weschera/spark-bench", "evidence": "leaderboard table in README"},
+        {"claim": "Includes integrity gates: grader self-tests, endpoint preflight verification, git provenance checks, per-box locking. Live leaderboard at wesche.com/dgx.", "url": "https://github.com/Weschera/spark-bench"}
+      ],
+      "relevance_to_us": "Gives us a real, current single-Spark model ranking (DeepSeek V4 Flash leads) to cite in ch4 model-lock discussion and ch6, plus a rigor bar (integrity gates) worth matching in our own ch16 validation loop.",
+      "feeds": ["ch4", "ch6", "ch16"]
+    },
+    {
+      "url": "https://github.com/HendrikSchoettle/ragflow-dgx-spark",
+      "title": "HendrikSchoettle/ragflow-dgx-spark",
+      "kind": "github-repo",
+      "summary": "Automated ARM64/SM_121 build+deploy pipeline for RAGFlow (upstream ships no ARM64 image), with added multilingual OCR, encoding fixes, and metadata handling.",
+      "facts": [
+        {"claim": "Stack: RAGFlow v0.24.0, Elasticsearch 9.2.3, Ubuntu 24.04 aarch64, CUDA 13.0, Docker Compose v5.0.2.", "url": "https://github.com/HendrikSchoettle/ragflow-dgx-spark"},
+        {"claim": "Single entry point `rebuild_ragflow.sh` clones RAGFlow, compiles ONNX Runtime from source for the target GPU, builds two ARM64 Docker images with patches, deploys full stack; idempotent — reruns skip image rebuild unless upstream changed.", "url": "https://github.com/HendrikSchoettle/ragflow-dgx-spark"},
+        {"claim": "Extra fixes: 3-model OCR cascade (Latin/Cyrillic/Chinese), ISO-8859-1/Windows-1252 encoding fix, WebDAV mtime preservation, AVIF parsing, IMAP crash fix for comma-containing sender names.", "url": "https://github.com/HendrikSchoettle/ragflow-dgx-spark"}
+      ],
+      "relevance_to_us": "Direct alternative/companion to our local knowledge-base plan (ch15) if we want a full document-RAG UI rather than raw Qdrant+MCP; the ONNX-Runtime-from-source step is the recurring aarch64/Blackwell gotcha to expect.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://github.com/botAGI/AGmind",
+      "title": "botAGI/AGmind",
+      "kind": "github-repo",
+      "summary": "One-command (`sudo bash install.sh`) private RAG platform for DGX Spark: 30+ containers built around Dify, three vLLM instances (chat/embed/rerank), Weaviate or Qdrant, RAGFlow, Postgres/Redis, Docling-serve, plus monitoring and hardening.",
+      "facts": [
+        {"claim": "Core: Dify (langgenius/dify-api:1.13.3), 3x vLLM (generation + bge-m3 embeddings + reranking), Weaviate (default) or Qdrant, RAGFlow v0.24.1-spark, Postgres+Redis, Docling-serve GPU OCR.", "url": "https://github.com/botAGI/AGmind"},
+        {"claim": "Supporting infra: nginx + mDNS *.local routing, Prometheus+Grafana with 10 custom dashboards, Portainer, fail2ban+UFW.", "url": "https://github.com/botAGI/AGmind"},
+        {"claim": "11-phase automated install, ~25 minutes, 10-15 interactive questions covering stack/model selection and optional services.", "url": "https://github.com/botAGI/AGmind"}
+      ],
+      "relevance_to_us": "Note: repo lives at botAGI/AGmind (task listed 'botAI/AGmind' — corrected here). This is the most complete single reference architecture we found for ch15 (local knowledge base) — its Qdrant option and Grafana dashboard set are near-drop-in for our array's existing Qdrant/Prometheus stack.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://github.com/Chrizz-lab/GB10-Agentig-Coding-Framework",
+      "title": "Chrizz-lab/GB10-Agentig-Coding-Framework",
+      "kind": "github-repo",
+      "summary": "Fully local agentic coding stack on one DGX Spark: two Qwen3 vLLM containers (reasoning + coder) behind a LiteLLM proxy, driving 4 CrewAI agents (Architect/Developer/Reviewer/Tester) with ChromaDB memory.",
+      "facts": [
+        {"claim": "Reasoning model Qwen3-30B-A3B-FP8 (~35% GPU mem, port 8008); Coder model Qwen3-Coder-30B-A3B-Instruct-FP8 (~50% GPU mem, port 8009); LiteLLM proxy unifies both at port 4100.", "url": "https://github.com/Chrizz-lab/GB10-Agentig-Coding-Framework"},
+        {"claim": "ChromaDB provides 4 collections (code snippets, architecture docs, session summaries, project patterns) for cross-task memory.", "url": "https://github.com/Chrizz-lab/GB10-Agentig-Coding-Framework"},
+        {"claim": "Agents get file ops, shell exec, Docker status, and GPU metrics as tools; stack is Python 3.10+, Docker + NVIDIA Container Toolkit.", "url": "https://github.com/Chrizz-lab/GB10-Agentig-Coding-Framework"}
+      ],
+      "relevance_to_us": "A concrete, near-analogous prior-art project for our own ch15/ch16 goal (local agentic validation loop for Claude Code on the Spark) — worth comparing our design against its dual-model split (reasoning vs coder) and memory-collection scheme, even though we'd swap CrewAI for Claude Code itself.",
+      "feeds": ["ch15", "ch16"]
+    },
+    {
+      "url": "https://github.com/jeremyeder/dgx-agentskills",
+      "title": "jeremyeder/dgx-agentskills",
+      "kind": "github-repo",
+      "summary": "A Claude Code plugin (skills + MCP server) that lets Claude Code on a Mac/laptop serve models, monitor GPUs, manage VMs, and switch local/cloud inference on a remote DGX Spark, without leaving the CLI.",
+      "facts": [
+        {"claim": "Docker-based MCP server on the Spark, port 3100, wrapping nvidia-smi, Docker CLI, Ollama/vLLM CLIs, Tailscale CLI; exposes a `spark_gpu_utilization` MCP tool (GPU memory, compute %, temp, power) and a `/spark-status` skill.", "url": "https://github.com/jeremyeder/dgx-agentskills"},
+        {"claim": "Five skills total covering provisioning, model lifecycle, hybrid configs, VPN setup, VM management; Claude Code discovers the server via `.mcp.json`.", "url": "https://github.com/jeremyeder/dgx-agentskills"},
+        {"claim": "Data flow: Mac -> Claude Code plugin (skills/hooks) -> HTTP -> Spark MCP server -> local services (Ollama :11434, vLLM :8000).", "url": "https://github.com/jeremyeder/dgx-agentskills"}
+      ],
+      "relevance_to_us": "This is the closest existing analog to what our own array setup is heading toward — a Claude Code MCP bridge to the Spark's GPU/model state — directly relevant to ch12 (EFM agent class), ch15 (local knowledge base for Claude Code / MCP+Qdrant) and ch16 (local agentic validation loops); worth studying its .mcp.json shape and port choice (3100) before we design ours, and possibly noting a port conflict/precedent against our own future MCP server.",
+      "feeds": ["ch12", "ch15", "ch16"]
+    },
+    {
+      "url": "https://github.com/odnodn/dgx-spark",
+      "title": "odnodn/dgx-spark",
+      "kind": "github-repo",
+      "summary": "A second curated-resource-collection repo (overlapping with awesome-dgx-spark) covering official docs, NVIDIA forum links, and categorized GitHub projects (LLM inference, audio, dev tools, orchestration, specialized apps).",
+      "facts": [
+        {"claim": "Categorizes audio tooling specifically: Whisper, Faster-Whisper, and Parakeet STT projects for DGX Spark, plus TTS.", "url": "https://github.com/odnodn/dgx-spark"}
+      ],
+      "relevance_to_us": "Secondary index, redundant with bidual/awesome-dgx-spark for most categories but its audio-tooling section (Whisper/Faster-Whisper/Parakeet) is a direct pointer for ch7 (embeddings/rerank/Whisper tier) alongside our existing WindowsDesktop Whisper :8001.",
+      "feeds": ["ch7"]
+    },
+    {
+      "url": "https://github.com/AEON-7/AEON-7",
+      "title": "AEON-7/AEON-7",
+      "kind": "github-repo",
+      "summary": "Index repo for a prolific community publisher (AEON-7) of NVFP4-quantized model releases, Apple MLX ports, speculative-decode implementations, a voice-AI stack, and a ComfyUI-based media pipeline, all targeting DGX Spark/Blackwell.",
+      "facts": [
+        {"claim": "Releases follow a consistent template: setup scripts, agent-ready skill definitions, deployment guides with benchmarks, reproducible Docker stacks; all MIT/Apache licensed with weights on Hugging Face.", "url": "https://github.com/AEON-7/AEON-7"},
+        {"claim": "Includes AEON Bench (own benchmarking infra) and TurboQuant-based KV-cache quantization tooling reused across their model repos.", "url": "https://github.com/AEON-7/AEON-7"}
+      ],
+      "relevance_to_us": "High-volume single-publisher pattern worth knowing about for ch4/ch6 model sourcing — many individual NVFP4 model repos in the awesome-list trace back to this one org's consistent release template, which is a useful 'if it's from AEON-7 expect X' heuristic.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://github.com/graham33/nixos-dgx-spark",
+      "title": "graham33/nixos-dgx-spark",
+      "kind": "github-repo",
+      "summary": "Nix flake + NixOS module giving DGX Spark (and ASUS Ascent GX10) either a full NixOS install or dev-shells/playbooks usable directly on stock DGX OS (Ubuntu) via nix-gl-host.",
+      "facts": [
+        {"claim": "Two kernel options: a custom NVIDIA-annotation-derived kernel (default, ~82% config reduction vs verbose NVIDIA config, enables DGX Dashboard, full GPU+Ethernet support) or the stock NixOS 6.17 kernel (has documented networking issues).", "url": "https://github.com/graham33/nixos-dgx-spark"},
+        {"claim": "14+ playbooks for ComfyUI, vLLM, TRT-LLM etc.; install paths include USB bootable image, nixos-anywhere remote deploy, or a NixOS config template.", "url": "https://github.com/graham33/nixos-dgx-spark"}
+      ],
+      "relevance_to_us": "Not our OS choice (we're staying on stock DGX OS/Ubuntu per the plan) but the nix-gl-host dev-shell path is a possible reproducibility trick for ch2/ch8 if we ever want pinned toolchains without touching the base OS.",
+      "feeds": ["ch2"]
+    },
+    {
+      "url": "https://github.com/MiaAI-Lab/sparkDash",
+      "title": "MiaAI-Lab/sparkDash",
+      "kind": "github-repo",
+      "summary": "React 19/TypeScript/Vite 8/Tailwind v4 + Node/Express 5 web dashboard streaming real-time metrics for one or more DGX Sparks, with editable fleet configuration and optional ComfyUI/Hermes/Tailscale integrations.",
+      "facts": [
+        {"claim": "Streams GPU (VRAM, temp, power, process list), unified-memory pool breakdown, CPU/system, network, storage, plus LLM-specific stats: decode/prefill tok/s, KV cache stats, queue depth.", "url": "https://github.com/MiaAI-Lab/sparkDash"},
+        {"claim": "Deploy via `docker compose up --build -d` (prod) or `npm install && npm run dev` (dev); default port 5555.", "url": "https://github.com/MiaAI-Lab/sparkDash"},
+        {"claim": "Overview page lets you add/edit/reorder/remove monitored Sparks from the web UI with no restart needed.", "url": "https://github.com/MiaAI-Lab/sparkDash"}
+      ],
+      "relevance_to_us": "The most feature-complete fleet dashboard found (LLM-level metrics, not just hardware) — best single candidate to sit alongside our Grafana/EFM fleet board for ch14, and its live-editable node list is a UX pattern worth copying for our multi-Spark future (ch22).",
+      "feeds": ["ch14", "ch22"]
+    },
+    {
+      "url": "https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark",
+      "title": "MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark",
+      "kind": "github-repo",
+      "summary": "Recipe repo running Qwen3.8-27B NVFP4 W4A4 on SGLang, single DGX Spark, with three interchangeable serving modes (DSpark, EAGLE/MTP, DFlash2) tuned for code vs prose workloads.",
+      "facts": [
+        {"claim": "Container lmsysorg/sglang:qwen38-27b; NVFP4 W4A4 quant with dense BF16 LM head; native 262K context extended to 1M via YaRN.", "url": "https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark"},
+        {"claim": "Measured decode tok/s: DSpark mode 51.5 (code)/18.3 (essay); EAGLE/MTP 34.5/24.1; DFlash2 50.9/25.4 — same boot session, net-decode.", "url": "https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark", "evidence": "README benchmark table"},
+        {"claim": "Deploy: cp .env.sample .env; then ./start-dspark.sh | ./start.sh | ./start-dflash.sh; verify with curl :8888/v1/models; weights auto-download ~24GB on first run.", "url": "https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark"}
+      ],
+      "relevance_to_us": "Good concrete single-Spark SGLang recipe with a real workload-dependent-mode-switching pattern (code vs prose) directly useful for ch6 (spec-decode/MoE-vs-dense/concurrency) and as a candidate coder model for ch16's validation loop.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://github.com/0xdfi/GLM-5.2-1M-4x-DGX-Spark",
+      "title": "0xdfi/GLM-5.2-1M-4x-DGX-Spark",
+      "kind": "github-repo",
+      "summary": "4-node DGX Spark deployment of unpruned GLM-5.2 (744B total/40B active MoE) at long context, using a custom vLLM branch with B12X sparse-MLA kernels and hand-written scheduler/MTP patches.",
+      "facts": [
+        {"claim": "vLLM branch codex/dcp-globaltopk-sharddraft-defaults-20260622; NVFP4 DS-MLA KV cache format (nvfp4_ds_mla, 368-byte record); TP4 + DCP1/DCP2 + PP1; O14 Fast profile is the only deployable one at 250K tokens (Balanced targets 500K, throughput TBD).", "url": "https://github.com/0xdfi/GLM-5.2-1M-4x-DGX-Spark"},
+        {"claim": "O14 Fast measured: 819 tok/s prefill, 42.3 tok/s peak decode, 29-33 tok/s deep-context decode at ~53K prompt tokens, max context 249,000 tokens (allocator capacity 250,023).", "url": "https://github.com/0xdfi/GLM-5.2-1M-4x-DGX-Spark", "evidence": "README performance table"}
+      ],
+      "relevance_to_us": "Real numbers for what a large-MoE 4-node deployment actually achieves (42 tok/s decode, not 1M usable context despite the repo name) — good grounding-in-reality citation for ch22 (multi-Spark scale-out) claims and to temper marketing-style throughput expectations.",
+      "feeds": ["ch6", "ch22"]
+    },
+    {
+      "url": "https://github.com/tonyd2wild/GLM-5.2-655K-MTP-4x-DGX-Spark---25-32tok-s",
+      "title": "tonyd2wild/GLM-5.2-655K-MTP-4x-DGX-Spark--25-32tok/s",
+      "kind": "github-repo",
+      "summary": "Another 4-node GLM-5.2 deployment (int4/int8 mixed compressed-tensors quant, unpruned 744B/256-expert checkpoint) at 655K token context over a dedicated RoCE fabric.",
+      "facts": [
+        {"claim": "4x DGX Spark (121GB unified memory each) on dedicated 100G RoCE switch, MTU 9000, subnet 192.168.192.0/24; weights replicated locally per node (~420GB free disk each); NCCL channels pinned to 4.", "url": "https://github.com/tonyd2wild/GLM-5.2-655K-MTP-4x-DGX-Spark---25-32tok-s"},
+        {"claim": "655,360-token context (KV cache sharded 4-way via decode-context-parallelism, fp8 DeepSeek-MLA dtype); boot logs confirm 657,664-token GPU KV cache allocation.", "url": "https://github.com/tonyd2wild/GLM-5.2-655K-MTP-4x-DGX-Spark---25-32tok-s"},
+        {"claim": "Throughput: 23.0 tok/s single stream, 47.9 tok/s aggregate at 4 concurrent; MTP k=3 spec-decode ~3.0 acceptance length (66% draft-token acceptance); a companion 200K-context recipe on the same hardware gets 28.8/60.5 tok/s (single/4-concurrent).", "url": "https://github.com/tonyd2wild/GLM-5.2-655K-MTP-4x-DGX-Spark---25-32tok-s", "evidence": "README performance section"}
+      ],
+      "relevance_to_us": "Second independent data point on 4-node GLM-5.2 (23-48 tok/s range, RoCE not InfiniBand) — corroborates 0xdfi's numbers as roughly-consistent and gives us a concrete RoCE-fabric config (100G switch, MTU 9000, dedicated /24 subnet) template for ch22.",
+      "feeds": ["ch6", "ch22"]
+    },
+    {
+      "url": "https://github.com/mudler/vllm.cpp/blob/main/docs/models/qwen3-8-2-4t.md",
+      "title": "mudler/vllm.cpp docs: Qwen3.8-2.4T-A95B",
+      "kind": "github-doc",
+      "summary": "Documentation page for running the 2.4-trillion-parameter Qwen3.8-2.4T-A95B MoE model on vllm.cpp using UD-Q1_0 quantization and NVMe expert-streaming ('borrowing') on a single DGX Spark with only 119.6 GiB unified memory.",
+      "facts": [
+        {"claim": "Quantized model size 369.97 GiB vs 119.631 GiB available unified memory; expert towers stay memory-mapped from the GGUF file on NVMe rather than being copied into RAM ('borrowing' architecture), 4000 expert-streaming slots, single concurrent request max.", "url": "https://github.com/mudler/vllm.cpp/blob/main/docs/models/qwen3-8-2-4t.md"},
+        {"claim": "Steady decode 11.05 sec/token; first-token latency 79-86s after a 255-271s load; ~6.95 GB NVMe read per token working set is the bottleneck; CPU device required (CUDA path has unresolved correctness issues), prefault disabled.", "url": "https://github.com/mudler/vllm.cpp/blob/main/docs/models/qwen3-8-2-4t.md"},
+        {"claim": "Quant pinned to unsloth/Qwen3.8-2.4T-A95B-GGUF commit 567d3e6ac26c5474b18311e619c04350fb9a5556, ten-shard GGUF download.", "url": "https://github.com/mudler/vllm.cpp/blob/main/docs/models/qwen3-8-2-4t.md"}
+      ],
+      "relevance_to_us": "Important cautionary data point for ch4 ('model lock') and ch6: a model 3x larger than unified memory technically runs via NVMe-backed expert streaming, but at 11 sec/token it's a curiosity, not a usable serving config — worth citing explicitly so we don't chase '4TB NVMe means huge MoE models are viable' as a real capability.",
+      "feeds": ["ch4", "ch6"]
+    }
+  ],
+  "open_questions": [
+    "Does mark-ramsey-ri/sglang-dgx-spark or trt-dgx-spark have benchmark numbers on the *current* pinned container versions (both READMEs flag their headline tok/s figures as coming from an older image)?",
+    "MiaAI-Lab also publishes DeepSeek-v4-Flash-One-DGX-Spark, DeepSeek-v4-Flash-DSpark-2x-DGX-Spark, DeepSeek-V4-Flash-Dual-DGX-Spark-1M-Context, and Unsloth-Qwen3.6-35b-NVFP4-DGX-Spark repos we located via search but did not fetch READMEs for — worth pulling if a future chapter needs DeepSeek-V4-Flash specifics.",
+    "raphaelamorim/spark-playbooks named in the task scope was not found in the awesome-dgx-spark index or via direct raw-README fetch (404) — closest match found was csabakecskemeti/dgx-spark-community-playbooks; confirm whether raphaelamorim's repo exists under a different path/org before citing it.",
+    "jeremyeder/dgx-agentskills' MCP server binds port 3100 on the Spark — check this doesn't collide with anything we plan to run there before adopting the pattern."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "Weschera/spark-bench v6.7.1 leaderboard: DeepSeek V4 Flash (spec-off) leads single-Spark models at TrueScore 92.0, ahead of DSpark-accelerated DeepSeek V4 Flash (86.7) and several NVFP4 alternatives.",
+      "url": "https://github.com/Weschera/spark-bench",
+      "why_it_matters": "If ch4/ch6 pick a default model recommendation for the guide, this is the most rigorous third-party ranking found (weighted TrueScore with integrity gates) and should be the anchor citation, not any single vendor benchmark."
+    },
+    {
+      "claim": "Independent 4-node GLM-5.2 deployments (0xdfi and tonyd2wild repos) both land in the 23-48 tok/s range at 250K-655K context, not near the 'headline' large numbers some repo names imply.",
+      "url": "https://github.com/tonyd2wild/GLM-5.2-655K-MTP-4x-DGX-Spark---25-32tok-s",
+      "why_it_matters": "Sets realistic multi-Spark MoE throughput expectations for ch22 scale-out planning; prevents overpromising in the guide based on repo-name framing alone."
+    },
+    {
+      "claim": "mudler/vllm.cpp's Qwen3.8-2.4T-A95B via NVMe expert-streaming runs at 11.05 sec/token on a single Spark despite the model being 3x larger than unified memory.",
+      "url": "https://github.com/mudler/vllm.cpp/blob/main/docs/models/qwen3-8-2-4t.md",
+      "why_it_matters": "Directly tests the 'huge 4TB NVMe means we can run huge MoE models' assumption in the array plan for ch4/ch6 — the answer is technically-yes/practically-unusable, which should shape how we frame the DGX Spark's storage advantage."
+    }
+  ],
+  "fetch_failures": [
+    "https://github.com/orgs/MiaAI-Lab/repositories (404 on WebFetch; worked around via WebSearch instead)",
+    "https://raw.githubusercontent.com/mudler/vllm.cpp/main/docs/models/qwen3-8-2-4t.md was fetched successfully but note the canonical GitHub URL uses /blob/main/ path form recorded in the source list above",
+    "raphaelamorim/spark-playbooks (named in task scope) — not found in awesome-dgx-spark index; no raw README fetch attempted since repo existence unconfirmed"
+  ]
+}

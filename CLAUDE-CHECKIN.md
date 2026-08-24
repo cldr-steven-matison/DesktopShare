@@ -18,6 +18,7 @@ Full protocol + how to report back: `agent/device-comms.md`. Device ↔ hostname
 | FTF3XR2065 (Mac) | FTF3XR2065 | `device:FTF3XR2065` | — |
 | Stevens-MacBook-Pro (personal Mac) | Stevens-MacBook-Pro | `device:macbook` | — |
 | DigitalOcean droplet | nifi.sceneserver.net | (none yet) | — |
+| NvidiaSpark-1 | *(pending arrival — hostname set on first boot)* | `device:NvidiaSpark-1` | planning owned by WindowsDesktop until the box lands |
 
 **Two Macs, two labels — don't conflate them.** `FTF3XR2065` is the Cloudera-issued M4 Pro work
 laptop (arm64, full local minikube). `Stevens-MacBook-Pro` is the personal 2017 Intel MacBook Pro
@@ -334,6 +335,32 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ### Known issue
 - 1.9GB RAM is tight for NiFi's `-Xmx1g` heap — the OOM-killer took NiFi down on 2026-07-21, and the bootstrap watchdog got stuck retrying against a stale (deleted) `java` binary handle from an earlier JDK reinstall, so it couldn't self-heal. Recovered manually (killed the stuck watchdog, clean restart). Worth lowering `-Xmx` or bumping droplet RAM to prevent recurrence.
+
+---
+
+## NvidiaSpark-1 (NVIDIA DGX Spark, hostname pending — box not yet delivered)
+
+- **Role**: Incoming desk-class local-AI host — GB10 Grace Blackwell, 128 GB unified memory, aarch64. Planned to run k3d + Cloudera Streaming Operators (NiFi/Kafka/Flink) on-box, an EFM MiNiFi Java agent as class `NvidiaSpark-1`, local LLM/embedding/Whisper serving that the array's flows target as an inference endpoint, and the local knowledge base for Claude Code. **WindowsDesktop stays the production CSO host; its GPU services run as-is until the Spark equivalents are proven** (cutover ladder in `nvidia-dgx-spark-k3d-cso.md`). Planning docs: `nvidia-dgx-spark-plan.md` (EPIC spine, [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)), `nvidia-dgx-spark-research.md`, `-landscape.md`, `-runbook.md`, `-k3d-cso.md`, `-efm-agent.md`, `-local-kb.md`, `-cloudera-aws.md`, `-cloudera-demos.md`; guide tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
+- **Checked in**: not yet — this block is a placeholder filed 2026-08-24 so the label, the roster, and the plan agree before arrival. Arrival-day steps (runbook `nvidia-dgx-spark-runbook.md` §"Joining the array"): fill this block from the real box (`nvidia-smi`, `uname -a`, `free -g`, `df -h`), add the hostname arm to `ds_device_labels()` in `.claude/hooks/lib-device.sh`, and record the LAN/Tailscale IPs and the serving endpoint URLs here so NiFi `InvokeHTTP` / RAG flows can target them.
+- **Claude Code version**: —
+
+### Hardware (from NVIDIA's spec sheet; confirm on the box)
+- CPU: NVIDIA GB10 Grace Blackwell Superchip, 20-core Arm (10× Cortex-X925 + 10× Cortex-A725)
+- GPU: Blackwell GPU, ~1 PFLOP FP4 (sparse)
+- RAM: 128 GB LPDDR5x unified, 273 GB/s
+- Storage: 4 TB NVMe (self-encrypting)
+- Network: ConnectX-7 (200 Gb/s, dual QSFP for Spark-to-Spark), 10 GbE, Wi-Fi 7
+
+### OS
+- OS: DGX OS (Ubuntu-based, aarch64) — version recorded on first boot
+- Kernel: —
+
+### Key tool versions
+- Git / Python / Docker / nvidia-container-toolkit / CUDA / k3d / kubectl / helm: recorded on first boot
+
+### Network
+- Connection: LAN (static IP reserved on arrival)
+- Tailscale IP: to join the array tailnet on arrival (NVIDIA ships a Tailscale playbook)
 
 ---
 
