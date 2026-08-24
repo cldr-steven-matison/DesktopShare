@@ -29,8 +29,13 @@ Three panels on one 368×448 screen, toggled by `hidden` bindings:
    three zones, so right→left is one tap.
 3. **RESULT** — achievement rank, score, stats, live top-3 from the board, **RACE AGAIN**.
 
-Game rules match the browser game: 3 Datahero lives, speed level every 15 s (+20 km/h), Cloudera
-Hero Mode at 2:00, iceberg power-up past 3,000 points. Telemetry (`heartbeat` every second, plus
+Game rules follow the browser game — 3 Datahero lives, speed level every 15 s (+20 km/h), Cloudera
+Hero Mode at 2:00, iceberg power-up past 3,000 points — with three deliberate differences since
+[#209](https://github.com/cldr-steven-matison/DesktopShare/issues/209) (2026-08-24): the iceberg is a
+pure +200 pickup (no speed-level drop, no ramp-clock reset), collisions are swept over the whole step
+(no tunnelling at high speed), and past Lv.30 (`BLIND_LEVEL`, where an obstacle crosses the road faster
+than the screen can show it) a growing share of villains spawn partway down the road, some with no
+warning — so the speed only ever climbs and every run ends. Telemetry (`heartbeat` every second, plus
 `collision` / `powerup_iceberg` / `game_over`) POSTs to `/racing/metrics`, which forwards to the
 game's `/api/metrics` → NiFi ListenHTTP → Kafka → leaderboard.
 
@@ -46,7 +51,7 @@ bridge (`SystemGui`, `SystemTimer`, `Http`), rendering the JSON-UI tree at true 
 
 - `simulator/shim.js` — the host-bridge emulation + view tree. Two renderers share it: DOM (browser)
   and state-only (node).
-- `simulator/panel.html` — the panel, nothing else, plus a **CLAUDE DRIVES** autopilot toggle (`C`).
+- `simulator/panel.html` — the panel, nothing else, plus an **AUTO PILOT** button (`C`) — red off, green engaged.
 - `simulator/bot.js` — the autopilot, shared by browser and headless, so what you watch is what scores.
 - `simulator/headless.js` — `node simulator/headless.js [--dumb] [--pure] [--as NAME]`. Plays a full
   race with no board and no DOM and prints the result; `--dumb` crashes deliberately to prove
@@ -76,11 +81,13 @@ seconds by the simulator that now exists.
 cycle is minutes plus a person with a finger; the simulator turns that into seconds and catches
 exactly the class of bug (layout, event wiring, missing paths) that a boot log cannot show.
 
-**Balance finding (in the game itself, not the port):** past 3,000 points the iceberg power-up
+**Balance finding (in the game itself, not the port):** past 3,000 points the upstream iceberg power-up
 *lowers* the speed level, so farming icebergs pins difficulty at Lv.1 permanently — an autopilot ran
 20 minutes / 44,860 points without losing a life. Dodging icebergs instead, the curve works: Lv.81 /
-1,660 km/h by the same 20-minute mark. A human can't grab them all, so this only matters if bots
-ever share the board; capping the level reduction is the fix.
+1,660 km/h by the same 20-minute mark. **Resolved in the port, not upstream** (#209, 2026-08-24): the
+port's iceberg is points-only, collisions are swept, and blind spawns past Lv.30 end every run — the
+same autopilot now dies at 8:02–8:51 (Lv.33–36, 43,650–50,130 pts) across six runs. Upstream is
+untouched; the analysis stays in `files/racing/upstream-proposal.md`.
 
 ## Flash / deploy mechanics
 
@@ -98,14 +105,15 @@ never on the flashed image (it exists in the repo only). Remaining apps on the g
 
 | Issue | What |
 |---|---|
-| [#209](https://github.com/cldr-steven-matison/DesktopShare/issues/209) | Iceberg power-up pins difficulty at Lv.1 — **upstream** game-balance PR (upstream code, not our deploy) |
+| [#209](https://github.com/cldr-steven-matison/DesktopShare/issues/209) | Iceberg power-up pinned difficulty at Lv.1 — fixed **in the port** 2026-08-24 (points-only iceberg, swept collisions, blind spawns past Lv.30); upstream not patched |
 | [#210](https://github.com/cldr-steven-matison/DesktopShare/issues/210) | No finish line — propose a race/finish mode **upstream** (the game is endless survival today) |
 | [#211](https://github.com/cldr-steven-matison/DesktopShare/issues/211) | Confirm the board can reach the backend on `:8093` (firewall rule exists; the obvious test is invalid) |
 | [#212](https://github.com/cldr-steven-matison/DesktopShare/issues/212) | Panel simulator harness — the preview half of the **[#208](https://github.com/cldr-steven-matison/DesktopShare/issues/208) AMOLED UI Developer Kit** |
 | [#213](https://github.com/cldr-steven-matison/DesktopShare/issues/213) | Tilt steering via the board IMU (no left/right buttons exist) — check sandbox exposure first |
 
 **Upstream vs ours:** the speed-level reset and the missing finish line are both **upstream game logic**
-(`services/game/index.html:425` and the single `endGame()` call site at `:434`). Our clone is
-byte-identical to upstream HEAD — #201 changed only the nginx upstream, the Kafka bootstrap, and k8s
-manifests — so #209/#210 belong upstream as PR/collaboration with
-`cldr-jquiroscr/cloudera-racing-standalone` (and the internal `cloudera-racing`), not as a local patch.
+(`services/game/index.html:425` and the single `endGame()` call site at `:434`). Our browser-game clone
+stays byte-identical to upstream HEAD — #201 changed only the nginx upstream, the Kafka bootstrap, and
+k8s manifests. The **panel port** is where the rules now diverge (#209, above); the browser game and
+`cldr-jquiroscr/cloudera-racing-standalone` were not patched, and the write-up in
+`files/racing/upstream-proposal.md` remains the record if it is ever raised there.
