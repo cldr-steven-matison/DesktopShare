@@ -84,19 +84,20 @@ def processors():
 
 
 def metrics():
-    """The four numbers the agent actually ships to EFM. Captions at the
+    """The three numbers the agent actually ships to EFM. Captions at the
     footer floor, values in the value band -- the #205 sizing lesson.
 
     BEATS replaced CPU %: this agent reports cpuUtilization 0.0 on every
     heartbeat, so the cell was a permanent zero. Heartbeats-received is a
-    number that actually moves, and it comes from EFM's own counter."""
+    number that actually moves, and it comes from EFM's own counter.
+
+    QUEUE is dropped (#220): three equal cells instead of four cramped ones."""
     cells = [
         ("mx_uptime", "UPTIME", "--"),
         ("mx_mem", "MEM MB", "--"),
         ("mx_beats", "BEATS", "--"),
-        ("mx_queue", "QUEUE", "--"),
     ]
-    cw = W // 4
+    cw = W // 3
     kids = []
     for i, (cid, cap, val) in enumerate(cells):
         x = i * cw
@@ -108,11 +109,11 @@ def metrics():
 
 
 def footer():
+    """Just the agent id line now (#220): foot_age ("updated Ns ago") is
+    dropped, and foot_id moves up to y=0 to take its place."""
     return pk.canvas("foot", 0, 396, W, 52, bg=BLACK, children=[
-        pk.label("foot_age", 8, 0, W - 16, 20, text="connecting...",
+        pk.label("foot_id", 8, 0, W - 16, 20, text="connecting...",
                  role="footer", size=16, color=tk.MUTED),
-        pk.label("foot_id", 8, 24, W - 16, 20, text="", role="footer",
-                 size=16, color=tk.MUTED),
     ])
 
 

@@ -70,18 +70,6 @@ def topbar():
     ])
 
 
-def nav_chevrons():
-    """Affordance only, drawn over the art, and deliberately NOT clickable:
-    something has to say which way the panel moves when you slide it."""
-    cy = NAV_Y + (NAV_H - 44) // 2
-    return [
-        pk.label("nav_prev_g", 8, cy, 44, 44, text="<", role="value",
-                 size=40, color=tk.MUTED),
-        pk.label("nav_next_g", W - 52, cy, 44, 44, text=">", role="value",
-                 size=40, color=tk.MUTED),
-    ]
-
-
 def build():
     return pk.screen("home", bg=BLACK, children=[
         # Nothing on this screen is clickable. That is the point: a clickable
@@ -107,7 +95,6 @@ def build():
         # (panelkit trap 3, closed by sprite() and lint R6).
         pk.sprite("art", 0, ART_Y, W, ART_H, src="${image.launch}",
                   align="contain"),
-    ] + nav_chevrons() + [
         pk.label("pad", 8, H - 68, W - 16, 22, text="", role="footer", size=16,
                  color=tk.MUTED),
         pk.label("status", 8, H - 46, W - 16, 22, text="", role="footer",

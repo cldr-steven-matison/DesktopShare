@@ -146,10 +146,6 @@ def media():
     return pk.canvas("media", 0, TOPBAR_H, W, MEDIA_H, bg=BLACK, children=[
         pk.sprite("card_img", 0, 0, W, MEDIA_H, src="", align="contain",
                   hidden="imgHidden"),
-        pk.label("chev_prev", 16, (MEDIA_H - 40) // 2, 40, 40, text="<",
-                  role="value", size=32, color=tk.MUTED, align="center"),
-        pk.label("chev_next", W - 16 - 40, (MEDIA_H - 40) // 2, 40, 40, text=">",
-                  role="value", size=32, color=tk.MUTED, align="center"),
     ])
 
 
