@@ -1,0 +1,386 @@
+{
+  "flowMetadata": {
+    "identifier": "edef12d8-aea5-4973-8739-e760cab29ff5",
+    "agentClass": "AMOLED",
+    "rootProcessGroupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea",
+    "created": 1787083579726,
+    "updated": 1787603071316,
+    "undoEnabled": false,
+    "redoEnabled": false
+  },
+  "flowContent": {
+    "identifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea",
+    "instanceIdentifier": "4c40e01b-cc95-45a2-8c97-d540911a94ad",
+    "name": "root",
+    "comments": null,
+    "position": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "processGroups": [],
+    "remoteProcessGroups": [],
+    "processors": [
+      {
+        "identifier": "a1f94007-ca4a-4eca-8973-2191c2bf1e17",
+        "instanceIdentifier": "a29c2d58-2d97-426a-b491-a346300c5403",
+        "name": "PlayAudio",
+        "comments": "",
+        "position": {
+          "x": 800.0,
+          "y": 400.0
+        },
+        "type": "PlayAudio",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "microfi-system",
+          "version": "0.1.0"
+        },
+        "properties": {
+          "Audio URL": null,
+          "Volume": null,
+          "Interrupt": "true"
+        },
+        "propertyDescriptors": {
+          "Audio URL": {
+            "name": "Audio URL",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Volume": {
+            "name": "Volume",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Interrupt": {
+            "name": "Interrupt",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "1000 ms",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea"
+      },
+      {
+        "identifier": "b54a361d-7725-441d-9d90-a7e84936b1f5",
+        "instanceIdentifier": "618c60b1-1537-42aa-ad4b-ac2e35431a72",
+        "name": "ListenHTTP",
+        "comments": "",
+        "position": {
+          "x": 800.0,
+          "y": 100.0
+        },
+        "type": "ListenHTTP",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "microfi-system",
+          "version": "0.1.0"
+        },
+        "properties": {
+          "Base Path": "/play",
+          "Listening Port": "8095"
+        },
+        "propertyDescriptors": {
+          "Base Path": {
+            "name": "Base Path",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Listening Port": {
+            "name": "Listening Port",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "1000 ms",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea"
+      },
+      {
+        "identifier": "8b716112-1380-4403-badf-ab203135ec6e",
+        "instanceIdentifier": "a04d38de-d55e-43e9-9a22-04d141c97e1b",
+        "name": "GetTouch",
+        "comments": "",
+        "position": {
+          "x": 100.0,
+          "y": 100.0
+        },
+        "type": "GetTouch",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "microfi-system",
+          "version": "0.1.0"
+        },
+        "properties": {
+          "Events": "Release",
+          "Output Format": "JSON"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "1000 ms",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea"
+      },
+      {
+        "identifier": "082576f8-5570-44f2-89ec-328954bd5692",
+        "instanceIdentifier": "2b07d3a7-6965-4161-bfc8-d34c19405f73",
+        "name": "PublishMQTT",
+        "comments": "",
+        "position": {
+          "x": 100.0,
+          "y": 400.0
+        },
+        "type": "PublishMQTT",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "microfi-system",
+          "version": "0.1.0"
+        },
+        "properties": {
+          "Broker URI": "mqtt://192.168.1.121:1883",
+          "Client ID": "amoled-touch",
+          "Username": null,
+          "Topic": "microfi/amoled/touch",
+          "Quality of Service": "0",
+          "Password": null
+        },
+        "propertyDescriptors": {
+          "Broker URI": {
+            "name": "Broker URI",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Client ID": {
+            "name": "Client ID",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Username": {
+            "name": "Username",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Topic": {
+            "name": "Topic",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Quality of Service": {
+            "name": "Quality of Service",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          },
+          "Password": {
+            "name": "Password",
+            "displayName": null,
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "resourceDefinition": null
+          }
+        },
+        "style": {},
+        "annotationData": null,
+        "schedulingPeriod": "1000 ms",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30000 ms",
+        "yieldDuration": "1000 ms",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
+        "scheduledState": null,
+        "retryCount": null,
+        "retriedRelationships": null,
+        "backoffMechanism": null,
+        "maxBackoffPeriod": null,
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea"
+      }
+    ],
+    "inputPorts": [],
+    "outputPorts": [],
+    "connections": [
+      {
+        "identifier": "834b1b7a-3177-4a6e-80ad-8ed2ce9539c0",
+        "instanceIdentifier": "86c7cebe-3f42-485d-a7a0-bac17b231583",
+        "name": "ListenHTTP/success/PlayAudio",
+        "comments": null,
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "source": {
+          "id": "b54a361d-7725-441d-9d90-a7e84936b1f5",
+          "type": "PROCESSOR",
+          "groupId": "4aae5d77-bbb2-474b-9c93-cc41488320ea",
+          "name": "ListenHTTP",
+          "comments": null,
+          "instanceIdentifier": "618c60b1-1537-42aa-ad4b-ac2e35431a72"
+        },
+        "destination": {
+          "id": "a1f94007-ca4a-4eca-8973-2191c2bf1e17",
+          "type": "PROCESSOR",
+          "groupId": "4aae5d77-bbb2-474b-9c93-cc41488320ea",
+          "name": "PlayAudio",
+          "comments": null,
+          "instanceIdentifier": "a29c2d58-2d97-426a-b491-a346300c5403"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 2000,
+        "backPressureDataSizeThreshold": "100 MB",
+        "flowFileExpiration": "0 seconds",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": null,
+        "partitioningAttribute": null,
+        "loadBalanceCompression": null,
+        "componentType": "CONNECTION",
+        "groupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea"
+      },
+      {
+        "identifier": "474a78c2-7fe5-4257-b584-71a160ec7b01",
+        "instanceIdentifier": "91683b5a-7b45-4980-8dc3-71920a77adc1",
+        "name": "GetTouch/success/PublishMQTT",
+        "comments": null,
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "source": {
+          "id": "8b716112-1380-4403-badf-ab203135ec6e",
+          "type": "PROCESSOR",
+          "groupId": "4aae5d77-bbb2-474b-9c93-cc41488320ea",
+          "name": "GetTouch",
+          "comments": null,
+          "instanceIdentifier": "a04d38de-d55e-43e9-9a22-04d141c97e1b"
+        },
+        "destination": {
+          "id": "082576f8-5570-44f2-89ec-328954bd5692",
+          "type": "PROCESSOR",
+          "groupId": "4aae5d77-bbb2-474b-9c93-cc41488320ea",
+          "name": "PublishMQTT",
+          "comments": null,
+          "instanceIdentifier": "2b07d3a7-6965-4161-bfc8-d34c19405f73"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 2000,
+        "backPressureDataSizeThreshold": "100 MB",
+        "flowFileExpiration": "0 seconds",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": null,
+        "partitioningAttribute": null,
+        "loadBalanceCompression": null,
+        "componentType": "CONNECTION",
+        "groupIdentifier": "4aae5d77-bbb2-474b-9c93-cc41488320ea"
+      }
+    ],
+    "labels": [],
+    "funnels": [],
+    "controllerServices": [],
+    "versionedFlowCoordinates": null,
+    "variables": {},
+    "parameterContextName": "399599af-5cc2-4f2b-8cc6-545949a388ff",
+    "defaultFlowFileExpiration": null,
+    "defaultBackPressureObjectThreshold": null,
+    "defaultBackPressureDataSizeThreshold": null,
+    "logFileSuffix": null,
+    "flowFileConcurrency": null,
+    "flowFileOutboundPolicy": null,
+    "componentType": "PROCESS_GROUP",
+    "groupIdentifier": null
+  },
+  "parameterContexts": [
+    {
+      "id": "399599af-5cc2-4f2b-8cc6-545949a388ff",
+      "name": "399599af-5cc2-4f2b-8cc6-545949a388ff",
+      "parameters": [],
+      "usage": null
+    }
+  ],
+  "versionInfo": {
+    "flowVersion": 5,
+    "lastPublished": 1787603071122,
+    "lastPublishedBy": "anonymous",
+    "dirty": false,
+    "localChanges": false
+  },
+  "localFlowRevision": 41
+}

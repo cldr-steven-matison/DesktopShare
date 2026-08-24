@@ -275,6 +275,75 @@ Gotchas that cost a step:
 - A WSL crash mid-build leaves truncated `.obj` files that `ldgen` rejects (`file format not
   recognized`); delete every non-ELF `.obj` under `build/` and rebuild, no clean needed.
 
+## #191 rungs 4+5 as-built — GetTouch and PlayAudio (2026-08-24)
+
+Steven's call on 2026-08-24: after the shake confirmation, build GetTouch and PlayAudio next
+(GetPower skipped for now — rails/temp only). Both are on the glass; the AMOLED class manifest is
+`6dcaac66-7ced-4223-9562-b5f97915d05c` (10 processors). MicroFi `src/processors/get_touch.cpp` +
+`src/processors/play_audio.cpp`, each whole-file behind a board define
+(`MICROFI_BOARD_TOUCH_GESTURE` / `MICROFI_BOARD_PLAY_AUDIO`); waveshare-devices `b6c52af`. These
+are the agent's **first Brookesia service dependencies** — `REQUIRES` grew by
+`brookesia_service_display brookesia_service_helper brookesia_service_manager brookesia_hal_interface`.
+XIAO `esp32s3-8mb` regression passed with both files present (empty translation units there).
+
+**GetTouch (source).** Does not read the CST820 — it subscribes to the Display service's gesture
+signal (`service::Display::get_instance().connect_touch_gesture("", cb)`), which the launcher shell
+already enables on the panel with its own edge thresholds. The processor never calls
+`set_touch_gesture_config()` (per-output, last-writer-wins — it would re-tune swipe-to-home). The
+callback runs on the Display touch task, so it only copies a record into a spinlock ring (8 deep,
+oldest evicted); the engine drains up to 4 per 1 s tick. One FlowFile per *completed* gesture — the
+service emits Press → Pressing (every 20 ms) → one Release, and only Release carries the final
+duration/distance/speed and the direction-locked swipe direction. Properties: `Events`
+(`Release` | `Press and Release`), `Output Format` (`JSON` | `Attributes`). JSON:
+
+```json
+{"gesture":"swipe_left","event":"release","x":210,"y":300,"x2":60,"y2":296,
+ "duration_ms":180,"distance_px":150.1,"speed":0.83,"ts":519860000}
+```
+
+`gesture` ∈ `tap` (Release, no direction, short) | `hold` | `swipe_up|down|left|right` | `press`.
+Attributes mode carries `touch.gesture/x/y/x2/y2/duration_ms` (8-attribute cap, as with GetIMU).
+`Down` is +y (screen coordinates). Serial confirms `microfi.proc.touch: subscribed to Display touch
+gestures (events=release)` on the first tick after the flow applied.
+
+**PlayAudio (sink).** Plays a **URL**, not audio bytes — a MicroFi FlowFile carries at most 256 bytes
+of content, so a clip can never ride the flow; the board pulls it. The URL is the FlowFile content
+(trimmed) or the literal `Audio URL` property (63-char property cap — content is the real path).
+It goes through the `AudioPlayback` service helper (`call_function_sync(Play, url, config)`), which
+queues a `PlaybackRequest` and returns — the engine task never blocks for a clip. Brookesia's own
+codec arbitration applies (ref-counted `AudioProcessorCore`, hardware mixer with ducking, ES8311
+DAC-reference AEC), so the wake-word mic stays live and the guest never touches `esp_codec_dev`.
+Properties: `Audio URL`, `Volume` (0–100, applied once per flow apply, blank = leave), `Interrupt`
+(`true` cuts the current clip). Player accepts `http(s)://` and `file://littlefs/…`, mp3/wav.
+
+Clips on the board: `waveshare-devices/amoled-1.8-v2/sounds/*.wav|mp3` are staged into
+`littlefs/sounds/` at configure time (overlay `main/CMakeLists.txt`, not the wiped apps stage root) —
+first clip `chimes.wav` (216 KB, 44.1 kHz stereo). `file://littlefs/sounds/chimes.wav` played end
+to end on the first try: `AUDIO_PROCESSOR: Starting playback … io_file` → `RUNNING` → `FINISHED`,
+`microfi.proc.audio: playing … for FlowFile id=37`.
+
+**Class flow (v5, export [`files/issue-191/amoled-class-flow-touch-playaudio.json`](files/issue-191/amoled-class-flow-touch-playaudio.json)):**
+`GetTouch(Release, JSON) → PublishMQTT(microfi/amoled/touch, client amoled-touch)` **+**
+`ListenHTTP(:8095 /play) → PlayAudio(Interrupt=true)`. Built with
+[`files/issue-191/amoled-class-flow.py`](files/issue-191/amoled-class-flow.py) (`clear` / `build
+touch-audio` / `publish`; `build imu-display` restores the #227 shape). **The `kMaxFlowNodes=4` cap
+forced this to replace the IMU/DisplayMessage pair** — the four senses cannot be on the class flow at
+once until that cap is raised for the AMOLED (a `MICROFI_MAX_FLOW_NODES` override is the obvious
+shape; XIAO memory is the reason it is 4).
+
+Driving it from the array: `curl -X POST --data 'file://littlefs/sounds/chimes.wav'
+http://192.168.1.202:8095/play` (the `AmoledShakeToDisplay` InvokeHTTP shape, path `/play`).
+
+What did not work, and why:
+- `http://dl.espressif.com/dl/audio/ff-16b-2c-44100hz.mp3` (Espressif's own sample): the GMF HTTP
+  reader gets `Connection reset by peer` on both http and https — that host 301-redirects and the
+  reader does not follow. Not a board fault; pick a direct URL.
+- `http://192.168.1.121:8099/chimes.wav` from a `python3 -m http.server` on WindowsDesktop: the
+  board opened the connection but the request never reached the server — the Windows Defender
+  per-port gap (same as Mosquitto 1883 / SSH 22): a new port needs its own elevated
+  `netsh advfirewall firewall add rule … localport=8099`. `:8091-:8094` and `1883` have rules;
+  `:8095-:8098` are the panel simulator. The LAN http path is proven up to the firewall only.
+
 ## The full sense plan — all six as EFM flows (high-level)
 
 GetIMU is the detailed first build above; the other five follow the same discipline (Title-Case
@@ -344,11 +413,11 @@ Each sense is the same loop: build the processor on the `waveshare-devices` tree
 (`DELETE` + `POST /efm/api/agent-class-manifest-config`) → push the Log/loopback verify flow first,
 then the egress flow.
 
-1. **GetIMU** — cleanest, genuinely new data (detailed above).
-2. **GetPower** — same bus-adopt pattern, near-free once IMU proves it (pending the demo-worth call).
-3. **DisplayMessage** — first Brookesia-GUI dep; highest demo payoff; billboard via the #185 tile.
-4. **GetTouch** — first Brookesia-service dep; completes the touch-in/display-out pair with #3.
-5. **PlayAudio** — audio out; needs codec arbitration with wakenet.
+1. **GetIMU** — done 2026-08-24 (above).
+2. **GetPower** — skipped for now (Steven, 2026-08-24: rails/temp is not demo-worthy yet).
+3. **DisplayMessage** — done 2026-08-24 (#227 as-built above).
+4. **GetTouch** — done 2026-08-24 (rungs 4+5 as-built above).
+5. **PlayAudio** — done 2026-08-24; codec arbitration turned out to be Brookesia's mixer, not ours.
 6. **CaptureAudio** — audio in; hardest; needs a buffer-placement plan *and* an egress decision.
 
 ### Cross-cutting, still open

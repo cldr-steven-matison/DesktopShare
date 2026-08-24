@@ -60,9 +60,11 @@ auto-registry, its own `idf_component.yml`). Four changes make it a passenger in
 3. **Volatile-only storage.** Factory Brookesia has no `littlefs` partition, so `storage_init()`
    returns `NotFound` and flow defs re-arrive from EFM each boot. `main.cpp` already handles this and
    the ESP32-C3 env already ships it. No partition-table change.
-4. **7-processor set** — `GenerateFlowFile`, `LogAttribute`, `UpdateAttribute`, `PublishMQTT`,
-   `ListenHTTP`, `PublishSparkplug`, **`GetIMU`** (QMI8658 accel/gyro, added 2026-08-24 under #191 —
-   the board's first sense as a processor; class manifest `05dfbcef-128e-4d93-aa46-baa95ef36730`).
+4. **10-processor set** — `GenerateFlowFile`, `LogAttribute`, `UpdateAttribute`, `PublishMQTT`,
+   `ListenHTTP`, `PublishSparkplug`, **`GetIMU`** (QMI8658 accel/gyro, 2026-08-24, #191),
+   **`DisplayMessage`** (#227), **`GetTouch`** and **`PlayAudio`** (2026-08-24, #191 rungs 4+5 —
+   the agent's first Brookesia service deps; class manifest `6dcaac66-7ced-4223-9562-b5f97915d05c`).
+   Sense-by-sense as-built: `efm-amoled-capabilities.md`.
    `CaptureImage` is out (no OV2640; drops the `esp32-camera` dependency), `GetGPIO`/`SetGPIO` are
    out (control lines behind the TCA9554). `GetIMU` lives in MicroFi `src/processors/get_imu.cpp`
    behind `MICROFI_BOARD_QMI8658` (defined only by the AMOLED overlay CMake, so the XIAO builds see
@@ -121,7 +123,8 @@ The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
    on one boot. Class manifest re-pinned to the 6-processor id
    `c265dbcf-93f0-4f94-b0ed-5865c1512f6c`, then to the 7-processor id
    `05dfbcef-128e-4d93-aa46-baa95ef36730` when GetIMU landed, then to the 8-processor id
-   `da9b1cec-9db6-42f7-ad28-d78e82330d50` when DisplayMessage landed (#227; DELETE + POST
+   `da9b1cec-9db6-42f7-ad28-d78e82330d50` when DisplayMessage landed (#227), then to the 10-processor id
+   `6dcaac66-7ced-4223-9562-b5f97915d05c` when GetTouch + PlayAudio landed (#191; DELETE + POST
    `/efm/api/agent-class-manifest-config` — POST alone won't overwrite, PUT 500s; create new
    Designer nodes only *after* the pin lands or they never resolve). MicroFi tree changes: `microfi_agent_start()` extraction
    (`src/agent.cpp`), `CONFIG_MICROFI_WIFI_ADOPT_EXISTING` adopt-mode in `wifi.cpp`. XIAO
@@ -259,7 +262,8 @@ and no `/xviewer/img/profile.jpg` proved a request was never issued.
 6. **X-viewer (#183): done, ready for final testing** — like/unlike eyes-on 2026-08-19; only final
    test + polish sign-off remain.
 
-Ask before every flash to this board — fresh ask each session, every flash.
+This board on WindowsDesktop's COM8 is Claude's to flash without asking (Steven, 2026-08-24);
+the XIAOs and live k8s services keep their asks.
 
 Flash + serial-capture tooling (port-parameterized scripts, littlefs-only flash recipe, and the
 no-IDF `littlefs-python` app-iteration path for hosts without a toolchain): `waveshare-devices`
