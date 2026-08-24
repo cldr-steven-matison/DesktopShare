@@ -1,0 +1,282 @@
+{
+  "bucket": "g02-flink-agents-nifi-local-llm",
+  "sources": [
+    {
+      "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/",
+      "title": "Apache Flink Agents 0.3.1 Release Announcement",
+      "kind": "blog",
+      "summary": "Bug-fix release of the Flink Agents 0.3 series, released 2026-07-25 by Wenjin Xie.",
+      "facts": [
+        {"claim": "Flink Agents 0.3.1 released July 25, 2026, described as the first bug fix release of the Flink Agents 0.3 series", "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/", "evidence": "release announcement text"},
+        {"claim": "0.3.1 includes 5 bug fixes, Flink 2.3 distribution support (now default), and installer improvements", "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/"},
+        {"claim": "Fixes address Python gateway initialization, state deserialization during recovery, prompt placeholder substitution, Java tool schema parsing, and Anthropic chat model crashes", "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/"},
+        {"claim": "Supported chat model providers as of 0.3.1: OpenAI, Anthropic, Ollama, Azure AI, AWS Bedrock, Google Gemini", "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/"},
+        {"claim": "Supported vector stores as of 0.3.1: Elasticsearch, Milvus, OpenSearch, S3Vectors", "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/"}
+      ],
+      "relevance_to_us": "Flink Agents supports Ollama as a chat-model provider natively as of 0.3.x -- direct path for a Flink job on NvidiaSpark-1 to call a local Ollama/vLLM endpoint if vLLM is exposed as an OpenAI-compatible provider. Flink 2.3 default distro matters for CSA 1.5 which is still on Flink 1.20 -- version skew to plan for in ch11.",
+      "feeds": ["ch11 Flink on GPU + Flink Agents", "ch10 NiFi->local LLM"]
+    },
+    {
+      "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/",
+      "title": "Apache Flink Agents 0.3.0 Release Announcement",
+      "kind": "blog",
+      "summary": "Major 0.3.0 release, 2026-06-19, adds Agent Skills, Mem0 long-term memory, YAML declarative API, cross-language Python/Java actions; still explicitly a preview with breaking-change risk.",
+      "facts": [
+        {"claim": "0.3.0 released June 19, 2026", "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/"},
+        {"claim": "Adds Agent Skills for packaging prompts and tools; Mem0-based long-term memory replacing the previous vector-store implementation; a durable reconciler for side effects during failure recovery", "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/"},
+        {"claim": "Adds a YAML declarative API for agent configuration with JSON Schema validation, and cross-language actions enabling Python-Java interoperability", "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/"},
+        {"claim": "New chat models: Amazon Bedrock, Azure OpenAI, OpenAI Responses API. New embedding models: Amazon Bedrock, Tongyi. New vector stores: Amazon OpenSearch, Amazon S3 Vectors, Milvus, Mem0", "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/"},
+        {"claim": "Apache Fluss (Incubating) now supported as an action state store backend alongside Kafka", "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/"},
+        {"claim": "\"The current APIs and configuration options are experimental and may undergo non-backward compatible changes in future versions\" -- stability expected only after 1.0", "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/"}
+      ],
+      "relevance_to_us": "Confirms Flink Agents is pre-1.0 and API-unstable -- ch11 should flag this as an evaluation/demo technology, not production-pin. Kafka-backed state store option is directly compatible with the existing CSM/Strimzi Kafka on WindowsDesktop and would be on NvidiaSpark-1 too.",
+      "feeds": ["ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apache/flink-agents/main/README.md",
+      "title": "apache/flink-agents README",
+      "kind": "github-repo",
+      "summary": "Repo root README: \"Apache Flink Agents is an Agentic AI framework based on Apache Flink,\" build produces both Java and Python artifacts.",
+      "facts": [
+        {"claim": "\"Apache Flink Agents is an Agentic AI framework based on Apache Flink\"", "url": "https://raw.githubusercontent.com/apache/flink-agents/main/README.md"},
+        {"claim": "The build script produces both a Java and a Python part of the project", "url": "https://raw.githubusercontent.com/apache/flink-agents/main/README.md"}
+      ],
+      "relevance_to_us": "Baseline confirmation the project exists and is dual-language (matters for our Python-heavy NiFi/agent stack).",
+      "feeds": ["ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://github.com/apache/flink-agents",
+      "title": "apache/flink-agents (GitHub repo page)",
+      "kind": "github-repo",
+      "summary": "444 stars, 157 forks, 651 commits on main; Java + Python (3.10/3.11/3.12); community via Slack #flink-agents-user/#flink-agents-dev.",
+      "facts": [
+        {"claim": "444 stars, 157 forks as of fetch (2026-08-24)", "url": "https://github.com/apache/flink-agents"},
+        {"claim": "Python support targets 3.10, 3.11, 3.12", "url": "https://github.com/apache/flink-agents"},
+        {"claim": "No packaged GitHub Releases exist for the repo (\"There aren't any releases here\") -- releases are announced via the Flink blog instead, not GitHub Releases", "url": "https://github.com/apache/flink-agents/releases"}
+      ],
+      "relevance_to_us": "Small but active project (444 stars); confirms Python 3.10-3.12 is the supported range -- matters for whatever Python runtime ships on NvidiaSpark-1's DGX OS / k3d pods.",
+      "feeds": ["ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://nightlies.apache.org/flink/flink-agents-docs-main/",
+      "title": "Flink Agents docs (main/v0.4-SNAPSHOT)",
+      "kind": "nvidia-doc",
+      "summary": "Doc nav confirms three agent architectures (Workflow, ReAct, YAML), Chat Models, Tools & MCP, three-tier Memory, Vector Stores, Embedding Models, and a Deployment section; docs build is v0.4-SNAPSHOT.",
+      "facts": [
+        {"claim": "Three agent architectures documented: Workflow Agent (\"Define agent logic as an explicit event-driven workflow\"), ReAct Agent (\"Let the model plan and call tools in a reason-act loop\"), and YAML Agent (declarative)", "url": "https://nightlies.apache.org/flink/flink-agents-docs-main/"},
+        {"claim": "Building blocks documented: Chat Models, Tools & MCP (explicit Model Context Protocol support), Memory (sensory/short-term/long-term tiers with memory events), Vector Stores, Embedding Models", "url": "https://nightlies.apache.org/flink/flink-agents-docs-main/"},
+        {"claim": "The main-branch docs are labeled v0.4-SNAPSHOT, i.e. ahead of the released 0.3.1", "url": "https://nightlies.apache.org/flink/flink-agents-docs-main/"}
+      ],
+      "relevance_to_us": "Explicit MCP support means Flink Agents can, in principle, call the same MCP tool servers used elsewhere in the stack (ch15 local knowledge base, Claude Code MCP+Qdrant). Worth a follow-up fetch of the Chat Models page once its exact URL is known (attempted /docs/development/chat-models/ -- 404, path differs from guessed slug).",
+      "feeds": ["ch11 Flink on GPU + Flink Agents", "ch15 local knowledge base for Claude Code (MCP+Qdrant)"]
+    },
+    {
+      "url": "https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/advanced/external_resources/",
+      "title": "Flink 1.20 docs: External Resource Framework",
+      "kind": "nvidia-doc",
+      "summary": "Official Flink 1.20 doc page for the external-resource / GPU plugin framework, including Kubernetes NVIDIA device plugin integration.",
+      "facts": [
+        {"claim": "\"For Kubernetes deployment, administrators should make sure the NVIDIA GPU device plugin is installed. Notice the required version is 1.10+.\"", "url": "https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/advanced/external_resources/"},
+        {"claim": "Config keys: `external-resources: gpu`, `external-resource.gpu.amount: 2`, `external-resource.gpu.driver-factory.class: org.apache.flink.externalresource.gpu.GPUDriverFactory`, `external-resource.gpu.kubernetes.config-key: nvidia.com/gpu`", "url": "https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/advanced/external_resources/"},
+        {"claim": "Optional GPU plugin params: `discovery-script.path` and `discovery-script.args` (defaults to the bundled NVIDIA discovery script)", "url": "https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/advanced/external_resources/"},
+        {"claim": "Operators read GPU info via `RuntimeContext`/`FunctionContext.getExternalResourceInfos(String resourceName)`, returning entries with an \"index\" key for each GPU device index", "url": "https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/advanced/external_resources/"}
+      ],
+      "relevance_to_us": "This is the concrete mechanism for ch11: Flink 1.20 (the version CSA 1.5 ships) has a built-in GPU external-resource plugin that talks to the standard k8s NVIDIA device plugin -- directly usable on a k3d cluster on NvidiaSpark-1 with the NVIDIA device plugin installed, same config keys apply.",
+      "feeds": ["ch11 Flink on GPU + Flink Agents", "ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-whats-new.html",
+      "title": "Cloudera Streaming Analytics Operator 1.4.0 -- What's New",
+      "kind": "cloudera-doc",
+      "summary": "CSA Operator 1.4.0 built on Flink Kubernetes Operator 1.11.0 and Flink 1.20; Python UDFs on by default; FIPS mode option; v1 SQL Stream Builder REST API removed. No Flink Agents/GPU/AI content.",
+      "facts": [
+        {"claim": "\"Apache Flink Kubernetes Operator (Flink Operator) 1.11.0 and Apache Flink (Flink) 1.20\" is the foundation for CSA Operator 1.4.0", "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "\"The Python User Defined Functions (UDFs) feature is enabled by default in Cloudera Streaming Analytics Operator for Kubernetes 1.4.0 deployments\"", "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "FIPS mode support with FIPS-certified cryptographic modules added", "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "The v1 REST API for SQL Stream Builder was removed, requiring migration to v2", "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "No mention of Flink Agents, GPU support, or AI-specific features in this release's notes", "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-whats-new.html"}
+      ],
+      "relevance_to_us": "Confirms Cloudera has NOT (as of CSA Operator 1.4) shipped or previewed Flink Agents -- Steven's stack would be bringing Flink Agents in himself as an unofficial add-on, not a Cloudera-supported feature.",
+      "feeds": ["ch9 CSO operators on aarch64", "ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html",
+      "title": "Cloudera Streaming Analytics Operator 1.5.0 -- What's New",
+      "kind": "cloudera-doc",
+      "summary": "CSA Operator 1.5.0: Materialized View Engine on k8s, async Flink job handling, Flink Kubernetes Operator upgraded to 1.13, Postgres 18.1, OpenJDK 17. Still built on Flink 1.20 (Aug 2024). No Flink Agents/GPU/aarch64 content.",
+      "facts": [
+        {"claim": "\"Materialized Views to maintain mutating snapshots of queried data, which can be accessed through REST APIs\" added for SQL Stream Builder on Kubernetes", "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "Flink job handling is now asynchronous, improving Streaming SQL Console responsiveness and stabilizing job status transitions", "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "Embedded Flink Kubernetes Operator upgraded to version 1.13", "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "PostgreSQL default bumped to 18.1; Docker images now use OpenJDK 17 with support for older cipher suites", "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html"},
+        {"claim": "This release still builds on Apache Flink 1.20 (released August 2024) with Flink Kubernetes Operator 1.13 (announced September 2025); no Flink Agents, GPU, aarch64, or AI features mentioned", "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html"}
+      ],
+      "relevance_to_us": "Confirms CSA 1.5 -- the version stack Steven already runs -- has no native GPU or agent tooling; any GPU/Flink-Agents work on NvidiaSpark-1 is bolt-on work for ch11, not something the operator provides out of the box.",
+      "feeds": ["ch9 CSO operators on aarch64", "ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://github.com/apache/flink-kubernetes-operator/pkgs/container/flink-kubernetes-operator",
+      "title": "flink-kubernetes-operator container image (GHCR)",
+      "kind": "github-repo",
+      "summary": "GHCR package page for the operator image; recent tags each show multi-arch pulls including linux/arm64.",
+      "facts": [
+        {"claim": "Recent operator image tags (e.g. tag d6f8e84) list pulls for multiple architectures including linux/arm64, with a published SHA256 digest", "url": "https://github.com/apache/flink-kubernetes-operator/pkgs/container/flink-kubernetes-operator"}
+      ],
+      "relevance_to_us": "Confirms the Flink Kubernetes Operator image itself is multi-arch/arm64-capable -- relevant to ch8/ch9 for running CSA's embedded operator on NvidiaSpark-1's k3d (aarch64) cluster. Note: this checked the dev/main-branch commit-tagged images, not an official numbered release tag -- worth re-verifying against a stable release tag (e.g. 1.13.x) before relying on it.",
+      "feeds": ["ch9 CSO operators on aarch64", "ch8 k3d with GPU"]
+    },
+    {
+      "url": "https://docs.cloudera.com/dataflow/cloud/nifi-components-nifi2/docs/nifi-docs/components/org.apache.nifi/python-extensions/x/python.PromptChatGPT/index.html",
+      "title": "PromptChatGPT processor doc (Cloudera DataFlow / NiFi 2 components)",
+      "kind": "other",
+      "summary": "Fetch attempt 404'd; confirmed to exist only via search snippet -- processor \"submits a prompt to ChatGPT, writing the results either to a FlowFile attribute or to the contents of the FlowFile.\"",
+      "facts": [
+        {"claim": "PromptChatGPT \"submits a prompt to ChatGPT, writing the results either to a FlowFile attribute or to the contents of the FlowFile\"", "url": "https://docs.cloudera.com/dataflow/cloud/nifi-components-nifi2/docs/nifi-docs/components/org.apache.nifi/python-extensions/x/python.PromptChatGPT/index.html", "evidence": "WebSearch result snippet, page itself returned 404 on WebFetch"}
+      ],
+      "relevance_to_us": "Confirms a native NiFi 2 Python processor named PromptChatGPT exists in Cloudera's own NiFi2 component docs. Could NOT confirm an OpenAI-compatible base-URL property from this fetch -- direct page load 404'd and repeated searches for the property list came up empty. Flag as open question / needs a live-NiFi check rather than doc research.",
+      "feeds": ["ch10 NiFi->local LLM"]
+    },
+    {
+      "url": "https://github.com/apache/nifi-python-extensions/blob/main/src/extensions/chunking/ParseDocument.py",
+      "title": "nifi-python-extensions: ParseDocument.py",
+      "kind": "github-repo",
+      "summary": "Source-derived property list for ParseDocument, a document-parsing/OCR processor feeding NiFi's chunking pipeline (ParseDocument -> ChunkDocument -> Put[Qdrant|Chroma]).",
+      "facts": [
+        {"claim": "ParseDocument \"Parses incoming unstructured text documents and performs optical character recognition (OCR) in order to extract text from PDF and image files,\" output as JSON-lines with 'text' and 'metadata' keys", "url": "https://github.com/apache/nifi-python-extensions/blob/main/src/extensions/chunking/ParseDocument.py"},
+        {"claim": "Properties: Input Format (Plain Text/HTML/Markdown/PDF/Word/Excel/PowerPoint), PDF Parsing Strategy (Automatic/High Resolution/OCR Only/Fast), PDF Parsing Model (yolox/detectron2_onnx/chipper), Element Strategy, Include Page Breaks, Infer Table Structure, Languages (default \"Eng\"), Metadata Fields (default \"filename, uuid\"), Include Extracted Metadata", "url": "https://github.com/apache/nifi-python-extensions/blob/main/src/extensions/chunking/ParseDocument.py"},
+        {"claim": "No embedding-model or LLM-endpoint config exists on this processor -- it is pure document extraction using LangChain loaders, upstream of embedding/vector-store processors", "url": "https://github.com/apache/nifi-python-extensions/blob/main/src/extensions/chunking/ParseDocument.py"}
+      ],
+      "relevance_to_us": "Confirms the intended NiFi 2 RAG chain shape: ParseDocument -> ChunkDocument -> PutQdrant/PutChroma, with QueryQdrant on the retrieval side. Useful skeleton for ch10 pipeline diagrams.",
+      "feeds": ["ch10 NiFi->local LLM"]
+    },
+    {
+      "url": "https://www.mail-archive.com/issues@nifi.apache.org/msg163058.html",
+      "title": "NIFI-12240, NIFI-12195: Created new python processors for text embedding (PR mail thread)",
+      "kind": "forum",
+      "summary": "Apache dev-list PR thread confirming PutQdrant/QueryQdrant processor behavior via description text surfaced in search.",
+      "facts": [
+        {"claim": "PutQdrant \"Publishes JSON data to Qdrant. The Incoming data must be in single JSON per Line format, each with two keys: 'text' and 'metadata'.\" text must be a string, metadata must be a map with string values", "url": "https://www.mail-archive.com/issues@nifi.apache.org/msg163058.html", "evidence": "search snippet from NIFI-12240/NIFI-12195 PR description"},
+        {"claim": "QueryQdrant \"Queries Qdrant in order to gather a specified number of documents that are most closely related to the given query\"", "url": "https://www.mail-archive.com/issues@nifi.apache.org/msg163058.html", "evidence": "search snippet"}
+      ],
+      "relevance_to_us": "Confirms native NiFi 2 processors PutQdrant/QueryQdrant exist and match the flow shape Steven already runs Qdrant for on WindowsDesktop -- direct precedent for ch10, same pattern portable to NvidiaSpark-1's local Qdrant instance.",
+      "feeds": ["ch10 NiFi->local LLM"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cfm/4.0.0/release-notes/topics/cfm-whats-new.html",
+      "title": "What's new in Cloudera Flow Management 4.0.0 [Technical Preview]",
+      "kind": "cloudera-doc",
+      "summary": "CFM 4.0.0 is based on Apache NiFi 2.0.0 and ships a Python API for native Python components; search snippet confirms the ParseDocument->ChunkDocument->PutChroma/Qdrant flow pattern is a documented Cloudera pattern, not just upstream Apache.",
+      "facts": [
+        {"claim": "CFM 4.0.0 is \"based on Apache NiFi 2.0.0 and includes a Python API for developing native NiFi components in Python\"", "url": "https://docs.cloudera.com/cfm/4.0.0/release-notes/topics/cfm-whats-new.html", "evidence": "search snippet"},
+        {"claim": "Documented flow pattern: \"(some source) -> ParseDocument -> ChunkDocument -> PutChroma\" with the same pattern applying to Qdrant destinations", "url": "https://docs.cloudera.com/cfm/4.0.0/release-notes/topics/cfm-whats-new.html", "evidence": "search snippet"}
+      ],
+      "relevance_to_us": "This is Cloudera's own documented RAG-ingestion pattern for CFM/NiFi 2 -- the exact reference architecture ch10 should present, since it comes from the vendor Steven already runs, not a third party.",
+      "feeds": ["ch10 NiFi->local LLM"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apache/nifi-python-extensions/main/README.md",
+      "title": "apache/nifi-python-extensions README",
+      "kind": "github-repo",
+      "summary": "Repo root README confirms scope: \"Processors implemented in Python for deployment in Apache NiFi 2,\" built with Hatch, linted with Ruff, Apache-2.0 licensed. No processor inventory or aarch64 notes in the README itself.",
+      "facts": [
+        {"claim": "\"The Apache NiFi Python Extensions repository contains Processors implemented in Python for deployment in Apache NiFi 2\"", "url": "https://raw.githubusercontent.com/apache/nifi-python-extensions/main/README.md"},
+        {"claim": "Build system: Hatch; linting: Ruff; license: Apache License 2.0", "url": "https://raw.githubusercontent.com/apache/nifi-python-extensions/main/README.md"},
+        {"claim": "README does not enumerate individual processors or mention aarch64/ARM deployment specifics", "url": "https://raw.githubusercontent.com/apache/nifi-python-extensions/main/README.md"}
+      ],
+      "relevance_to_us": "No aarch64-specific caveats surfaced anywhere for nifi-python-extensions -- treat as an open question for ch9: needs an empirical check once k3d + NiFi 2 is actually running on NvidiaSpark-1's aarch64 CPU, since Python wheels for OCR/embedding deps (e.g. detectron2_onnx, unstructured) can lack prebuilt aarch64 wheels.",
+      "feeds": ["ch10 NiFi->local LLM", "ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md",
+      "title": "NVIDIA/dgx-spark-playbooks README",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook repo for DGX Spark; step-by-step guides for AI/ML workloads. Includes several agent-framework playbooks (Hermes Agent, Multi-Agent Chatbot, NemoClaw, OpenClaw, VSS Agent) but zero playbooks for Kafka, NiFi, or Flink.",
+      "facts": [
+        {"claim": "\"step-by-step playbooks for setting up AI/ML workloads on NVIDIA DGX Spark devices with Blackwell architecture,\" covering framework installation, inference optimization, dev environments, device management", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "Agent-focused playbooks present: Hermes Agent with local models, Multi-Agent Chatbot deployment, NemoClaw with local LLM integration, NemoClaw example agents, OpenClaw framework, Video Search and Summarization (VSS) Agent", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"},
+        {"claim": "No playbooks found for Kafka, NiFi, or Flink -- confirmed absent from this repo's contents", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md"}
+      ],
+      "relevance_to_us": "Confirms a real gap: NVIDIA's own DGX Spark playbook library has no streaming-data-platform playbooks. ch21 demos and ch11/ch10 chapters are therefore genuinely novel ground -- there is no NVIDIA reference implementation to lean on for NiFi/Flink+DGX Spark, only general local-LLM-serving playbooks (Hermes/NemoClaw/OpenClaw) that ch10/ch11 can point the local model endpoint at.",
+      "feeds": ["ch21 demos", "ch10 NiFi->local LLM", "ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark",
+      "title": "vLLM on the DGX Spark: Architecture, Configuration, and Local Evaluation",
+      "kind": "blog",
+      "summary": "Official vLLM blog (2026-06-01) benchmarking vLLM's OpenAI-compatible server on a real DGX Spark GB10, serving Nemotron-3-Super-120B-A12B-NVFP4.",
+      "facts": [
+        {"claim": "Decode throughput measured at 22.7-23.7 tokens/second across five scenarios serving Nemotron-3-Super-120B-A12B-NVFP4 (120B params, ~12B active, NVFP4 quantized) on DGX Spark", "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark"},
+        {"claim": "Prefill throughput: ~140 tok/s for short prompts, 1,877-1,884 tok/s for long prompts", "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark"},
+        {"claim": "Config used: `--gpu-memory-utilization 0.85`, `--max-model-len 131072`, `--max-num-seqs 4`, Docker image `vllm/vllm-openai:cu130-nightly`", "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark"},
+        {"claim": "\"Initial weight load is a separate problem from request warmup. If the 10-15 minute safetensor load time matters for your deployment, evaluate vLLM's fastsafetensors or InstantTensor loading paths.\"", "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark"},
+        {"claim": "Provides \"an OpenAI-compatible API with the memory, batching, KV-cache, and telemetry controls needed to run large NVFP4 models locally,\" `/v1` endpoints at `http://localhost:8000/v1`", "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark"}
+      ],
+      "relevance_to_us": "This is the OpenAI-compatible endpoint ch10/ch11 would point NiFi's PromptChatGPT/QueryOpenAI processor or a Flink Agents OpenAI chat-model config at on NvidiaSpark-1 -- concrete port (:8000/v1) and image tag to reuse. Overlaps ch4/ch6 but directly load-bearing here since it's the exact plug point for NiFi->LLM and Flink Agents->LLM.",
+      "feeds": ["ch10 NiFi->local LLM", "ch11 Flink on GPU + Flink Agents", "ch4 inference stacks & model lock"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/running-a-full-llm-stack-on-dgx-spark-gb10-your-application-litellm-llama-swap-vllm-llama-cpp-ollama/367580",
+      "title": "Running a Full LLM Stack on DGX Spark GB10 (Application -> LiteLLM -> llama-swap -> vLLM/llama.cpp/Ollama)",
+      "kind": "forum",
+      "summary": "NVIDIA Developer Forums thread under the DGX Spark / GB10 Projects category describing a multi-model VRAM-orchestration stack: app -> LiteLLM router -> llama-swap -> vLLM/llama.cpp/Ollama.",
+      "facts": [
+        {"claim": "Thread exists in the \"DGX Spark / GB10 Projects\" forum category, describing an application-facing LiteLLM router in front of llama-swap-managed vLLM/llama.cpp/Ollama backends", "url": "https://forums.developer.nvidia.com/t/running-a-full-llm-stack-on-dgx-spark-gb10-your-application-litellm-llama-swap-vllm-llama-cpp-ollama/367580", "evidence": "WebSearch title/snippet; full thread body not fetched"}
+      ],
+      "relevance_to_us": "Shows the DGX Spark community pattern for fronting multiple local models with a single OpenAI-compatible router (LiteLLM) -- relevant if NiFi/Flink need one stable endpoint while models swap underneath on NvidiaSpark-1. Not yet WebFetched for full detail -- flagged as an open question for deeper follow-up.",
+      "feeds": ["ch10 NiFi->local LLM", "ch4 inference stacks & model lock"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark",
+      "title": "NVIDIA Developer Forums search: 'nifi dgx spark' / Flink / Kafka",
+      "kind": "forum",
+      "summary": "Direct and indirect (WebSearch-based) checks for NiFi, Flink, or Kafka combined with DGX Spark on the NVIDIA forums turned up no matching threads.",
+      "facts": [
+        {"claim": "No forum threads combining DGX Spark with NiFi, Flink, or Kafka were found via WebSearch of forums.developer.nvidia.com as of 2026-08-24", "url": "https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark"}
+      ],
+      "relevance_to_us": "Confirms this is genuinely first-mover territory: zero DGX Spark community discussion of Cloudera's streaming stack. Strengthens the case for ch21 demos and this guide overall as original content, not aggregation.",
+      "feeds": ["ch21 demos", "ch10 NiFi->local LLM", "ch11 Flink on GPU + Flink Agents"]
+    }
+  ],
+  "open_questions": [
+    "Exact NiFi PromptChatGPT / QueryOpenAI processor property names for an OpenAI-compatible base-URL override (e.g. api_base) were not confirmed from docs -- the Cloudera doc page 404'd on direct fetch and no source showed the full property table. Needs a live check against a running NiFi 2 instance (nifi-and-ai skill / actual processor UI) rather than further doc research.",
+    "The exact URL slug for the Flink Agents Chat Models doc page (guessed /docs/development/chat-models/) 404'd -- the real path under nightlies.apache.org/flink/flink-agents-docs-main/ needs to be found via the doc site's nav, not guessed, to get the precise OpenAI-compatible-endpoint config syntax (base_url/api_key fields) for Flink Agents' OpenAI chat model class.",
+    "Docker Hub's flink image tags page only rendered very recent tags (2.2.1-2.3.0) via WebFetch -- could not directly confirm linux/arm64 listed for the 1.20.x tag family specifically (only got release-note text elsewhere saying CSA runs Flink 1.20). Should re-check via a differently-paginated Docker Hub fetch or the Flink release aarch64 support matrix.",
+    "flink-kubernetes-operator arm64 confirmation came from unlabeled dev/main commit-SHA tags on GHCR, not an official numbered release tag (e.g. 1.13.x) -- should re-verify multi-arch support against the specific 1.13 release CSA 1.5 embeds.",
+    "No fetch was completed for CSA Operator 1.5's own README/announcement blog (only the docs release-notes page) -- if Cloudera publishes a separate marketing blog post for 1.5 it wasn't located; WebSearch for 'Flink Agents Cloudera CSA blog 2026' returned only generic Cloudera Flink content, no Flink-Agents-specific Cloudera post exists as of 2026-08-24.",
+    "The NVIDIA forum thread on LiteLLM+llama-swap+vLLM/Ollama stacking (367580) was found by title/snippet only, not fully fetched -- worth a full WebFetch pass if ch4/ch10 need the router-in-front-of-swappable-models pattern in more detail."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "Flink Agents 0.3.1 (2026-07-25) natively supports Ollama as a chat-model provider, alongside OpenAI, Anthropic, Azure AI, AWS Bedrock, and Google Gemini.",
+      "url": "https://flink.apache.org/2026/07/25/apache-flink-agents-0.3.1-release-announcement/",
+      "why_it_matters": "This is the single fact that makes ch11's 'Flink Agents on NvidiaSpark-1 calling a local model' story concrete rather than speculative -- Ollama support is built-in, not something to hand-roll via a generic OpenAI-compatible shim."
+    },
+    {
+      "claim": "Flink Agents remains pre-1.0 with an explicit warning that APIs and config 'may undergo non-backward compatible changes in future versions' until 1.0.",
+      "url": "https://flink.apache.org/2026/06/19/apache-flink-agents-0.3.0-release-announcement/",
+      "why_it_matters": "Sets expectations for the guide: ch11 should present Flink Agents as an evaluation/demo capability on NvidiaSpark-1, not a production commitment, and should pin an exact version (0.3.1) rather than 'latest'."
+    },
+    {
+      "claim": "CSA Operator 1.5.0 (Steven's current production version target) is still built on Apache Flink 1.20 and Flink Kubernetes Operator 1.13, with zero mention of Flink Agents, GPU, or aarch64 in its release notes.",
+      "url": "https://docs.cloudera.com/csa-operator/1.5/release-notes/topics/csa-op-whats-new.html",
+      "why_it_matters": "Confirms Flink Agents + GPU support are NOT things CSO ships out of the box -- any ch11 demo is bolt-on integration work layered on top of the stock CSA operator, which the guide must say explicitly rather than imply as a Cloudera-supported feature."
+    },
+    {
+      "claim": "Flink 1.20's external resource framework has a built-in GPU plugin (external-resource.gpu.*) that integrates with the standard Kubernetes NVIDIA device plugin (v1.10+ required).",
+      "url": "https://nightlies.apache.org/flink/flink-docs-release-1.20/docs/deployment/advanced/external_resources/",
+      "why_it_matters": "This is the mechanism ch11 needs for 'Flink on GPU' on k3d/NvidiaSpark-1 -- it is stock upstream Flink 1.20 functionality (the exact version CSA 1.5 embeds), so no version upgrade is required to get GPU-aware TaskManagers, only device-plugin installation on the k3d cluster."
+    },
+    {
+      "claim": "vLLM's own DGX Spark benchmark exposes an OpenAI-compatible /v1 API at http://localhost:8000/v1 serving Nemotron-3-Super-120B-A12B-NVFP4 at 22.7-23.7 tok/s decode.",
+      "url": "https://vllm.ai/blog/2026-06-01-vllm-dgx-spark",
+      "why_it_matters": "Gives ch10/ch11 a concrete, vendor-verified endpoint shape and realistic throughput number for 'NiFi/Flink Agents calling a Spark-hosted LLM' rather than an assumed number; also matches the same :8000 port convention Steven already uses for vLLM on WindowsDesktop, easing the demo narrative."
+    }
+  ],
+  "fetch_failures": [
+    {"url": "https://raw.githubusercontent.com/BrooksIan/FlinkDockerWithAgents/main/README.md", "reason": "HTTP 404 on WebFetch (path/branch likely wrong or repo renamed/private)"},
+    {"url": "https://nightlies.apache.org/flink/flink-agents-docs-main/docs/development/chat-models/", "reason": "HTTP 404 -- guessed URL slug, real path not found"},
+    {"url": "https://docs.cloudera.com/dataflow/cloud/nifi-components-nifi2/docs/nifi-docs/components/org.apache.nifi/python-extensions/x/python.PromptChatGPT/index.html", "reason": "HTTP 404 on direct WebFetch; only recovered via WebSearch snippet"},
+    {"url": "https://github.com/apache/nifi-python-extensions/tree/main/nifi-python-extensions", "reason": "HTTP 404 -- guessed subpath incorrect"},
+    {"url": "https://nifi.apache.org/components/", "reason": "Fetched successfully but page content did not list any Python/LLM/vector-store extension processors -- effectively a dead end for this sub-question, noted rather than a hard failure"}
+  ]
+}
