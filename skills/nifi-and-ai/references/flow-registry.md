@@ -8,7 +8,7 @@ Use this pattern any time you need to add or update a PG in a live environment. 
 
 | Layer | What it is |
 |---|---|
-| `DesktopShare/files/*.json` | Versioned flow registry — NiFi 2.x `VersionedFlowSnapshot` exports, committed to git |
+| `{owner}/{repo}/files/*.json` | Versioned flow registry — NiFi 2.x `VersionedFlowSnapshot` exports, committed to git |
 | GitHub raw URL | Registry read API — fetch any commit of any flow without `git clone` |
 | `POST .../process-groups/{parent_id}/process-groups/upload` | Deployment API — NiFi imports the file as a new child PG |
 | k8s Secrets | Credential store — sensitive parameter values, mTLS certs, GitHub PATs |
@@ -19,20 +19,21 @@ Use this pattern any time you need to add or update a PG in a live environment. 
 
 **From disk (any session):**
 ```bash
-FLOW_FILE=/path/to/DesktopShare/files/SomeFlow.json
+FLOW_FILE=/path/to/your-repo/files/SomeFlow.json
 ```
 
 **From GitHub raw URL (k8s Job or any shell without the repo cloned):**
 ```
-https://raw.githubusercontent.com/cldr-steven-matison/DesktopShare/<ref>/files/<FlowName>.json
+https://raw.githubusercontent.com/{owner}/{repo}/<ref>/files/<FlowName>.json
 ```
 - `<ref>` = a commit SHA for reproducible deploys, or `main` for latest.
 - Private repo: pass `-H "Authorization: token $GH_PAT"` with a PAT stored as a k8s Secret.
 
 ```bash
+GH_REPO={owner}/{repo}
 GH_REF=main   # or a commit SHA for a pinned deploy
 curl -sL -H "Authorization: token $GH_PAT" \
-  "https://raw.githubusercontent.com/cldr-steven-matison/DesktopShare/$GH_REF/files/SomeFlow.json" \
+  "https://raw.githubusercontent.com/$GH_REPO/$GH_REF/files/SomeFlow.json" \
   -o /tmp/SomeFlow.json
 ```
 
@@ -178,7 +179,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: nifi-deploy-someflow
-  namespace: cfm-streaming
+  namespace: $NS  # set to your namespace
 spec:
   ttlSecondsAfterFinished: 300
   template:
@@ -187,7 +188,7 @@ spec:
       volumes:
         - name: nifi-cert
           secret:
-            secretName: mynifi-cfm-operator-user-cert
+            secretName: $NIFI_CERT_SECRET  # e.g. mynifi-cfm-operator-user-cert for CFM Operator
         - name: nifi-params
           secret:
             secretName: nifi-params
@@ -199,13 +200,15 @@ spec:
           image: curlimages/curl:8
           env:
             - name: NIFI
-              value: "https://mynifi-web.cfm-streaming.svc.cluster.local:8443"
+              value: "https://<nifi-svc>.$NS.svc.cluster.local:8443"
             - name: CERT
               value: "/certs/tls.crt"
             - name: KEY
               value: "/certs/tls.key"
             - name: NS
-              value: "cfm-streaming"
+              value: ""  # set to your namespace
+            - name: GH_REPO
+              value: "{owner}/{repo}"
             - name: GH_REF
               value: "main"
             - name: FLOW_NAME
@@ -227,7 +230,7 @@ spec:
               GH_PAT=$(cat /secrets/github/token)
               # 1. Fetch flow from GitHub
               curl -sL -H "Authorization: token $GH_PAT" \
-                "https://raw.githubusercontent.com/cldr-steven-matison/DesktopShare/$GH_REF/files/${FLOW_NAME}.json" \
+                "https://raw.githubusercontent.com/$GH_REPO/$GH_REF/files/${FLOW_NAME}.json" \
                 -o /tmp/flow.json
 
               # 2. Get root PG ID
@@ -289,7 +292,7 @@ All three reduce to "k8s Secret exists → Job mounts it." The Job YAML above is
 
 ## NiFi Registry (optional next level)
 
-If a `NifiRegistry` CR is deployed (see `blog/cfm-nifi-registry-install.md`), use `nipyapi.versioning` to:
+If a `NifiRegistry` CR is deployed (see the [NiFi Registry docs](https://nifi.apache.org/docs/nifi-registry-docs/)), use `nipyapi.versioning` to:
 - Push a committed `files/*.json` into a Registry bucket as a named snapshot
 - Version flows with live-environment semantic versions (not just git SHAs)
 - Roll back a PG to a prior Registry version via the NiFi UI without a re-import
