@@ -90,23 +90,24 @@ seen by subagents — `SessionStart` doesn't fire for subagents, and the Windows
 skip happened inside a `/plan` that farmed issue-reading out. The guard now does three
 things, the first of which needs **no model cooperation at all**:
 
-   - **Rule A — auto-claim on view.** Opening a still-`todo` issue for this device via
-     `gh issue view <n>` makes the hook run `gh issue edit … status:in-progress`
-     **itself** and inject an `additionalContext` line telling the model it was claimed.
-     No prompt, no model decision — so no device can ignore it. It fires in plan mode and
-     in subagents (both fire `PreToolUse`). It loops **every** issue number in the command
-     (the old code used `head -1` and only ever saw the first issue in a chained command —
-     the #51 root cause). If the `gh edit` fails (offline/perms) it falls back to recording
-     `<n>` in the `.claude/.claim-pending` marker and asking — Rule B then backstops it.
+   - **Rule A — auto-claim on engagement.** The first **mutating** engagement with a
+     still-`todo` issue for this device — `gh issue comment <n>` — makes the hook run
+     `gh issue edit … status:in-progress` **itself** and inject an `additionalContext` line
+     telling the model it was claimed. A bare `gh issue view` only records the issue for
+     Telegram-ping context (narrowed 2026-08-21, #192: a read-only view by an exploration
+     sub-agent had claimed an issue nobody was working). No prompt, no model decision. It
+     fires in plan mode and in subagents (both fire `PreToolUse`) and loops **every** issue
+     number in the command (the old `head -1` only saw the first — the #51 root cause). If
+     the `gh edit` fails (offline/perms) it records `<n>` in the `.claude/.claim-pending`
+     marker — Rule B then backstops it.
    - **Rule B — edit-while-pending backstop.** An `Edit`/`Write` while that marker is
      non-empty (i.e. auto-claim couldn't reach `gh`) prompts to claim manually.
      `checkin.sh` clears stale markers at session start.
    - **Review-skip backstop:** marking an issue `status:review`/`status:done` while it
      still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
      can land.
-   Residual gap: a session that works an issue **without ever running `gh issue view <n>`**
-   (straight from the inbox listing) gives Rule A no trigger — the claim-first norm in
-   "Working an issue" below still applies there.
+   Residual gap: a session that starts work **without ever commenting on the issue** gives
+   Rule A no trigger — the claim-first norm in "Working an issue" below still applies there.
 
 Two more hooks landed 2026-08-25 (#247), same "no model cooperation needed" shape:
 
@@ -178,10 +179,10 @@ is sent — a command mentioning a credential keyword is dropped rather than quo
    the inbox); and when consuming a reply, ignore inbox lines whose epoch predates your ask
    (OpenClaw flushes queued replies in a burst on recovery). Full mechanics:
    `agent-to-agent.md` "Reply bridge".
-2. **Guard prompts (`.claude/hooks/guard.sh` "ask" rules).** With the sentinel armed,
-   the guard **bridges these itself** — the question goes to the phone, `yes` allows,
-   `no` denies, and silence or an unclear reply falls back to the desk prompt. It never
-   auto-allows. Nothing to do from the session side; just know that an unattended
+2. **Guard prompts (`.claude/hooks/guard.sh` "ask" rules).** The guard **bridges these
+   itself, always** (sentinel or not, since 2026-08-22) — the question goes to the phone,
+   `yes` allows, `no` denies, and silence or an unclear reply falls back to the desk prompt.
+   It never auto-allows. Nothing to do from the session side; just know that an unattended
    redeploy/port-forward/commit prompt reaches Steven rather than parking. Two limits:
    guard only sees the commands its own rules match — a command that trips the harness's
    permission allow-list instead never reaches guard, and lands in class 3; and a reply

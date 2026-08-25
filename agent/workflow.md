@@ -40,7 +40,7 @@ For EFM-guide work specifically, that includes the master plan: whenever an issu
 
 ## Publishing a blog post end-to-end (to the live blog repo)
 
-Most blog work stays **local** — `root → DesktopShare/blog/` is "publishing" for our purposes, and guide-chapter blogs in particular never get pushed to the final repo (the hard rule in the `desktopshare-promotion-flow` memory).
+Most blog work stays **local** — `root → DesktopShare/blog/` is "publishing" for our purposes, and **guide-chapter blogs never get pushed to the final repo** — that is a hard rule, not a preference; the EFM guide's chapters are published from the `EdgeFlowManager` repo, not the blog.
 
 **This propagation to the live site (`cldr-steven-matison.github.io` / stevenmatison.com) is NEVER an autonomous agent capability.** It runs only when Steven explicitly names a **specific** post and asks for it to be promoted ("publish end to end", "push this to the blog"). Don't infer it, don't batch it, don't offer to "also push the others" — one named post per explicit request. Precedents: CE post #81, and the minikube profile-swap post (2026-08-05). The steps below are that deliberate full push.
 
@@ -53,7 +53,7 @@ Before starting, the draft's front matter must already carry the teaser form (`t
 3. **Build:** `cd` into the github.io repo and `bundle exec jekyll build` (Jekyll 4.3.2 via rbenv). The Sass `$span-width / $container` deprecation warnings from the Minimal-Mistakes theme are pre-existing noise, not errors — a clean build ends with `done in N seconds`. Verify the post rendered under `_site/blog/<slug>/` and the image landed in `_site/assets/images/`.
 4. **Commit + push both repos** (this is the explicit ask, so the commit+push is required): DesktopShare gets the `blog/` move + the source image + any doc updates; github.io gets the new `_posts/` file + `assets/images/` file. `blog: …` style message in each, one focused commit per repo.
 
-Post-push cleanup (optional, per the promotion-flow memory): once the final repo holds the authoritative copy, the DesktopShare `blog/` copy may be renamed to a plain kebab doc name.
+Post-push cleanup (optional): once the final repo holds the authoritative copy, the DesktopShare `blog/` copy may be renamed to a plain kebab doc name.
 
 ## Finding the pattern you need
 
