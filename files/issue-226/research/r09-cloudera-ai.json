@@ -1,0 +1,189 @@
+{
+  "bucket": "r09-cloudera-ai",
+  "sources": [
+    {
+      "url": "https://www.cloudera.com/partners/solutions/nvidia.html",
+      "title": "Cloudera + NVIDIA Partnership Solutions",
+      "kind": "cloudera-doc",
+      "summary": "Cloudera's NVIDIA partnership landing page. States Cloudera AI Inference service is powered by NVIDIA NIM microservices, with a March 19, 2024 announcement of the expanded collaboration to integrate NIM into Cloudera Machine Learning, GA of AI Inference on October 8, 2024, and on-prem AI Inference launching in Technical Preview on August 7, 2025 as part of Cloudera Data Services 1.5.5 GA.",
+      "facts": [
+        {"claim": "Cloudera AI Inference service, powered by NVIDIA NIM microservices, delivers up to 36x faster inference on NVIDIA GPUs and nearly 4x the throughput on CPUs", "url": "https://www.cloudera.com/partners/solutions/nvidia.html"},
+        {"claim": "March 19, 2024: Cloudera announced an expanded collaboration with NVIDIA to integrate NVIDIA NIM microservices into Cloudera Machine Learning", "url": "https://www.cloudera.com/partners/solutions/nvidia.html"},
+        {"claim": "AI Inference service reached general availability on October 8, 2024", "url": "https://www.cloudera.com/partners/solutions/nvidia.html"},
+        {"claim": "August 7, 2025: Cloudera AI Inference service on premises launches in Technical Preview as part of the GA release of Cloudera Data Services 1.5.5", "url": "https://www.cloudera.com/partners/solutions/nvidia.html"}
+      ],
+      "relevance_to_us": "Establishes the timeline: on-prem AI Inference was still Technical Preview as of Aug 2025 under Cloudera Data Services 1.5.5 — check whether the Feb 2026 announcement moved it to GA before writing ch5/ch19.",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html",
+      "title": "Cloudera AI Inference Service product page",
+      "kind": "cloudera-doc",
+      "summary": "Product page confirms an OpenAI-compatible API for LLM endpoints, NIM microservices embedded, and two deployment modes: cloud (multi-cloud, elastic autoscale) and on-premises (data sovereignty, air-gapped readiness). Canary/blue-green deploys and A/B testing are still marked 'coming soon'.",
+      "facts": [
+        {"claim": "The service provides an OpenAI-compatible API for LLMs alongside traditional ML model support", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html"},
+        {"claim": "Deployment options are Cloud (multi-cloud, elastic autoscaling) and On-Premises (data sovereignty, air-gapped readiness for regulated sectors)", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html"},
+        {"claim": "Canary/blue-green deployments, A/B testing, and application monitoring are listed as 'coming soon' features", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html"}
+      ],
+      "relevance_to_us": "OpenAI-compatible API means our NiFi/InvokeHTTP or Flink Agents code can point at Cloudera AI Inference the same way it points at local vLLM :8000 on WindowsDesktop today (ch10, ch20 same-code-two-backends).",
+      "feeds": ["ch5", "ch20"]
+    },
+    {
+      "url": "https://www.cloudera.com/blog/partners/cloudera-agent-studio-and-nvidia-bring-next-gen-agents-to-enterprise-ai.html",
+      "title": "Cloudera Agent Studio and NVIDIA Bring Next-Gen Agents to Enterprise AI",
+      "kind": "cloudera-blog",
+      "summary": "Published March 18, 2026. Describes Agent Studio's architecture built on NVIDIA Nemotron models (purpose-built for agentic AI, long-horizon workflows), NIM microservices powering Cloudera AI Inference, and NVIDIA Blackwell GPUs + Dynamo-Triton for acceleration. Four pillars: dynamic multi-step planning w/ self-evaluation, multi-agent collaboration, context engineering, sandboxed execution. Cites a media/entertainment company deploying it across petabyte-scale data.",
+      "facts": [
+        {"claim": "Published March 18, 2026", "url": "https://www.cloudera.com/blog/partners/cloudera-agent-studio-and-nvidia-bring-next-gen-agents-to-enterprise-ai.html", "evidence": "article publish date"},
+        {"claim": "Architecture uses NVIDIA Nemotron models purpose-built for agentic AI and high-throughput inference of long-horizon workflows", "url": "https://www.cloudera.com/blog/partners/cloudera-agent-studio-and-nvidia-bring-next-gen-agents-to-enterprise-ai.html"},
+        {"claim": "Acceleration stack: NVIDIA Blackwell GPUs and Dynamo-Triton", "url": "https://www.cloudera.com/blog/partners/cloudera-agent-studio-and-nvidia-bring-next-gen-agents-to-enterprise-ai.html"},
+        {"claim": "Four architectural pillars: dynamic multi-step planning with iterative self-evaluation; multi-agent collaboration with transparent artifact-driven communication; context engineering to optimize token consumption/accuracy; sandboxed execution with policy-enforced isolation", "url": "https://www.cloudera.com/blog/partners/cloudera-agent-studio-and-nvidia-bring-next-gen-agents-to-enterprise-ai.html"}
+      ],
+      "relevance_to_us": "DGX Spark's GB10 Blackwell die is the same architecture family named here as Agent Studio's acceleration target — directly relevant to positioning NvidiaSpark-1 for ch12 EFM agent class and ch19 CDP-on-AWS parity story.",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/index.html",
+      "title": "Cloudera AI (cloud) docs root",
+      "kind": "cloudera-doc",
+      "summary": "Minimal landing page — three links only (Release Summaries, Patterns, Preview Features), no direct index of AI Inference/Registry/Agent Studio/Workbench. Confirms description: 'Cloudera AI unifies self-serve analytics capabilities and data engineering in a single, portable service.'",
+      "facts": [
+        {"claim": "Cloudera AI unifies self-serve analytics capabilities and data engineering in a single, portable service", "url": "https://docs.cloudera.com/machine-learning/cloud/index.html"}
+      ],
+      "relevance_to_us": "Not a useful index page directly; navigate via product-specific doc paths (setup-cloudera-ai-inference, setup-model-registry, use-ai-studios) found via search instead.",
+      "feeds": ["ch5"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/1.5.5/index.html",
+      "title": "Cloudera AI on Premises 1.5.5 docs",
+      "kind": "cloudera-doc",
+      "summary": "On-prem docs root for version 1.5.5, links to Cloudera Data Services on-premises Release Notes and Release Summary. Confirms 1.5.5 is the on-prem version line as of this research (matches the Aug 7, 2025 Technical Preview announcement tied to Data Services 1.5.5 GA).",
+      "facts": [
+        {"claim": "Cloudera AI on premises 1.5.5 platform 'operates inside your private and secure data center' and 'unifies self-service data science and data engineering in a single, portable service'", "url": "https://docs.cloudera.com/machine-learning/1.5.5/index.html"}
+      ],
+      "relevance_to_us": "1.5.5 is the current on-prem doc version tree to target for ch18 (CDP Base on AWS uses similar on-prem-style ML) and ch5 AI Inference setup steps.",
+      "feeds": ["ch5", "ch18"]
+    },
+    {
+      "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html",
+      "title": "Cloudera Unveils Next Phase of AI Inferencing and Unified Data Access Capabilities",
+      "kind": "cloudera-blog",
+      "summary": "Press release dated February 9, 2026. Announces Cloudera AI Inference now available on-premises, accelerated by NVIDIA Blackwell GPUs, Dynamo-Triton Inference Server, and NIM microservices, alongside Data Warehouse with Trino and Data Visualization in the data center. Quotes Leo Brunnick (Cloudera CPO) and Pat Lee (NVIDIA VP).",
+      "facts": [
+        {"claim": "Published February 9, 2026", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html"},
+        {"claim": "Cloudera AI Inference on-premises now supports latest NVIDIA Nemotron open models — LLMs, fraud detection, computer vision, voice", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html"},
+        {"claim": "Pat Lee (NVIDIA VP) quote: 'Our collaboration enables customers to deploy and scale AI inference using NVIDIA Blackwell GPUs, Dynamo-Triton and NIM microservices, delivering control, predictable economics, and data-center efficiency.'", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html"},
+        {"claim": "Leo Brunnick (Cloudera CPO) quote: 'With Cloudera AI Inference, Data Warehouse with Trino, and Data Visualization all accessible in the data center, organizations can securely deploy AI and analytics exactly where their most critical data resides.'", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html"}
+      ],
+      "relevance_to_us": "This Feb 2026 announcement is the most current on-prem AI Inference milestone found — it does not explicitly say 'GA' vs still Technical Preview, so status is unresolved (see open_questions). Directly names Blackwell GPUs, the same silicon family as DGX Spark's GB10.",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://www.cloudera.com/blog/partners/cloudera-supercharges-your-private-ai-with-cloudera-ai-inference-nvidia-ai-q-and-nvidia-nim.html",
+      "title": "Cloudera Supercharges Your Private AI with Cloudera AI Inference, NVIDIA AI-Q, and NVIDIA NIM",
+      "kind": "cloudera-blog",
+      "summary": "Published June 11, 2025 (GTC Paris). Cloudera AI Inference hosts NVIDIA NeMo Retriever and LLM inference microservices comprising the AI-Q NVIDIA Blueprint for Enterprise Research, supports Llama Nemotron reasoning models, integrates NVIDIA Agent Intelligence toolkit for RAG. NIM auto-selects backend (TensorRT-LLM, vLLM, or SGLang) based on model+GPU; supports Hugging Face or TensorRT-LLM model formats; NIM receives continuous updates as part of NVIDIA AI Enterprise.",
+      "facts": [
+        {"claim": "Published June 11, 2025, tied to GTC Paris announcements on Sovereign AI infrastructure", "url": "https://www.cloudera.com/blog/partners/cloudera-supercharges-your-private-ai-with-cloudera-ai-inference-nvidia-ai-q-and-nvidia-nim.html"},
+        {"claim": "Cloudera AI Inference hosts NVIDIA NeMo Retriever and LLM inference microservices that comprise the AI-Q NVIDIA Blueprint for Enterprise Research", "url": "https://www.cloudera.com/blog/partners/cloudera-supercharges-your-private-ai-with-cloudera-ai-inference-nvidia-ai-q-and-nvidia-nim.html"},
+        {"claim": "NIM microservice automatically selects the optimal inference backend (TensorRT-LLM, vLLM, or SGLang) based on model and GPU hardware", "url": "https://www.cloudera.com/blog/partners/cloudera-supercharges-your-private-ai-with-cloudera-ai-inference-nvidia-ai-q-and-nvidia-nim.html"},
+        {"claim": "Supports models from Hugging Face or TensorRT-LLM formats; NIM receives continuous updates as part of NVIDIA AI Enterprise", "url": "https://www.cloudera.com/blog/partners/cloudera-supercharges-your-private-ai-with-cloudera-ai-inference-nvidia-ai-q-and-nvidia-nim.html"}
+      ],
+      "relevance_to_us": "The vLLM backend-selection detail matters directly for ch4/ch6 — NIM's auto-backend-select (TensorRT-LLM/vLLM/SGLang) is the same choice space we manually make on WindowsDesktop's vLLM :8000 today; worth comparing against a NIM container on NvidiaSpark-1.",
+      "feeds": ["ch5", "ch6"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/use-ai-studios/topics/ml-agent-studio-overview.html",
+      "title": "Agent Studio Overview (Cloudera docs)",
+      "kind": "cloudera-doc",
+      "summary": "Official docs describing Agent Studio as a low-code to high-code platform for building/testing/deploying multi-agent workflows. Low-code prototyping can graduate to high-code customization via Cloudera AI Workbench. Includes full lifecycle management with built-in observability/logging. No NVIDIA integration or version info mentioned on this specific page (the NVIDIA tie-in comes from the separate March 2026 blog post above).",
+      "facts": [
+        {"claim": "Agent Studio is 'a versatile low-code to high-code platform for building, testing, and deploying multi-agent workflows'", "url": "https://docs.cloudera.com/machine-learning/cloud/use-ai-studios/topics/ml-agent-studio-overview.html"},
+        {"claim": "Users can start low-code for rapid prototyping then transition to high-code mode using Cloudera AI Workbench for advanced customization", "url": "https://docs.cloudera.com/machine-learning/cloud/use-ai-studios/topics/ml-agent-studio-overview.html"},
+        {"claim": "Includes 'full lifecycle management of production-ready agent workflows, complete with built-in observability and logging'", "url": "https://docs.cloudera.com/machine-learning/cloud/use-ai-studios/topics/ml-agent-studio-overview.html"}
+      ],
+      "relevance_to_us": "Confirms Agent Studio workflows deploy as long-running endpoints and integrate with AI Workbench for high-code — relevant scaffolding for ch19/ch20 demos comparing local Claude Code agentic loops vs. Cloudera's own agent tooling.",
+      "feeds": ["ch19", "ch20"]
+    },
+    {
+      "url": "https://community.cloudera.com/t5/Community-Articles/How-to-use-Model-Registry-on-Cloudera-Machine-Learning/ta-p/379812",
+      "title": "AI Registry / Model Registry usage summary (via search)",
+      "kind": "cloudera-doc",
+      "summary": "AI Registry stores/manages ML models and metadata (version, dependencies, performance, lineage of who created it and when), exposes APIs for access/deploy/query/search. To deploy: select AI Registry in left nav, pick the model, Actions > Deploy, choose target project, click Go.",
+      "facts": [
+        {"claim": "AI Registry tracks model lineage including who created it and when, and provides APIs for accessing and deploying models and for querying/searching the registry", "url": "https://docs.cloudera.com/machine-learning/1.5.5/setup-model-registry/topics/ml-setting-up-model-registry.html"},
+        {"claim": "Deploy flow: AI Registry nav > select model > Actions menu > Deploy > choose project > Go", "url": "https://docs.cloudera.com/machine-learning/latest/models/topics/ml-deploying-model-from-model-registry-page.html"}
+      ],
+      "relevance_to_us": "Gives the exact register-then-deploy UI shape needed for a ch5/ch20 walkthrough: register a model into AI Registry, then deploy it to a project/endpoint served by AI Inference.",
+      "feeds": ["ch5", "ch20"]
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/cloudera-and-nvidia-collaborate-to-accelerate-data-analytics-and-ai-at-scale",
+      "title": "Cloudera and NVIDIA Collaborate to Accelerate Data Analytics and AI at Scale",
+      "kind": "nvidia-doc",
+      "summary": "NVIDIA developer blog, dated April 12, 2021 (older baseline article, still current top hit for the search). Covers the original RAPIDS Accelerator for Apache Spark 3.0 integration into Cloudera Data Platform (CDP), IRS use case with 3x+ speed improvement for fraud detection, NVIDIA-Certified Servers support.",
+      "facts": [
+        {"claim": "Published April 12, 2021", "url": "https://developer.nvidia.com/blog/cloudera-and-nvidia-collaborate-to-accelerate-data-analytics-and-ai-at-scale"},
+        {"claim": "IRS reported over three times speed improvements for data engineering and data science workflows using the Cloudera+NVIDIA RAPIDS integration", "url": "https://developer.nvidia.com/blog/cloudera-and-nvidia-collaborate-to-accelerate-data-analytics-and-ai-at-scale"},
+        {"claim": "RAPIDS Accelerator for Apache Spark enables GPU acceleration for SQL/DataFrame processing with no code changes, built on CUDA, mirroring Pandas/Scikit-Learn APIs", "url": "https://developer.nvidia.com/blog/cloudera-and-nvidia-collaborate-to-accelerate-data-analytics-and-ai-at-scale"}
+      ],
+      "relevance_to_us": "Historical baseline for the RAPIDS-on-Apache-Spark story; superseded in currency by the August 2026 Spark 4.1 announcement below, but useful for showing the multi-year arc when writing ch9/ch20.",
+      "feeds": ["ch9", "ch20"]
+    },
+    {
+      "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html",
+      "title": "Cloudera Speeds Up Spark 4.1 Fourfold With NVIDIA GPUs",
+      "kind": "blog",
+      "summary": "Third-party tech blog, dated August 20, 2026. Reports Cloudera Anywhere Cloud (incl. Cloudera Data Engineering) now runs Apache Spark 4.1 with NVIDIA cuDF-based native GPU acceleration, up to 4x speedup vs CPU baseline (ranging 4x-16x by job type per CIO/CTO recommendation to POC on real workloads). Cites 84% of organizations reporting AI workloads increased infra cost, 73% citing performance constraints. Quotes Leo Brunnick.",
+      "facts": [
+        {"claim": "Published August 20, 2026", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html"},
+        {"claim": "Cloudera Anywhere Cloud (includes Cloudera Data Engineering) now supports Apache Spark 4.1 with NVIDIA cuDF-based native GPU acceleration, up to 4x speedup vs CPU-based setups (range cited: 4x to 16x depending on job type)", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html"},
+        {"claim": "84% of surveyed organizations reported AI workloads increased infrastructure costs; 73% cited performance constraints slowing operations", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html"},
+        {"claim": "Leo Brunnick (Cloudera CPO) quote: 'For many organizations, AI isn't limited by models. It's limited by how quickly they can turn raw data into trusted, usable insights.'", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html"}
+      ],
+      "relevance_to_us": "Most current (this month) RAPIDS/Apache Spark milestone: Spark 4.1 + NVIDIA cuDF on Cloudera Anywhere Cloud. Since this is a third-party mirror of a Cloudera announcement, verify against Cloudera's own press room before quoting the 4x/16x figures as Cloudera's own words.",
+      "feeds": ["ch9", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html",
+      "title": "Cloudera AI Inference service — Authentication (referenced via search, not directly fetched)",
+      "kind": "cloudera-doc",
+      "summary": "Per search-result summary: AI Inference service authenticates via a Cloudera Workload Authentication JSON Web Token (JWT) passed as an HTTP Authorization Bearer token on every client request. Cloudera AI Workbench can auto-generate this JWT from the user's Kerberos credentials and inject it into workload pods; otherwise a JWT can be copied from the Knox UI. A Model Endpoint's exposed API standard is either OpenAI-compatible (for NVIDIA NIM-backed LLM endpoints) or the Open Inference Protocol (for predictive/traditional ML models).",
+      "facts": [
+        {"claim": "Cloudera AI Inference service uses a Cloudera Workload Authentication JWT; all client applications must present a valid JWT as an HTTP Authorization Bearer token", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "surfaced via WebSearch snippet, page not directly fetched"},
+        {"claim": "A Model Endpoint's API standard is either OpenAI (for NVIDIA NIM) or Open Inference Protocol (for predictive models)", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "surfaced via WebSearch snippet, page not directly fetched"},
+        {"claim": "Cloudera AI Workbench auto-generates JWTs from user Kerberos credentials and injects them into user workload pods", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "surfaced via WebSearch snippet"}
+      ],
+      "relevance_to_us": "This is the exact answer to 'what does the AI Inference API auth header look like' — Authorization: Bearer <Knox JWT> — load-bearing for any demo hitting an AI Inference endpoint programmatically from NiFi/Flink. Page itself was not directly fetched (only its search snippet); confirm the URL resolves before quoting further in the guide.",
+      "feeds": ["ch5", "ch10", "ch20"]
+    }
+  ],
+  "open_questions": [
+    "Is Cloudera AI Inference on-premises still in Technical Preview or has it reached GA as of Aug 2026? The Aug 2025 announcement said Technical Preview (Data Services 1.5.5); the Feb 9, 2026 press release says 'now available on premises' but never uses the word 'GA' or 'Technical Preview' explicitly — status is ambiguous from these two sources alone.",
+    "Exact current Cloudera Data Services / Cloudera ML version number as of August 2026 (1.5.5 was confirmed as of the Aug 2025 announcement; no newer point release number was found in this pass — check Cloudera Data Services on-premises Release Notes directly, which returned only a landing-page stub via WebFetch).",
+    "Does Cloudera AI Inference on Cloudera Anywhere Cloud/Data Services support ARM64/aarch64 hosts (relevant to running any Cloudera AI component directly on the DGX Spark's Arm CPU) — not addressed by any source fetched.",
+    "Exact NIM model catalog / supported GPU instance types on AWS for Cloudera AI Inference cloud deployment — not found; docs root pages returned only navigational stubs, would need direct docs.cloudera.com deep-link crawl or an authenticated Cloudera account.",
+    "Full text of the CrewAI + Cloudera AI Inference community blog (community.cloudera.com ba-p/413009) returned HTTP 403 to WebFetch — would give a concrete OpenAI-endpoint code example if accessible another way."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "Cloudera AI Inference service exposes an OpenAI-compatible API for LLM/NIM-backed model endpoints, authenticated via a Cloudera Workload Authentication JWT sent as an HTTP Authorization Bearer token (auto-generated by AI Workbench from Kerberos creds, or copied from the Knox UI).",
+      "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html",
+      "why_it_matters": "This is the concrete integration shape for ch5/ch10/ch20 — it tells us exactly how NiFi InvokeHTTP or a Flink Agent would call a Cloudera-hosted model endpoint the same way it calls local vLLM on WindowsDesktop, just swapping base URL and adding a Bearer JWT header."
+    },
+    {
+      "claim": "Cloudera's NVIDIA acceleration stack for both AI Inference and Agent Studio is explicitly NVIDIA Blackwell GPUs + Dynamo-Triton Inference Server + NIM microservices (confirmed independently in the Feb 9, 2026 press release and the March 18, 2026 Agent Studio blog).",
+      "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html",
+      "why_it_matters": "DGX Spark's GB10 is a Blackwell-family chip, so this is the strongest concrete tie between Cloudera's current AI roadmap and the DGX Spark hardware — directly supports the ch5/ch19 'parity story' argument that a Spark-class Blackwell box can run the same accelerated stack Cloudera is now shipping on-prem."
+    },
+    {
+      "claim": "As of August 20, 2026, Cloudera Anywhere Cloud (Cloudera Data Engineering) runs Apache Spark 4.1 with native NVIDIA cuDF GPU acceleration, up to 4x (range 4x-16x by job type) faster than CPU-only.",
+      "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html",
+      "why_it_matters": "This is the most current RAPIDS-for-Apache-Spark milestone found (this month) — relevant if ch9/ch20 demos want to run Apache Spark 4.1 + cuDF workloads and compare against a DGX Spark-hosted equivalent. Note: this is a third-party mirror, not Cloudera's own press room — verify wording against cloudera.com before quoting numbers as Cloudera's own claim."
+    }
+  ],
+  "fetch_failures": [
+    "https://community.cloudera.com/t5/Developer-Blogs/Fully-Private-Agents-with-Cloudera-s-AI-Inference-Service/ba-p/413009 — HTTP 403 Forbidden to WebFetch",
+    "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html — surfaced only as a WebSearch snippet/summary, not independently confirmed by direct WebFetch in this pass"
+  ]
+}

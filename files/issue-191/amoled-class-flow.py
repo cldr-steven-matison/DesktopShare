@@ -50,6 +50,59 @@ SPECS = {
         ],
         "connections": [("src", "mqtt"), ("http", "play")],
     },
+    # #191 rung 6 verify flow: POST /record on the board -> 3 s mic clip
+    # goes broker-direct as WAV on microfi/amoled/audio, the capture event
+    # rides the flow to microfi/amoled/audio/meta.
+    "record": {
+        "processors": [
+            {"key": "http", "type": "ListenHTTP", "pos": (100, 100),
+             "props": {"Base Path": "/record", "Listening Port": "8095"}, "auto": []},
+            {"key": "mic", "type": "CaptureAudio", "pos": (100, 400),
+             "props": {"Broker URI": BROKER, "Audio Topic": "microfi/amoled/audio",
+                       "Client ID": "amoled-mic", "Clip Seconds": "3",
+                       "Capture Every N Ticks": "0"}, "auto": []},
+            {"key": "mqtt", "type": "PublishMQTT", "pos": (100, 700),
+             "props": {"Broker URI": BROKER, "Client ID": "amoled-audio-meta",
+                       "Topic": "microfi/amoled/audio/meta", "Quality of Service": "0"},
+             "auto": ["success"]},
+        ],
+        "connections": [("http", "mic"), ("mic", "mqtt")],
+    },
+    # Same, but a tap/swipe on the glass is the record button.
+    "touch-record": {
+        "processors": [
+            {"key": "src", "type": "GetTouch", "pos": (100, 100),
+             "props": {"Events": "Release", "Output Format": "JSON"}, "auto": []},
+            {"key": "mic", "type": "CaptureAudio", "pos": (100, 400),
+             "props": {"Broker URI": BROKER, "Audio Topic": "microfi/amoled/audio",
+                       "Client ID": "amoled-mic", "Clip Seconds": "3",
+                       "Capture Every N Ticks": "0"}, "auto": []},
+            {"key": "mqtt", "type": "PublishMQTT", "pos": (100, 700),
+             "props": {"Broker URI": BROKER, "Client ID": "amoled-audio-meta",
+                       "Topic": "microfi/amoled/audio/meta", "Quality of Service": "0"},
+             "auto": ["success"]},
+        ],
+        "connections": [("src", "mic"), ("mic", "mqtt")],
+    },
+    # Both triggers on one CaptureAudio: a tap on the glass OR POST /record
+    # (4 nodes, 3 connections -- the last shape that fits kMaxFlowNodes=4).
+    "record-both": {
+        "processors": [
+            {"key": "src", "type": "GetTouch", "pos": (100, 100),
+             "props": {"Events": "Release", "Output Format": "JSON"}, "auto": []},
+            {"key": "http", "type": "ListenHTTP", "pos": (500, 100),
+             "props": {"Base Path": "/record", "Listening Port": "8095"}, "auto": []},
+            {"key": "mic", "type": "CaptureAudio", "pos": (300, 400),
+             "props": {"Broker URI": BROKER, "Audio Topic": "microfi/amoled/audio",
+                       "Client ID": "amoled-mic", "Clip Seconds": "3",
+                       "Capture Every N Ticks": "0"}, "auto": []},
+            {"key": "mqtt", "type": "PublishMQTT", "pos": (300, 700),
+             "props": {"Broker URI": BROKER, "Client ID": "amoled-audio-meta",
+                       "Topic": "microfi/amoled/audio/meta", "Quality of Service": "0"},
+             "auto": ["success"]},
+        ],
+        "connections": [("src", "mic"), ("http", "mic"), ("mic", "mqtt")],
+    },
     # #227 as-built, for restoring the shake/DisplayMessage demo.
     "imu-display": {
         "processors": [

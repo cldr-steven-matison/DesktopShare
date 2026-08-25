@@ -1,0 +1,237 @@
+{
+  "bucket": "r01-nvidia-docs",
+  "sources": [
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/",
+      "title": "DGX Spark User Guide - Index",
+      "kind": "nvidia-doc",
+      "summary": "Top-level index for the DGX Spark User Guide. Describes DGX Spark as NVIDIA's compact AI computer for developers, data scientists, and AI researchers, and links out to every subsection: Release Notes, Known Issues, Getting Started (Hardware Overview, First Boot, System Config and Operation, Software, Common Use Cases, PXE Boot, Enterprise Manageability), System Update Guide (OS/Component Update, System Recovery), Support, and Legal.",
+      "facts": [
+        {"claim": "Full guide tree includes Hardware Overview, Initial Setup/First Boot, System Configuration and Operation (System Overview, UEFI Settings, ConnectX-7 Networking), Software (DGX Dashboard, NVIDIA Sync, DGX OS, NVIDIA Nsight, Container Runtime for Docker, NGC, AI Enterprise), Common Use Cases, PXE Boot Setup, Enterprise Manageability (Enterprise Lifecycle Integration, Custom Installation with cloud-init), OS and Component Update Guide, System Recovery, Support, and legal/compliance pages.", "url": "https://docs.nvidia.com/dgx/dgx-spark/"}
+      ],
+      "relevance_to_us": "This is the canonical page map for ch2 (day-1), ch3 (networking), ch14 (dashboard/observability) — every subsequent fetch in this bucket came from links found here.",
+      "feeds": ["ch2", "ch3"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html",
+      "title": "DGX Spark Hardware Overview",
+      "kind": "nvidia-doc",
+      "summary": "Full hardware spec sheet for DGX Spark: 20-core Arm CPU (10 Cortex-X925 + 10 Cortex-A725), Blackwell GPU with 5th-gen Tensor Cores/4th-gen RT Cores and 6,144 CUDA cores, 128GB LPDDR5x unified memory at 273 GB/s, 1TB or 4TB self-encrypting NVMe, ConnectX-7 networking plus Wi-Fi 7/Bluetooth 5.4, USB-C/HDMI ports, 240W external PSU, compact chassis.",
+      "facts": [
+        {"claim": "CPU is a 20-core Arm processor: 10 Cortex-X925 + 10 Cortex-A725 cores.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "GPU is NVIDIA Blackwell Architecture with 5th Generation Tensor Cores, 4th Generation RT Cores, 6,144 CUDA cores.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "128 GB LPDDR5x unified system memory, 256-bit interface, 4266 MHz, 273 GB/s bandwidth.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "Storage: 1 TB or 4 TB NVMe M.2 with self-encryption.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "Networking: ConnectX-7 Smart NIC with 1x RJ-45 (10 GbE) plus 2x QSFP Network connectors; also Wi-Fi 7 and Bluetooth 5.4.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "Ports: 4x USB Type-C, 1x HDMI 2.1a, plus network/power.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "Power: 240W external power supply; GB10 SOC thermal design power 140W.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"},
+        {"claim": "Dimensions 150mm (L) x 150mm (W) x 50.5mm (H), weight 1.2 kg (2.6 lbs).", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html"}
+      ],
+      "relevance_to_us": "Confirms and sources the exact spec numbers already used in the project description (128GB/273GB/s) — direct source for ch1 hardware chapter; also confirms dual QSFP for clustering (ch3, ch22).",
+      "feeds": ["ch1"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/first-boot.html",
+      "title": "DGX Spark Initial Setup - First Boot",
+      "kind": "nvidia-doc",
+      "summary": "Ordered first-boot wizard steps: language/timezone, keyboard layout (local setup), terms and conditions, user account creation, optional info-sharing settings, Wi-Fi network + password selection (skipped if Ethernet already provides internet), network join, then automatic download/install of the full software image (multiple reboots, ~10 minutes), then final reboot.",
+      "facts": [
+        {"claim": "First-boot order: language/timezone -> keyboard layout -> terms and conditions -> create username/password -> optional info-sharing settings -> Wi-Fi network selection (auto-skipped if Ethernet has internet) -> Wi-Fi password -> device joins network and tears down its own AP -> system automatically downloads and installs the full software image over ~10 minutes with possible multiple reboots -> final automatic reboot.", "url": "https://docs.nvidia.com/dgx/dgx-spark/first-boot.html"}
+      ],
+      "relevance_to_us": "Directly the ch2 day-1 walkthrough — exact order to reproduce/document for NvidiaSpark-1 unboxing.",
+      "feeds": ["ch2"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-os.html",
+      "title": "DGX Spark Software - DGX OS",
+      "kind": "nvidia-doc",
+      "summary": "Describes DGX OS as a customized Ubuntu-based Linux distribution tuned for AI/ML/analytics on DGX hardware, with pre-configured NVIDIA drivers, diagnostics, and security update cadence of roughly twice yearly (Feb/Aug) for first two years post-release plus ongoing security patches; mentions FIPS/CIS/DISA-STIG compliance standards exist via Ubuntu security docs, but this page itself does not give the exact DGX OS/kernel version (that's on release-notes.html).",
+      "facts": [
+        {"claim": "DGX OS is a customized Linux distribution based on Ubuntu, providing a stable, tested, supported OS foundation for AI/ML/analytics on DGX systems, with pre-configured drivers/settings for NVIDIA hardware.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-os.html"},
+        {"claim": "Updates typically ship about twice a year (around February and August) for the first two years after initial release, plus additional security patches throughout the support lifecycle.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-os.html"},
+        {"claim": "Page references Ubuntu security-compliance standards including FIPS, CIS, and DISA-STIG.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-os.html"}
+      ],
+      "relevance_to_us": "Sets expectations for ch2/ch14 on OS update cadence and support lifecycle planning for the box.",
+      "feeds": ["ch2", "ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html",
+      "title": "DGX Spark Software - NVIDIA Container Runtime for Docker",
+      "kind": "nvidia-doc",
+      "summary": "NVIDIA Container Toolkit ships preinstalled and preconfigured on DGX Spark — no install steps needed. Gives the optional non-sudo docker group command, a version-check command, and GPU-access test commands using nvcr.io CUDA 13.0.1 devel-ubuntu24.04 images.",
+      "facts": [
+        {"claim": "NVIDIA Container Toolkit is preinstalled and configured on DGX Spark, ready to use out of the box.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html"},
+        {"claim": "Optional rootless docker setup: `sudo usermod -aG docker $USER` then `newgrp docker`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html"},
+        {"claim": "Verify install with `nvidia-ctk --version`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html"},
+        {"claim": "Test GPU access: `docker run -it --gpus=all nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 nvidia-smi`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html"},
+        {"claim": "Set explicit GPU capabilities: `docker run -it --gpus '\"capabilities=compute,utility\"' nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 nvidia-smi`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html"}
+      ],
+      "relevance_to_us": "Directly relevant to ch8 (k3d with GPU) — container runtime is preconfigured, so k3d/containerd GPU passthrough setup should build on this baseline rather than reinstalling nvidia-container-toolkit.",
+      "feeds": ["ch2"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html",
+      "title": "DGX Spark Known Issues",
+      "kind": "nvidia-doc",
+      "summary": "Five documented known issues and workarounds: power-adapter compatibility, nvidia-smi memory reporting on iGPU, CUDA version pinning to release, cudaMemGetInfo/UMA memory-reporting inaccuracy, and HDMI display deep-sleep wake failure.",
+      "facts": [
+        {"claim": "Using a non-supplied power adapter 'may reduce performance, prevent boot, or cause unexpected shutdowns' — use only the supplied adapter.", "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html"},
+        {"claim": "On iGPU platforms, nvidia-smi displays 'Memory-Usage: Not Supported' even though per-process GPU memory is listed; expected behavior since integrated GPUs lack dedicated framebuffer memory.", "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html"},
+        {"claim": "CUDA versions are verified only for the hardware/software available at time of release; use NGC containers (PyTorch, vLLM, TensorRT-LLM) to get latest features/performance.", "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html"},
+        {"claim": "cudaMemGetInfo does not account for memory recoverable from SWAP, so reported allocatable memory can appear smaller than actually available on UMA systems; workaround is to read /proc/meminfo directly, and for debugging manually flush cache with `sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html"},
+        {"claim": "An attached HDMI display can enter deep sleep after long inactivity and fail to wake automatically; workaround is to press a physical button on the monitor.", "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html"}
+      ],
+      "relevance_to_us": "The cudaMemGetInfo/UMA memory-reporting gotcha and CUDA-pinned-to-release note are load-bearing for ch6/ch14 — any GPU memory dashboarding or capacity planning we build must read /proc/meminfo, not trust cudaMemGetInfo.",
+      "feeds": ["ch2", "ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html",
+      "title": "DGX Spark Release Notes",
+      "kind": "nvidia-doc",
+      "summary": "Current shipped software versions plus a monthly changelog from Nov 2025 through Jul 2026 covering OOM handling, cluster tooling, NCCL updates, enterprise management, firmware, and kernel/driver bumps.",
+      "facts": [
+        {"claim": "Current versions: DGX OS 7.5.0, GPU Driver 580.159.03, CUDA Toolkit 13.0.2, Canonical kernel 6.17, UEFI 1.110.13.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html"},
+        {"claim": "July 2026: improved out-of-memory handling for unified memory architecture, toggleable display reserved memory (2GB or 4GB), enhanced cloud-init (DHCP/HTTP/TFTP) plus FastOS recovery image customization, fixed display instability on HDMI hot-plug.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html"},
+        {"claim": "June 2026: OTA updates made optional during setup; added NVIDIA Sync Cluster Assistant for connecting up to four devices; NCCL updated to v2.30u1 with ring topology support across three systems.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html"},
+        {"claim": "April 2026: enterprise management additions — air-gapped deployment support, USB/local repository installs, cloud-init site customization; DGX Dashboard shows release highlights.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html"},
+        {"claim": "January 2026: ConnectX-7 hot-plug support (18W power savings), Bluetooth audio support, UEFI-based Wi-Fi/Bluetooth disable options.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html"},
+        {"claim": "November 2025: Ubuntu 6.14 Hardware Enablement kernel incorporated; JupyterLab updated with CUDA 13.0.2 and latest PyTorch; fixed unified memory reporting and image generation issues.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html"}
+      ],
+      "relevance_to_us": "Ground-truth current version set (DGX OS 7.5.0 / driver 580.159.03 / CUDA 13.0.2 / kernel 6.17) for ch1/ch2, and the cluster-assistant/NCCL timeline for ch22 multi-Spark scale-out.",
+      "feeds": ["ch1", "ch2", "ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-dashboard.html",
+      "title": "DGX Spark Software - DGX Dashboard",
+      "kind": "nvidia-doc",
+      "summary": "The DGX Dashboard is a local web UI for real-time system monitoring, integrated JupyterLab, applying updates, changing settings/device name, accessed locally via desktop launcher or remotely at http://localhost:11000 (via NVIDIA Sync or a manual SSH tunnel: `ssh -L 11000:localhost:11000 <username>@<IP or spark-abcd.local>`).",
+      "facts": [
+        {"claim": "DGX Dashboard provides real-time system monitoring and integrated JupyterLab access, plus ability to apply system updates, modify system settings, and change the device name (needs sudo).", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-dashboard.html"},
+        {"claim": "Local access: click 'Show Apps' on the Ubuntu desktop, select 'DGX Dashboard', opens in default browser.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-dashboard.html"},
+        {"claim": "Remote access via NVIDIA Sync: click 'DGX Dashboard' button, opens at http://localhost:11000.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-dashboard.html"},
+        {"claim": "Manual remote access: `ssh -L 11000:localhost:11000 <username>@<IP or spark-abcd.local>` then browse to http://localhost:11000.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-dashboard.html"},
+        {"claim": "JupyterLab creates a virtual environment in the specified working directory and auto-installs recommended packages; each user's assigned port is listed in /opt/nvidia/dgx-dashboard-service/jupyterlab_ports.yaml.", "url": "https://docs.nvidia.com/dgx/dgx-spark/dgx-dashboard.html"}
+      ],
+      "relevance_to_us": "Directly answers 'what does DGX Dashboard expose' for ch14 observability — port 11000, SSH tunnel pattern, JupyterLab port file path.",
+      "feeds": ["ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-sync.html",
+      "title": "DGX Spark Software - NVIDIA Sync",
+      "kind": "nvidia-doc",
+      "summary": "NVIDIA Sync is a Windows/macOS/Ubuntu client that automates SSH connections, port forwarding, and tunnels to DGX Spark; supports direct LAN connections, Tailscale connections for off-network access, and app launching; its Cluster Assistant clusters DGX Spark systems without manual terminal commands.",
+      "facts": [
+        {"claim": "NVIDIA Sync automates SSH connections, port forwarding, and tunnels for DGX Spark, available for Windows, macOS, Ubuntu.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-sync.html"},
+        {"claim": "Three connection methods: direct (local network discovery, hostname, IP, or imported SSH aliases), Tailscale (off-network remote access), and Applications (launch IDEs/tools/scripts from the interface).", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-sync.html"},
+        {"claim": "Cluster Assistant clusters DGX Spark systems without manually running terminal commands, referencing ConnectX-7 cabling specs.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-sync.html"}
+      ],
+      "relevance_to_us": "Confirms Tailscale is NVIDIA's own documented remote-access path for DGX Spark (ch3), and that clustering (ch22) has a GUI assistant path in addition to manual playbooks.",
+      "feeds": ["ch3", "ch22"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/ngc.html",
+      "title": "DGX Spark Software - NGC",
+      "kind": "nvidia-doc",
+      "summary": "Walks through NGC account creation, API key generation, `docker login nvcr.io` with $oauthtoken, and pulling/running a PyTorch container for Grace Blackwell, plus mounting a project dir into the container. Notes DGX Spark needs the ARM64 NGC CLI build.",
+      "facts": [
+        {"claim": "Docker login to NGC: `docker login nvcr.io` with Username `$oauthtoken` and Password `<your-api-key>`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/ngc.html"},
+        {"claim": "Example pull/run: `docker pull nvcr.io/nvidia/pytorch:24.08-py3` then `docker run -it --gpus=all nvcr.io/nvidia/pytorch:24.08-py3`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/ngc.html"},
+        {"claim": "Persistent dev setup: `docker run -it --gpus=all -v /path/to/your/project:/workspace nvcr.io/nvidia/pytorch:24.08-py3`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/ngc.html"},
+        {"claim": "DGX Spark systems require the ARM64 version of NGC CLI, available from the official installers page.", "url": "https://docs.nvidia.com/dgx/dgx-spark/ngc.html"}
+      ],
+      "relevance_to_us": "Exact NGC login/pull commands for ch2/ch4 — note it references pytorch:24.08-py3, an older tag than the CUDA 13.0.1 image referenced on the container-runtime page; worth checking build.nvidia.com/spark for currently-recommended tags before writing ch4.",
+      "feeds": ["ch2"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/common-use-cases.html",
+      "title": "DGX Spark Software - Common Use Cases",
+      "kind": "nvidia-doc",
+      "summary": "This page is essentially a stub/redirect: it states DGX Spark supports a wide range of AI/ML/data-science workflows but gives no specific use-case walkthroughs, instead pointing to https://build.nvidia.com/spark as the actively maintained 'single source of truth' for practical getting-started guides.",
+      "facts": [
+        {"claim": "The user guide's own Common Use Cases page states build.nvidia.com/spark 'will be the single source of truth for your Spark device' for practical guides, rather than this page.", "url": "https://docs.nvidia.com/dgx/dgx-spark/common-use-cases.html"}
+      ],
+      "relevance_to_us": "Important pointer for r03 (community) and r02 (docs) follow-up: build.nvidia.com/spark, not this static page, is where NVIDIA keeps current use-case content — flag for a separate fetch pass in another bucket.",
+      "feeds": ["ch2"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html",
+      "title": "DGX Spark System Configuration - ConnectX-7 Networking",
+      "kind": "nvidia-doc",
+      "summary": "Details ConnectX-7 physical clustering: two QSFP ports per unit at up to 200 Gb/s each, specific approved cables, PCIe Gen5 x4 links per port producing 4 Linux network interfaces per port (2 Ethernet + 2 RoCE, 8 total with both ports cabled), named interface examples, and references to NVIDIA Sync Cluster Assistant plus manual 'Connect Two/Three Sparks' and 'Multi Sparks Through a Switch' playbooks (playbook docs not linked directly from this page).",
+      "facts": [
+        {"claim": "Each of the two QSFP ports provides up to 200 Gigabits per second (Gb/s).", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html"},
+        {"claim": "Approved cables for 200 Gb/s+ performance: Amphenol NJAAKK-N911 or Luxshare LMTQF022-SD-R.", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html"},
+        {"claim": "NIC connects to the Grace Blackwell SoC via two independent PCIe Gen 5 x4 links; each QSFP port creates 4 Linux network interfaces (2 Ethernet, 2 RoCE), 8 total when both ports are cabled.", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html"},
+        {"claim": "Example interface names: left port enp1s0f0np0 (Ethernet) / rocep1s0f0 (RoCE); right port enp1s0f1np1 (Ethernet) / rocep1s0f1 (RoCE).", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html"},
+        {"claim": "Named playbooks referenced (not linked with full URL on this page): 'Connect Two Sparks', 'Connect Three Sparks', 'Multi Sparks Through a Switch'.", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html"}
+      ],
+      "relevance_to_us": "Core source for ch3 (joining the LAN) and ch22 (multi-Spark scale-out) — exact interface names and cable part numbers for planning NvidiaSpark-1's networking, and eventual multi-unit expansion.",
+      "feeds": ["ch3", "ch22"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/os-and-component-update.html",
+      "title": "DGX Spark System Update Guide - OS and Component Update",
+      "kind": "nvidia-doc",
+      "summary": "DGX Dashboard is the recommended/primary update path (view updates, install security patches, manage driver/firmware updates, monitor progress). Manual fallback via standard Ubuntu tooling is documented with exact commands. Notes 10-year OS support from Canonical via Ubuntu Pro licensing.",
+      "facts": [
+        {"claim": "'The DGX Dashboard is the primary and recommended way to perform system updates' on DGX Spark.", "url": "https://docs.nvidia.com/dgx/dgx-spark/os-and-component-update.html"},
+        {"claim": "Manual update sequence: `sudo apt update`, `sudo apt dist-upgrade`, `sudo fwupdmgr refresh`, `sudo fwupdmgr upgrade`, `sudo reboot`.", "url": "https://docs.nvidia.com/dgx/dgx-spark/os-and-component-update.html"},
+        {"claim": "DGX OS is backed by 10-year OS support from Canonical through Ubuntu Pro licensing.", "url": "https://docs.nvidia.com/dgx/dgx-spark/os-and-component-update.html"}
+      ],
+      "relevance_to_us": "Exact command set for ch2/ch14 update runbook and for documenting long-term support horizon in the guide's overview chapter.",
+      "feeds": ["ch2", "ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/system-recovery.html",
+      "title": "DGX Spark System Update Guide - System Recovery",
+      "kind": "nvidia-doc",
+      "summary": "Full factory-recovery procedure: download the recovery tar.gz from NVIDIA's driver portal, build a bootable USB (CreateUSBKey.cmd/.sh/.sh for Windows/Linux/macOS) on a 16GB+ drive, boot to UEFI with a wired keyboard, restore UEFI defaults, re-enable Secure Boot + restore factory keys, boot from the USB via Boot Override, and confirm the (irreversible) reflash.",
+      "facts": [
+        {"claim": "Recovery requires a 16GB+ USB drive, keyboard+display attached, and the recovery archive from the 'DGX Spark System Recovery Image' on NVIDIA's driver portal (developer.nvidia.com).", "url": "https://docs.nvidia.com/dgx/dgx-spark/system-recovery.html"},
+        {"claim": "USB creation scripts by OS: CreateUSBKey.cmd (Windows), CreateUSBKey.sh (Linux), CreateUSBKeyMacOS.sh (macOS) — erases all data on the USB drive.", "url": "https://docs.nvidia.com/dgx/dgx-spark/system-recovery.html"},
+        {"claim": "Recovery boot requires a direct-wired USB keyboard (Bluetooth keyboards not supported for UEFI entry) and holding Esc or Del at power-on.", "url": "https://docs.nvidia.com/dgx/dgx-spark/system-recovery.html"},
+        {"claim": "Procedure requires restoring UEFI defaults, then re-entering UEFI to confirm Secure Boot is enabled and select 'Restore Factory Keys' before booting the recovery USB via Boot Override; the reflash step is explicitly irreversible.", "url": "https://docs.nvidia.com/dgx/dgx-spark/system-recovery.html"}
+      ],
+      "relevance_to_us": "Disaster-recovery runbook for ch2/ch14 — worth a short appendix so a bad k3d/driver experiment on NvidiaSpark-1 has a documented way back to factory state.",
+      "feeds": ["ch2", "ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark/support.html",
+      "title": "DGX Spark - Getting Support",
+      "kind": "nvidia-doc",
+      "summary": "Support channels (hardware tickets/chat/forums, and a separate AI Enterprise entitlement required for enterprise software support) plus the Field Diagnostic software: installed via NVIDIA's CUDA APT repo as the dgx-spark-fieldiag package (bundles stress-ng, fio, memtester), run from TTY with Secure Boot disabled, ~30 minutes.",
+      "facts": [
+        {"claim": "NVIDIA AI Enterprise software support for DGX Spark requires a specific 'NVIDIA AI Enterprise—DGX Spark' entitlement; other AI Enterprise licenses don't automatically include it.", "url": "https://docs.nvidia.com/dgx/dgx-spark/support.html"},
+        {"claim": "Field diagnostics run sequence: disable Secure Boot, `sudo init 3` (TTY mode), then `cd /opt/nvidia/dgx-spark-fieldiag && sudo ./partnerdiag --field`, taking about 30 minutes.", "url": "https://docs.nvidia.com/dgx/dgx-spark/support.html"},
+        {"claim": "Field diagnostic package pulls in stress-ng, fio, and memtester automatically; ConnectX-7 testing needs additional DOCA OFED and NVIDIA Firmware Tools prerequisites.", "url": "https://docs.nvidia.com/dgx/dgx-spark/support.html"}
+      ],
+      "relevance_to_us": "Useful for ch14 (hardware health-check runbook) and for knowing the AI Enterprise support boundary before assuming any enterprise entitlement covers the Spark box.",
+      "feeds": ["ch14"]
+    },
+    {
+      "url": "https://docs.nvidia.com/dgx/dgx-spark-porting-guide/",
+      "title": "DGX Spark Porting Guide - Index",
+      "kind": "nvidia-doc",
+      "summary": "Table-of-contents-only fetch; confirms the guide's scope covers Arm CPU architecture/SIMD, porting areas (dependencies, build systems, CPU instruction extensions, memory ordering, CUDA), and optimization (general practices, compiler config, .NET apps, CUDA on UMA systems, memory reporting, profiling). Full technical content (exact versions, frameworks, procedures) lives in child pages not individually fetched in this pass; a PDF full-guide download is also offered.",
+      "facts": [
+        {"claim": "Guide sections cover: ARM CPU architecture/SIMD instruction sets; porting dependencies, build systems, CPU instruction extensions, memory ordering, CUDA; and optimization topics including general practices, compiler configuration, .NET applications, CUDA on UMA systems, memory reporting, and profiling.", "url": "https://docs.nvidia.com/dgx/dgx-spark-porting-guide/"}
+      ],
+      "relevance_to_us": "Confirms a dedicated ARM-porting guide exists for ch1/ch6 (aarch64 build/compile concerns) but this pass only captured the TOC — child pages (e.g. 'Porting Existing Apps', CUDA-on-UMA memory reporting) need a follow-up fetch for exact commands.",
+      "feeds": ["ch1"]
+    }
+  ],
+  "open_questions": [
+    "The DGX Spark Porting Guide child pages (CUDA on UMA systems, memory reporting, profiling, compiler configuration) were not individually fetched — only the TOC page loaded. A follow-up pass should hit those specific sub-pages for exact ARM/CUDA porting commands.",
+    "software.html, uefi-settings.html, system-overview.html, enterprise-manageability pages (enterprise-fleet-lifecycle.html, enterprise-custom-install.html), pxe.html, and nvaie-quickstart.html were listed in the index but not individually fetched in this pass due to bucket scope/budget — worth a follow-up if ch2/ch3 need UEFI or PXE/enterprise-deploy specifics.",
+    "NGC page's example container tag (pytorch:24.08-py3) is older than the CUDA 13.0.1 devel-ubuntu24.04 image referenced on the container-runtime page — should confirm currently-recommended NGC tags via build.nvidia.com/spark before finalizing ch4.",
+    "common-use-cases.html explicitly defers to https://build.nvidia.com/spark as NVIDIA's live source of truth for use-case guides — that site was not crawled in this bucket and should be covered by another research bucket (r02 or r03)."
+  ],
+  "load_bearing_claims": [
+    {"claim": "Current DGX Spark software baseline: DGX OS 7.5.0, GPU Driver 580.159.03, CUDA Toolkit 13.0.2, Canonical kernel 6.17, UEFI 1.110.13.", "url": "https://docs.nvidia.com/dgx/dgx-spark/release-notes.html", "why_it_matters": "This is the exact version set the whole guide's ch1/ch2 should target; any chapter naming a different CUDA/driver/kernel version should be checked against this."},
+    {"claim": "128 GB LPDDR5x unified memory, 256-bit interface, 4266 MHz, 273 GB/s bandwidth; 20-core Arm CPU (10 Cortex-X925 + 10 Cortex-A725); Blackwell GPU with 6,144 CUDA cores.", "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html", "why_it_matters": "The headline spec numbers already used to describe the box (128GB/273GB/s) — now confirmed from NVIDIA's own doc, plus the CUDA core count and exact core-mix which hadn't been previously nailed down."},
+    {"claim": "cudaMemGetInfo does not account for memory recoverable from SWAP on this UMA system, so it under-reports allocatable memory; correct approach is reading /proc/meminfo, with `sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'` for debugging.", "url": "https://docs.nvidia.com/dgx/dgx-spark/known-issues.html", "why_it_matters": "Directly affects how ch6/ch14 should build any memory-capacity dashboard or scheduler heuristic — trusting cudaMemGetInfo alone will misreport headroom on this box."},
+    {"claim": "NVIDIA Container Toolkit ships preinstalled and preconfigured on DGX Spark — no nvidia-container-toolkit install step is needed.", "url": "https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html", "why_it_matters": "Changes the ch8 (k3d with GPU) plan: don't spend setup steps installing the container runtime, only verify it and wire k3d/containerd to the existing config."},
+    {"claim": "ConnectX-7 gives two QSFP ports at up to 200 Gb/s each, producing 8 Linux network interfaces (4 per port: 2 Ethernet + 2 RoCE) when both are cabled, with named examples enp1s0f0np0/rocep1s0f0 and enp1s0f1np1/rocep1s0f1.", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html", "why_it_matters": "Exact interface-naming and bandwidth facts needed for ch3 network planning and ch22 multi-Spark clustering design — avoids guessing interface names when scripting network config."}
+  ],
+  "fetch_failures": []
+}

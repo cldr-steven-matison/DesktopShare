@@ -1,0 +1,28 @@
+# Chapter 20: Same code, two backends — the arc
+
+> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when the DGX Spark is on the LAN and this chapter's runbook has run on it. Source doc: `nvidia-dgx-spark-cloudera-aws.md` (DesktopShare root) · driving issue: [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+
+## Scope
+
+One client, one NiFi flow, one Flink job, each run against the desk endpoint and then Cloudera AI Inference with only a base URL changed — the SE payload of the whole guide.
+
+## Prerequisites
+
+- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
+- *(filled from the source doc when the chapter is authored)*
+
+## Sections (planned)
+
+*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+
+## What NOT to Do
+
+*(populated from the first real run)*
+
+## Appendix — Reusable Command Forms
+
+*(populated from the first real run)*
+
+## Related Chapters
+
+- Guide index: [README](README.md)

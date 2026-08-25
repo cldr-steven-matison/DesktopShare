@@ -1,0 +1,205 @@
+{
+  "bucket": "g03-cloudera-ai-inference-status",
+  "sources": [
+    {
+      "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html",
+      "title": "Cloudera Unveils Next Phase of AI Inferencing and Unified Data Access Capabilities",
+      "kind": "cloudera-blog",
+      "summary": "Feb 9, 2026 press release announcing Cloudera AI Inference is 'now available on premises', accelerated by NVIDIA Blackwell GPUs, NVIDIA Dynamo-Triton Inference Server, and NVIDIA NIM microservices, with support for NVIDIA Nemotron open models. Does not use the words 'GA' or 'general availability' anywhere, nor 'Technical Preview' -- deliberately non-committal status language.",
+      "facts": [
+        {"claim": "Cloudera AI Inference on-premises status is announced only as 'now available on premises' -- no GA/Technical Preview label used in the press release itself.", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html", "evidence": "Fetched page text: '\"now available on premises\" as of the February 9, 2026 announcement date... no specific designation as \"GA\" ... or \"technical preview\" is provided'"},
+        {"claim": "On-prem CAII is 'Accelerated by the NVIDIA AI stack, by NVIDIA Blackwell GPUs, NVIDIA Dynamo-Triton Inference Server, and NVIDIA NIM microservices for high-performance, scalable model serving.'", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Press release: 'Organizations can deploy and scale any AI model, including the latest NVIDIA Nemotron open models -- from LLMs, fraud detection, computer vision, voice, and more -- directly within their data centers.'", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "No version numbers or performance multipliers appear in the press release text itself (those live on the product page instead -- see cloudera.com/products entry).", "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html", "evidence": "Fetch summary: 'No version numbers are mentioned... No specific performance metrics... are cited'"}
+      ],
+      "relevance_to_us": "This is the closest thing to an official GA statement for on-prem CAII, and it deliberately avoids GA language -- treat on-prem CAII as still not formally GA as of 2026-08-24; write ch5/ch19 as 'available, status ambiguous' not 'GA'.",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html",
+      "title": "Cloudera AI Inference Service: Enterprise AI Inference",
+      "kind": "cloudera-doc",
+      "summary": "Product marketing page with the performance headline figures and a 'coming soon' features list that shows several CAII capabilities are still pre-GA even as of this fetch.",
+      "facts": [
+        {"claim": "Cloudera claims CAII delivers 'up to 36x faster inference on NVIDIA GPUs and nearly 4x the throughput on CPUs'", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "CAII is 'Powered by NVIDIA NIM microservices' with 'embedded NVIDIA NIM Microservices'", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "API compatibility is described as: 'Open Inference Protocol APIs for traditional ML models and an OpenAI-compatible API for LLMs'", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Marked 'Feature coming soon' (i.e. NOT yet shipped) as of this fetch: Authorization; advanced deployment patterns (canary, blue-green, A/B testing); open APIs for model management/CI-CD; business monitoring for GenAI.", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html", "evidence": "Direct quote extracted by fetch: 'Several capabilities are marked as \"Feature coming soon,\" including: Authorization...'"},
+        {"claim": "The only explicit 'General Availability' phrase on the page refers to Model Registry, not CAII itself: 'General Availability of Model Registry'", "url": "https://www.cloudera.com/products/machine-learning/ai-inference-service.html", "evidence": "Fetch note: 'only references to \"General Availability of Model Registry\"'"}
+      ],
+      "relevance_to_us": "Confirms CAII authorization/RBAC is still 'coming soon' -- a real gap vs. a production auth story; important caveat for ch5/ch19 when comparing to DGX Spark local NIM which has no multi-tenant auth concerns at all.",
+      "feeds": ["ch5", "ch19", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html",
+      "title": "Authenticating Cloudera AI Inference service",
+      "kind": "cloudera-doc",
+      "summary": "Official CAII auth doc: two supported mechanisms, JWT (default, short-lived) and Knox API keys (long-lived).",
+      "facts": [
+        {"claim": "CAII 'Uses Cloudera Workload Authentication JWTs to authenticate short-lived sessions, users, and programmatic clients' for HTTP endpoints.", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Knox API keys 'enable long-lived connectivity to model endpoints,' requiring an admin to configure the Knox service in the Data Lake.", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "All client applications must present a valid JWT as an HTTP Authorization Bearer token: curl -H \"Authorization: Bearer ${CDP_TOKEN}\" <URL>", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "WebSearch snippet quoting the doc directly with the curl example"},
+        {"claim": "JWTs are issued by either the Knox Gateway Server (running in the Data Lake environment) or the User Management Service (UMS, part of Cloudera Control Plane).", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "WebSearch snippet quoting the doc"},
+        {"claim": "Practical flow: copy the generated JWT from the Knox UI and configure your AI application to use it 'as a bearer token to authenticate with Cloudera AI Inference service.'", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html", "evidence": "WebSearch snippet quoting the doc"}
+      ],
+      "relevance_to_us": "This resolves the prior round's open item -- the full auth contract is now confirmed: Authorization: Bearer <JWT> header, JWT from Knox or UMS. Directly usable for ch20's 'same code, two backends' sample (swap base_url + bearer token vs local vLLM's no-auth).",
+      "feeds": ["ch5", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-make-inference-call-model-endpoint-with-openai-api.html",
+      "title": "Making an inference call to a Model Endpoint with an OpenAI API",
+      "kind": "cloudera-doc",
+      "summary": "Official doc describing how to derive the OpenAI-SDK-compatible base_url from a CAII model endpoint URL and the MODEL_NAME convention.",
+      "facts": [
+        {"claim": "Endpoint URL pattern: https://[DOMAIN]/namespaces/serving-default/endpoints/[ENDPOINT_NAME]/v1", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-make-inference-call-model-endpoint-with-openai-api.html", "evidence": "WebSearch snippet paraphrasing the doc's URL template"},
+        {"claim": "'The base_url is the model endpoint URL up to the API version v1. To get the base_url, copy the model endpoint URL and delete the last two path components.'", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-make-inference-call-model-endpoint-with-openai-api.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "'The MODEL_NAME is the model name assigned to the model when it is registered to the Cloudera AI Registry.'", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-make-inference-call-model-endpoint-with-openai-api.html", "evidence": "Direct quote extracted by fetch"}
+      ],
+      "relevance_to_us": "Gives the exact base_url shape needed for ch20's 'same code' sample: point the openai Python SDK's base_url at .../endpoints/<name>/v1, set api_key to the JWT, and set model= to the AI-Registry-assigned name (not the raw HF/NGC model id).",
+      "feeds": ["ch5", "ch19", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/index.html",
+      "title": "Cloudera AI Inference service (docs index)",
+      "kind": "cloudera-doc",
+      "summary": "Docs table of contents: overview/terminology, JWT + Knox auth, endpoint management (UI + API), OpenAI API + Open Inference Protocol calling (Python SDK and curl for both), predictive-model deployment, GPU-enabled execution, canary deploys, autoscaling, metrics, application serving, fine-grained authZ for apps.",
+      "facts": [
+        {"claim": "Docs confirm both a Python SDK path and a curl path are documented for both 'Calls using OpenAI API' and 'Calls using Open Inference Protocol'.", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/index.html", "evidence": "Fetch summary section 4: 'Calls using OpenAI API (Python SDK and curl); Calls using Open Inference Protocol (Python SDK and curl)'"},
+        {"claim": "Docs index confirms canary deployment strategies and autoscaling (with sensitivity tuning) are documented CAII features.", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/index.html", "evidence": "Fetch summary section 5"},
+        {"claim": "The docs index page itself carries no version number or GA/Technical Preview banner -- status must be inferred per-subtopic (e.g. 'Application Serving' is separately labeled Technical Preview, see below).", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/index.html", "evidence": "Fetch note: 'does not include version numbers, GA/Technical Preview status indicators'"}
+      ],
+      "relevance_to_us": "Full feature map for ch5; confirms canary/autoscaling exist which is a real parity gap vs a bare local vLLM/NIM container on DGX Spark (no built-in autoscaler).",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-application-serving-overview.html",
+      "title": "Serving Applications on Cloudera AI Inference service (Technical Preview)",
+      "kind": "cloudera-doc",
+      "summary": "The page title itself carries an explicit '(Technical Preview)' tag -- found via WebSearch title -- for the 'Application Serving' sub-feature of CAII (hosting full apps, not just model endpoints).",
+      "facts": [
+        {"claim": "CAII's 'Application Serving' capability is explicitly labeled Technical Preview in its own doc page title.", "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-application-serving-overview.html", "evidence": "WebSearch result title: 'Serving Applications on Cloudera AI Inference service (Technical Preview)'"}
+      ],
+      "relevance_to_us": "Concrete, sourced example that CAII ships a mix of GA-ish core model-serving and explicitly-labeled Technical Preview sub-features (app serving) -- support the nuanced 'partial GA' framing rather than a blanket GA/TP call for the whole product.",
+      "feeds": ["ch5", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/1.5.5/model-hub/topics/ml-import-model-hugging-face.html",
+      "title": "Importing models from Hugging Face (Technical Preview)",
+      "kind": "cloudera-doc",
+      "summary": "Model Hub's Hugging Face import flow (curated + arbitrary HF models into AI Registry, then deployable via CAII) is explicitly Technical Preview as of the 1.5.5 docs.",
+      "facts": [
+        {"claim": "'This feature is in Technical Preview and not recommended for production deployments.'", "url": "https://docs.cloudera.com/machine-learning/1.5.5/model-hub/topics/ml-import-model-hugging-face.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Import flow: Model Hub (via Cloudera AI Workbenches) -> Import -> choose AI Registry + model size + optimization profile -> name model -> provide HF access token if gated -> import; result lands in Registered Models for CAII deployment.", "url": "https://docs.cloudera.com/machine-learning/1.5.5/model-hub/topics/ml-import-model-hugging-face.html", "evidence": "Fetch summary of the doc's step list"},
+        {"claim": "'For the gated models of Hugging Face, an access token is required,' and some models additionally require accepting the license/agreement on huggingface.co first.", "url": "https://docs.cloudera.com/machine-learning/1.5.5/model-hub/topics/ml-import-model-hugging-face.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "'Model Hub offers a curated list of top-performing models from the NVIDIA NGC Catalog and Hugging Face' (per WebSearch snippet on the sibling Model Hub docs).", "url": "https://docs.cloudera.com/machine-learning/cloud/models/topics/ml-registry-standalone-api.html", "evidence": "WebSearch snippet"}
+      ],
+      "relevance_to_us": "Answers item (C): HF/NGC model registration into AI Registry works today but is Technical Preview, not GA -- important caveat for a 'production-ready' claim in ch19/ch20. This is the mechanism a NIM container like nvcr.io/nim/meta/llama-3.1-8b-instruct-* would be registered through (via NGC catalog curation), not a raw arbitrary-container registration API.",
+      "feeds": ["ch5", "ch19", "ch20"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/models/topics/ml-registry-standalone-api.html",
+      "title": "Cloudera AI Registry standalone API",
+      "kind": "cloudera-doc",
+      "summary": "AI Registry has a standalone API to import/get/update/delete models without going through the full Workbench service, but with real limitations.",
+      "facts": [
+        {"claim": "'Cloudera AI Registry supports importing external models from NVIDIA NGC or HuggingFace through the POST method, though the Cloudera AI Registry Standalone API does not currently support uploading models via POST from the local machine.'", "url": "https://docs.cloudera.com/machine-learning/cloud/models/topics/ml-registry-standalone-api.html", "evidence": "WebSearch summary paraphrase directly citing the page"},
+        {"claim": "'The Cloudera AI Registry API is available only on AWS and Azure' (not on-prem / other clouds per this snippet).", "url": "https://docs.cloudera.com/machine-learning/cloud/models/topics/ml-registry-standalone-api.html", "evidence": "WebSearch summary paraphrase"}
+      ],
+      "relevance_to_us": "Direct answer to item (C): programmatic model registration exists but with cloud-provider scope limits (AWS/Azure) and no local-file POST upload -- relevant caveat for ch18/ch19 AWS-only automation and for ch20's 'same code' story (registration itself isn't fully portable, only inference calling is).",
+      "feeds": ["ch5", "ch18", "ch19"]
+    },
+    {
+      "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html",
+      "title": "Cloudera AI Inference service Configuration and Sizing",
+      "kind": "cloudera-doc",
+      "summary": "Official sizing doc confirming AWS g5.12xlarge as a documented CAII node-group instance type, with A10G GPUs.",
+      "facts": [
+        {"claim": "g5.12xlarge contains A10G GPUs -- Cloudera's standard configuration reference for this instance size on AWS.", "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html", "evidence": "WebSearch summary paraphrase of doc content"},
+        {"claim": "Recommended node-group pattern: 0-2 instances of g5.12xlarge, with one instance running two replicas under normal load and a second instance added via autoscaling during peak/rolling-update.", "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html", "evidence": "WebSearch summary paraphrase of doc content"},
+        {"claim": "Example: Llama 3.1 8B Instruct is sized to run on two NVIDIA A10G GPUs per replica, fitting the g5.12xlarge node group.", "url": "https://docs.cloudera.com/machine-learning/cloud/setup-cloudera-ai-inference/topics/ml-caii-caii-configuration-sizing.html", "evidence": "WebSearch summary paraphrase of doc content"}
+      ],
+      "relevance_to_us": "Confirms/extends prior r09/r10 g5.12xlarge finding with the actual GPU (A10G x4 per instance, 2 per replica) and the autoscaling pattern -- concrete AWS sizing baseline for ch18/ch19 cost/perf comparisons against a single DGX Spark's 128GB unified memory running the same Llama-3.1-8B model without needing 2 GPUs.",
+      "feeds": ["ch18", "ch19", "ch5"]
+    },
+    {
+      "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html",
+      "title": "Cloudera speeds up Apache Spark 4.1 fourfold (shashi.co)",
+      "kind": "blog",
+      "summary": "Third-party analyst blog (Shashi Bellamkonda, Principal Research Director, Info-Tech Research Group), published 2026-08-20, on Cloudera + NVIDIA cuDF/RAPIDS acceleration of Apache Spark 4.1 on Cloudera Data Engineering via Cloudera Anywhere Cloud.",
+      "facts": [
+        {"claim": "Primary 2026 claim: cuDF/RAPIDS acceleration gives 'up to four times the speed of a standard processor-based setup' for Apache Spark 4.1.", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Historical (Nov 2023) figure cited for context: 'seven times faster overall, and up to sixteen times faster on certain jobs' -- this is the older number, NOT the new 2026 4x figure; do not conflate the two.", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Runs on 'Cloudera Data Engineering, deployed through Cloudera Anywhere Cloud' using Apache Spark 4.1 + NVIDIA cuDF (RAPIDS Accelerator, described as 'a free tool').", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html", "evidence": "Direct quote extracted by fetch"},
+        {"claim": "Author explicitly cautions gains 'vary by workload' and recommends proof-of-concept testing before budgeting around the published multiplier -- this is analyst commentary, not a Cloudera-published benchmark.", "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html", "evidence": "Direct quote extracted by fetch"}
+      ],
+      "relevance_to_us": "Confirms and refines the prior round's flagged 4x figure -- it's the 2026 number, tied specifically to Apache Spark 4.1 + cuDF on Cloudera Data Engineering (Anywhere Cloud), NOT a CAII/NIM inference figure. This is Apache Spark (compute engine) acceleration, unrelated to DGX Spark or CAII model inference -- keep these two 'Spark' stories clearly separated in ch18/ch21 per the naming rule.",
+      "feeds": ["ch18", "ch21"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md",
+      "title": "NVIDIA NIM LLM playbook README (dgx-spark-playbooks)",
+      "kind": "github-repo",
+      "summary": "NVIDIA's own playbook for running a NIM container directly on a DGX Spark box, independent of Cloudera -- the natural comparison baseline for ch5/ch20.",
+      "facts": [
+        {"claim": "Supported example models: Llama 3.1 8B (primary walkthrough model) and Qwen3-32B (mentioned as an available alternative); more models available via the NGC catalog.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md", "evidence": "Fetch summary of README content"},
+        {"claim": "Deployment is a 6-step Docker flow: verify GPU drivers + nvidia-container-toolkit, NGC API auth, configure model-cache dirs, launch container with GPU access + 16GB shared memory + port mapping, test the OpenAI-compatible REST endpoint at http://0.0.0.0:8000/v1/chat/completions, then optional cleanup.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md", "evidence": "Fetch summary of README's step list"},
+        {"claim": "Models cache to ~/.cache/nim, workspace at ~/.local/share/nim/workspace, disk needs 'typically 10-50GB per model.'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md", "evidence": "Fetch summary of README content"},
+        {"claim": "README notes DGX Spark's Unified Memory Architecture 'enables dynamic GPU/CPU memory sharing, though applications may need manual buffer cache flushing.'", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md", "evidence": "Direct quote-adjacent paraphrase from fetch"},
+        {"claim": "No Cloudera mentions anywhere in this README -- confirms this is a purely NVIDIA-native path with no CAII integration documented by NVIDIA.", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nim-llm/README.md", "evidence": "Fetch note: 'No Cloudera mentions appear in this content.'"}
+      ],
+      "relevance_to_us": "This is the exact local-NIM baseline for ch20's 'same code, two backends' chapter: local endpoint is http://0.0.0.0:8000/v1/chat/completions with NO auth header, vs CAII's https://[DOMAIN]/namespaces/serving-default/endpoints/[NAME]/v1 with a required Authorization: Bearer <JWT>. The two are API-shape-compatible (both OpenAI protocol) but differ in base_url, auth, and model-name convention -- exactly the 3 lines of code that change between backends.",
+      "feeds": ["ch5", "ch20", "ch2"]
+    },
+    {
+      "url": "https://community.cloudera.com/t5/Community-Articles/Fully-Private-Agents-with-Cloudera-s-AI-Inference-Service/ta-p/400799",
+      "title": "Fully Private Agents with Cloudera's AI Inference Service (Community Articles copy)",
+      "kind": "cloudera-blog",
+      "summary": "Alternate URL for the previously-403'd Developer Blog post, found via WebSearch as a different community area (Community-Articles/ta-p/400799 rather than Developer-Blogs/ba-p/413009). WebFetch also returned 403 on this alternate URL.",
+      "facts": [],
+      "relevance_to_us": "Confirmed the article exists in two community locations (ta-p/400799 and ba-p/413009 and a third ba-p/412965 seen in search results) but both direct fetch and web.archive.org fetch are blocked in this environment (403 and 'unable to fetch from web.archive.org' respectively). Could not extract the CrewAI/NiFi code sample this round either -- still an open gap; a human with community.cloudera.com login or a different network path would need to pull it.",
+      "feeds": ["ch5", "ch20"]
+    }
+  ],
+  "open_questions": [
+    "Item (A) not fully resolved: found no exact 'GA' declaration for on-prem CAII anywhere -- the Feb 2026 press release says 'now available' but avoids GA/TP language entirely, and the CDP Private Cloud Data Services 1.5.5 release-notes 'what's new' page (docs.cloudera.com/cdp-private-cloud-data-services/1.5.5/release-notes/topics/cdppvc-whats-new.html) 404'd. Could not find/confirm a 1.5.6 release notes page at all -- 1.5.5 appears to be the latest on-prem release referenced across all search results as of 2026-08-24.",
+    "Could not directly fetch docs.cloudera.com/cdp-public-cloud/cloud/release-summaries/index.html (WebFetch returned empty content) -- 2026 Jan-Aug cloud release summary entries for CAII/AI Registry/Agent Studio are unconfirmed.",
+    "Agent Studio's endpoint-deployment and model-endpoint-selection mechanism (item F) is not documented on the fetched overview page (ml-agent-studio-overview.html) -- the overview covers building workflows but not the deploy-as-endpoint / CAII-vs-external-provider selection logic. A more specific Agent Studio deployment sub-page needs to be located.",
+    "Could not confirm whether arbitrary/custom NIM containers (e.g. a hypothetical nvcr.io/nim/meta/llama-3.1-8b-instruct-dgx-spark tag) can be registered into Cloudera AI Registry -- only the curated Model Hub NGC/HuggingFace catalog import path (Technical Preview) was confirmed; a fully custom-container registration path was not found or ruled out this round.",
+    "The Fully Private Agents with Cloudera AI Inference community blog (CrewAI/NiFi code sample) remains unreachable via WebFetch (403 on two URLs) and web.archive.org is blocked entirely in this tool environment -- needs a different fetch path outside this session's tool restrictions.",
+    "No ARM64/Graviton statements for CAII were found in any fetched source -- absence of evidence, not evidence of absence; worth one more targeted search pass focused specifically on 'Cloudera AI Inference Graviton ARM64'."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "On-prem Cloudera AI Inference has NOT been given an explicit GA label anywhere found; the Feb 2026 press release says only 'now available on premises,' and a core sub-feature (Application Serving) is explicitly still Technical Preview per its own doc page title.",
+      "url": "https://www.cloudera.com/about/news-and-blogs/press-releases/2026-02-09-cloudera-unveils-next-phase-of-ai-inferencing-and-unified-data-access-capabilities.html",
+      "why_it_matters": "ch5/ch19 should NOT claim on-prem CAII is 'GA' -- write it as 'available, with parts still Technical Preview' and cite both sources, otherwise the guide overstates production-readiness for a Cloudera SE audience who will be asked this exact question by customers."
+    },
+    {
+      "claim": "CAII authentication is Authorization: Bearer <JWT> where the JWT comes from Knox Gateway Server or UMS -- this is the full, confirmed contract (resolving the prior round's open item).",
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-authentication.html",
+      "why_it_matters": "This is the exact code needed for ch20's side-by-side sample; get the header name and token source wrong and the sample code in the guide won't work against a real cluster."
+    },
+    {
+      "claim": "CAII's base_url for the OpenAI SDK is derived by trimming a model endpoint URL to .../endpoints/<ENDPOINT_NAME>/v1, and 'model' must be the AI-Registry-assigned name, not the raw HF/NGC model id.",
+      "url": "https://docs.cloudera.com/machine-learning/cloud/ai-inference/topics/ml-caii-make-inference-call-model-endpoint-with-openai-api.html",
+      "why_it_matters": "The 'same code, two backends' chapter (ch20) hinges on this being the ONLY difference from calling local NIM at http://0.0.0.0:8000/v1/chat/completions with a raw HF model id -- getting this convention wrong breaks the whole chapter's premise."
+    },
+    {
+      "claim": "The widely-cited '4x' figure from the August 2026 shashi.co blog is Apache Spark 4.1 + NVIDIA cuDF/RAPIDS acceleration on Cloudera Data Engineering (Cloudera Anywhere Cloud) -- it is NOT a Cloudera AI Inference / NIM inference throughput figure, and NOT related to DGX Spark hardware at all.",
+      "url": "https://www.shashi.co/2026/08/cloudera-speeds-up-spark-41-fourfold.html",
+      "why_it_matters": "Critical naming-collision risk flagged in the task rules: conflating 'Apache Spark 4x speedup' with 'DGX Spark' or with CAII inference performance would be a factual error in ch18/ch21 that a Cloudera SE reader would immediately catch."
+    },
+    {
+      "claim": "Hugging Face model import into Cloudera AI Registry (the path a NIM/HF model would take before CAII can serve it) is explicitly Technical Preview: 'not recommended for production deployments.'",
+      "url": "https://docs.cloudera.com/machine-learning/1.5.5/model-hub/topics/ml-import-model-hugging-face.html",
+      "why_it_matters": "Directly answers item (C) and caveats any ch5/ch19/ch20 claim that 'you can just register any model and go to production' -- the on-ramp itself is pre-GA."
+    }
+  ],
+  "fetch_failures": [
+    {"url": "https://docs.cloudera.com/cdp-private-cloud-data-services/1.5.5/release-notes/topics/cdppvc-whats-new.html", "error": "HTTP 404 Not Found"},
+    {"url": "https://web.archive.org/web/2026/https://community.cloudera.com/t5/Developer-Blogs/Fully-Private-Agents-with-Cloudera-s-AI-Inference-Service/ba-p/413009", "error": "WebFetch tool refused: 'Claude Code is unable to fetch from web.archive.org'"},
+    {"url": "https://community.cloudera.com/t5/Community-Articles/Fully-Private-Agents-with-Cloudera-s-AI-Inference-Service/ta-p/400799", "error": "HTTP 403 Forbidden"},
+    {"url": "https://docs.cloudera.com/cdp-public-cloud/cloud/release-summaries/index.html", "error": "WebFetch returned empty page content ('I don't see any web page content provided')"},
+    {"url": "https://docs.cloudera.com/machine-learning/cloud/use-ai-studios/topics/ml-agent-studio-overview.html", "error": "Fetched successfully but page content does not cover endpoint-deployment / model-selection mechanics for Agent Studio -- treated as a content gap, not a hard failure"}
+  ]
+}

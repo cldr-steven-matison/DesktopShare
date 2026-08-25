@@ -354,6 +354,101 @@ What did not work, and why:
   `netsh advfirewall firewall add rule … localport=8099`. `:8091-:8094` and `1883` have rules;
   `:8095-:8098` are the panel simulator. The LAN http path is proven up to the firewall only.
 
+## #191 rung 6 as-built — CaptureAudio (2026-08-24)
+
+The last sense. MicroFi `src/processors/capture_audio.cpp`, whole-file behind
+`MICROFI_BOARD_CAPTURE_AUDIO`; the overlay's `microfi_agent/CMakeLists.txt` adds the source, the
+define and `brookesia_service_audio` to `REQUIRES` (the `AudioEncoder` *class* lives there — the
+helper alone is not enough). AMOLED class manifest `36700b34-8c41-4610-8596-040eee7b9c83`
+(11 processors), re-pinned with the usual `DELETE` + `POST`. XIAO `esp32s3-8mb` regression green
+(59.0 % flash; empty translation unit there).
+
+**Both open sub-decisions closed by precedent, not by new machinery:**
+
+- **Egress = broker-direct, the CaptureImage shape.** A FlowFile carries 256 B of content and one
+  second of 16 kHz mono PCM is 32 KB, so the clip never rides the flow. CaptureAudio owns its own
+  esp-mqtt client (`Client ID` blank → `<agent-id>-mic`; keep it distinct from any PublishMQTT on
+  the board) and publishes a complete WAV (44-byte header + PCM, qos 0) to `Audio Topic`, then
+  emits the capture *event* as a normal FlowFile:
+  `{"seq":1,"bytes":96044,"ms":3000,"rate":16000,"channels":1,"bits":16,"topic":"microfi/amoled/audio"}`
+  (attributes `source=CaptureAudio`, `mime.type=application/json`). No Kafka/S2S processor was
+  needed; `ConsumeMQTT` on the array is the bridge, exactly as for the camera.
+- **Buffer placement = heap PSRAM, not the agent's `extram_bss` statics.** The clip buffer is
+  `heap_caps_malloc(MALLOC_CAP_SPIRAM)`, sized `Clip Seconds × 32 KB + 44` (cap 10 s = 320 KB),
+  written from the recorder task, read by the engine task — never DMA/ISR-touched, so the
+  `linker.lf` caveat does not apply. The 256-byte engine slab holds only flags and property strings.
+
+**The mic is not opened by the processor.** Brookesia's `AudioEncoder0` service owns the ES8311
+recorder path (codec → GMF recorder → AFE → encoder). CaptureAudio subscribes to the service's
+public raw recorder-data signal (`AudioEncoder::get_instance(0)->connect_recorder_data(cb)`), which
+is the PCM as it comes off the codec, *before* AFE/opus — so it never takes the exclusive DataFlow
+capture lease an AI-agent session holds, and never reconfigures the encoder. The board recorder is
+16 kHz / 16-bit / **2 ch, mic layout `MR`** (channel 0 = microphone, channel 1 = the playback
+reference the AEC uses); the callback keeps channel 0 only, which is what makes the clip mono.
+
+**Two Brookesia lifecycle facts this rung found (neither is in the PlayAudio path):**
+
+1. `AudioEncoder0` is *initialized* at boot but not *started* — only an AI-agent session binds it
+   (the launcher binds `AudioPlayback` for its own sounds, which is why PlayAudio "just worked").
+   The helper's `is_running()` was false and every `Start` was refused. Fix: the processor holds a
+   `ServiceManager::get_instance().bind("AudioEncoder0")` binding (the launcher's own pattern for
+   playback), which starts the service and its dependencies; `on_stop` releases it.
+2. The recorder callbacks only fire while the *encoder* is started. After subscribing, the
+   processor waits 300 ms for data; nothing means nobody else runs it, so it calls the helper's
+   `Start` with a plain PCM config (16 kHz, mono, 20 ms frames, `enable_afe=false`) and remembers it
+   did — `on_stop` then stops the encoder too. If data is already flowing (an AI agent is live),
+   the encoder is somebody else's and is left alone. Serial, first trigger: `bound AudioEncoder0
+   service (it was stopped; started it)` → `SvcAudio: Encoder started` → `started AudioEncoder0
+   (PCM 16 kHz mono, no AFE)` → `recording 3 s clip (96000 PCM bytes)` → `clip 0: 96044 bytes WAV,
+   3000 ms audio (3239 ms wall)`.
+
+**Engine fact that reshaped the processor (and applies to every MicroFi sink):** the engine calls a
+node with an incoming connection *only when a FlowFile is queued for it* — there is no idle tick for
+a sink. The first cut deferred "publish on the next tick" and silently never ran. CaptureAudio now
+does the whole job inside one `on_trigger`: connect broker (≤2 s) → subscribe → ensure encoder →
+record (the engine task blocks for `Clip Seconds`; ListenHTTP's server task keeps accepting) →
+publish WAV → emit the meta FlowFile. With no incoming connection it is a source and `Capture Every
+N Ticks` records on a timer (`0` = never). Properties: `Broker URI`\*, `Audio Topic`\*,
+`Client ID`, `Username`, `Password`, `Clip Seconds` (1–10, default 3), `Capture Every N Ticks`
+(default 0). `INPUT_ALLOWED`.
+
+**Class flow v8 (export [`files/issue-191/amoled-class-flow-record-both.json`](files/issue-191/amoled-class-flow-record-both.json)):**
+`GetTouch(Release) → CaptureAudio ← ListenHTTP(:8095 /record)`, `CaptureAudio →
+PublishMQTT(microfi/amoled/audio/meta, client amoled-audio-meta)` — 4 nodes, 3 connections, the last
+shape that fits `kMaxFlowNodes=4`. A tap on the glass *or* `curl -X POST --data go
+http://192.168.1.202:8095/record` records 3 s. Specs `record` (HTTP only), `touch-record` and
+`record-both` in [`files/issue-191/amoled-class-flow.py`](files/issue-191/amoled-class-flow.py);
+[`files/issue-191/recv-clips.sh`](files/issue-191/recv-clips.sh) writes one `.wav` per message
+from `microfi/amoled/audio`.
+
+**Verified 2026-08-24 — ears-on, both trigger paths:** two `/record` POSTs, then a burst of taps
+on the glass. Every clip on the array is 96,044 B = 44-byte header + exactly 3.000 s of
+16 kHz / 16-bit / mono (Python `wave` parses them); every capture event landed on
+`microfi/amoled/audio/meta` (`seq` 1–9 — `seq` 0's event is lost each time because PublishMQTT's
+client connects lazily on its first FlowFile, the same lazy-connect as every MicroFi MQTT sink).
+Content, through the cluster's `whisper-service` (`POST /transcribe` from inside the pod — the
+image has no curl):
+
+| clip | RMS / peak | Whisper | what it was |
+|---|---|---|---|
+| `173050` (POST) | 2,512 / 11,014, flat | `¶¶` | room music (`¶¶` is Whisper's music marker) |
+| `175152` (tap) | 2,760 / 32,768 | "No." | voice |
+| `175733` (tap) | 9,977 / 32,768 | "Oh, my God." | voice, close to the mic — clipped |
+| `175802` (tap) | 724 / 6,444, speech in the middle 1.5 s | "Hello? Hello, hello?" | voice |
+| `175810` (tap) | 130 / 930 | "Mix well with a spatula." | silence — Whisper hallucination |
+
+So the channel-0-is-the-mic assumption holds, the ES8311 path is live for a guest, and the
+transcript is the Whisper/RAG hand-off the issue asked for. Two behaviours to know:
+**taps queue** — nine taps in ~15 s became nine sequential clips ~4 s apart, because the engine
+drains the sink's input queue in a loop and each clip blocks 3 s; and **Whisper hallucinates on
+silence** ("Thank you for watching!", the spatula) — RMS gates a clip before it is worth a
+transcription. Proof clips kept: [`files/issue-191/clips/`](files/issue-191/clips/) (`173050`
+music, `175733` + `175802` voice).
+
+Gotchas for the next person:
+- `readlog.py COM8 N` — **N is seconds, not lines**, and it prints everything at exit. A grep on
+  its pipe looks dead until then; `python -u` does not help because the script buffers itself.
+
 ## The full sense plan — all six as EFM flows (high-level)
 
 GetIMU is the detailed first build above; the other five follow the same discipline (Title-Case
@@ -428,11 +523,11 @@ then the egress flow.
 3. **DisplayMessage** — done 2026-08-24 (#227 as-built above).
 4. **GetTouch** — done 2026-08-24 (rungs 4+5 as-built above).
 5. **PlayAudio** — done 2026-08-24 (heard at Volume=100); codec arbitration is Brookesia's mixer, not ours.
-6. **CaptureAudio** — audio in; hardest; needs a buffer-placement plan *and* an egress decision.
+6. **CaptureAudio** — done 2026-08-24 (rung 6 as-built above): broker-direct WAV, PSRAM heap buffer, own AudioEncoder0 binding.
 
 ### Cross-cutting, still open
 
-- **Egress for CaptureAudio** — MQTT-chunked vs Kafka vs S2S-to-NiFi. Blocks only rung 6.
+- ~~**Egress for CaptureAudio**~~ — settled: broker-direct WAV (CaptureImage precedent), `ConsumeMQTT` bridges on the array.
 - **One AMOLED build or a split** — six processors is a bigger manifest/flash footprint than the
   XIAO 6-set. The `esp32s3-8mb` env has far more headroom than the 2 MB XIAO (which hit 96.8% flash),
   but confirm the full set fits before committing all six to one source list.

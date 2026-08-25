@@ -1,0 +1,225 @@
+{
+  "bucket": "g01-onbox-k8s-stack-arch",
+  "sources": [
+    {
+      "url": "https://k3d.io/stable/usage/advanced/cuda/",
+      "title": "k3d docs — Advanced Usage / CUDA",
+      "kind": "other",
+      "summary": "Official k3d CUDA guide. The Dockerfile is `FROM nvcr.io/nvidia/cuda:$CUDA_TAG` with default tag 12.4.1-base-ubuntu22.04, run via `k3d cluster create gputest --image=$IMAGE --gpus=1`. The page never mentions arm64/aarch64 anywhere; it silently assumes x86_64.",
+      "facts": [
+        {"claim": "k3d's own CUDA Dockerfile base is `nvcr.io/nvidia/cuda:$CUDA_TAG` (default 12.4.1-base-ubuntu22.04) and the whole page has zero arm64/aarch64 text", "url": "https://k3d.io/stable/usage/advanced/cuda/"},
+        {"claim": "GPU cluster creation command is `k3d cluster create gputest --image=$IMAGE --gpus=1`", "url": "https://k3d.io/stable/usage/advanced/cuda/"}
+      ],
+      "relevance_to_us": "Confirms r05/r11's gap: the canonical k3d GPU doc is architecture-silent, not arm64-confirmed. nvcr.io/nvidia/cuda images ARE multi-arch in practice (NVIDIA publishes arm64 manifests for many CUDA tags), so this is a 'probably fine, unverified on this exact page' situation, not a blocker — but nobody should assume the doc itself green-lights aarch64.",
+      "feeds": ["ch8 k3d with GPU", "ch2 DGX OS day-1"]
+    },
+    {
+      "url": "https://github.com/k3d-io/k3d/issues/1108",
+      "title": "k3d-io/k3d Issue #1108 — How to use GPU with k3d",
+      "kind": "github-issue",
+      "summary": "Closed issue (merged via PR #1430) where a contributor documented the up-to-date host + image recipe for GPU-in-k3d: host needs an NVIDIA driver + nvidia-docker2, verified with `docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi`; the k3s node image Dockerfile must copy only /bin (not the whole rootfs) plus /etc, set `CRI_CONFIG_FILE=/var/lib/rancher/k3s/agent/etc/crictl.yaml`, and ship a containerd config.toml.tmpl with `default_runtime_name = \"nvidia\"`. No ARM64/aarch64 discussion anywhere in the thread.",
+      "facts": [
+        {"claim": "The most authoritative k3d GPU how-to on GitHub (source of the current docs page) never discusses ARM64/aarch64", "url": "https://github.com/k3d-io/k3d/issues/1108"},
+        {"claim": "k3d GPU support requires nvidia-docker2 on the host and a custom containerd config.toml.tmpl setting default_runtime_name = nvidia inside the k3s node image", "url": "https://github.com/k3d-io/k3d/issues/1108"}
+      ],
+      "relevance_to_us": "This is literally the sole GitHub issue in k3d-io/k3d matching 'arm64'+'cuda' in a search, and it doesn't actually cover arm64 — confirms nobody has publicly documented k3d-on-arm64-with-GPU end to end.",
+      "feeds": ["ch8 k3d with GPU"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772",
+      "title": "NVIDIA Developer Forums — Local Kubernetes cluster with k3s on NVIDIA DGX Spark",
+      "kind": "forum",
+      "summary": "Forum thread walking through k3s (not k3d) on a real DGX Spark to serve Qwen3-4B via vLLM. Uses Docker as the container runtime (`INSTALL_K3S_EXEC=\"--docker --write-kubeconfig-mode 644 --disable=traefik\"`), not containerd, requires setting nvidia as Docker's default runtime in /etc/docker/daemon.json. Deploys nvcr.io/nvidia/vllm:25.12-py3 with 1 GPU, 8 CPU, 16GB RAM limits, 50GB PVC. A commenter reports success getting the NVIDIA network-operator working across multiple DGX Sparks (multi-node RDMA/RoCE) and suggests Talos Linux 1.12 as an alternative Kubernetes distro on Spark. k3d itself is never mentioned.",
+      "facts": [
+        {"claim": "The only documented DGX Spark + Kubernetes recipe on NVIDIA's own forums is k3s with --docker exec mode, not k3d, and not containerd", "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772"},
+        {"claim": "A forum commenter recommends Talos Linux 1.12 as an alternative Kubernetes distribution for DGX Spark", "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772"}
+      ],
+      "relevance_to_us": "Direct evidence: no one on NVIDIA's own forums runs k3d on a real DGX Spark. k3s-with-Docker-runtime is the only proven local-cluster pattern, and Talos (not k3d) is the alternative people reach for.",
+      "feeds": ["ch8 k3d with GPU", "ch2 DGX OS day-1"]
+    },
+    {
+      "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073",
+      "title": "kubernetes-sigs/dra-driver-nvidia-gpu Issue #1073 — GPU plugin fails on DGX Spark (GB10): nvmlDeviceGetMemoryInfo returns 'Not Supported'",
+      "kind": "github-issue",
+      "summary": "Real bug filed against a real DGX Spark GB10 node running Talos Linux v1.13.0-rc.0 (ARM64), Kubernetes v1.34.3, DRA driver v25.12.0, GPU Operator v26.3.1, NVIDIA driver 595.58.03. The DRA kubelet plugin crashed on device enumeration with 'error getting memory info for device 0: Not Supported' because GB10's 128GB unified CPU/GPU memory makes `nvmlDeviceGetMemoryInfo` return Not Supported (expected per nvidia-smi on this hardware). Root cause: the DRA driver lacked the graceful-fallback handling that the NVIDIA k8s-device-plugin already had (added in device-plugin v0.17.4). Fixed and closed, merged via PR #1121, targeted at DRA driver milestone v0.4.0.",
+      "facts": [
+        {"claim": "A real DGX Spark GB10 node ran Talos Linux v1.13.0-rc.0 (ARM64) with Kubernetes v1.34.3, GPU Operator v26.3.1, NVIDIA driver 595.58.03, DRA driver v25.12.0", "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073"},
+        {"claim": "Error text: 'error getting memory info for device 0: Not Supported' — caused because GB10's unified memory makes nvmlDeviceGetMemoryInfo unsupported", "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073"},
+        {"claim": "The NVIDIA GPU Operator's own device plugin (k8s-device-plugin) already handled this 'Not Supported' NVML case gracefully as of v0.17.4, which is exactly the 'Ignore errors getting device memory using NVML' changelog line", "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073"}
+      ],
+      "relevance_to_us": "The single most load-bearing find of this pass: it directly ties the k8s-device-plugin v0.17.4 changelog line to a real, named DGX Spark GB10 unified-memory failure mode, and proves GB10 IS being run under Kubernetes today (Talos, not k3d) with GPU Operator v26.3.1. Any GPU device-plugin work in our k3d stack needs >=v0.17.4 or an equivalently patched DRA driver, or the kubelet plugin will crash on this exact NVML call.",
+      "feeds": ["ch8 k3d with GPU", "ch1 hardware/273GB/s", "ch2 DGX OS day-1"]
+    },
+    {
+      "url": "https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4",
+      "title": "NVIDIA/k8s-device-plugin release v0.17.4",
+      "kind": "github-repo",
+      "summary": "Patch release. Changelog: 'Ignore errors getting device memory using NVML' (#1374, @elezar), 'Ensure that directory volumes have Directory type' (#1368, @elezar), plus dependency bumps: golang 1.23.12, NVIDIA go-nvlib 0.7.4, CUDA 13.0.0. No explicit GB10/DGX Spark/unified-memory text in the release notes themselves — the connection to GB10 is established via the dra-driver-nvidia-gpu issue above, not this page.",
+      "facts": [
+        {"claim": "v0.17.4 changelog line is exactly: 'Ignore errors getting device memory using NVML' (PR #1374)", "url": "https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4"},
+        {"claim": "v0.17.4 bumps CUDA base to 13.0.0 and go-nvlib to 0.7.4", "url": "https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4"}
+      ],
+      "relevance_to_us": "This is the version floor for the standard NVIDIA k8s-device-plugin on GB10-class unified-memory hardware — anything older will hit NVML memory-info errors on device enumeration.",
+      "feeds": ["ch8 k3d with GPU"]
+    },
+    {
+      "url": "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html",
+      "title": "NVIDIA GPU Operator 26.7 Release Notes",
+      "kind": "nvidia-doc",
+      "summary": "Current GPU Operator release notes. Mentions Grace tech in the context of GH200 Grace Hopper (technology preview, needs Ubuntu 22.04 + open kernel modules) and GB200 NVL Fabric Manager partitioning; states 'Coherent Driver Memory Management (CDMM) is enabled by default' only on Grace-based systems. Confirms 'ARM64 architectures' support specifically for GDRCopy and lists NVIDIA IGX Orin as an ARM-based supported platform. Does NOT name GB10 or DGX Spark anywhere, and does not discuss unified memory explicitly.",
+      "facts": [
+        {"claim": "GPU Operator 26.7 release notes name GH200 Grace Hopper and GB200 NVL as supported Grace-family platforms, but never mention GB10 or DGX Spark by name", "url": "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html"},
+        {"claim": "Coherent Driver Memory Management (CDMM) is enabled by default only on Grace-based systems per this release note", "url": "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html"},
+        {"claim": "GDRCopy is confirmed supported on 'ARM64 architectures' and IGX Orin is listed as an ARM-based supported platform", "url": "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html"}
+      ],
+      "relevance_to_us": "GPU Operator's official docs treat Grace-family (GH200/GB200) as first-class but have not yet named GB10/DGX Spark explicitly as of the 26.7 notes — the dra-driver-nvidia-gpu bug report (using GPU Operator v26.3.1) is currently better real-world evidence for GB10 support than the official release notes.",
+      "feeds": ["ch8 k3d with GPU", "ch1 hardware/273GB/s"]
+    },
+    {
+      "url": "https://github.com/NVIDIA/gpu-operator/releases",
+      "title": "NVIDIA/gpu-operator GitHub releases list",
+      "kind": "github-repo",
+      "summary": "Release index. Latest listed: GPU Operator 26.7.0, then 26.3.3/26.3.2/26.3.1/26.3.0, 25.10.1/25.10.0, 25.3.4/25.3.3/25.3.2. GPU Operator v26.3.1 is the version confirmed in production use on a real DGX Spark GB10 node in the dra-driver-nvidia-gpu bug report above.",
+      "facts": [
+        {"claim": "GPU Operator release train as of this fetch: 26.7.0 (latest), 26.3.x, 25.10.x, 25.3.x", "url": "https://github.com/NVIDIA/gpu-operator/releases"}
+      ],
+      "relevance_to_us": "Version floor reference for our GPU Operator choice on the box; 26.3.1 is field-proven on GB10, 26.7.0 is current latest.",
+      "feeds": ["ch8 k3d with GPU"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cfm-operator/2.11.0/release-notes/topics/cfm-op-system-reqs.html",
+      "title": "CFM Operator 2.11.0 — System Requirements",
+      "kind": "cloudera-doc",
+      "summary": "Lists Kubernetes 1.23+ and OpenShift 4.10+ as the version requirements, plus persistent storage and cert-manager as infra prerequisites. Zero CPU-architecture or x86/arm64 wording anywhere on the page.",
+      "facts": [
+        {"claim": "CFM Operator 2.11.0 system requirements state Kubernetes 1.23 or later, OpenShift 4.10 or later, but say nothing about CPU architecture", "url": "https://docs.cloudera.com/cfm-operator/2.11.0/release-notes/topics/cfm-op-system-reqs.html"}
+      ],
+      "relevance_to_us": "Confirms the gap named in scope: Cloudera's own system-requirements doc is architecture-silent for CFM.",
+      "feeds": ["ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cfm-operator/2.11.0/release-notes/topics/cfm-op-component-versions.html",
+      "title": "CFM Operator 2.11.0 — Component Versions",
+      "kind": "cloudera-doc",
+      "summary": "Component-version table: Cloudera Flow Management Operator for Kubernetes and cfmctl at 2.11.0; NiFi 1.28.0 / 2.4.0; NiFi Registry 1.28.0 / 2.4.0. No Kubernetes version or architecture wording on this particular page.",
+      "facts": [
+        {"claim": "CFM Operator 2.11.0 bundles NiFi 1.28.0/2.4.0 and NiFi Registry 1.28.0/2.4.0", "url": "https://docs.cloudera.com/cfm-operator/2.11.0/release-notes/topics/cfm-op-component-versions.html"}
+      ],
+      "relevance_to_us": "Confirms which NiFi build ships under the current CFM Operator — useful cross-check against the prior 'NiFi 2.x' shorthand used in scope; the operator actually straddles 1.28.0 and 2.4.0 lines.",
+      "feeds": ["ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-system-requirements.html",
+      "title": "CSA Operator 1.4 — System Requirements",
+      "kind": "cloudera-doc",
+      "summary": "Requires Kubernetes 1.25+ (max supported 1.32), OpenShift 4.12+, any CNCF-certified Kubernetes distro, admin cluster access, kubectl/oc, helm, and log collection enabled. No CPU architecture wording; no stated bundled Flink Kubernetes Operator version on this page.",
+      "facts": [
+        {"claim": "CSA Operator 1.4 requires Kubernetes 1.25 or later, max supported 1.32, or OpenShift 4.12+, and 'any CNCF certified Kubernetes distribution'", "url": "https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-system-requirements.html"}
+      ],
+      "relevance_to_us": "K8s version ceiling (1.32) matters for whatever k3d/k3s build we run on the DGX Spark box — needs a K8s version <=1.32 if we want CSA Operator 1.4 support window; also architecture-silent like the others.",
+      "feeds": ["ch9 CSO operators on aarch64", "ch11 Flink on GPU + Flink Agents"]
+    },
+    {
+      "url": "https://docs.cloudera.com/csm-operator/1.4/release-notes/topics/csm-op-system-req.html",
+      "title": "CSM Operator 1.4 — System Requirements",
+      "kind": "cloudera-doc",
+      "summary": "States Kubernetes 1.25 or later (up to 1.32) and CNCF-certified distributions supported, but the page as fetched contains no explicit Strimzi bundled-version statement and no CPU architecture wording.",
+      "facts": [
+        {"claim": "CSM Operator 1.4 supports Kubernetes 1.25+ up to 1.32, no architecture statement found on this page", "url": "https://docs.cloudera.com/csm-operator/1.4/release-notes/topics/csm-op-system-req.html"}
+      ],
+      "relevance_to_us": "The Strimzi-version-bundled question remains open (see open_questions); this system-requirements page is not where Cloudera states it.",
+      "feeds": ["ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc",
+      "title": "Implementing multi-arch container images in Cloudera's Release Engineering CI/CD process (Medium, Engineering@Cloudera)",
+      "kind": "blog",
+      "summary": "Article by Philemon Johnson, Shreelola Hegde, and Soumok Dutta (per search-result byline). Direct WebFetch returned HTTP 403 and web.archive.org is unreachable from this tool, so content is reconstructed from WebSearch's snippet only, not a full read. Per the snippet: Cloudera's Release Engineering previously built container images only for x86 using x86 build agents, which were incompatible with arm-based dev machines. They adopted `docker buildx` (BuildKit + QEMU emulation) plus `tonistiigi/binfmt` to add arm64/arm64v8 (including Apple Silicon) emulated build support on x86 build nodes that lacked native arm64 hardware.",
+      "facts": [
+        {"claim": "Cloudera Release Engineering's container images were previously x86-only, built on x86 build agents, and thus unusable for local testing on arm-based dev machines", "url": "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc", "evidence": "Reconstructed from WebSearch snippet only — direct WebFetch returned 403, archive.org unreachable to this tool. Treat as lower-confidence than a direct fetch."},
+        {"claim": "Cloudera's fix used docker buildx (BuildKit+QEMU) and installed tonistiigi/binfmt to emulate arm64/arm64v8 builds on x86 CI nodes lacking native arm64 hardware", "url": "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc", "evidence": "Reconstructed from WebSearch snippet only — not independently confirmed by a direct fetch of the article."}
+      ],
+      "relevance_to_us": "This is the r05/r11-flagged article and it DOES describe a real Cloudera arm64 build pipeline, but note the confidence caveat: neither WebFetch nor web.archive.org could load the actual article text in this pass, so treat this as directionally confirmed, not independently verified word-for-word.",
+      "feeds": ["ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cfm-operator/2.11.0/installation/topics/cfm-op-install-cfm-op.html",
+      "title": "CFM Operator 2.11.0 — Installation",
+      "kind": "cloudera-doc",
+      "summary": "Install page instructs downloading 'the CLI tool version appropriate for your environment' (implying multiple per-platform cfmctl builds exist) and running `chmod +x [CFMCTL FILE]`, but the fetched text itself does not enumerate the specific per-architecture filenames (e.g. cfmctl-linux-arm64) — that filename pattern came from a WebSearch snippet, not confirmed on this page directly.",
+      "facts": [
+        {"claim": "CFM Operator install docs say to download 'the CLI tool version appropriate for your environment', implying per-platform cfmctl binaries exist, without listing exact filenames on this page", "url": "https://docs.cloudera.com/cfm-operator/2.11.0/installation/topics/cfm-op-install-cfm-op.html"}
+      ],
+      "relevance_to_us": "Partial confirmation only — a WebSearch result separately surfaced filenames like cfmctl-linux-arm64/cfmctl-darwin-arm64/cfmctl-windows-arm64, suggesting cfmctl (the CLI, not necessarily the operator's container images) ships arm64 builds; this needs a direct download-page fetch to nail down, see open_questions.",
+      "feeds": ["ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://docs.cloudera.com/data-engineering/cloud/enable-data-engineering/topics/cde-aws-graviton.html",
+      "title": "Cloudera Data Engineering — AWS Graviton instances",
+      "kind": "cloudera-doc",
+      "summary": "Confirms Cloudera Data Engineering supports AWS Graviton 3 (arm64) as a selectable, whole-service Workload type: 'All Virtual Clusters will run AWS Graviton. Running a subset of Virtual Clusters or jobs on non-Graviton instances is not supported.' Requires specific Spark/Data Lake version prerequisites per a separate compatibility matrix (not enumerated on this page) and supports SSD/spot instances.",
+      "facts": [
+        {"claim": "Cloudera Data Engineering's Graviton (arm64) support is all-or-nothing per service: 'All Virtual Clusters will run AWS Graviton. Running a subset of Virtual Clusters or jobs on non-Graviton instances is not supported.'", "url": "https://docs.cloudera.com/data-engineering/cloud/enable-data-engineering/topics/cde-aws-graviton.html"}
+      ],
+      "relevance_to_us": "Not the CFM/CSA/CSM operators we're deploying, but it is Cloudera's clearest existing public precedent for arm64 as a first-class, product-documented architecture (Apache Spark on CDE), showing the company does ship arm64-supported streaming/analytics products elsewhere in its portfolio even where CFM/CSA/CSM docs stay silent.",
+      "feeds": ["ch9 CSO operators on aarch64"]
+    },
+    {
+      "url": "https://docs.cloudera.com/cem/2.3.0/using-minifi-java-agent-container-image/topics/cem-download-minifi-java-agent-image.html",
+      "title": "CEM 2.3.0 — Downloading the MiNiFi Java agent container image",
+      "kind": "cloudera-doc",
+      "summary": "Documents only `docker login container.repo.cloudera.com` and `docker pull container.repo.cloudera.com/cloudera/nifi-minifi-java:<TAG>` (example tag 2.24.02.0-33), describing the image as having 'everything installed, which the agent needs to run including libraries, system tools, and so on.' No JDK version, base OS, or architecture information is present on this page.",
+      "facts": [
+        {"claim": "The Cloudera-documented MiNiFi Java agent image pull command is `docker pull container.repo.cloudera.com/cloudera/nifi-minifi-java:<TAG>` (example tag 2.24.02.0-33) with zero architecture disclosure on the doc page", "url": "https://docs.cloudera.com/cem/2.3.0/using-minifi-java-agent-container-image/topics/cem-download-minifi-java-agent-image.html"}
+      ],
+      "relevance_to_us": "Confirms the scope's named gap: Cloudera's MiNiFi Java container doc is silent on JDK/arch. Since MiNiFi Java is a JVM app, arm64 viability likely hinges on the base image actually being multi-arch — unverified here, and container.repo.cloudera.com is not independently inspectable via WebFetch (auth-gated registry, not a plain webpage).",
+      "feeds": ["ch12 EFM agent class NvidiaSpark-1"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apache/nifi-minifi-cpp/main/README.md",
+      "title": "apache/nifi-minifi-cpp README (raw, main branch)",
+      "kind": "github-repo",
+      "summary": "States 'Build and usage currently supports Windows, Linux and macOS environments' and documents Docker image builds, but the README text itself has no explicit aarch64/arm64 sentence and no multi-arch tag table (that's on Docker Hub instead — see next source).",
+      "facts": [
+        {"claim": "apache/nifi-minifi-cpp README states supported OSes as 'Windows, Linux and macOS' with no explicit CPU-architecture sentence", "url": "https://raw.githubusercontent.com/apache/nifi-minifi-cpp/main/README.md"}
+      ],
+      "relevance_to_us": "This is the C++ MiNiFi (not the Java agent scope calls out as JVM-based), included because scope's seed URL asked for it — useful fallback if the Java agent's aarch64 story is weak.",
+      "feeds": ["ch12 EFM agent class NvidiaSpark-1"]
+    },
+    {
+      "url": "https://hub.docker.com/r/apache/nifi-minifi-cpp/tags",
+      "title": "Docker Hub — apache/nifi-minifi-cpp tags",
+      "kind": "other",
+      "summary": "Tag list with per-tag architecture columns. `latest` and `1.0.0` (5 days old at fetch time) both list linux/amd64 + linux/arm64. Multi-arch support goes back through 0.99.x (about 1-2 years old) to 0.15.0 (~3 years old); versions 0.14.0 and older are amd64-only.",
+      "facts": [
+        {"claim": "apache/nifi-minifi-cpp:latest and :1.0.0 Docker Hub manifests both list linux/amd64 AND linux/arm64", "url": "https://hub.docker.com/r/apache/nifi-minifi-cpp/tags"},
+        {"claim": "Multi-arch (amd64+arm64) apache/nifi-minifi-cpp images go back at least to tag 0.15.0 (roughly 3 years old at fetch time); 0.14.0 and earlier are amd64-only", "url": "https://hub.docker.com/r/apache/nifi-minifi-cpp/tags"}
+      ],
+      "relevance_to_us": "Concrete, verified multi-arch confirmation for the C++ MiNiFi Docker image — the current release genuinely ships an arm64 manifest, unlike the Cloudera-branded Java agent image whose doc page is silent. If Cloudera's MiNiFi Java image turns out not to run on DGX Spark, upstream apache/nifi-minifi-cpp is a proven arm64 fallback for the EFM agent role.",
+      "feeds": ["ch12 EFM agent class NvidiaSpark-1"]
+    }
+  ],
+  "open_questions": [
+    "No source found of anyone actually running k3d (as opposed to k3s or Talos) on a real DGX Spark or any Grace/aarch64 node with GPU passthrough working end to end — every real DGX Spark Kubernetes report found (NVIDIA forum thread, kubernetes-sigs dra-driver-nvidia-gpu bug) used k3s or Talos Linux, never k3d. This should be treated as an unproven combination until someone tries it on the actual box.",
+    "Does container.repo.cloudera.com/cloudera/nifi-minifi-java actually publish an arm64/aarch64 manifest? The doc page gives no architecture info and the registry itself is auth-gated and not inspectable by WebFetch/WebSearch — this needs a direct `docker manifest inspect` (or equivalent) once the box exists and credentials are available, which is out of scope for this research pass.",
+    "Which Strimzi version does CSM Operator 1.4/1.5 actually bundle? Not stated on the system-requirements page fetched; likely lives on a separate 'Component Versions' page for CSM Operator (parallel to the CFM one fetched) that was not in the seed list and wasn't located via search in this pass.",
+    "Do the CFM/CSA/CSM operator CONTROLLER images themselves (as opposed to cfmctl CLI binaries, which do appear to ship arm64 variants per a WebSearch snippet) publish arm64 manifests? This distinction — CLI tool vs. controller/operand container image — was not cleanly separated by any source found; needs a registry-level check.",
+    "The Cloudera multi-arch Medium article's actual body text was not independently fetchable (403 from Medium, web.archive.org unreachable to this tool) — its content here rests on a WebSearch snippet only and should be treated as second-hand until a direct read is possible."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "A real DGX Spark GB10 node, running Talos Linux v1.13.0-rc.0 (ARM64) with Kubernetes v1.34.3, GPU Operator v26.3.1, and NVIDIA driver 595.58.03, hit a kubelet-plugin crash because GB10's unified memory makes `nvmlDeviceGetMemoryInfo` return 'Not Supported' — and the fix mirrors the NVIDIA k8s-device-plugin v0.17.4 'Ignore errors getting device memory using NVML' change.",
+      "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073",
+      "why_it_matters": "This is the strongest real-world evidence in this whole pass that GB10/DGX Spark IS running under Kubernetes today with GPU scheduling working, but it also flags a concrete, specific failure mode (NVML memory-info calls) that our on-box k3d/GPU-Operator stack must guard against by requiring k8s-device-plugin >=v0.17.4 or an equivalently patched component. It also indicates Talos, not k3d, is the community's proven path so far — worth flagging as a fallback if k3d hits similar unified-memory rough edges."
+    },
+    {
+      "claim": "The only documented DGX Spark local-Kubernetes recipe on NVIDIA's own developer forums uses k3s with Docker as the container runtime (`--docker` install flag), not containerd and not k3d.",
+      "url": "https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772",
+      "why_it_matters": "Directly informs the choice between k3d and plain k3s for the on-box cluster: if k3d (which itself runs k3s inside Docker containers) turns out to fight GPU passthrough on GB10, the field-proven fallback is bare k3s with Docker as its runtime, per NVIDIA's own community."
+    }
+  ],
+  "fetch_failures": [
+    "https://web.archive.org/web/2025/https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc — WebFetch tool reports it cannot fetch from web.archive.org at all",
+    "https://medium.com/engineering-cloudera/implementing-multi-arch-container-images-in-clouderas-release-engineering-ci-cd-process-b7e31b52edbc — direct fetch returned HTTP 403 Forbidden (Medium paywall/bot-block); content reconstructed only from a WebSearch snippet, see open_questions"
+  ]
+}

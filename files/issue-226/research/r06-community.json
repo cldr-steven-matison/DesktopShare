@@ -1,0 +1,182 @@
+{
+  "bucket": "r06-community",
+  "sources": [
+    {
+      "url": "https://forums.developer.nvidia.com/t/run-vllm-in-spark/348862",
+      "title": "Run vLLM in Spark",
+      "kind": "forum",
+      "summary": "Long-running NVIDIA dev forum thread tracking vLLM build/run problems on DGX Spark (SM121/SM121a Blackwell target) around Oct 2025, with fixes landing over following weeks.",
+      "facts": [
+        {"claim": "vLLM import fails with 'undefined symbol: _Z20cutlass_moe_mm_sm100' on DGX Spark; fix is a CMakeLists.txt patch excluding SM120/121 from CUDA 13 builds before compiling.", "url": "https://forums.developer.nvidia.com/t/run-vllm-in-spark/348862", "evidence": "quoted error dated Oct 24-26, 2025"},
+        {"claim": "Triton 3.5.0 fails PTXAS on '.tile::gather4' for sm_121a; workaround is building Triton from the main branch instead of the pinned release.", "url": "https://forums.developer.nvidia.com/t/run-vllm-in-spark/348862"},
+        {"claim": "PyTorch 2.9.0+cu130 officially lists CUDA capability support 8.0-12.0 while DGX Spark reports capability 12.1, producing a mismatch warning.", "url": "https://forums.developer.nvidia.com/t/run-vllm-in-spark/348862"},
+        {"claim": "Working path: use NVIDIA's vLLM container tag 25.09-py3 and rebuild vLLM from source inside it, with env vars TORCH_CUDA_ARCH_LIST=12.1a and TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas; gpt-oss-120b safetensors load took ~6:34 (total ~402s).", "url": "https://forums.developer.nvidia.com/t/run-vllm-in-spark/348862"}
+      ],
+      "relevance_to_us": "Direct precedent for ch4/ch5: expect vLLM-on-Spark to need a source rebuild against the NVIDIA container base, not a pip install, and to hit SM121-specific kernel gaps — plan the inference-stack chapter around a known-good container tag rather than upstream vLLM releases.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/inference-best-results-on-spark-not-llama-cpp-not-vllm-sgland/357175",
+      "title": "Inference best results on Spark - not llama.cpp not VLLM -> SGLang",
+      "kind": "forum",
+      "summary": "Jan 10-11, 2026 forum comparison of SGLang vs llama.cpp vs vLLM on a single DGX Spark running GPT-OSS-120B (MXFP4), concluding SGLang edges out llama.cpp on this model but trails main-branch SGLang feature parity.",
+      "facts": [
+        {"claim": "SGLang on GPT-OSS-120B MXFP4: ~51-52 tok/s across short/medium/long context (127/500/1000 tokens), about 13% faster than llama.cpp's 46 tok/s on the same model.", "url": "https://forums.developer.nvidia.com/t/inference-best-results-on-spark-not-llama-cpp-not-vllm-sgland/357175"},
+        {"claim": "llama.cpp on GPT-OSS-20B reaches 61 tok/s (faster than the 120B MoE model as expected from fewer active params).", "url": "https://forums.developer.nvidia.com/t/inference-best-results-on-spark-not-llama-cpp-not-vllm-sgland/357175"},
+        {"claim": "128K context for SGLang on this model needs 102GB GPU memory vs 88GB for 64K context, leaving only 12.8GB free vs 28.7GB — a hard ceiling on Spark's 128GB unified pool.", "url": "https://forums.developer.nvidia.com/t/inference-best-results-on-spark-not-llama-cpp-not-vllm-sgland/357175"},
+        {"claim": "The DGX-Spark SGLang build in circulation is described as 'a single orphaned spark build... that lags behind the main branch'; vLLM performance on gpt-oss-120b is called 'a little disappointing'.", "url": "https://forums.developer.nvidia.com/t/inference-best-results-on-spark-not-llama-cpp-not-vllm-sgland/357175"}
+      ],
+      "relevance_to_us": "Ch6/ch4 backbone number: on a single Spark, expect ~45-60 tok/s decode on a MoE 20B-120B class model regardless of engine, and budget unified-memory headroom carefully — 128K context alone can eat 100GB+.",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/dgx-spark-playbooks-update-jan-2026/358247",
+      "title": "DGX Spark Playbooks Update - Jan 2026",
+      "kind": "forum",
+      "summary": "NVIDIA-authored (margaretz) Jan 21, 2026 post announcing new/updated official DGX Spark Playbooks post-CES: TensorRT-LLM two-Spark workflow improvements, EAGLE-3 speculative decoding for GPT-OSS-120B, and 7 new playbooks including Nemotron 3 Nano, Live VLM WebUI, Isaac Sim/Lab, SGLang & vLLM support matrices, and two-Spark PyTorch fine-tuning up to 70B via FSDP+LoRA.",
+      "facts": [
+        {"claim": "New playbook: 'Fine-tune with PyTorch' supports distributed fine-tuning across two DGX Spark systems for LLMs up to 70B parameters using FSDP and LoRA.", "url": "https://forums.developer.nvidia.com/t/dgx-spark-playbooks-update-jan-2026/358247"},
+        {"claim": "New playbook: 'Nemotron 3 Nano', a 30B-parameter MoE model, added for local LLM experimentation.", "url": "https://forums.developer.nvidia.com/t/dgx-spark-playbooks-update-jan-2026/358247"},
+        {"claim": "Speculative decoding playbook updated with a new EAGLE-3 example demonstrating GPT-OSS-120B inference.", "url": "https://forums.developer.nvidia.com/t/dgx-spark-playbooks-update-jan-2026/358247"},
+        {"claim": "Feedback channel given as spark-playbook-feedback@nvidia.com, posted by NVIDIA staff account margaretz.", "url": "https://forums.developer.nvidia.com/t/dgx-spark-playbooks-update-jan-2026/358247"}
+      ],
+      "relevance_to_us": "These are the exact official playbooks the DGX Spark chapters (ch2/ch4/ch5/ch11) should point readers at instead of re-deriving setup steps; the two-Spark FSDP+LoRA playbook is a ready template for ch22 scale-out and ch6 fine-tuning coverage.",
+      "feeds": ["ch2", "ch4", "ch22"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/c/accelerated-computing/dgx-spark-gb10/",
+      "title": "DGX Spark / GB10 forum category listing",
+      "kind": "forum",
+      "summary": "Category sweep surfacing the highest-traffic and highest-signal threads on the DGX Spark board: large community benchmark threads, a third-party throughput tool (veloGB10), and hardware failure/thermal threads.",
+      "facts": [
+        {"claim": "veloGB10 v0.4.0 release thread reports Qwen 3.8-27B code-gen sustained throughput scaling with Spark count: 125 tok/s at 4x, 85 tok/s at 2x, 75 tok/s at 1x.", "url": "https://forums.developer.nvidia.com/c/accelerated-computing/dgx-spark-gb10/"},
+        {"claim": "A DeepSeek-V4-Flash single-Spark thread reports 1,000 tok/s prefill and 59 tok/s multi-agent serving throughput on one unit.", "url": "https://forums.developer.nvidia.com/c/accelerated-computing/dgx-spark-gb10/"},
+        {"claim": "A hardware-failure thread reports 2 DGX Spark Founders Edition units RMA'd within 48 hours after silent hard-locks under sustained inference load.", "url": "https://forums.developer.nvidia.com/c/accelerated-computing/dgx-spark-gb10/"},
+        {"claim": "A community thread documents a custom 'screwless, modular' dual-Spark cooling cage using three 120mm fans, plus separate fan-control and PXE-recovery-failure threads (recovery images 1.145.33 / 1.135.29 failing) and a kernel-panic-after-update thread.", "url": "https://forums.developer.nvidia.com/c/accelerated-computing/dgx-spark-gb10/"}
+      ],
+      "relevance_to_us": "Thermal/RMA and PXE/kernel-panic threads are directly relevant to ch1/ch2/ch14 (day-1 setup and observability should flag sustained-load stability as a known risk, not assume it's solved); the veloGB10 scaling numbers (125/85/75 tok/s at 4x/2x/1x) are a citable multi-Spark scaling curve for ch22.",
+      "feeds": ["ch1", "ch2", "ch14", "ch22"]
+    },
+    {
+      "url": "https://github.com/ggml-org/llama.cpp/discussions/16578",
+      "title": "llama.cpp DGX Spark performance discussion",
+      "kind": "github-repo",
+      "summary": "GitHub Discussions thread on the llama.cpp repo collecting community DGX Spark benchmark numbers across multiple quantized MoE and dense models, plus cross-platform comparisons.",
+      "facts": [
+        {"claim": "GPT-OSS-120B MXFP4 MoE on DGX Spark via llama.cpp: ~1,956 t/s prefill (2048 tok), ~60.6 t/s generation (32 tok), dropping to ~40.6 t/s generation at 32K context depth.", "url": "https://github.com/ggml-org/llama.cpp/discussions/16578"},
+        {"claim": "Qwen3 Coder 30B A3B Q8_0 on DGX Spark: ~1,654 t/s prefill, ~44.3 t/s generation.", "url": "https://github.com/ggml-org/llama.cpp/discussions/16578"},
+        {"claim": "GPT-OSS-20B MXFP4 MoE on DGX Spark: ~2,009 t/s prefill, ~60.9 t/s generation.", "url": "https://github.com/ggml-org/llama.cpp/discussions/16578"},
+        {"claim": "AMD Ryzen AI Max+ 395 (Strix Halo) comparison point: ~47.5 t/s generation on the same model, with much faster load time (~25s vs DGX Spark's 1+ minutes on older kernels, ~22s once kernel-optimized).", "url": "https://github.com/ggml-org/llama.cpp/discussions/16578"}
+      ],
+      "relevance_to_us": "Canonical llama.cpp numbers for ch4/ch6 comparison tables; the load-time-depends-on-kernel-version finding matters for ch2 day-1 DGX OS setup guidance (recommend checking/updating kernel before benchmarking).",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/introducing-the-spark-arena/360319",
+      "title": "Introducing the Spark Arena",
+      "kind": "forum",
+      "summary": "Feb 11, 2026 launch post for Spark Arena (spark-arena.com), a community-built reproducible LLM benchmark leaderboard for DGX Spark, created by forum members Raphael Amorim and eugr, integrating with their existing spark-vllm-docker and llama-benchy tools.",
+      "facts": [
+        {"claim": "Spark Arena launched Feb 11, 2026 to fix 'lack of reproducibility and indexing' of scattered DGX Spark benchmark experiments; captures full CLI flags, quantization, backend, and node topology per submission.", "url": "https://forums.developer.nvidia.com/t/introducing-the-spark-arena/360319"},
+        {"claim": "Built by forum community members Raphael Amorim and eugr (eugr is also the author of spark-vllm-docker and llama-benchy, both referenced repeatedly across other DGX Spark threads as the de facto community vLLM build path).", "url": "https://forums.developer.nvidia.com/t/introducing-the-spark-arena/360319"}
+      ],
+      "relevance_to_us": "spark-vllm-docker (github.com/eugr/spark-vllm-docker) and spark-arena.com are candidate concrete citations/tools for ch4/ch5 (inference stacks) and a good pointer for ch16's local validation-loop chapter (borrow their reproducible-recipe format for our own agentic test harness).",
+      "feeds": ["ch4", "ch6"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/i-am-extremely-disappointed-with-the-current-state-of-dgx-spark/365572",
+      "title": "I am EXTREMely disappointed with the current state of DGX Spark",
+      "kind": "forum",
+      "summary": "April 3-5, 2026 thread airing real-owner frustration: gap between FP4/NVFP4 marketing and delivered software maturity, multi-node deployment failures, repeated OS reinstalls, ConnectX-7 kernel issues, and USB/RAM stability bugs — with community members (notably eugr) posting concrete fixes and workarounds.",
+      "facts": [
+        {"claim": "User parad8x010 (Apr 3, 2026): 'key capabilities were promoted before they were fully ready' — NVFP4 immature/inconsistent, requiring workarounds.", "url": "https://forums.developer.nvidia.com/t/i-am-extremely-disappointed-with-the-current-state-of-dgx-spark/365572"},
+        {"claim": "User Digital_David (Apr 3, 2026) reports OpenClaw/Nemotron-3-Super on DGX Spark: 3-minute initial load, 1-3 minute response times, ~15 t/s, and crashes.", "url": "https://forums.developer.nvidia.com/t/i-am-extremely-disappointed-with-the-current-state-of-dgx-spark/365572"},
+        {"claim": "User jonasbridelu (Apr 4, 2026): 'I have formatted my DGX for the third time' due to ConnectX-7 incompatibility and kernel support gaps.", "url": "https://forums.developer.nvidia.com/t/i-am-extremely-disappointed-with-the-current-state-of-dgx-spark/365572"},
+        {"claim": "Community fix (eugr, Apr 4-5, 2026): FP8 kernel gaps on SM121 fixed in the latest spark-vllm-docker builds, with active NVFP4 support work ongoing; user sesmanovic reports a working setup running Qwen 3.5 35B generating 1M tokens/day.", "url": "https://forums.developer.nvidia.com/t/i-am-extremely-disappointed-with-the-current-state-of-dgx-spark/365572"}
+      ],
+      "relevance_to_us": "Important counterweight for ch3/ch4: as of April 2026, ConnectX-7 kernel compatibility and NVFP4 maturity were still live pain points months post-launch — the guide should recommend pinning to spark-vllm-docker/community-patched builds rather than stock releases, and flag USB/RAM stability under high GPU utilization as a thing to watch in ch14.",
+      "feeds": ["ch3", "ch4", "ch6", "ch14"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/6x-spark-setup/354399",
+      "title": "6x Spark setup",
+      "kind": "forum",
+      "summary": "Dec 12-18, 2025 build log from user ericlewis777 scaling a DGX Spark cluster from 4 to 6 nodes over InfiniBand (MikroTik CRS812 DDQ switch with 400->200Gbps splitters), with NanoChat pretraining and tensor-parallel inference benchmarks across the cluster.",
+      "facts": [
+        {"claim": "6-node NanoChat (560M param) pretraining peaked at ~100,000 tok/s (batch size 32, 5.9% MFU); batch 21 gave ~99,000 tok/s (5.8% MFU), batch 40 dropped to ~89,500 tok/s.", "url": "https://forums.developer.nvidia.com/t/6x-spark-setup/354399"},
+        {"claim": "4-node tensor-parallel inference: GPT-OSS-20B reached 9,000 tok/s total at 100 concurrent requests (41ms TTFT); GPT-OSS-120B reached 4,700 tok/s total at 100 concurrent (37ms TTFT); Qwen3-VL-32B-FP8 reached 3,000 tok/s total at 100 concurrent.", "url": "https://forums.developer.nvidia.com/t/6x-spark-setup/354399"},
+        {"claim": "GLM-4.6-FP8 showed severe latency degradation at scale: 38-second time-to-first-token at 100 concurrent requests.", "url": "https://forums.developer.nvidia.com/t/6x-spark-setup/354399"},
+        {"claim": "'Only pipeline parallelism works on most models' — tensor parallelism was limited/unreliable across nodes at this cluster size in Dec 2025; InfiniBand training traffic peaked at 24.6 Gbps (bursty).", "url": "https://forums.developer.nvidia.com/t/6x-spark-setup/354399"}
+      ],
+      "relevance_to_us": "Best available real multi-node scaling data point for ch22 (multi-Spark scale-out): concurrent-request throughput and TTFT figures per model size, and the pipeline-vs-tensor-parallelism caveat should directly inform how we architect any multi-Spark demo.",
+      "feeds": ["ch22", "ch6"]
+    },
+    {
+      "url": "https://simonw.substack.com/p/nvidia-dgx-spark-great-hardware-early",
+      "title": "NVIDIA DGX Spark: great hardware, early days for the ecosystem",
+      "kind": "blog",
+      "summary": "Simon Willison's Oct 14-15, 2025 hands-on review: praised hardware/docs, flagged ARM64 CUDA ecosystem immaturity (missing PyTorch 2.8 wheels) at launch, but noted rapid day-1 improvement as Ollama/llama.cpp/LM Studio/vLLM all shipped compatible builds within 24 hours of embargo lift.",
+      "facts": [
+        {"claim": "DGX Spark specs per Willison: 128GB unified memory, 20 ARM64 CPU cores, GB10 Blackwell GPU with 119.68GB of that memory addressable to the GPU.", "url": "https://simonw.substack.com/p/nvidia-dgx-spark-great-hardware-early"},
+        {"claim": "Georgi Gerganov's llama.cpp benchmarks on GPT-OSS-20B MXFP4: ~3,600 tok/s prompt processing, ~59 tok/s generation; GLM-4.5-Air-GGUF: ~817 tok/s prompt processing, ~18 tok/s generation.", "url": "https://simonw.substack.com/p/nvidia-dgx-spark-great-hardware-early"},
+        {"claim": "At launch, 'CUDA on ARM64' was poorly documented with missing PyTorch 2.8 wheels; most existing ML tooling assumed x86, causing friction.", "url": "https://simonw.substack.com/p/nvidia-dgx-spark-great-hardware-early"}
+      ],
+      "relevance_to_us": "Good ch2/ch4 narrative anchor for 'day-1 experience' — cite as the baseline the guide should show has since improved (contrast with the Jan 2026 2.5x speedup claim and later community fixes).",
+      "feeds": ["ch2", "ch4"]
+    },
+    {
+      "url": "https://www.theregister.com/2026/01/05/nvidia_dgx_spark_speed/",
+      "title": "Nvidia says it's more than doubled the DGX Spark's performance since launch",
+      "kind": "blog",
+      "summary": "The Register's Jan 5, 2026 CES coverage of NVIDIA's claimed 2.5x average performance gain since October 2025 launch, driven by software (TensorRT-LLM, llama.cpp, PyTorch) improvements concentrated in the prefill/compute-bound phase rather than memory-bandwidth-bound decode.",
+      "facts": [
+        {"claim": "NVIDIA claims DGX Spark is '2.5x faster on average' since its October 2025 launch, announced at CES on Jan 5, 2026.", "url": "https://www.theregister.com/2026/01/05/nvidia_dgx_spark_speed/"},
+        {"claim": "Gains are primarily software-driven (TensorRT-LLM, llama.cpp, PyTorch updates) and concentrated in compute-bound work (prefill, fine-tuning, image/video gen); token-generation (decode) remains memory-bandwidth-limited and does not see comparable speedup.", "url": "https://www.theregister.com/2026/01/05/nvidia_dgx_spark_speed/"},
+        {"claim": "The Register states it had not independently verified NVIDIA's 2.5x claim at time of publication.", "url": "https://www.theregister.com/2026/01/05/nvidia_dgx_spark_speed/"}
+      ],
+      "relevance_to_us": "Important framing for ch1/ch6: the 273GB/s memory-bandwidth ceiling is a hard physical limit that software updates cannot fix for decode throughput — set reader expectations accordingly, distinguish prefill-bound vs decode-bound workloads in demos.",
+      "feeds": ["ch1", "ch6"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/successful-2-dgx-spark-cluster-setup/348454",
+      "title": "Successful 2 DGX Spark cluster setup?",
+      "kind": "forum",
+      "summary": "Oct-Dec 2025 thread walking through connecting two DGX Sparks via the official dgx-spark-playbooks repo: NCCL/UCX env vars, RoCE for GPU-to-GPU transfer, and a real gotcha (an IP-address typo causing SSH auth failures that looked like an NCCL bug).",
+      "facts": [
+        {"claim": "Working NCCL/UCX config: export UCX_NET_DEVICES=enp1s0f0np0, NCCL_SOCKET_IFNAME=enp1s0f0np0, OMPI_MCA_btl_tcp_if_include=enp1s0f0np0.", "url": "https://forums.developer.nvidia.com/t/successful-2-dgx-spark-cluster-setup/348454"},
+        {"claim": "'Authorization required, but no authorization protocol specified' NCCL error traced to a typo'd IP octet ('1169' instead of '169') causing SSH timeout, not an actual NCCL/driver bug.", "url": "https://forums.developer.nvidia.com/t/successful-2-dgx-spark-cluster-setup/348454"},
+        {"claim": "The discover-sparks helper script and cluster setup process come from cloning NVIDIA's official dgx-spark-playbooks GitHub repo, not a pre-installed tool.", "url": "https://forums.developer.nvidia.com/t/successful-2-dgx-spark-cluster-setup/348454"}
+      ],
+      "relevance_to_us": "Concrete env-var recipe and a real debugging trap for ch3/ch22 two-Spark clustering instructions.",
+      "feeds": ["ch3", "ch22"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/how-to-run-glm-4-7-on-dual-dgx-sparks-with-vllm-mods-support-in-spark-vllm-docker/355603/28",
+      "title": "How to run GLM-4.7 on dual DGX Sparks with vLLM (MoE support in spark-vllm-docker)",
+      "kind": "forum",
+      "summary": "Thread on running large MoE models (GLM-4.6V, GLM-4.7-FP8 355B) across multi-Spark clusters via the community spark-vllm-docker project; notes tensor-parallel instability at 2-node scale and that GLM-4.7-FP8 (355B MoE) has been run on 4x Spark with SGLang + EAGLE speculative decoding.",
+      "facts": [
+        {"claim": "GLM-4.7-FP8 (355B parameter MoE) has been run on a 4x DGX Spark cluster using SGLang with EAGLE speculative decoding.", "url": "https://forums.developer.nvidia.com/t/how-to-run-glm-4-7-on-dual-dgx-sparks-with-vllm-mods-support-in-spark-vllm-docker/355603/28"},
+        {"claim": "Reported instability: 'Two-Spark cluster with vLLM using tensor-parallel-size 2 causes one node to drop while the other's GPU goes 100% forever.'", "url": "https://forums.developer.nvidia.com/t/how-to-run-glm-4-7-on-dual-dgx-sparks-with-vllm-mods-support-in-spark-vllm-docker/355603/28"},
+        {"claim": "Community framing: without pairing two Sparks over InfiniBand you are 'wasting' the ConnectX-7 module each unit ships with, since single-Spark use leaves it idle.", "url": "https://forums.developer.nvidia.com/t/how-to-run-glm-4-7-on-dual-dgx-sparks-with-vllm-mods-support-in-spark-vllm-docker/355603/28"}
+      ],
+      "relevance_to_us": "ch22 should flag vLLM tensor-parallel-size 2 as a known-unstable path on Spark clusters as of this thread; SGLang+EAGLE on 4x Spark is the better-attested path for large MoE models like GLM-4.7.",
+      "feeds": ["ch22", "ch6"]
+    }
+  ],
+  "open_questions": [
+    "Could not surface actual reddit.com (r/LocalLLaMA, r/nvidia) thread URLs or JSON via WebSearch/WebFetch in this pass — reddit indexing seems weak for this query set. Worth a follow-up with a dedicated reddit search/fetch tool if one becomes available.",
+    "The NVIDIA forum's very high reply/view counts on threads like 'DeepSeek V4 Flash (Aiden Recipe)' (715 replies, 39,646 views) and 'DeepSeek-V4-Flash Single Spark Performance' (110 replies, 12,334 views) were extracted via WebFetch's summarizing model from a category listing page, not fetched thread-by-thread — worth independently re-fetching those specific threads to confirm the headline stats and pull direct quotes before publishing.",
+    "No firmware/DGX-OS-update-specific thread was fetched beyond the Jan 2026 playbooks post and passing mentions of PXE recovery/kernel-panic threads — a dedicated DGX OS changelog thread search would strengthen ch2.",
+    "'Investigating Performance Issue/Bottleneck' (forums.developer.nvidia.com/t/investigating-performance-issue-bottleneck/359200) and 'NVIDIA DGX Spark Cluster Dashboard' (359975) surfaced in search but were not fetched — candidates for a follow-up pass on ch14 observability."
+  ],
+  "load_bearing_claims": [
+    {"claim": "Single-Spark decode throughput on a 20B-120B MoE model sits in roughly the 45-61 tok/s band across llama.cpp/SGLang engines — this is the realistic per-unit number the guide should quote, not headline TFLOPS.", "url": "https://github.com/ggml-org/llama.cpp/discussions/16578", "why_it_matters": "Sets reader expectations correctly for ch4/ch6 and prevents overselling DGX Spark as a datacenter-GPU substitute for interactive chat workloads."},
+    {"claim": "NVIDIA's own Jan 2026 CES claim of a 2.5x average speedup since October launch applies to compute-bound phases (prefill, fine-tuning) and explicitly does NOT apply to memory-bandwidth-bound decode/token-generation.", "url": "https://www.theregister.com/2026/01/05/nvidia_dgx_spark_speed/", "why_it_matters": "Prevents the guide from citing a headline 2.5x number in a decode-throughput context where it doesn't apply — a common misreading risk for ch1/ch6."},
+    {"claim": "As late as April 2026 (6 months post-launch), real owners were still reporting ConnectX-7/kernel incompatibilities requiring multiple OS reinstalls, and NVFP4 support was still described as immature by community experts.", "url": "https://forums.developer.nvidia.com/t/i-am-extremely-disappointed-with-the-current-state-of-dgx-spark/365572", "why_it_matters": "Directly informs ch3 (joining the LAN / networking hardware) risk callouts and argues for pinning to community-patched builds (spark-vllm-docker) rather than stock software in ch4/ch5."},
+    {"claim": "vLLM tensor-parallel-size 2 across a two-Spark cluster is reported as unstable (one node drops, other GPU pins at 100%), while pipeline parallelism and SGLang+EAGLE speculative decoding on 4x Spark are the better-attested multi-node paths for large MoE models.", "url": "https://forums.developer.nvidia.com/t/how-to-run-glm-4-7-on-dual-dgx-sparks-with-vllm-mods-support-in-spark-vllm-docker/355603/28", "why_it_matters": "Directly shapes what parallelism strategy ch22's multi-Spark scale-out chapter should recommend/demo — avoid vLLM TP=2 as a headline example."}
+  ],
+  "fetch_failures": [
+    "site:reddit.com and old.reddit.com searches for r/LocalLLaMA / r/nvidia DGX Spark threads did not return fetchable reddit URLs — WebSearch consistently substituted NVIDIA forum/blog/press links instead of actual reddit posts, so no reddit-native source could be fetched or cited in this pass."
+  ]
+}

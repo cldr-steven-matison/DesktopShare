@@ -40,6 +40,7 @@ Pick the `device:*` value from the responsibility map below.
 | `device:NvidiaNano` | Work for **NvidiaNano** — the Jetson Orin Nano (hostname `tunastreet`); runs its own session directly, also reachable via WindowsDesktop SSH proxy |
 | `device:FTF3XR2065` | Work for the **Cloudera work Mac** (arm64, local minikube, golden-source / CDP access) |
 | `device:macbook` | Work for the **personal Mac** — Stevens-MacBook-Pro (x86_64, authoring only, no cluster) |
+| `device:NvidiaSpark-1` | Work for **NvidiaSpark-1** — the NVIDIA DGX Spark (GB10, aarch64). **Pending arrival**: until the box is on the LAN, its planning issues carry `device:WindowsDesktop` and on-box execution issues carry this label + `status:blocked` |
 | `status:todo` | Filed, not yet picked up |
 | `status:in-progress` | A device session is working it |
 | `status:blocked` | Waiting on something (device offline, dependency, a decision) |
@@ -62,6 +63,7 @@ host is responsible for:
 | FTF3XR2065 (Mac) | `device:FTF3XR2065` |
 | Stevens-MacBook-Pro (personal Mac) | `device:macbook` |
 | DigitalOcean droplet | (none yet) |
+| NvidiaSpark-1 (hostname TBD on first boot) | `device:NvidiaSpark-1` — no host checks it until arrival; WindowsDesktop owns the planning issues meanwhile |
 
 WindowsDesktop additionally carries the Telegram session-comms duties (progress polls,
 reply bridge, keyboard-needed pings) — see "Session comms (Telegram)" below.

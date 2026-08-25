@@ -1,0 +1,117 @@
+{
+ "bucket": "r13-registry-manifests",
+ "sources": [
+  {
+   "url": "https://container.repository.cloudera.com/v2/",
+   "title": "Cloudera container registry \u2014 manifest index platforms, queried 2026-08-24 from WindowsDesktop with the cluster's cloudera-creds pull secret",
+   "kind": "other",
+   "date": "2026-08-24",
+   "summary": "Direct GET /v2/<name>/manifests/<tag> with OCI-index Accept headers for every Cloudera image the WindowsDesktop cld-streaming cluster runs. All 16 are multi-arch OCI/Docker manifest indexes listing linux/amd64 AND linux/arm64. This is primary evidence \u2014 the Cloudera docs make no architecture statement (see r11-cso-arm64).",
+   "facts": [
+    {
+     "claim": "cloudera/cfm-operator:3.0.0-b126 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/cfm-nifi-k8s:3.0.0-b126-nifi_2.6.0.4.3.4.0-234 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/cfm-nifi-k8s:3.0.0-b126-nifi_1.28.1.2.3.17.0-9 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/cfm-tini:3.0.0-b126 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/flink-kubernetes-operator:1.13-csaop1.5.0-b275 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/flink:1.20.1-csaop1.5.0-b275 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/ssb-mve:1.20.1-csaop1.5.0-b275 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/ssb-sse:1.20.1-csaop1.5.0-b275 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/kafka-operator:0.49.1.1.6.0-b99 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/kafka:0.49.1.1.6.0-b99-kafka-4.1.1.1.6 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/schema-registry:0.10.0.1.6.0-b99 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/surveyor:0.1.0.1.6.0-b99 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/surveyor-app:0.1.0.1.6.0-b99 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera/efm:2.3.1.0-2 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera_thirdparty/hardened/postgres:18.1-r0-openshift-202601250614 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "cloudera_thirdparty/hardened/kube-rbac-proxy:0.19.0-r3-202503182126 is a multi-arch manifest index with platforms linux/amd64, linux/arm64",
+     "evidence": "registry manifest index, queried 2026-08-24",
+     "url": "https://container.repository.cloudera.com/v2/"
+    },
+    {
+     "claim": "MiNiFi Java is not a container image on this registry (cloudera/cem-minifi-java, cloudera/minifi-java, cloudera/cem-minifi tag lists return no JSON); the fleet installs it as a tarball (minifi-2.24.08.0-19) \u2014 already proven on the aarch64 Jetson (NvidiaNano) with an aarch64 JRE",
+     "evidence": "CLAUDE-CHECKIN.md NvidiaNano block; registry tag-list probe 2026-08-24",
+     "url": "https://github.com/cldr-steven-matison/DesktopShare/blob/main/CLAUDE-CHECKIN.md"
+    }
+   ],
+   "relevance_to_us": "Retires the plan's largest Phase-0 risk: Cloudera Streaming Operators (CFM/NiFi 2.6 and 1.28, CSA/Flink 1.20.1 + SSB, CSM/Kafka 4.1 + Schema Registry + Surveyor, EFM 2.3.1, and the hardened postgres/kube-rbac-proxy thirdparty images) can be pulled natively on the aarch64 DGX Spark with the same chart versions WindowsDesktop runs. No upstream-image fallback is needed for any component. Still to prove on the box: they RUN under k3d on GB10 (CUDA-enabled node image, cgroup v2), not just pull.",
+   "feeds": [
+    "ch9 CSO operators on aarch64",
+    "ch8 k3d with GPU",
+    "ch11 Flink on GPU",
+    "ch12 EFM agent class"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The images are arm64-native; whether NiFi's bundled native libs and CSA's Python/PyFlink wheels behave identically on GB10 is a run-time question for Phase 4, not a pull-time one."
+ ],
+ "load_bearing_claims": [
+  {
+   "claim": "All Cloudera Streaming Operators images used on WindowsDesktop are multi-arch with linux/arm64 (verified directly against container.repository.cloudera.com on 2026-08-24)",
+   "url": "https://container.repository.cloudera.com/v2/",
+   "why_it_matters": "Decides whether F is 'Cloudera operators on the Spark' or 'upstream Apache images on the Spark'"
+  }
+ ],
+ "fetch_failures": []
+}

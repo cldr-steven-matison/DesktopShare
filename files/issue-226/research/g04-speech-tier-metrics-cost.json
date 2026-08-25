@@ -1,0 +1,279 @@
+{
+  "bucket": "g04-speech-tier-metrics-cost",
+  "sources": [
+    {
+      "url": "https://github.com/Mekopa/whisperx-blackwell",
+      "title": "Mekopa/whisperx-blackwell — WhisperX on GB10 via sm_121-to-sm_90 spoof",
+      "kind": "github-repo",
+      "summary": "Prebuilt and buildable WhisperX (transcription + pyannote diarization) image for DGX Spark GB10 that works around missing prebuilt sm_121 PyTorch kernels by spoofing the reported compute capability.",
+      "facts": [
+        {"claim": "The compatibility trick forces get_device_capability() to return (9,0) for SM_121, i.e. it reports the Blackwell GB10 GPU as Hopper SM_90 to PyTorch so existing sm_90 kernels run, because Blackwell can execute Hopper (SM_90) code natively.", "url": "https://github.com/Mekopa/whisperx-blackwell", "evidence": "\"Forces get_device_capability() to return (9, 0) for SM_121\"; \"Blackwell [is designed] to execute Hopper (SM_90) code natively.\""},
+        {"claim": "Pre-built image available via `docker pull mekopa/whisperx-blackwell:latest`; source build via `docker build -f Dockerfile.gpu -t whisperx-blackwell:latest .`", "url": "https://github.com/Mekopa/whisperx-blackwell"},
+        {"claim": "Tested on PyTorch 2.6.0 inside NVIDIA container 25.01, CUDA 13.0.", "url": "https://github.com/Mekopa/whisperx-blackwell", "evidence": "\"PyTorch 2.6.0 (NVIDIA container 25.01)\" with \"CUDA 13.0\""},
+        {"claim": "Measured on a 24-minute audio file: CPU fallback ~2 hours vs GPU (patched) 62 seconds — about 115x speedup; the main win is enabling GPU speaker diarization (otherwise CPU-only).", "url": "https://github.com/Mekopa/whisperx-blackwell", "evidence": "table: CPU Fallback ~2 hours — ; GPU (Patched) 62 seconds ~115x"}
+      ],
+      "relevance_to_us": "Direct, working recipe for the STT tier Steven wants to move off WindowsDesktop's Whisper :8001 onto DGX Spark: WhisperX (Whisper + diarization) with a documented sm_121 workaround and a real 115x GPU speedup number.",
+      "feeds": ["ch7", "ch1"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803",
+      "title": "Running whisper.cpp STT server on DGX Spark (GB10, ARM64 + CUDA 13) via Docker",
+      "kind": "forum",
+      "summary": "NVIDIA developer forum thread with a working Docker recipe for building whisper.cpp's CUDA server on GB10/ARM64/CUDA 13, including the exact CMake architecture flags and several gotchas.",
+      "facts": [
+        {"claim": "Correct CMake flag is CMAKE_CUDA_ARCHITECTURES=\"120;121\" (not 121 alone) — building for plain 120 targets sm_120a which is not compatible with GB10.", "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803", "evidence": "CMAKE_CUDA_ARCHITECTURES=\"120;121\" ... \"120 compiles for sm_120a which is not compatible\""},
+        {"claim": "Working Docker base image is nvidia/cuda:13.0.3-devel-ubuntu24.04, built with GGML_CUDA=ON and CMAKE_BUILD_TYPE=Release.", "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803"},
+        {"claim": "Ubuntu 24.04 is required (not 22.04) because DGX OS ships GLIBC 2.38 and Ubuntu 22.04 containers only carry GLIBC 2.35.", "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803", "evidence": "\"The DGX OS ships with GLIBC 2.38; Ubuntu 22.04 containers only have GLIBC 2.35\""},
+        {"claim": "Gotchas hit: \"CUDA error: no kernel image is available for execution on the device\" when copying host-compiled binaries into a container; \"libcuda.so.1 not found at build time\" requiring CUDA stubs; and nvcr.io/nvidia/cuda has no ARM64 tags, so use nvidia/cuda from Docker Hub instead.", "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803"},
+        {"claim": "One user reports sub-second responses with large-v3-turbo and multi-language detection, but no formal RTF/latency benchmark numbers were posted in the thread.", "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803", "evidence": "\"sub-second responses with large-v3-turbo and multi-language support\""}
+      ],
+      "relevance_to_us": "The most directly reusable build recipe for whisper.cpp (or whisper NIM-adjacent CUDA build) on the exact GB10/CUDA 13/ARM64 target Steven's Spark will run — gives the CMake arch flag and base image without trial and error.",
+      "feeds": ["ch7", "ch1", "ch2"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md",
+      "title": "awesome-dgx-spark README — Audio & Speech and Tools & Monitoring sections",
+      "kind": "github-repo",
+      "summary": "Curated list README enumerating community DGX Spark projects; fetched sections for audio/speech STT/TTS tools and GPU monitoring/Prometheus exporters.",
+      "facts": [
+        {"claim": "AEON-7/qwen3-asr-server: OpenAI-compatible /v1/audio/transcriptions server for Qwen3-ASR-0.6B on DGX Spark.", "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md"},
+        {"claim": "briancaffey/nemotron-asr-server: speech-to-text server for DGX Spark with an OpenAI transcriptions API.", "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md"},
+        {"claim": "jxlarrea/homeassistant-voice-recipes: local voice pipeline using aarch64 ONNX Parakeet ASR.", "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md"},
+        {"claim": "WillIsback/whisperx-gb10: WhisperX transcription and pyannote diarization REST API built specifically for GB10.", "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md"},
+        {"claim": "GPU/metrics tools listed: ateska/dgx-spark-prometheus (single-binary Go Prometheus exporter, systemd unit, Grafana dashboard); chappa-ai-llc/spark-smi (monitoring TUI, cluster fleet view); DanTup/dgx_dashboard (monitoring dashboard with GPU power tracking); GigCoder-ai/dgxtop (terminal hardware monitor for GB10 GPU/CPU/memory); parallelArchitect/sparkview (terminal GPU monitor with GB10-aware unified-memory reporting); wentbackward/nv-monitor (terminal monitor and Prometheus exporter for DGX Spark).", "url": "https://raw.githubusercontent.com/bidual/awesome-dgx-spark/main/README.md"}
+      ],
+      "relevance_to_us": "Gives multiple candidate STT server options and multiple candidate Prometheus exporters beyond the three already known (ateska, sparkDash/MiaAI-Lab, spark-smi) — parallelArchitect/sparkview specifically claims GB10-aware unified-memory reporting, which is the exact gap flagged in scope.",
+      "feeds": ["ch7", "ch14"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/odnodn/dgx-spark/main/README.md",
+      "title": "odnodn/dgx-spark README — Audio/STT section",
+      "kind": "github-repo",
+      "summary": "Resource list README with an explicit Audio / STT (Whisper - Parakeet - QWEN3-Omni) / TTS / STS section and forum-thread pointers.",
+      "facts": [
+        {"claim": "Lists faster-whisper and CTranslate2 binaries/transcription tools optimized for DGX Spark, plus forum threads on \"Running Parakeet speech to text on Spark\" and \"VibeVoice TTS + Streaming Voice Pipeline\".", "url": "https://raw.githubusercontent.com/odnodn/dgx-spark/main/README.md"},
+        {"claim": "A real-time voice assistant project entry notes \"766ms latency to first audio\".", "url": "https://raw.githubusercontent.com/odnodn/dgx-spark/main/README.md", "evidence": "\"766ms latency to first audio\""},
+        {"claim": "No GPU metrics/exporter, embeddings, TEI, or Qdrant sections exist in this README.", "url": "https://raw.githubusercontent.com/odnodn/dgx-spark/main/README.md"}
+      ],
+      "relevance_to_us": "Gives one concrete real-time-voice-pipeline latency figure (766ms to first audio) and points at faster-whisper/CTranslate2 as the DGX Spark-optimized path.",
+      "feeds": ["ch7"]
+    },
+    {
+      "url": "https://github.com/linuxserver/docker-faster-whisper/issues/61",
+      "title": "[FEAT] support for GPU on dgx spark · docker-faster-whisper #61",
+      "kind": "github-issue",
+      "summary": "Community feature request confirming interest in DGX Spark GPU support for a popular faster-whisper Docker image; found via search, not deep-fetched.",
+      "facts": [
+        {"claim": "An open GitHub issue exists specifically requesting DGX Spark GPU support in linuxserver's docker-faster-whisper image, indicating this is not yet turnkey as of the search date.", "url": "https://github.com/linuxserver/docker-faster-whisper/issues/61"}
+      ],
+      "relevance_to_us": "Signals that the popular linuxserver faster-whisper container does not yet support DGX Spark GPU out of the box — reinforces that whisper.cpp or WhisperX-blackwell custom builds are currently the working paths, not off-the-shelf faster-whisper containers.",
+      "feeds": ["ch7"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/master/README.md",
+      "title": "faster-whisper README — CUDA/CTranslate2 requirements and CPU/GPU benchmarks",
+      "kind": "github-repo",
+      "summary": "Upstream faster-whisper README; no ARM/aarch64/GB10 mention, but gives CTranslate2 CUDA version requirements and reference benchmark numbers (x86 GPU, not DGX Spark) useful as a baseline.",
+      "facts": [
+        {"claim": "Latest ctranslate2 releases only support CUDA 12 and cuDNN 9; CUDA 11/cuDNN 8 requires downgrading to ctranslate2 3.24.0.", "url": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/master/README.md", "evidence": "\"The latest versions of ctranslate2 only support CUDA 12 and cuDNN 9.\" / \"For CUDA 11 and cuDNN 8, the current workaround is downgrading to the 3.24.0 version of ctranslate2\""},
+        {"claim": "No mention anywhere in the README of CUDA 13, ARM/aarch64, GB10, DGX Spark, or Blackwell/sm_121 — this is an unaddressed compatibility gap upstream as of the fetch date.", "url": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/master/README.md"},
+        {"claim": "Reference (non-DGX-Spark) benchmark numbers: GPU (large-v2) fastest faster-whisper config ran in 17s with batching; CPU (small model) fastest run 51s with int8 batching; GPU distil-whisper: faster-whisper 25m50s vs transformers 46m12s.", "url": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/master/README.md"}
+      ],
+      "relevance_to_us": "Confirms faster-whisper's inference engine (CTranslate2) has no stated CUDA 13/aarch64/sm_121 support yet — this is the load-bearing gap explaining why community forks (WhisperX-blackwell, whisper.cpp builds) exist instead of stock faster-whisper on DGX Spark.",
+      "feeds": ["ch7"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/nvml-support-for-dgx-spark-grace-blackwell-unified-memory-community-solution/358869",
+      "title": "NVML Support for DGX Spark Grace Blackwell Unified Memory — Community Solution",
+      "kind": "forum",
+      "summary": "Community-built NVML shim (nvml-unified-shim) that replaces libnvidia-ml.so.1 to make GPU-memory-reading tools (pynvml, PyTorch/TensorFlow monitors, nvidia-smi wrappers, DGX Dashboard) work on GB10's unified memory, since the standard NVML memory query fails.",
+      "facts": [
+        {"claim": "Root problem: NVML queries fail because GB10 uses unified memory architecture (128GB shared CPU+GPU) rather than a discrete GPU with dedicated framebuffer.", "url": "https://forums.developer.nvidia.com/t/nvml-support-for-dgx-spark-grace-blackwell-unified-memory-community-solution/358869"},
+        {"claim": "Fix: install via `git clone https://github.com/CINOAdam/nvml-unified-shim.git`, `make -f Makefile.python`, `sudo make -f Makefile.python install`. The shim implements 16 core NVML functions using the CUDA Runtime API plus /proc/meminfo for unified memory queries.", "url": "https://forums.developer.nvidia.com/t/nvml-support-for-dgx-spark-grace-blackwell-unified-memory-community-solution/358869", "evidence": "\"Uses CUDA Runtime API + /proc/meminfo for unified memory queries\" ... \"16 core NVML functions implemented\""},
+        {"claim": "With the shim: MAX Engine GPU detection, PyTorch/TensorFlow GPU monitoring, pynvml, nvidia-smi wrapper, and DGX Dashboard telemetry all work. Limitation: GPU utilization still reports 0% because traditional utilization metrics don't apply to unified memory systems.", "url": "https://forums.developer.nvidia.com/t/nvml-support-for-dgx-spark-grace-blackwell-unified-memory-community-solution/358869", "evidence": "\"0% since traditional metrics don't apply\""}
+      ],
+      "relevance_to_us": "Direct answer to the ch14 gap: the exact mechanism (and repo) for making GPU-memory metrics readable on GB10's unified memory for Prometheus/exporter/DGX-Dashboard integration, plus the known remaining limitation (utilization % unavailable).",
+      "feeds": ["ch14", "ch1"]
+    },
+    {
+      "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073",
+      "title": "GPU plugin fails on DGX Spark (GB10) — nvmlDeviceGetMemoryInfo returns \"Not Supported\"",
+      "kind": "github-issue",
+      "summary": "Kubernetes DRA driver bug report confirming nvmlDeviceGetMemoryInfo returns Not Supported on GB10, crashing the driver's GPU enumeration path (unlike the k8s-device-plugin which handles it gracefully).",
+      "facts": [
+        {"claim": "nvmlDeviceGetMemoryInfo() returns \"Not Supported\" on GB10 (DGX Spark) because of the unified memory architecture, and this causes the DRA driver's GPU enumeration code to fail (unlike the standard NVIDIA k8s-device-plugin, which handles the same response gracefully).", "url": "https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073"}
+      ],
+      "relevance_to_us": "Confirms this is a known, filed compatibility issue across multiple NVIDIA k8s GPU tooling projects (DRA driver, HAMi, k8s-device-plugin) — relevant if Steven's k3d-with-GPU setup on the Spark (ch8) uses any of these device plugins for scheduling.",
+      "feeds": ["ch14", "ch8"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/investigating-performance-issue-bottleneck/359200",
+      "title": "Investigating Performance Issue/Bottleneck (DGX Spark forum)",
+      "kind": "forum",
+      "summary": "Forum thread diagnosing low LLM inference throughput on DGX Spark; root-caused to using the Transformers library (inefficient) rather than a proper serving stack, plus fundamental memory-bandwidth limits on dense models.",
+      "facts": [
+        {"claim": "User's raw benchmark: 14-20 tok/s on Llama 3B, ~10 tok/s on Llama 8B, using the Transformers library directly; power draw never exceeded ~25W and GPU utilization sat ~95% during these tests.", "url": "https://forums.developer.nvidia.com/t/investigating-performance-issue-bottleneck/359200", "evidence": "\"between 14 and 20 tokens/s running a llama 3B model and around 10 tokens/s for llama 8B\"; \"I've never seen power draw exceed ~25W\"; \"~95% gpu utilization during these benchmark tests\""},
+        {"claim": "Diagnosis: Transformers library is inefficient for inference (recommend vLLM, llama.cpp, or SGLang instead); decode phase is memory-bandwidth-bound at 273 GB/s LPDDR5X, making dense models inherently slower; better model choices are MoE-based (Qwen3, GPT-OSS, GLM) over Llama.", "url": "https://forums.developer.nvidia.com/t/investigating-performance-issue-bottleneck/359200"},
+        {"claim": "With correct framework/model choices, single-Spark systems reportedly reach 36-82 tok/s.", "url": "https://forums.developer.nvidia.com/t/investigating-performance-issue-bottleneck/359200", "evidence": "\"Single Spark systems showed 36-82 tokens/s with appropriate model/framework combinations\""}
+      ],
+      "relevance_to_us": "Real measured power figure under LLM load (~25W, ~95% GPU util) that contradicts naive assumptions of high power draw during inference — useful corroboration/contrast for the ch17 cost chapter's power-draw discussion, and reinforces ch6's framework-choice guidance (vLLM/SGLang over Transformers).",
+      "feeds": ["ch17", "ch6", "ch14"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/nvidia-dgx-spark-cluster-dashboard/359975",
+      "title": "NVIDIA DGX Spark Cluster Dashboard (forum thread)",
+      "kind": "forum",
+      "summary": "Forum thread comparing several community and one official (NVIDIA Sync) cluster dashboard tools for DGX Spark.",
+      "facts": [
+        {"claim": "NVIDIA's own tool, NV Sync, has cluster monitoring: \"In the latest release, you can check it out in the Settings tab. In the next Sync release, we also plan to add more of a dashboard to monitor your cluster.\"", "url": "https://forums.developer.nvidia.com/t/nvidia-dgx-spark-cluster-dashboard/359975", "evidence": "quoted NVIDIA reply in thread"},
+        {"claim": "Community dashboards discussed: paul-aviles/NVIDIA-DGX-Spark-Dashboard (btop-inspired web dashboard), a Prometheus+Grafana integration for GB10 clusters, and a \"Hardware + vLLM Metrics Dashboard\".", "url": "https://forums.developer.nvidia.com/t/nvidia-dgx-spark-cluster-dashboard/359975"},
+        {"claim": "Known gotchas: network interface reporting shows enP7s7 at a full bar even when the interface isn't near 100% used; SSD storage and memory values are noted as \"not 100% exact\"; one user suggests integrating a spark_hwmon driver for CPU/GPU power and temperature values.", "url": "https://forums.developer.nvidia.com/t/nvidia-dgx-spark-cluster-dashboard/359975"}
+      ],
+      "relevance_to_us": "Confirms NVIDIA's own NV Sync tool is the closest thing to an official DGX Dashboard telemetry source with cluster-monitoring plans, and flags specific known-bad metrics (network interface %, storage/memory exactness) to avoid over-trusting when wiring the Spark into Steven's existing Prometheus/Grafana fleet board.",
+      "feeds": ["ch14"]
+    },
+    {
+      "url": "https://github.com/huggingface/text-embeddings-inference/pkgs/container/text-embeddings-inference",
+      "title": "text-embeddings-inference GHCR container tags",
+      "kind": "github-repo",
+      "summary": "GHCR package listing for TEI images; confirms 121-tagged images exist for sm_121/Blackwell.",
+      "facts": [
+        {"claim": "GHCR tags observed for TEI include 121-latest, 121-latest-grpc, 121-sha-fc071b1, 121-sha-fc071b1-grpc, 121-sha-4150561-grpc (each published \"about 2 months ago\" from fetch date), alongside generic cuda-latest / cuda-sha-* tags. No tag explicitly named \"blackwell\", \"gb10\", or \"grace\" exists — the 121-prefixed tags are the sm_121 build.", "url": "https://github.com/huggingface/text-embeddings-inference/pkgs/container/text-embeddings-inference"}
+      ],
+      "relevance_to_us": "Confirms prior research finding: TEI now ships a prebuilt `121-*` GHCR tag (not just a --build-arg CUDA_COMPUTE_CAP=121 self-build), which simplifies deploying TEI for embeddings directly on DGX Spark without a custom build.",
+      "feeds": ["ch7"]
+    },
+    {
+      "url": "https://hub.docker.com/r/qdrant/qdrant/tags",
+      "title": "qdrant/qdrant Docker Hub tags — arm64 confirmation",
+      "kind": "other",
+      "summary": "Docker Hub tags page confirming multi-arch (amd64+arm64) images for Qdrant.",
+      "facts": [
+        {"claim": "The `latest`, `dev`, `master`, and versioned tags (e.g. v1.19, v1.19.0, v1-unprivileged) all list both linux/amd64 and linux/arm64 platform variants.", "url": "https://hub.docker.com/r/qdrant/qdrant/tags", "evidence": "\"linux/amd64\" and \"linux/arm64\" listed per tag"}
+      ],
+      "relevance_to_us": "Confirms Qdrant can run natively on DGX Spark's aarch64 (Grace CPU side) with no emulation — closes the open question from prior research about Qdrant arm64 availability.",
+      "feeds": ["ch7", "ch1"]
+    },
+    {
+      "url": "https://github.com/botAGI/AGmind",
+      "title": "botAGI/AGmind — private AI stack for GB10/DGX Spark",
+      "kind": "github-repo",
+      "summary": "One-command private AI stack targeting DGX Spark GB10 arm64; runs vLLM-embed and vLLM-rerank services plus an LLM, with an explicit unified-memory budget split.",
+      "facts": [
+        {"claim": "vLLM-embed serves BAAI/bge-m3 (1024-dim embeddings) on port :8001, using container nvcr.io/nvidia/vllm:26.02-py3.", "url": "https://github.com/botAGI/AGmind", "evidence": "port :8001, model bge-m3, container nvcr.io/nvidia/vllm:26.02-py3"},
+        {"claim": "vLLM-rerank serves BAAI/bge-reranker-v2-m3 on port :8002, same nvcr.io/nvidia/vllm:26.02-py3 container.", "url": "https://github.com/botAGI/AGmind"},
+        {"claim": "AGmind budgets the 121 GiB usable unified memory pool as 85 GiB for containers and 35 GiB reserved for kernel/swap.", "url": "https://github.com/botAGI/AGmind", "evidence": "\"AGMind budgets 121 → 85 GiB for containers; 35 GiB reserved for kernel/swap\""},
+        {"claim": "No Whisper or STT service is included in this stack — it is text-only (LLM + embed + rerank).", "url": "https://github.com/botAGI/AGmind"}
+      ],
+      "relevance_to_us": "Confirms port numbers/model choices for a working vLLM-based BGE embedding+rerank service on GB10 (ch7), and gives a concrete real-world unified-memory budgeting split (85/35 GiB) useful for ch1/ch7/ch8 capacity planning; confirms the speech tier is a genuine gap the community hasn't filled via AGmind either.",
+      "feeds": ["ch7", "ch1"]
+    },
+    {
+      "url": "https://forums.developer.nvidia.com/t/which-embedding-model-is-best-to-run-on-single-spark-for-rag/379652",
+      "title": "Which embedding model is best to run on single SPARK for RAG?",
+      "kind": "forum",
+      "summary": "NVIDIA forum thread with community recommendations for embedding models on a single DGX Spark for RAG.",
+      "facts": [
+        {"claim": "Community recommends NVIDIA Nemotron-3-Embed (8B and 1B versions) as \"the best current model\"; Qwen 0.6B is called out as working well for small RAG; BAAI/bge-m3 and Nomic Embed Text v1.5 are also in active use.", "url": "https://forums.developer.nvidia.com/t/which-embedding-model-is-best-to-run-on-single-spark-for-rag/379652", "evidence": "\"the best current model\" (re Nemotron-3-Embed); \"pretty well for small RAG\" (re Qwen 0.6B)"},
+        {"claim": "One user's vLLM config for Nomic Embed Text v1.5 sets gpu_memory_utilization: 0.05, and a respondent notes \"Every one of these will run fine on GB10; because embeddings need to be fast, they are all smaller models.\"", "url": "https://forums.developer.nvidia.com/t/which-embedding-model-is-best-to-run-on-single-spark-for-rag/379652", "evidence": "gpu_memory_utilization: 0.05; \"Every one of these will run fine on GB10; because embeddings need to be fast, they are all smaller models.\""}
+      ],
+      "relevance_to_us": "Direct community guidance for the embeddings-tier migration decision (TEI vs vLLM-served BGE/Nemotron/Qwen embeddings) with a real gpu_memory_utilization figure showing embeddings barely dent the unified memory pool on GB10.",
+      "feeds": ["ch7"]
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "title": "Claude API / Claude Platform pricing (Anthropic docs)",
+      "kind": "other",
+      "summary": "Anthropic's current official pricing page (docs.anthropic.com/.../pricing redirects here). Full per-model $/MTok table, prompt caching multipliers, batch discount, and a worked-example cost calculation.",
+      "facts": [
+        {"claim": "Claude Sonnet 5: $2/MTok base input, $2.50/MTok 5m cache write, $4/MTok 1h cache write, $0.20/MTok cache hit, $10/MTok output.", "url": "https://platform.claude.com/docs/en/about-claude/pricing", "evidence": "table row \"Claude Sonnet 5 | $2/MTok | $2.50/MTok | $4/MTok | $0.20/MTok | $10/MTok\""},
+        {"claim": "Claude Haiku 4.5: $1/MTok input, $1.25/MTok 5m cache write, $2/MTok 1h cache write, $0.10/MTok cache hit, $5/MTok output.", "url": "https://platform.claude.com/docs/en/about-claude/pricing"},
+        {"claim": "Claude Opus 5 / Opus 4.8: $5/MTok input, $25/MTok output (base rates); with Fast Mode research preview, both are billed at $10/MTok input, $50/MTok output across the full context window.", "url": "https://platform.claude.com/docs/en/about-claude/pricing"},
+        {"claim": "Prompt caching multipliers relative to base input price: 5-minute cache write = 1.25x, 1-hour cache write = 2x, cache read (hit) = 0.1x.", "url": "https://platform.claude.com/docs/en/about-claude/pricing"},
+        {"claim": "Batch API gives a 50% discount on both input and output tokens across all models (e.g. Sonnet 5 batch: $1/MTok input, $5/MTok output).", "url": "https://platform.claude.com/docs/en/about-claude/pricing"},
+        {"claim": "Web search costs $10 per 1,000 searches on top of standard token costs; web fetch has no additional charge beyond token costs for fetched content (average 10kB page ≈ 2,500 tokens, 100kB doc ≈ 25,000 tokens, 500kB PDF ≈ 125,000 tokens).", "url": "https://platform.claude.com/docs/en/about-claude/pricing"},
+        {"claim": "Worked example: a 1-hour Claude Managed Agents coding session on Opus 5 with 50,000 input + 15,000 output tokens costs $0.705 total (input $0.25 + output $0.375 + session runtime $0.08 at $0.08/session-hour); with 40,000 of the input tokens as cache reads, total drops to $0.525.", "url": "https://platform.claude.com/docs/en/about-claude/pricing", "evidence": "worked-example table, totals $0.705 and $0.525"}
+      ],
+      "relevance_to_us": "Ground-truth current $/MTok figures for ch17's cost-control chapter — lets the guide compute real dollar examples for \"what stays local (Whisper/embeddings on Spark) vs what spends Anthropic tokens (Claude Code / agentic loops)\" instead of estimating.",
+      "feeds": ["ch17"]
+    },
+    {
+      "url": "https://code.claude.com/docs/en/costs",
+      "title": "Manage costs effectively — Claude Code docs",
+      "kind": "other",
+      "summary": "Official Claude Code cost-management doc: enterprise average per-developer spend, /usage command output, background token usage, and concrete cost-reduction techniques (hooks, skills, subagents, model choice, context management).",
+      "facts": [
+        {"claim": "Across enterprise deployments, average cost is around $13 per developer per active day and $150-250 per developer per month, with 90% of users staying below $30/active day.", "url": "https://code.claude.com/docs/en/costs", "evidence": "\"the average cost is around \\$13 per developer per active day and \\$150-250 per developer per month, with costs remaining below \\$30 per active day for 90% of users\""},
+        {"claim": "Background token usage (conversation summarization for --resume, /usage status checks) typically costs under $0.04 per session even without active interaction.", "url": "https://code.claude.com/docs/en/costs", "evidence": "\"typically under \\$0.04 per session even without active interaction\""},
+        {"claim": "Agent teams use approximately 7x more tokens than standard sessions when teammates run in plan mode, because each teammate maintains its own context window and runs as a separate Claude instance.", "url": "https://code.claude.com/docs/en/costs", "evidence": "\"Agent teams use approximately 7x more tokens than standard sessions when teammates run in plan mode\""},
+        {"claim": "Cost-reduction levers documented: /clear between unrelated tasks, moving detailed instructions from CLAUDE.md into on-demand skills (keep CLAUDE.md under 200 lines), delegating verbose operations (test runs, log processing) to subagents so only a summary returns to the main context, PreToolUse hooks that filter noisy command output before it reaches context, and choosing Haiku for subagents / Sonnet for most coding / Opus for complex reasoning.", "url": "https://code.claude.com/docs/en/costs"},
+        {"claim": "A cache miss (first message after a break longer than the cache lifetime) reprocesses the full context: cache lifetime is 1 hour on a subscription (5 min once drawing on usage credits, or settable back to 1h via ENABLE_PROMPT_CACHING_1H=1), and 5 minutes by default on an API key or cloud provider.", "url": "https://code.claude.com/docs/en/costs"}
+      ],
+      "relevance_to_us": "Directly usable for ch17: gives the real $13/day, $150-250/month enterprise baseline (useful to contrast against local-inference cost avoidance on the Spark) plus concrete, sourced cost-control techniques (subagents, skills, hooks, model tiering) — this is exactly the multi-device, subagent-heavy workflow this research task itself is running under.",
+      "feeds": ["ch17", "ch15", "ch16"]
+    },
+    {
+      "url": "https://x.com/huchkw/status/2089385814086262981",
+      "title": "X post (@huchkw) — GPU clock-limit power/thermal tradeoff on DGX Spark",
+      "kind": "x-post",
+      "summary": "Japanese-language X post reporting a measured power/thermal/performance tradeoff from capping GPU clock on DGX Spark while running Qwen3.8-27B-NVFP4.",
+      "facts": [
+        {"claim": "Running `sudo nvidia-smi -lgc 0,2200` (limiting max GPU clock to 2200MHz) while serving Qwen3.8-27B-NVFP4 produced: TPS average -0.47% (negligible throughput loss), GPU temperature -4.25°C, and power draw -24.3%.", "url": "https://x.com/huchkw/status/2089385814086262981", "evidence": "\"sudo nvidia-smi -lgc 0,2200\" ... \"TPS 平均 −0.47%の犠牲で GPU 温度 −4.25°C, 電力 −24.3% を得ました\" (via https://api.fxtwitter.com/status/2089385814086262981)"}
+      ],
+      "relevance_to_us": "A real, quoted, measured power-tuning knob (nvidia-smi -lgc clock limit) for DGX Spark that trades <0.5% throughput for ~24% power reduction — directly usable in ch17's cost chapter for a \"tune it for your electricity bill\" recommendation, and in ch1/ch14 for power telemetry.",
+      "feeds": ["ch17", "ch1", "ch14"]
+    },
+    {
+      "url": "https://x.com/degenpiz/status/2076030273679171908",
+      "title": "X post (@degenpiz) — DGX Spark cloud-vs-local cost claim ($1,870→$47/mo)",
+      "kind": "x-post",
+      "summary": "X post/linked article claiming large monthly savings running 3 active agents locally on a $4,699 DGX Spark vs cloud GPU costs. Unverified, single anecdotal source — same caveat as prior research flagged it.",
+      "facts": [
+        {"claim": "Article claims a user running three active agents saw monthly costs drop from \"$1,870+ in cloud costs to $47 in electricity\" — a stated 97% reduction — after buying a $4,699 DGX Spark.", "url": "https://x.com/degenpiz/status/2076030273679171908", "evidence": "\"actual monthly expenses dropped from \\$1,870+ in cloud costs to \\$47 in electricity—a 97% reduction\" (via https://api.fxtwitter.com/status/2076030273679171908)"}
+      ],
+      "relevance_to_us": "Same unverified anecdotal figure already flagged by prior research — kept in this bucket for completeness but should be labeled unverified/anecdotal in the guide, not used as a load-bearing cost claim without independent corroboration.",
+      "feeds": ["ch17"]
+    },
+    {
+      "url": "https://www.servethehome.com/nvidia-dgx-spark-review-the-gb10-machine-is-so-freaking-cool/4/",
+      "title": "ServeTheHome NVIDIA DGX Spark Review, page 4 (power)",
+      "kind": "blog",
+      "summary": "Independent press review with measured power draw figures at idle and under various loads; found via search, summarized numbers below, not independently re-verified by direct fetch.",
+      "facts": [
+        {"claim": "Reported power figures (per search-engine summary of the review): idle ranged 31.5W (headless) rising to 37W after updates in early measurements, later improving to 25W with display connected / 22W with display disconnected after a software update; CPU-only load ~120-130W; GPU+other components approached but did not reach the 240W PSU max; many LLM inference workloads used 60-90W.", "url": "https://www.servethehome.com/nvidia-dgx-spark-review-the-gb10-machine-is-so-freaking-cool/4/", "evidence": "search-result summary, not independently fetched/quoted verbatim from the page itself"}
+      ],
+      "relevance_to_us": "Best available range of real wall-power figures across idle/CPU-load/inference-load states for the ch1 hardware chapter and ch17 cost chapter's power-cost math — flagged as summary-of-summary (via WebSearch synthesis, not a direct WebFetch quote) so treat as lower-confidence than directly fetched sources.",
+      "feeds": ["ch1", "ch17"]
+    }
+  ],
+  "open_questions": [
+    "No source gives a direct real-time-factor (RTF) or seconds-per-minute-of-audio benchmark for Whisper/faster-whisper/whisper.cpp specifically measured ON DGX Spark hardware — only the WhisperX-blackwell 115x CPU-vs-GPU speedup (24-min file in 62s) and the odnodn README's unrelated 766ms voice-assistant latency exist as proxies. A first-party benchmark run on the arriving Spark is still needed for ch7.",
+    "The DGX Spark power figures come from three different sources with slightly different numbers (community forum thread ~25W under LLM load; ServeTheHome review 25-90W across states; official 240W PSU / 140W SoC TDP spec) — worth reconciling with a direct wall-meter reading once the box is on-site rather than trusting secondhand numbers.",
+    "No Whisper NIM (NVIDIA-hosted inference microservice) facts were found at all — unclear if a Whisper NIM container exists/works on GB10 aarch64; this remains a genuine gap versus the WhisperX/whisper.cpp community-build path.",
+    "TEI's GHCR '121-*' tags confirm prebuilt sm_121 images exist, but no fetched source gives measured tok/s or requests/sec throughput for TEI specifically on GB10 — only the AGmind vLLM-served bge-m3 alternative and a generic A100 comparison (~60,000 tok/s) were found, which is not a DGX Spark number.",
+    "dcgm-exporter GitHub issues/discussions search for GB10/DGX Spark terms was not completed with a direct fetch in this pass (only inferred via the DRA-driver and HAMi device-plugin issues) — worth a dedicated follow-up search of NVIDIA/dcgm-exporter and NVIDIA/gpu-operator issue trackers."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "The correct CUDA build architecture flag for compiling GPU code (whisper.cpp and similar) for GB10 is CMAKE_CUDA_ARCHITECTURES=\"120;121\" — NOT 120 alone, which targets the incompatible sm_120a.",
+      "url": "https://forums.developer.nvidia.com/t/running-whisper-cpp-stt-server-on-dgx-spark-gb10-arm64-cuda-13-via-docker/371803",
+      "why_it_matters": "This single flag choice is the difference between a build that runs and one that fails at runtime with 'no kernel image available' — it will be reused across every custom CUDA build chapter (ch6, ch7, ch11), not just the speech tier."
+    },
+    {
+      "claim": "nvmlDeviceGetMemoryInfo() returns 'Not Supported' on GB10 by design (unified memory has no discrete framebuffer), and the community fix is the nvml-unified-shim library, not a driver bug workaround.",
+      "url": "https://forums.developer.nvidia.com/t/nvml-support-for-dgx-spark-grace-blackwell-unified-memory-community-solution/358869",
+      "why_it_matters": "This determines whether Steven's existing Prometheus/Grafana GPU dashboards will work unmodified on the Spark (they won't, without this shim or an equivalent) — directly shapes ch14's observability chapter and any k8s GPU-scheduling decisions in ch8/ch9."
+    },
+    {
+      "claim": "Claude Sonnet 5 pricing is $2/MTok input ($0.20/MTok cached-hit) and $10/MTok output, and this is now the standing price (the previously-scheduled Sept 1 2026 increase to $3/$15 was cancelled).",
+      "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "why_it_matters": "This is the exact rate that determines every ch17 cost-control dollar calculation for 'what stays local on the Spark vs what spends Anthropic tokens' — using a stale or wrong rate would make every cost example in the guide wrong."
+    },
+    {
+      "claim": "Enterprise Claude Code usage averages ~$13/developer/active-day and $150-250/developer/month.",
+      "url": "https://code.claude.com/docs/en/costs",
+      "why_it_matters": "This is the only sourced baseline for 'what does the agentic-loop side of this setup actually cost' — needed to make ch15/ch16/ch17's cost-control narrative concrete rather than hand-wavy."
+    }
+  ],
+  "fetch_failures": []
+}

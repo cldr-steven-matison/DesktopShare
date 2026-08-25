@@ -1,0 +1,240 @@
+{
+  "bucket": "r12-local-kb-mcp",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/jeremyeder/dgx-agentskills/main/README.md",
+      "title": "dgx-agentskills (jeremyeder)",
+      "kind": "github-repo",
+      "summary": "Claude Code plugin that bridges a Mac-side Claude Code session to a DGX Spark: a Mac-side plugin (skills for setup/model-management/VPN/VM provisioning, slash commands, .mcp.json pointing at the remote MCP server) plus a containerized MCP server on the Spark exposing GPU metrics, Docker/Ollama ops, and system health via HTTP on port 3100. Workflow: `/spark-models pull qwen3.5:32b` -> `/spark-models serve` (vLLM) -> `/spark-switch local` flips Claude Code's ANTHROPIC_BASE_URL to the local Spark endpoint instead of Anthropic's cloud API.",
+      "facts": [
+        {"claim": "MCP server on the Spark exposes GPU metrics, Docker/Ollama operations, and system health via HTTP on port 3100", "url": "https://raw.githubusercontent.com/jeremyeder/dgx-agentskills/main/README.md"},
+        {"claim": "`/spark-switch local` redirects Claude Code's ANTHROPIC_BASE_URL to the local Spark vLLM instance", "url": "https://raw.githubusercontent.com/jeremyeder/dgx-agentskills/main/README.md"},
+        {"claim": "Inference backends: Ollama for model download, vLLM (image nvcr.io/nvidia/vllm:latest) for serving with tool-calling", "url": "https://raw.githubusercontent.com/jeremyeder/dgx-agentskills/main/README.md"},
+        {"claim": "`/spark-status` runs a health check across system metrics, GPU utilization, model availability, and MCP server latency before workloads run — a lightweight local validation gate", "url": "https://raw.githubusercontent.com/jeremyeder/dgx-agentskills/main/README.md"},
+        {"claim": "Tailscale used for remote VPN access to the Spark; KVM/QEMU for VM management", "url": "https://raw.githubusercontent.com/jeremyeder/dgx-agentskills/main/README.md"}
+      ],
+      "relevance_to_us": "Closest existing analog to what we want: a Claude Code plugin + MCP server pattern for talking to a DGX Spark's GPU/model state, plus a base-URL-swap mechanism to redirect Claude Code itself onto a local model. Directly reusable pattern for ch16/ch17 (cost control / what leaves Anthropic tokens) and ch12 (agent class).",
+      "feeds": ["ch15", "ch16", "ch17"]
+    },
+    {
+      "url": "https://github.com/botAGI/AGmind",
+      "title": "AGmind (botAGI) — private RAG platform installer for DGX Spark",
+      "kind": "github-repo",
+      "summary": "One-command installer (Shell, 44 stars) deploying a 30+ container private RAG platform on DGX Spark (aarch64/GB10) in ~25 min via Docker Compose. Note: the org is `botAGI`, not `botAI` as originally given — the exact URL in the task (github.com/botAI/AGmind) 404s; the real repo is https://github.com/botAGI/AGmind.",
+      "facts": [
+        {"claim": "Ingestion: docling-serve (cu130 image) for PDF/DOCX/PPTX extraction with OCR + VLM image description; RAGFlow v0.24.1-spark for deep document parsing", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"},
+        {"claim": "Embedding: vLLM embedding service running bge-m3 (1024-dim); reranking via vLLM serving bge-reranker-v2-m3", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"},
+        {"claim": "Vector store: Weaviate (default) or Qdrant available", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"},
+        {"claim": "LLM serving: vLLM OpenAI-compatible endpoint serving gemma-4-26B-A4B-it (MoE), measured 183 ms TTFT, 23-24 tok/s single-stream, 50 tok/s at 3 concurrent, on 121 GiB shared unified memory pool with fp8 KV cache", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"},
+        {"claim": "Orchestration/UI: Dify v1.13.3 (image langgenius/dify-api:1.13.3); pinned images also include vllm/vllm-openai:gemma4-cu130, semitechnologies/weaviate:1.37.2, postgres:16-alpine3.23, redis:7.4.8-alpine, nginx:1.30.0-alpine — all verified arm64 manifests", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"},
+        {"claim": "Do-not-upgrade warning: keep NVIDIA driver at or below 580.x — three documented regressions affect unified-memory stability on GB10", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"},
+        {"claim": "Hardening: UFW + fail2ban + Authelia (optional 2FA), 30+ Linux capabilities dropped; day-2 ops via `agmind status`, `agmind health`, `agmind backup`, `agmind restore` CLI", "url": "https://raw.githubusercontent.com/botAGI/AGmind/main/README.md"}
+      ],
+      "relevance_to_us": "The single most complete concrete reference architecture found for 'local knowledge base on a DGX Spark': gives real, verified-arm64 image tags for every layer (ingest/embed/store/serve/orchestrate) we can lift directly into ch15's components table, plus a concrete driver-version gotcha (580.x ceiling) worth flagging in ch1/ch2.",
+      "feeds": ["ch15", "ch1"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/HendrikSchoettle/ragflow-dgx-spark/main/README.md",
+      "title": "ragflow-dgx-spark (HendrikSchoettle)",
+      "kind": "github-repo",
+      "summary": "One-time personal project that builds and deploys RAGFlow on DGX Spark (Grace CPU + GB10 Blackwell), patching upstream RAGFlow which has no ARM64 image and no Blackwell (SM_121) ONNX Runtime GPU wheel. Uses Docker Compose across two bridge networks (ai-net internal, outbound-net build-time-only).",
+      "facts": [
+        {"claim": "RAGFlow cloned at v0.24.0; two locally-built ARM64 images replace upstream x86_64: infiniflow/ragflow_deps:latest and infiniflow/ragflow:nightly", "url": "https://raw.githubusercontent.com/HendrikSchoettle/ragflow-dgx-spark/main/README.md"},
+        {"claim": "No prebuilt ONNX Runtime GPU wheel exists for ARM64+Blackwell SM_121; the build script compiles ORT 1.21.1 from source in a CUDA container ('This step takes quite a while')", "url": "https://raw.githubusercontent.com/HendrikSchoettle/ragflow-dgx-spark/main/README.md"},
+        {"claim": "Upstream RAGFlow Dockerfiles use BuildKit-only syntax incompatible with standard ARM64 builds; the project patches Dockerfiles with exact string anchors tied to v0.24.0, which silently fail on upstream version drift", "url": "https://raw.githubusercontent.com/HendrikSchoettle/ragflow-dgx-spark/main/README.md"},
+        {"claim": "Stack services: MySQL, Redis, Elasticsearch, MinIO, RAGFlow app, orchestrated via rebuild_ragflow.sh", "url": "https://raw.githubusercontent.com/HendrikSchoettle/ragflow-dgx-spark/main/README.md"}
+      ],
+      "relevance_to_us": "Second independent confirmation that RAGFlow-on-GB10 needs custom ARM64 builds and Blackwell (SM_121) ONNX compile-from-source — corroborates AGmind's use of a -spark-suffixed RAGFlow tag rather than stock. Useful cautionary note for ch15 if we consider RAGFlow as the ingest layer instead of docling.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md",
+      "title": "NVIDIA DGX Spark Playbook: CLI Coding Agent",
+      "kind": "nvidia-doc",
+      "summary": "Official NVIDIA playbook setting up a local CLI coding agent (choice of Claude Code, OpenCode, or Codex CLI) backed by a locally-served model via Ollama on the Spark, then validating with a real pytest-based coding task.",
+      "facts": [
+        {"claim": "Supports three CLI agents: Claude Code, OpenCode, Codex CLI, each pointed at Ollama's local serving", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Primary model: Qwen3.6 35B parameter, via Ollama v0.15+, variants range ~22GB-~71GB memory footprint, default 256K context window", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Validation pattern demonstrated: create a stub function + test file, prompt the agent to implement it, run pytest to verify — an end-to-end functional check of the agent setup", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Ollama runs as a system service, inference endpoint at localhost:11434, no Docker images used in this playbook", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"},
+        {"claim": "Target OS: Ubuntu 24.04.3 LTS on DGX Spark", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/cli-coding-agent/README.md"}
+      ],
+      "relevance_to_us": "Directly on-topic for ch16 (local agentic validation loops): NVIDIA's own reference pattern is 'stub + test + pytest' as the smoke test for any locally-served coding agent. Confirms Ollama :11434 as the default local OpenAI/Ollama endpoint other playbooks build on.",
+      "feeds": ["ch16", "ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md",
+      "title": "NVIDIA DGX Spark Playbook: RAG Application in AI Workbench",
+      "kind": "nvidia-doc",
+      "summary": "Deploys an agentic RAG system via NVIDIA AI Workbench on the Spark, using a pre-built GitHub project (NVIDIA/workbench-example-agentic-rag) with a Gradio UI featuring 'intelligent routing, response evaluation, and iterative refinement.' Component-level detail (embedding model, vector store) is not exposed in this playbook doc.",
+      "facts": [
+        {"claim": "Clones and runs https://github.com/NVIDIA/workbench-example-agentic-rag inside AI Workbench's containerized project environment", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"},
+        {"claim": "Requires an NVIDIA API Key (Public API Endpoints) and a Tavily API Key as secrets", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"},
+        {"claim": "Estimated setup time 30-45 minutes; rollback is just deleting the AI Workbench project (no host-system changes)", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/rag-ai-workbench/README.md"}
+      ],
+      "relevance_to_us": "Lighter-weight, NVIDIA-blessed alternative to AGmind/RAGFlow for ch15 — but it's Tavily/NVIDIA-API-dependent (not fully local/offline), which we should flag as a tradeoff versus AGmind's fully self-hosted stack.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md",
+      "title": "NVIDIA DGX Spark Playbook: Text to Knowledge Graph",
+      "kind": "nvidia-doc",
+      "summary": "Turns documents into a knowledge graph using Ollama (default Llama 3.1 8B) for subject-predicate-object triple extraction, ArangoDB for graph storage with BM25 search, a Next.js frontend, and Three.js WebGPU for interactive 2D/3D graph visualization, all via Docker Compose with GPU support.",
+      "facts": [
+        {"claim": "Default extraction model Llama 3.1 8B via Ollama with GPU acceleration, upgradeable to larger variants", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"},
+        {"claim": "Graph storage: ArangoDB with BM25 search and deterministic key optimization", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"},
+        {"claim": "Setup via `./start.sh`; UI at localhost:3001; deployment 2-3 min plus 5-10 min for model downloads", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/txt2kg/README.md"}
+      ],
+      "relevance_to_us": "An alternative KB shape (graph instead of vector) for ch15 — worth a sidebar noting graph-RAG as an option alongside vector-RAG, especially if the local KB needs to answer 'how do these NiFi processors relate' type structural questions rather than pure semantic similarity.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md",
+      "title": "NVIDIA DGX Spark Playbook: OpenClaw",
+      "kind": "nvidia-doc",
+      "summary": "Deploys OpenClaw, a 'local-first AI agent' with conversation memory, continuous operation, and extensible skills, backed by vLLM serving nvidia/Qwen3.6-35B-A3B-NVFP4 on an OpenAI-compatible endpoint at http://localhost:8000/v1, plus a web dashboard.",
+      "facts": [
+        {"claim": "Model: nvidia/Qwen3.6-35B-A3B-NVFP4 recipe served by vLLM at http://localhost:8000/v1", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"},
+        {"claim": "Leverages DGX Spark's 128GB unified memory to run the large quantized model locally with no external data transmission unless explicitly configured", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/openclaw/README.md"}
+      ],
+      "relevance_to_us": "Direct precedent for 'local model as agent' at the exact NVFP4/Qwen3.6-35B scale we'd use for a local reviewer/validator model (ch16), sharing the vLLM :8000/v1 endpoint convention with AGmind and jeremyeder's plugin.",
+      "feeds": ["ch16", "ch6"]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md",
+      "title": "NVIDIA DGX Spark Playbook: NemoClaw",
+      "kind": "nvidia-doc",
+      "summary": "One-command sandboxed local-agent installer (`nemoclaw.sh`) pulling Node.js, OpenShell, and a CLI. OpenShell provides four isolation layers (filesystem, network, process, inference) around a vLLM-served local model, explicitly framed as protection against 'data leakage, malicious execution, unintended actions, and prompt injection.'",
+      "facts": [
+        {"claim": "Four isolation layers: filesystem restrictions, network policies, process constraints, inference routing controls", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Optional integrations: Telegram/Discord/Slack bridges, Brave Search, Cloudflared for remote dashboard access", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"},
+        {"claim": "Managed vLLM container option for the inference server; sandboxes run as isolated OpenShell containers", "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md"}
+      ],
+      "relevance_to_us": "Best available concrete pattern for 'local agentic validation/sandboxing' as an operational concept (ch16) — the four-layer isolation model (fs/network/process/inference) is a ready-made framework to adapt for 'local model re-checks a command/doc before Claude acts.'",
+      "feeds": ["ch16"]
+    },
+    {
+      "url": "https://code.claude.com/docs/en/mcp",
+      "title": "Connect Claude Code to tools via MCP (Claude Code docs)",
+      "kind": "other",
+      "summary": "Official reference for registering MCP servers with Claude Code: remote HTTP (recommended), remote SSE (deprecated), local stdio, and remote WebSocket transports, plus scopes (local/project/user) and config file locations.",
+      "facts": [
+        {"claim": "Remote HTTP: `claude mcp add --transport http <name> <url>`, optionally with `--header \"Authorization: Bearer ...\"`", "url": "https://code.claude.com/docs/en/mcp"},
+        {"claim": "In JSON config (.mcp.json, ~/.claude.json, or `claude mcp add-json`), the `type` field accepts `streamable-http` as an alias for `http`; an entry with a `url` but no `type` is treated as stdio and Claude Code skips it with an explicit error", "url": "https://code.claude.com/docs/en/mcp"},
+        {"claim": "SSE transport is deprecated: `claude mcp add --transport sse <name> <url>`", "url": "https://code.claude.com/docs/en/mcp"},
+        {"claim": "Local stdio: `claude mcp add [options] <name> -- <command> [args...]`, e.g. `claude mcp add --env AIRTABLE_API_KEY=YOUR_KEY --transport stdio airtable -- npx -y airtable-mcp-server`; args after `--` pass through untouched", "url": "https://code.claude.com/docs/en/mcp"},
+        {"claim": "Claude Code sets CLAUDE_PROJECT_DIR in a stdio server's environment so the server can resolve project-relative paths; a server can also request `roots/list` to learn allowed working directories", "url": "https://code.claude.com/docs/en/mcp"},
+        {"claim": "WebSocket servers configured only via `.mcp.json`/`claude mcp add-json`, e.g. `claude mcp add-json events-server '{\"type\":\"ws\",\"url\":\"wss://mcp.example.com/socket\",\"headers\":{\"Authorization\":\"Bearer YOUR_TOKEN\"}}'`; `claude mcp add --transport` does not accept `ws`", "url": "https://code.claude.com/docs/en/mcp"},
+        {"claim": "Each command writes to local scope by default unless `--scope project` or `--scope user` is added", "url": "https://code.claude.com/docs/en/mcp"}
+      ],
+      "relevance_to_us": "The exact syntax we'll use in ch15 to register a local MCP server (stdio, pointed at a local Qdrant-backed RAG tool) with Claude Code running against the Spark, including the correct `--scope` and `--env` flags.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://github.com/qdrant/mcp-server-qdrant",
+      "title": "qdrant/mcp-server-qdrant — official Qdrant MCP server",
+      "kind": "github-repo",
+      "summary": "Official Qdrant MCP server. Run via `uvx mcp-server-qdrant` (no install needed); configured through QDRANT_URL, COLLECTION_NAME, EMBEDDING_MODEL (default sentence-transformers/all-MiniLM-L6-v2), QDRANT_API_KEY, or QDRANT_LOCAL_PATH (mutually exclusive with QDRANT_URL). Supports stdio (default), sse, and streamable-http transports; FASTMCP_SERVER_PORT defaults to 8000.",
+      "facts": [
+        {"claim": "Install/run: `uvx mcp-server-qdrant`", "url": "https://raw.githubusercontent.com/qdrant/mcp-server-qdrant/master/README.md"},
+        {"claim": "Env vars: QDRANT_URL, COLLECTION_NAME, EMBEDDING_MODEL (default sentence-transformers/all-MiniLM-L6-v2), QDRANT_API_KEY, QDRANT_LOCAL_PATH — QDRANT_URL and QDRANT_LOCAL_PATH cannot be set together", "url": "https://raw.githubusercontent.com/qdrant/mcp-server-qdrant/master/README.md"},
+        {"claim": "Register with Claude Code: `claude mcp add code-search -e QDRANT_URL=\"http://localhost:6333\" -e COLLECTION_NAME=\"code-repository\" -- uvx mcp-server-qdrant`", "url": "https://raw.githubusercontent.com/qdrant/mcp-server-qdrant/master/README.md"},
+        {"claim": "Transports: stdio (default, local clients only), sse (remote), streamable-http (remote); server listens on port 8000 by default, configurable via FASTMCP_SERVER_PORT", "url": "https://raw.githubusercontent.com/qdrant/mcp-server-qdrant/master/README.md"},
+        {"claim": "Can build own Docker image locally (`docker build -t mcp-server-qdrant .`); set FASTMCP_SERVER_HOST=0.0.0.0 when containerized for network access", "url": "https://raw.githubusercontent.com/qdrant/mcp-server-qdrant/master/README.md"}
+      ],
+      "relevance_to_us": "This is the concrete MCP-server-to-Qdrant bridge for our components table: ingest -> embed -> Qdrant -> mcp-server-qdrant -> Claude Code via `claude mcp add`. Simplest working recipe found across the whole search.",
+      "feeds": ["ch15"]
+    },
+    {
+      "url": "https://github.com/huggingface/text-embeddings-inference",
+      "title": "Hugging Face text-embeddings-inference (TEI)",
+      "kind": "github-repo",
+      "summary": "TEI added native ARM64 CUDA support for Blackwell sm_121 (DGX Spark GB10) as of v1.9, avoiding x86 emulation. Building requires `--platform linux/arm64 --build-arg CUDA_COMPUTE_CAP=121` for GB10 specifically (sm_120 for other future ARM64 Blackwell chips).",
+      "facts": [
+        {"claim": "TEI has supported ARM64 (aarch64) with native CUDA for Blackwell 12.1 hardware (DGX Spark GB10) since v1.9", "url": "https://github.com/huggingface/text-embeddings-inference"},
+        {"claim": "For DGX Spark (GB10, sm_121) docker builds: `--build-arg CUDA_COMPUTE_CAP=121` with `--platform linux/arm64`; for other ARM64+Blackwell (sm_120) devices use `CUDA_COMPUTE_CAP=120`", "url": "https://github.com/huggingface/text-embeddings-inference"},
+        {"claim": "Prebuilt experimental image for Blackwell 10.0 (B200/GB200): ghcr.io/huggingface/text-embeddings-inference:100-1.9 — this tag targets B200/GB200 (sm100), not GB10 sm_121, so a GB10-specific image likely needs local build with CUDA_COMPUTE_CAP=121", "url": "https://github.com/huggingface/text-embeddings-inference"}
+      ],
+      "relevance_to_us": "Confirms our existing TEI service (already on WindowsDesktop) has a real GB10-native build path rather than needing emulation — important since AGmind chose vLLM for bge-m3 embedding instead of TEI; we should note TEI is a viable alternative embed layer once built with CUDA_COMPUTE_CAP=121.",
+      "feeds": ["ch7", "ch15"]
+    },
+    {
+      "url": "https://medium.com/@luongnv89/how-to-run-claude-code-codex-with-local-models-via-llamacpp-ollama-lmstudio-and-vllm-2026-7d00ba7e63a4",
+      "title": "How to run Claude Code/Codex with local models via Llamacpp, Ollama, LMStudio, and vLLM — 2026",
+      "kind": "blog",
+      "summary": "2026 walkthrough of pointing Claude Code / Codex CLI at any OpenAI-compatible local server (vLLM, llama.cpp, Ollama, LM Studio) by exporting the OpenAI-compatible endpoint URL, a dummy API key, and the model name before launching `claude`.",
+      "facts": [
+        {"claim": "Claude Code and Codex CLI can run against any OpenAI-compatible local server by exporting the endpoint URL, a dummy API key variable, and model name before running `claude`", "url": "https://medium.com/@luongnv89/how-to-run-claude-code-codex-with-local-models-via-llamacpp-ollama-lmstudio-and-vllm-2026-7d00ba7e63a4"}
+      ],
+      "relevance_to_us": "Corroborates the base-URL-swap approach jeremyeder's dgx-agentskills plugin automates via `/spark-switch local` — useful for ch17 cost-control framing (when to redirect off Anthropic tokens onto the local Spark model).",
+      "feeds": ["ch17"]
+    },
+    {
+      "url": "https://github.com/musistudio/claude-code-router",
+      "title": "claude-code-router (musistudio)",
+      "kind": "github-repo",
+      "summary": "Local control-plane / router for AI agents that routes Claude Code (and other agents) across multiple model backends — OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, SiliconFlow, Moonshot, Mistral, Z.AI, and custom OpenAI-compatible providers — from a local gateway.",
+      "facts": [
+        {"claim": "Local model gateway listens on http://127.0.0.1:3456 by default", "url": "https://github.com/musistudio/claude-code-router"},
+        {"claim": "Supports routing across OpenAI Chat/Responses, Anthropic Messages, Gemini, OpenRouter, DeepSeek, SiliconFlow, Moonshot/Kimi Code, Mistral, Z.AI, Bailian, and custom OpenAI-compatible providers", "url": "https://github.com/musistudio/claude-code-router"}
+      ],
+      "relevance_to_us": "A more general routing layer than the direct base-URL swap — worth mentioning in ch17 as the option that lets us route SOME requests (e.g. a cheap local-model pre-check) to the Spark while keeping the main Claude Code session on Anthropic's API.",
+      "feeds": ["ch17"]
+    },
+    {
+      "url": "https://medium.com/@ThinkingLoop/agent-safety-gates-12-preflight-checks-before-tools-run-ecf1c41ba252",
+      "title": "Agent Safety Gates: 12 Preflight Checks Before Tools Run",
+      "kind": "blog",
+      "summary": "WebFetch of the full article returned HTTP 403; only the WebSearch snippet was retrievable. The snippet describes a 'preflight engine' pattern that blocks risky tool calls, validates schema, and enforces scope/idempotency before execution — 'the most dangerous pattern is tool output -> next tool call without validation.'",
+      "facts": [
+        {"claim": "Pattern name: 'preflight engine' blocking risky calls and validating schema/scope/idempotency before a tool executes — from WebSearch snippet only, full article not fetchable (403)", "url": "https://medium.com/@ThinkingLoop/agent-safety-gates-12-preflight-checks-before-tools-run-ecf1c41ba252"}
+      ],
+      "relevance_to_us": "Conceptual vocabulary ('preflight engine') for ch16's local-validation-loop framing, but treat as low-confidence since the full 12-check list could not be fetched — full article blocked by 403, listed in fetch_failures.",
+      "feeds": ["ch16"]
+    },
+    {
+      "url": "https://codex.danielvaughan.com/2026/03/28/cross-model-adversarial-review/",
+      "title": "Cross-Model Adversarial Review: Using Multiple AI Models to Catch Agent Blind Spots",
+      "kind": "blog",
+      "summary": "From WebSearch snippet: describes a 'critic' pattern where a second, different model reviews a diff in a fresh session given only the spec, test file, and diff, and lists spec violations with evidence — a builder/critic model split rather than same-model self-review.",
+      "facts": [
+        {"claim": "A critic model runs in a fresh session with spec + test file + code diff only, using a different model than the builder, to list spec violations with evidence", "url": "https://codex.danielvaughan.com/2026/03/28/cross-model-adversarial-review/"}
+      ],
+      "relevance_to_us": "Directly maps to 'agentic field validation local': the local Spark-hosted model (e.g. Qwen3.6-35B via vLLM) could serve as the cross-model critic reviewing Claude Code's diffs/commands before they're applied to live NiFi/K8s systems — worth designing ch16 around this builder(Claude)/critic(local model) split rather than self-review.",
+      "feeds": ["ch16"]
+    }
+  ],
+  "open_questions": [
+    "The task gave github.com/botAI/AGmind, but that org 404s — the real repo is github.com/botAGI/AGmind (org 'botAGI', 44 stars). Confirm this is the intended source before citing it as canonical.",
+    "AGmind's LLM choice (gemma-4-26B-A4B-it) differs from the OpenClaw/NemoClaw/dgx-agentskills convention of Qwen3.6-35B-A3B-NVFP4 — worth deciding one default model for our own local-KB + validator stack rather than mixing per-playbook choices.",
+    "No source directly confirms an official NVIDIA Cloudera-blessed or CSO-specific local-KB pattern; all sources are generic DGX Spark RAG/agent playbooks. ch15's 'local knowledge base for Claude Code' will need us to design the CSO/NiFi-specific ingestion layer ourselves (e.g. ingesting flow.json.gz exports, EFM docs) — no existing playbook does this.",
+    "The 'agent safety gates' preflight-checks article (12 checks) could not be fetched in full (403) — only a search snippet was usable; worth a manual re-fetch or alternate source before treating its specifics as load-bearing.",
+    "text-embeddings-inference's only confirmed prebuilt Blackwell image tag (100-1.9) targets sm100 (B200/GB200), not GB10's sm_121 — unclear if a prebuilt GB10 image now exists or if a local build (CUDA_COMPUTE_CAP=121) is still required; worth a direct check of Docker Hub/ghcr tags at implementation time."
+  ],
+  "load_bearing_claims": [
+    {
+      "claim": "AGmind (botAGI org, not botAI) is a working one-command, 30+ container private RAG platform installer specifically targeting DGX Spark aarch64/GB10, with pinned arm64-verified image tags across ingest/embed/vector-store/LLM-serve/orchestrate layers",
+      "url": "https://github.com/botAGI/AGmind",
+      "why_it_matters": "This is the single most complete, concrete, buildable reference for ch15's components table — every other source covers one layer (embeddings, or graph, or agent sandboxing) but AGmind is the only end-to-end stack found with real image tags."
+    },
+    {
+      "claim": "`claude mcp add code-search -e QDRANT_URL=\"http://localhost:6333\" -e COLLECTION_NAME=\"code-repository\" -- uvx mcp-server-qdrant` is the exact command to register a local Qdrant-backed knowledge base as an MCP server with Claude Code",
+      "url": "https://github.com/qdrant/mcp-server-qdrant",
+      "why_it_matters": "This is the literal, copy-pasteable command that connects our existing Qdrant (already in the WindowsDesktop stack per CLAUDE.md) to Claude Code — the core mechanism ch15 needs to demonstrate."
+    },
+    {
+      "claim": "text-embeddings-inference (TEI) supports ARM64 native CUDA for Blackwell sm_121 (DGX Spark GB10) since v1.9, requiring `--build-arg CUDA_COMPUTE_CAP=121 --platform linux/arm64` to build",
+      "url": "https://github.com/huggingface/text-embeddings-inference",
+      "why_it_matters": "TEI is already the embedding service on WindowsDesktop per CLAUDE.md; confirms it can be migrated to run natively on the Spark rather than needing vLLM's bge-m3 serving path that AGmind uses instead."
+    },
+    {
+      "claim": "NemoClaw's four isolation layers (filesystem, network, process, inference) around a locally vLLM-served model is NVIDIA's own published pattern for sandboxing a local agent for safety",
+      "url": "https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/nemoclaw/README.md",
+      "why_it_matters": "Gives ch16 a ready NVIDIA-authored framework to adapt for 'local agentic validation loop' rather than inventing isolation categories from scratch."
+    }
+  ],
+  "fetch_failures": [
+    "https://raw.githubusercontent.com/botAI/AGmind/main/README.md — HTTP 404 (wrong org; corrected to botAGI/AGmind and successfully refetched)",
+    "https://medium.com/@ThinkingLoop/agent-safety-gates-12-preflight-checks-before-tools-run-ecf1c41ba252 — HTTP 403 on WebFetch, only WebSearch snippet available"
+  ]
+}
