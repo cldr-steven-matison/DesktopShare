@@ -18,7 +18,7 @@ rules, plus the full cross-device protocol and label taxonomy, live in `agent/de
 
 - **`CONTEXT.md`** — the shared-language glossary. The device names, Cloudera-stack acronyms (CSO/CFM/CSA/CSM/EFM), namespaces, repos, and workflow terms used everywhere in this repo. Skim it first so you read the rest in the right terms and don't re-derive them.
 - **`CLAUDE-CHECKIN.md`** — the device roster. Confirms what host you're on, what services are running there, and what per-device paths and port-forwards apply. If you're about to name a specific host or port, check this first.
-- **`agent/`** — the working rules every session follows. Short files: `device-comms.md`, `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`. Read `device-comms.md`, `workflow.md`, and `incident-rules.md` at least once per session; the other two only when the task calls for them.
+- **`agent/`** — the working rules every session follows. Short files: `device-comms.md`, `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`, plus two the hooks read for you: `subagent-rules.md` (injected into every sub-agent) and `known-patterns.tsv` (topic → the docs that already solve it). Read `device-comms.md`, `workflow.md`, and `incident-rules.md` at least once per session; the other two only when the task calls for them.
 - **Skills in `skills/`** — install is **automatic** (the SessionStart hook runs `skills/sync-skills.sh` after each pull; an uncommitted skill edit needs a manual `bash skills/sync-skills.sh`). Current skills: `nifi-and-ai` (the NiFi/MiNiFi/EFM playbook — load it before any work on those systems) and `align` (user-invoked `/align`). **Skill changes always get their own commit.** Sync mechanics, public publishing, and the policy-vs-technique split: `skills/README.md`.
 - **This session's memory index** — the local Claude project memory dir on this device. `MEMORY.md` there is one-line pointers, not content — open the linked file when the pointer looks relevant. (The dir path varies per device: on Mac it's under `~/.claude/`, on Linux hosts under `~/.claude/` with a different project-name suffix. The auto-loader finds it.)
 
@@ -47,6 +47,8 @@ We've already solved most of the hard problems once. Before writing something fr
 4. Grep the relevant sub-repo. `backend/services/streamers.py` in `cso-operator-app` in particular has hard-won convention already baked in — don't re-derive it.
 
 Grep is a rung on this ladder, not the ladder itself.
+
+The ladder is also enforced at the call site: `guard.sh` rule 11 injects the docs that already solve a topic the first time a command touches it (`agent/known-patterns.tsv` — S2S, profile swap, operator install, EFM deploy, parameter contexts, …). When a session re-derives something the repo already holds, the fix is a new row in that table, not another paragraph here. Sub-agents get `agent/subagent-rules.md` injected automatically (`SubagentStart` hook) — you no longer need to paste the rules into every Agent prompt, but the prompt still has to carry the task's success criteria and output format.
 
 ## Where things actually live
 

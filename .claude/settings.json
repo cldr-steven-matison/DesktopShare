@@ -14,6 +14,18 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/subagent-context.sh\"",
+            "timeout": 10,
+            "statusMessage": "Injecting agent/subagent-rules.md into the sub-agent"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Skill|Agent",

@@ -108,6 +108,17 @@ things, the first of which needs **no model cooperation at all**:
    (straight from the inbox listing) gives Rule A no trigger — the claim-first norm in
    "Working an issue" below still applies there.
 
+Two more hooks landed 2026-08-25 (#247), same "no model cooperation needed" shape:
+
+   - **`SubagentStart` → `.claude/hooks/subagent-context.sh`** injects `agent/subagent-rules.md`
+     into every sub-agent before its first prompt. `SessionStart` never fires for sub-agents, so
+     until now they saw no rule at all unless the parent pasted it.
+   - **`guard.sh` rules 9–11**: an `Agent` call with no `model` is denied (the session model is the
+     top tier on this device); a foreground `until … sleep` loop is denied (`run_in_background`
+     passes); and the first command touching a topic in `agent/known-patterns.tsv` gets the docs
+     that already solve it injected, once per key per session (marker `.claude/.patterns-noticed`,
+     cleared by `checkin.sh`).
+
 The result is injected into the session as context, so the open issues for this
 host are visible before any work starts. The hook **fails open** (a missing
 `gh`/`jq`, offline network, or non-ff pull never blocks startup) — so it is a

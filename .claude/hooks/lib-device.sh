@@ -42,6 +42,13 @@ ds_nifi_skill_marker() {
   echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.nifi-skill-loaded"
 }
 
+# Echo the path to the known-patterns-noticed marker (guard.sh rule 11): one
+# agent/known-patterns.tsv key per line, so each "the repo already holds this"
+# notice fires once per session. checkin.sh clears it at session start.
+ds_patterns_marker() {
+  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.patterns-noticed"
+}
+
 # Echo EVERY issue number in a command string that follows `gh issue <verb>`,
 # one per line, deduped in first-seen order. $1 = command string, $2 = verb regex
 # (e.g. 'view' or 'edit'). Single source of truth so guard.sh never re-implements

@@ -6,7 +6,7 @@ These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-spe
 
 ## Sub-agent prompting
 
-A sub-agent sees **none** of this file, `CLAUDE.md`, the memories, or a skill the parent loaded — it reasons only from the prompt you hand it. The domain-specific rules below (NiFi/EFM flow work, EFM agent deployment, port-forwards) each restate this because each was violated by a sub-agent left to its own judgment. The general shape:
+A sub-agent sees **none** of this file, `CLAUDE.md`, the memories, or a skill the parent loaded — it reasons only from the prompt you hand it plus what the hooks inject. Since 2026-08-25 (#247) the `SubagentStart` hook (`.claude/hooks/subagent-context.sh`) injects **`subagent-rules.md`** into every sub-agent before its first prompt — the hard live-system rules, the process discipline (never end a turn with a process still running; command-backed facts only), and the output contract. That file is the single place those rules live for sub-agents; keep it under ~9 KB (the hook truncates at the 10 KB cap) and edit it, not the prompts, when a sub-agent rule changes. `guard.sh` runs on sub-agent tool calls too. What the prompt still has to carry — the general shape:
 
 - **Spell out the success criteria and exact output format** you want back — a sub-agent given a vague goal fills the gaps with its own assumptions, and a wrong one reads as corroboration, not error (the #199 `enc{}` case: a `Plan` sub-agent independently reached the same wrong conclusion the parent had).
 - **Hand it any domain rule its task can actually violate** — the specific one, in the prompt, not a pointer to a file it can't read.

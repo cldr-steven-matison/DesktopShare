@@ -47,6 +47,11 @@
 #      build (2026-08-25, #244/#247: "why are you burning my tokens", twice). The same
 #      command with run_in_background:true passes, and so does handing the wait to a
 #      haiku agent.
+#  11. [CTX] "We already solved this." The first Bash command in a session that matches
+#      a row of agent/known-patterns.tsv gets that row's docs injected, once per key.
+#      The lookup ladder in CLAUDE.md was prose and four sessions on 2026-08-25 built
+#      site-to-site without opening a single site-to-site doc (#247). Runs LAST so it
+#      never swallows a deny/ask above it.
 #   A. [AUTO] Engaging a still-todo issue for this device auto-claims it
 #      (status:in-progress) and tells the model. Fires on a MUTATING engagement
 #      (gh issue comment), not a read-only view.
@@ -636,6 +641,30 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +(view|comment) +[0-9]+' && command 
     [ -n "$claimed" ] && msg="$msg flipped$claimed to status:in-progress for this device on first mutating engagement — claiming is AUTOMATIC here, you do NOT need to run gh issue edit to claim these."
     [ -n "$failed" ] && msg="$msg could NOT auto-claim$failed (gh edit failed — offline or perms); claim manually before any Edit/Write: gh issue edit <n> --remove-label status:todo --add-label status:in-progress."
     emit_ctx "$msg"
+  fi
+fi
+
+# 11. Known patterns — inject "the repo already holds this" at the call site, once per
+# key per session. Data lives in agent/known-patterns.tsv (key, regex, docs, note) so a
+# row can be added without touching this script. Marker: one key per line, cleared by
+# checkin.sh at session start. Placed last on purpose: emit_ctx exits, and a ctx must
+# never pre-empt a deny/ask from the rules above. Fails open.
+kp="$proj/agent/known-patterns.tsv"
+if [ -f "$kp" ] && command -v ds_patterns_marker >/dev/null 2>&1; then
+  pm="$(ds_patterns_marker)"
+  hits=""; docs_all=""
+  while IFS=$'\t' read -r key rx docs note; do
+    case "$key" in ''|'#'*) continue ;; esac
+    [ -n "$rx" ] || continue
+    grep -qxF "$key" "$pm" 2>/dev/null && continue
+    if printf '%s' "$cmd" | grep -Eiq -- "$rx"; then
+      mkdir -p "$(dirname "$pm")" 2>/dev/null || true
+      echo "$key" >> "$pm" 2>/dev/null || true
+      hits="$hits"$'\n'"[$key] $note"$'\n'"  read: $(printf '%s' "$docs" | sed 's/,/ · /g')"
+    fi
+  done < "$kp"
+  if [ -n "$hits" ]; then
+    emit_ctx "Known pattern — the repo ALREADY holds this (agent/known-patterns.tsv; CLAUDE.md 'Finding the pattern you need'). Before you derive anything, open the file(s) below — a session on 2026-08-25 built site-to-site for hours without opening one of them (#247). Paths are relative to the DesktopShare root; skills/ paths are also installed under ~/.claude/skills/. This notice fires once per pattern per session.$hits"
   fi
 fi
 

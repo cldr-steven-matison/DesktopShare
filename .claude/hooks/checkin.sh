@@ -44,6 +44,12 @@ if command -v ds_nifi_skill_marker >/dev/null 2>&1; then
   rm -f "$(ds_nifi_skill_marker).read-noticed" 2>/dev/null || true
 fi
 
+# Same for the known-patterns-noticed marker (guard.sh rule 11, #247): the
+# "repo already holds this" notice is once per SESSION, so it resets here.
+if command -v ds_patterns_marker >/dev/null 2>&1; then
+  rm -f "$(ds_patterns_marker)" 2>/dev/null || true
+fi
+
 # Same for the session-comms context markers (issue #192): the issue(s) this
 # session is working and the last command guard.sh saw. Both are what the
 # Telegram pings quote, so a leftover from a prior session would make a ping name
