@@ -66,6 +66,15 @@ We already solved most of the hard problems once. Before writing a new fix from 
 
 Grep is a rung on this ladder, not the ladder. If the answer is in the playbook, don't grep 2000-line files for it.
 
+## Model, effort & context hygiene
+
+The default model is `claude-opus-4-8` (pinned in `.claude/settings.json`, `effortLevel: high`); adaptive thinking is on by default. The cost lever is **effort, not model** — details in the `effort-control-is-the-lever` and `cost-optimization-claude-code` memories.
+
+- **Set effort early with `/effort`.** Changing model or effort mid-session busts the prompt cache. `high` is the baseline; `xhigh`/`max` for hard coding, debugging, multi-step design; `low`/`medium` for mechanical runbook orchestration (see `runbook-orchestration-use-low-model`).
+- **`/clear` between unrelated tasks** — the prompt cache TTL is 5 min, so a sprawling session re-reads its whole context at full price after any pause. One session ≈ one task. `/compact` before a break preserves the thread cheaply.
+- **Retrieval over dumping.** `@`-mention the specific file instead of pasting it; send an Explore sub-agent to read a big artifact (flow.json.gz, large JSON) and return only the conclusion so the dump never enters main context.
+- **Quiet flags on noisy commands** keep bash output out of context. Use `/goal` for long-horizon autonomous work.
+
 ## Escalations
 
 - **Live posting queue** (Streamers pending/published) — read `live-queues.md`.

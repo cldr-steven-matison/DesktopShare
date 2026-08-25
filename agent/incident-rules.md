@@ -4,6 +4,15 @@ Each of these came from a real incident. They are the load-bearing "don't do thi
 
 These rules are universal across every device in `../CLAUDE-CHECKIN.md`. App-specific rules (thread caps, atomic JSON writes, etc.) live in the app's own CLAUDE.md.
 
+## Sub-agent prompting
+
+A sub-agent sees **none** of this file, `CLAUDE.md`, the memories, or a skill the parent loaded — it reasons only from the prompt you hand it. The domain-specific rules below (NiFi/EFM flow work, EFM agent deployment, port-forwards) each restate this because each was violated by a sub-agent left to its own judgment. The general shape:
+
+- **Spell out the success criteria and exact output format** you want back — a sub-agent given a vague goal fills the gaps with its own assumptions, and a wrong one reads as corroboration, not error (the #199 `enc{}` case: a `Plan` sub-agent independently reached the same wrong conclusion the parent had).
+- **Hand it any domain rule its task can actually violate** — the specific one, in the prompt, not a pointer to a file it can't read.
+- **Set the effort level appropriate to its task** (survey/classification runs cheap; genuine reasoning does not) — see the `effort-control-is-the-lever` memory.
+- **Prefer giving it retrieval work** — read the big file, return only the conclusion — so large dumps stay out of the main context. Ask for the conclusion or data, not narration.
+
 ## NiFi flow edits
 
 - **Never GET-then-PUT a NiFi processor entity that has sensitive properties.** NiFi returns `"********"` on GET for a sensitive property; a PUT of the returned entity writes that literal string back and destroys the real value. The fix is one of:
