@@ -3,7 +3,7 @@
 Captured 2026-08-25 on WindowsDesktop (MINI-Gaming-G1), default `minikube` profile still up.
 
 ## Host / profile reality
-- WSL2: `.wslconfig memory=24GB, processors=16, swap=8GB` (a setting Steven owns — not a cap), docker sees 23.47 GiB.
+- WSL2: `.wslconfig memory=24GB, processors=16, swap=8GB`, docker sees 23.47 GiB.
 - One profile at snapshot time: `minikube` (default, v1.35.1). `~/.minikube/profiles/minikube/config.json`:
   **Memory 24000 / CPUs 12**. **Rule for any new profile: identical sizing to the default** — `cso-prod-1`
   is 24000 / 12 (container limit 25165824000 B, swap 2×). No `cso-prod-1` existed yet at snapshot time.

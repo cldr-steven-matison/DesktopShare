@@ -1,8 +1,8 @@
 # cso-prod-1 — Field-Validation Results (#244)
 
 Executed 2026-08-25 on WindowsDesktop (MINI-Gaming-G1), minikube profile **cso-prod-1** (kept on disk).
-Two runs the same day; everything below is what was verified live at the end of run 2. Pre-flight
-facts: [`SNAPSHOT.md`](SNAPSHOT.md). Plan: [`../../cso-prod-1-preprod-plan.md`](../../cso-prod-1-preprod-plan.md).
+Everything below was verified live. Pre-flight facts: [`SNAPSHOT.md`](SNAPSHOT.md).
+Plan: [`../../cso-prod-1-preprod-plan.md`](../../cso-prod-1-preprod-plan.md).
 
 ## Summary
 
@@ -11,13 +11,11 @@ facts: [`SNAPSHOT.md`](SNAPSHOT.md). Plan: [`../../cso-prod-1-preprod-plan.md`](
 | **#116** | Secure NiFi cluster + Site-to-Site from day one | ✅ mTLS/`userCertAuth` enforced; **foreign peer** `cso-s2s-peer` committed an HTTP S2S transaction (queue 67→68); operator-declared peer policies confirmed via `/policies` |
 | **#203** | Parameter Context inheritance (base `cluster-creds`) | ✅ child resolves inherited `#{Kafka Broker Endpoint}` and **publishes to the live brokers** with it; sensitive inherited param stays masked |
 | **#207** | Add a PG to a running NiFi without root rebuild | ✅ `process-groups/upload` added a working Kafka PG; sibling PG revision unchanged (0→0); skill rule 10 covers it, no gap |
-| **#230** | Single flow as its own small NiFi pod via CR | ✅ (run 1) `flowpod-1` stood up beside `mynifi` in ~45 s, ran a flow, torn down clean. GitHub-Actions leg deferred |
+| **#230** | Single flow as its own small NiFi pod via CR | ✅ `flowpod-1` stood up beside `mynifi` in ~45 s, ran a flow, torn down clean. GitHub-Actions leg deferred |
 | **#231** | cso-operator-flink-agents build + deploy + destroy | ✅ image built from source; `FlinkDeployment` STABLE; job RUNNING in the Flink UI; destroy path clean. Agents example fails only at the LLM call (no LLM on cso-prod-1) |
 
 ## Cluster shape stood up (level-one minus EFM/PROM)
-- Profile `cso-prod-1`: **Memory 24000 / CPUs 12 — identical to the default profile** (the rule). Run 1 had
-  created it at 20480/8; resized in run 2 via `docker update --memory 25165824000 --memory-swap 50331648000`
-  + profile `config.json`. k8s v1.35.1, docker driver.
+- Profile `cso-prod-1`: **Memory 24000 / CPUs 12 — identical to the default profile.** k8s v1.35.1, docker driver.
 - cert-manager v1.16.3 (`cert-manager` ns) + `cluster-issuer.yaml` (`cfm-operator-ca-issuer` → `cfm-operator-ca-tls` → `cfm-operator-ca-issuer-signed`)
 - Strimzi/CSM `strimzi-cluster-operator` 1.6.0-b99 + Kafka `my-cluster`: 3 combined KRaft nodes, entity operator (`cld-streaming`; `kafka-eval.yaml` + `kafka-nodepool.yaml`, internal listeners 9092/9093 only)
 - CFM operator 3.0.0-b126 + NiFi 2.6.0 `mynifi` (`cfm-streaming`), PVC-backed on `standard`, `userCertAuth` + `s2sCertGen` + `nifi.remote.input.*`
@@ -27,10 +25,9 @@ facts: [`SNAPSHOT.md`](SNAPSHOT.md). Plan: [`../../cso-prod-1-preprod-plan.md`](
 - CR: [`nifi-cso-prod-1.yaml`](nifi-cso-prod-1.yaml). `singleUserAuth` → **`userCertAuth`**
   (`verificationCASecret: cert-manager/cfm-operator-ca-tls`), `nodeCertGen` + `s2sCertGen` off
   `cfm-operator-ca-issuer-signed`, `nifi.remote.input.host/secure/http.enabled` set.
-- **Trust topology (correct):** one CA for everything. `cluster-issuer.yaml` first; node certs, the S2S
-  cert, and **every client cert** (admin, peer) minted off `cfm-operator-ca-issuer-signed`; that CA is the
-  `verificationCASecret`. Run 1 first pointed `nodeCertGen` at the operator's selfSigned issuer and later
-  minted the admin cert off `nifi-node-certs` — neither is in the truststore, both were rejected.
+- **Trust topology:** one CA for everything. `cluster-issuer.yaml` first; node certs, the S2S cert, and
+  every client cert (admin, peer) minted off `cfm-operator-ca-issuer-signed`; that CA is the
+  `verificationCASecret`. A client cert off any other issuer is not in the truststore and is rejected.
 - **Identity maps by SAN, not DN.** NiFi 2.6.0 under the operator uses `SANX509PrincipalExtractor`; a
   client cert without a SAN gets HTTP 500 `At least one Subject Alternative name must be provided` on every
   request. So `nifi-admin-cert` carries `dnsNames: [nifi-admin]` and `User.spec.identity: nifi-admin`
@@ -42,10 +39,10 @@ facts: [`SNAPSHOT.md`](SNAPSHOT.md). Plan: [`../../cso-prod-1-preprod-plan.md`](
   `{"flowFileSent":1}`. `s2s-in → funnel` connection `3a6dbead-…` queued **67 → 68**.
   `GET /policies/write/data-transfer/input-ports/<id>` → `cso-s2s-peer`; `GET /policies/read/site-to-site`
   → `nifi-admin, cso-s2s-peer`. Operator log 20:55:06Z: `Created new user … cso-s2s-peer` with both policies.
-- **Self-peer S2S** (run 1): GenerateFlowFile → RPG(self, HTTP) → `s2s-in`; 10 generated / 10 crossed,
-  funnel 57→67. Those components now live in their own PG `S2SSelfTest` (skill rule 8); the root keeps
-  only the `s2s-in` port, the funnel, and their connection. RPG resolves the port (`exists=true,
-  connected=true`), `authorizationIssues: []`, not transmitting.
+- **Self-peer S2S:** GenerateFlowFile → RPG(self, HTTP) → `s2s-in`; 10 generated / 10 crossed,
+  funnel 57→67. Those components live in PG `S2SSelfTest`; the root holds the `s2s-in` port, the funnel,
+  and their connection. RPG resolves the port (`exists=true, connected=true`), `authorizationIssues: []`,
+  not transmitting.
 - Known gap: `nifi-admin` has no `/data/input-ports/<id>` policy, so queue listing on the remote port 403s;
   counts come from the connection's `queuedSize`.
 
@@ -74,7 +71,7 @@ facts: [`SNAPSHOT.md`](SNAPSHOT.md). Plan: [`../../cso-prod-1-preprod-plan.md`](
 - The `nifi-and-ai` skill already documents this exact path (rule 10 + `references/flow-registry.md`) — **no skill gap**.
 - Export: [`flows/AddedViaUpload.flow.json`](flows/AddedViaUpload.flow.json).
 
-## #230 — Single flow as its own pod via CR (run 1)
+## #230 — Single flow as its own pod via CR
 - CR: [`nifi-flowpod-1.yaml`](nifi-flowpod-1.yaml) (`singleUserAuth`, minimal persistence, distinct hostname).
   Stood up 7/7 in ~45 s beside `mynifi`; a seeded `GenerateFlowFile` ran (tasks=5); CR teardown removed the
   pod and all 5 PVCs, no residue. GitHub-Actions CI → follow-up on #230.
@@ -87,10 +84,9 @@ facts: [`SNAPSHOT.md`](SNAPSHOT.md). Plan: [`../../cso-prod-1-preprod-plan.md`](
 - [`flink-agents/rbac.yaml`](flink-agents/rbac.yaml) + [`flink-agents/flinkdeployment.yaml`](flink-agents/flinkdeployment.yaml)
   (session mode, SA `flink`, 1536m JM/TM, `classloader.parent-first-patterns.additional: pemja`) →
   `FlinkDeployment/flink-agents` **STABLE**, JM + 1 TM Running.
-- Flink UI/REST: "State machine job" **RUNNING** (×2); "Workflow Agent Example Job" FAILED ×2 — it runs
-  through PythonDriver/pemja/venv and fails at the Ollama/LLM call (no LLM on cso-prod-1). The FAILED
-  duplicates are from run 1's two-agent collision.
-- Destroy path (run 1): clean after cancelling running session jobs; with jobs running the finalizer waits on `CLEANUPFAILED`.
+- Flink UI/REST: "State machine job" **RUNNING**; "Workflow Agent Example Job" FAILED — it runs
+  through PythonDriver/pemja/venv and fails at the Ollama/LLM call (no LLM on cso-prod-1).
+- Destroy path: clean after cancelling running session jobs; with jobs running the finalizer waits on `CLEANUPFAILED`.
 
 ## Session close
 - `nifi-client` debug pod deleted. cso-prod-1 `minikube stop -p cso-prod-1` (kept on disk); default

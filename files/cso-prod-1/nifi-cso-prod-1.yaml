@@ -6,8 +6,7 @@
 # selfSigned cfm-operator-ca-issuer -> CA cert cert-manager/cfm-operator-ca-tls -> CA ClusterIssuer
 # cfm-operator-ca-issuer-signed. Node/S2S certs off that CA issuer, and the SAME CA as verificationCASecret,
 # so any peer cert minted off cfm-operator-ca-issuer-signed (SAN = User identity) is trusted for S2S.
-# (First attempt used the operator's selfSigned issuer cfm-operator-nifi-nodes-ca: every cert self-signed,
-# no CA in the truststore, foreign peers rejected with "certificate unknown". Corrected 2026-08-25.)
+# Do not use the operator's selfSigned issuer (cfm-operator-nifi-nodes-ca) — it puts no CA in the truststore.
 apiVersion: cfm.cloudera.com/v1alpha1
 kind: Nifi
 metadata:

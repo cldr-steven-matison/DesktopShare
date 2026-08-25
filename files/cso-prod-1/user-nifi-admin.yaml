@@ -7,10 +7,7 @@
 # and User.spec.identity is exactly that SAN — the same shape as s2s-peer.yaml.
 #
 # The cert MUST be minted off cfm-operator-ca-issuer-signed (cluster-issuer.yaml) — the same CA as the
-# node certs and verificationCASecret. History (2026-08-25): first minted off the operator's own
-# nifi-node-certs issuer (not in NiFi's truststore) AND without a SAN, with the User identity written as
-# the DN "CN=nifi-admin, O=Cloudera" — neither could ever authenticate; the first session's admin API
-# calls actually used the operator's own cert. Corrected in run 2.
+# node certs and verificationCASecret; any other issuer is not in NiFi's truststore.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:

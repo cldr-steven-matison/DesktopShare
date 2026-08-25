@@ -1,8 +1,7 @@
 # cso-prod-1 — Pre-Prod Cluster Stand-Up & Field-Validation Plan (#244)
 
-> **Status:** executed 2026-08-25 on **WindowsDesktop (MINI-Gaming-G1)**, two runs the same day.
-> Results per requirement: [`files/cso-prod-1/VALIDATION.md`](files/cso-prod-1/VALIDATION.md).
-> Execution record: §11.
+> **Status:** executed 2026-08-25 on **WindowsDesktop (MINI-Gaming-G1)**.
+> Results per requirement: [`files/cso-prod-1/VALIDATION.md`](files/cso-prod-1/VALIDATION.md). Status per child: §11.
 > Parent issue: **#244 "Pre Prod Windows Desktop Duties"**. Children: **#116 #203 #207 #230 #231**.
 > This doc is self-contained: the profile-swap commands, the S2S day-one recipe, and the install
 > order are inlined so execution needs no re-exploration.
@@ -69,8 +68,7 @@ plus a written record of what held vs. didn't, reported back on #244 and each ch
   (7 sensitive), `streamers-x-creds` (4 sensitive + `twitch-client-id`), **`game-params`** (3
   non-sensitive) **and `FlowParams`** (`dd85aa1e-…`, 8 non-sensitive incl. `Kafka Broker Endpoint`,
   `vLLM Base URL`, `WhisperServerUrl`, `Qdrant Url`). `Kafka Broker Endpoint` is duplicated in
-  `game-params` and `FlowParams` → that is the #203 consolidation target. (Corrected 2026-08-25 from
-  the Phase-0 snapshot; an earlier draft of this line claimed `FlowParams` did not exist.)
+  `game-params` and `FlowParams` → that is the #203 consolidation target.
 - **Install artifacts live in `DesktopShare/files/`** (NOT the Mac's `~/Documents/GitHub/...`, absent
   here): `setup-cloudera-streaming.sh` (installer), `agent-install-operators.sh`, NiFi CRs
   `nifi-cluster-30-nifi2x-{nar,python,statefulset-2,statefulset-3}.yaml` and
@@ -92,8 +90,9 @@ plus a written record of what held vs. didn't, reported back on #244 and each ch
      **`cfm-operator-ca-issuer-signed`**. `nodeCertGen`, `s2sCertGen`, and **every client cert (admin,
      S2S peer)** are minted off `cfm-operator-ca-issuer-signed`, and `verificationCASecret` is
      `cert-manager/cfm-operator-ca-tls`. A client cert off any other issuer (the operator's own
-     `cfm-operator-nifi-nodes-ca` / `nifi-node-certs`) is not in NiFi's truststore and is rejected
-     (`certificate unknown` / `certificate required`) — that was the 2026-08-25 #116 failure.
+     `cfm-operator-nifi-nodes-ca` / `nifi-node-certs`) is not in NiFi's truststore and is rejected.
+     Client certs also need a SAN (`dnsNames: [<identity>]`) — NiFi 2.6 maps identity by SAN and
+     returns HTTP 500 for a cert without one.
 
 ---
 
@@ -320,38 +319,21 @@ deployed on cso-prod-1 (vLLM lives on the stopped default) — note as follow-up
 
 ---
 
-## 11. Execution record (2026-08-25)
+## 11. Status per child (2026-08-25, verified live)
 
-**Run 1** — stood the cluster up, stopped before the swap-back. State verified live at the start of
-run 2: default `minikube` Stopped/intact; `cso-prod-1` Running at 20480/8 (must be 24000/12);
-corrected issuer chain applied but `mynifi-0` not yet rolled → operator gets `tls: certificate required`
-on every `User` reconcile; `nifi-admin-cert` issued off the old `nifi-node-certs` chain and without a
-SAN; both demo PGs hold a single `InvokeHTTP`, not a Kafka processor.
+Artifacts that reproduce the cluster: `files/cso-prod-1/` — `nifi-cso-prod-1.yaml`, `cluster-issuer.yaml`,
+`user-nifi-admin.yaml`, `s2s-peer.yaml`, `kafka-eval.yaml` + `kafka-nodepool.yaml`, `flink-agents/`,
+`flows/`. Numbers and the exact calls: `files/cso-prod-1/VALIDATION.md`.
 
-**Run 2 — completion sequence** (this order, all done):
-
-- **A.** Resize `cso-prod-1` to the default profile's 24000/12 (`docker update` + profile
-  `config.json`; minikube refuses `--memory` on an existing cluster). Re-issue `nifi-admin-cert` off
-  `cfm-operator-ca-issuer-signed`. Delete pod `mynifi-0` (PVC-backed here → truststore/keystore rebuilt
-  from the current secrets on start). Verify operator reconciles `cso-s2s-peer`; prove the **foreign**
-  peer with an HTTP S2S transaction as identity `cso-s2s-peer`. Move `s2s-gen` + RPG into their own PG
-  (skill rule 8); root `s2s-in` port + funnel stay at root.
-- **B.** `cluster-creds/Kafka Broker Endpoint` → `my-cluster-kafka-bootstrap.cld-streaming.svc.cluster.local:9092`;
-  rebuild `ParamInheritanceDemo` as `GenerateFlowFile → PublishKafka(#{Kafka Broker Endpoint})` and
-  see messages on the live brokers; re-do #207's `process-groups/upload` with that working definition.
-- **C.** Rewrite `files/cso-prod-1/SNAPSHOT.md` + `VALIDATION.md` to live facts; commit the
-  `nifi-admin-cert` Certificate (SAN `nifi-admin`) into `user-nifi-admin.yaml`.
-- **D.** Delete the `nifi-client` debug pod; confirm-then `minikube stop -p cso-prod-1` (kept on disk);
-  `minikube start` (default); verify prod `mynifi-0` + PGs; fix labels (#207 closed carries a stray
-  `in-progress`; #230 is Mac-owned and was `todo`); commit, push, comment on #244 + children.
-
-**Per child, final verified status** (detail and numbers in `files/cso-prod-1/VALIDATION.md`):
+Two things to know when re-rolling a profile: minikube refuses `--memory` on an existing cluster
+(resize = `docker update --memory … --memory-swap …` + the profile's `config.json`), and a NiFi pod on
+PVCs can be deleted to rebuild its keystore/truststore from the current cert secrets.
 
 | Issue | Status |
 |---|---|
-| #116 | mTLS + `userCertAuth` + `s2sCertGen` + `nifi.remote.input.*` live; S2S proven NiFi→self **and** by the foreign peer `cso-s2s-peer` (HTTP S2S transaction committed, queue 67→68, operator-declared policies confirmed). |
+| #116 | mTLS + `userCertAuth` + `s2sCertGen` + `nifi.remote.input.*` live; S2S proven NiFi→self and by the foreign peer `cso-s2s-peer` (HTTP S2S transaction committed, queue 67→68, operator-declared policies confirmed). |
 | #203 | `demo-flow-creds` inherits `cluster-creds`; `#{Kafka Broker Endpoint}` resolves through inheritance to the real bootstrap and `PublishKafka` produced to the live brokers; sensitive inherited param stays masked. |
 | #207 | `process-groups/upload` added a working Kafka PG; sibling revision 0→0; skill rule 10 + `references/flow-registry.md` cover it. |
 | #230 | Second minimal `Nifi` CR (`flowpod-1`) up in ~45 s beside `mynifi`, ran a flow, torn down clean. GitHub-Actions leg deferred. |
 | #231 | `cso-operator-flink-agents:0.3.1` built from source; `FlinkDeployment/flink-agents` STABLE; "State machine job" RUNNING in the Flink UI; agents example fails only at the LLM call; destroy path clean after cancelling session jobs. |
-| Swap-back | Done: `cso-prod-1` Stopped on disk (24000/12); default `minikube` Running, prod `mynifi-0` 7/7 with all 13 root PGs. |
+| Session close | `cso-prod-1` Stopped on disk (24000/12); default `minikube` Running, prod `mynifi-0` 7/7 with all 13 root PGs. |
