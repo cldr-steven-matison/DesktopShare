@@ -1,0 +1,35 @@
+# RBAC for the flink-agents FlinkDeployment (cso-prod-1, cld-streaming).
+# The flink-kubernetes-operator admission webhook requires spec.serviceAccount,
+# and the JM needs these rights to manage TM pods/configmaps/etc.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+  namespace: cld-streaming
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink
+  namespace: cld-streaming
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "services", "secrets", "events"]
+    verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink
+  namespace: cld-streaming
+subjects:
+  - kind: ServiceAccount
+    name: flink
+    namespace: cld-streaming
+roleRef:
+  kind: Role
+  name: flink
+  apiGroup: rbac.authorization.k8s.io

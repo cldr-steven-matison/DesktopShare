@@ -1,0 +1,76 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 4.02kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/maven:3-eclipse-temurin-17
+#2 DONE 0.4s
+
+#3 [internal] load metadata for docker.io/library/flink:1.20.5-java17
+#3 DONE 0.4s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [stage-1  1/11] FROM docker.io/library/flink:1.20.5-java17@sha256:a0fcd5400842d794f9a1b6292a148db1b3ca217bcf68741cc538e8bc9bc0b5ae
+#5 DONE 0.0s
+
+#6 [build 1/7] FROM docker.io/library/maven:3-eclipse-temurin-17@sha256:a8746f15d5bb26b5b8bacb056cc76211553850f4c71d16aff845cfa004cbc197
+#6 DONE 0.0s
+
+#7 [build 5/7] WORKDIR /src/flink-agents
+#7 CACHED
+
+#8 [stage-1  5/11] COPY --from=build /src/flink-agents/dist/common/target/flink-agents-dist-common-*.jar /opt/flink/lib/
+#8 CACHED
+
+#9 [stage-1  3/11] COPY --from=build /src/flink-agents/python/dist/*.whl /tmp/wheels/
+#9 CACHED
+
+#10 [stage-1  2/11] RUN apt-get update && apt-get install -y --no-install-recommends         python3.11 python3.11-venv python3.11-dev build-essential     && rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [stage-1  7/11] RUN cp /opt/flink/opt/flink-python-*.jar /opt/flink/lib/
+#11 CACHED
+
+#12 [stage-1  8/11] RUN mkdir -p /opt/flink/usrlib/agents
+#12 CACHED
+
+#13 [stage-1  9/11] COPY --from=build /src/flink-agents/python/flink_agents/examples/quickstart/*.py /opt/flink/usrlib/agents/
+#13 CACHED
+
+#14 [stage-1 10/11] COPY --from=build /src/flink-agents/python/flink_agents/examples/quickstart/resources /opt/flink/usrlib/agents/resources
+#14 CACHED
+
+#15 [stage-1  4/11] RUN python3.11 -m venv /opt/flink/agents-venv     && /opt/flink/agents-venv/bin/pip install --no-cache-dir --upgrade pip     && /opt/flink/agents-venv/bin/pip install --no-cache-dir         apache-flink==1.20.5 kafka-python /tmp/wheels/*.whl     && rm -rf /tmp/wheels
+#15 CACHED
+
+#16 [build 4/7] RUN git clone --depth 1 --branch release-0.3.1 https://github.com/apache/flink-agents.git
+#16 CACHED
+
+#17 [build 2/7] RUN apt-get update && apt-get install -y --no-install-recommends         git python3 python3-venv python3-pip     && rm -rf /var/lib/apt/lists/*
+#17 CACHED
+
+#18 [build 6/7] RUN mvn clean install -DskipTests -B -Dspotless.skip=true
+#18 CACHED
+
+#19 [stage-1  6/11] COPY --from=build /src/flink-agents/dist/flink-1.20/target/flink-agents-dist-flink-1.20-*-thin.jar /opt/flink/lib/
+#19 CACHED
+
+#20 [build 3/7] WORKDIR /src
+#20 CACHED
+
+#21 [build 7/7] RUN set -eux;     LIB=python/flink_agents/lib;     rm -rf "$LIB"; mkdir -p "$LIB/common";     cp dist/common/target/flink-agents-dist-common-*.jar "$LIB/common/";     for d in dist/flink-*; do         v=$(basename "$d"); mkdir -p "$LIB/$v";         cp "$d"/target/flink-agents-dist-"$v"-*-thin.jar "$LIB/$v/";     done;     python3 -m venv /buildvenv;     /buildvenv/bin/pip install --no-cache-dir build;     cd python && /buildvenv/bin/python -m build --wheel
+#21 CACHED
+
+#22 [stage-1 11/11] RUN ln -sf /opt/flink/agents-venv/bin/python /usr/local/bin/python     && chown -R flink:flink /opt/flink/agents-venv /opt/flink/usrlib
+#22 CACHED
+
+#23 exporting to image
+#23 exporting layers done
+#23 writing image sha256:3357bbd4299386ffb2d0ad2db20aca649cb88ab8b0e2e0f956be01a86d8da119 done
+#23 naming to docker.io/library/cso-operator-flink-agents:0.3.1 done
+#23 DONE 0.0s
+BUILD EXIT: 0

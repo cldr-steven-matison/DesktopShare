@@ -1,0 +1,39 @@
+# #116 — a FOREIGN Site-to-Site peer on cso-prod-1, declared the operator-native way
+# (completed/minifi-site-to-site-lab.md "Wall 4": never hand-POST users/policies).
+# Identity maps by SAN, not subject DN -> User.spec.identity == the cert's dnsNames entry.
+# certificate.generate on the User CR is a no-op in b126, so the cert is minted here, off the SAME
+# CA issuer the node certs use (cluster-issuer.yaml) so NiFi's truststore trusts it.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cso-s2s-peer-cert
+  namespace: cfm-streaming
+spec:
+  secretName: cso-s2s-peer-cert
+  commonName: cso-s2s-peer
+  dnsNames:
+    - cso-s2s-peer
+  usages: [digital signature, key encipherment, client auth]
+  issuerRef:
+    name: cfm-operator-ca-issuer-signed
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: User
+metadata:
+  name: cso-s2s-peer
+  namespace: cfm-streaming
+spec:
+  identity: cso-s2s-peer
+  instanceTarget:
+    kind: Nifi
+    name: mynifi
+    namespace: cfm-streaming
+  accessPolicies:
+    - actions: [read]
+      resources:
+        - /site-to-site
+    - actions: [write]
+      resources:
+        - /data-transfer/input-ports/3a6dbcdb-01a0-1000-0000-0000192492e7   # root input port "s2s-in"

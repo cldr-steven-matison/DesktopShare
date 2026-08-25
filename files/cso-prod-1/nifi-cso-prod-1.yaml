@@ -1,0 +1,75 @@
+# cso-prod-1 NiFi CR — CFM operator 3.0.0-b126, NiFi 2.6.0
+# Secure + Site-to-Site FROM DAY ONE (#116). userCertAuth (singleUserAuth cannot hold S2S peer policies).
+# Native processors only — no custom-nars / custom-python-extensions PVCs (representative flows are
+# minimal native test PGs, not the full prod cutover).
+# Issuers: apply cluster-issuer.yaml FIRST (same artifact as prod — ClouderaStreamingOperators/cluster-issuer.yaml):
+# selfSigned cfm-operator-ca-issuer -> CA cert cert-manager/cfm-operator-ca-tls -> CA ClusterIssuer
+# cfm-operator-ca-issuer-signed. Node/S2S certs off that CA issuer, and the SAME CA as verificationCASecret,
+# so any peer cert minted off cfm-operator-ca-issuer-signed (SAN = User identity) is trusted for S2S.
+# (First attempt used the operator's selfSigned issuer cfm-operator-nifi-nodes-ca: every cert self-signed,
+# no CA in the truststore, foreign peers rejected with "certificate unknown". Corrected 2026-08-25.)
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: Nifi
+metadata:
+  name: mynifi
+  namespace: cfm-streaming
+spec:
+  replicas: 1
+  nifiVersion: "2.6.0"
+  image:
+    repository: container.repository.cloudera.com/cloudera/cfm-nifi-k8s
+    tag: 3.0.0-b126-nifi_2.6.0.4.3.4.0-234
+    pullSecret: cloudera-creds
+  tiniImage:
+    repository: container.repository.cloudera.com/cloudera/cfm-tini
+    tag: 3.0.0-b126
+    pullSecret: cloudera-creds
+
+  # Persistence on minikube's default 'standard' StorageClass (nifi-storage does not exist here)
+  persistence:
+    size: 5Gi
+    storageClass: standard
+    data:           { size:  5Gi, storageClass: standard }
+    state:          { size:  2Gi, storageClass: standard }
+    flowfileRepo:   { size:  5Gi, storageClass: standard }
+    contentRepo:    { size: 10Gi, storageClass: standard }
+    provenanceRepo: { size:  5Gi, storageClass: standard }
+
+  hostName: mynifi-web.mynifi.cfm-streaming.svc.cluster.local
+  uiConnection:
+    type: Ingress
+    ingressConfig:
+      hostname: ""
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+  # === Security: userCertAuth + S2S day-one ===
+  security:
+    initialAdminIdentity: "nifi-admin"
+    userCertAuth:
+      verificationCASecret: cert-manager/cfm-operator-ca-tls
+    nodeCertGen:
+      issuerRef:
+        name: cfm-operator-ca-issuer-signed
+        kind: ClusterIssuer
+    s2sCertGen:
+      issuerRef:
+        name: cfm-operator-ca-issuer-signed
+        kind: ClusterIssuer
+
+  configOverride:
+    nifiProperties:
+      upsert:
+        nifi.cluster.leader.election.implementation: KubernetesLeaderElectionManager
+        nifi.web.prometheus.metrics.authenticated: "false"
+        # S2S transport (HTTP, secure) — day one
+        nifi.remote.input.host: mynifi-0.mynifi.cfm-streaming.svc.cluster.local
+        nifi.remote.input.secure: "true"
+        nifi.remote.input.http.enabled: "true"
+
+  stateManagement:
+    clusterProvider:
+      id: kubernetes-provider
+      class: org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider

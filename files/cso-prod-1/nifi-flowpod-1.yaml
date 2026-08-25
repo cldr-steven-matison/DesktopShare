@@ -1,0 +1,51 @@
+# #230 — a SINGLE flow deployed as its own small NiFi pod via one CR yaml, independent of the
+# main cso-prod-1 NiFi (mynifi). Distinct name + hostname; minimal footprint; singleUserAuth
+# (no S2S needed here, so cert complexity is unnecessary). This proves the "one flow = one pod
+# from a CR" mechanism (#230). GitHub-Actions CI to push a flow into it is DEFERRED to a follow-up.
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: Nifi
+metadata:
+  name: flowpod-1
+  namespace: cfm-streaming
+spec:
+  replicas: 1
+  nifiVersion: "2.6.0"
+  image:
+    repository: container.repository.cloudera.com/cloudera/cfm-nifi-k8s
+    tag: 3.0.0-b126-nifi_2.6.0.4.3.4.0-234
+    pullSecret: cloudera-creds
+  tiniImage:
+    repository: container.repository.cloudera.com/cloudera/cfm-tini
+    tag: 3.0.0-b126
+    pullSecret: cloudera-creds
+  persistence:
+    size: 2Gi
+    storageClass: standard
+    data:           { size: 2Gi, storageClass: standard }
+    state:          { size: 1Gi, storageClass: standard }
+    flowfileRepo:   { size: 2Gi, storageClass: standard }
+    contentRepo:    { size: 3Gi, storageClass: standard }
+    provenanceRepo: { size: 2Gi, storageClass: standard }
+  hostName: flowpod-1-web.flowpod-1.cfm-streaming.svc.cluster.local
+  uiConnection:
+    type: Ingress
+    ingressConfig: { hostname: "" }
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  security:
+    initialAdminIdentity: admin
+    nodeCertGen:
+      issuerRef: { name: cfm-operator-nifi-nodes-ca, kind: ClusterIssuer }
+    singleUserAuth:
+      enabled: true
+      credentialsSecretName: flowpod-1-admin-creds
+  configOverride:
+    nifiProperties:
+      upsert:
+        nifi.cluster.leader.election.implementation: KubernetesLeaderElectionManager
+  stateManagement:
+    clusterProvider:
+      id: kubernetes-provider
+      class: org.apache.nifi.kubernetes.state.provider.KubernetesConfigMapStateProvider

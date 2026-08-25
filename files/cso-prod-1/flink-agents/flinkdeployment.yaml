@@ -1,0 +1,25 @@
+# flink-agents session cluster (cso-prod-1, cld-streaming).
+# Image is built into the cso-prod-1 minikube docker daemon -> pullPolicy Never.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-agents
+  namespace: cld-streaming
+spec:
+  image: cso-operator-flink-agents:0.3.1
+  imagePullPolicy: Never
+  flinkVersion: v1_20
+  serviceAccount: flink
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "2"
+    classloader.parent-first-patterns.additional: pemja
+    python.executable: /opt/flink/agents-venv/bin/python
+    python.client.executable: /opt/flink/agents-venv/bin/python
+  jobManager:
+    resource:
+      memory: 1536m
+      cpu: 1
+  taskManager:
+    resource:
+      memory: 1536m
+      cpu: 1
