@@ -93,8 +93,15 @@ def build():
         # clickable:true in the runtime, and a clickable node under the finger
         # is exactly what stops the swipe from reaching the screen root
         # (panelkit trap 3, closed by sprite() and lint R6).
+        #
+        # `${image.launch}` stays the initial src: the generated vector art
+        # is the pre-download placeholder AND the fallback app.js reverts to
+        # on a miss or a failed download (#222). The `hidden` binding mirrors
+        # xviewer's card_img node so app.js can toggle visibility the same
+        # way; sprite() defaults clickable to False, so this stays a
+        # non-target the same as before.
         pk.sprite("art", 0, ART_Y, W, ART_H, src="${image.launch}",
-                  align="contain"),
+                  align="contain", hidden="artHidden"),
         pk.label("pad", 8, H - 68, W - 16, 22, text="", role="footer", size=16,
                  color=tk.MUTED),
         pk.label("status", 8, H - 46, W - 16, 22, text="", role="footer",
