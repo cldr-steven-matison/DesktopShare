@@ -264,9 +264,24 @@ Each needs a service beyond the two VWs. Steps + what srm still needs:
   Athena. Reuse existing srm REST setup; create the `airlines_data.carriers`/`airports` sample if absent.
 - **Ingestion / CDC** (`content/Modules/ingestion/`) — needs **NiFi / CDF DataFlow** to import the
   flow-definition JSONs in `content/assets/dataflows/`. **Gap:** not on srm by default — provision CDF first.
-- **Lakehouse Optimizer** (`content/Modules/lakehouse-optimizer/`) — needs a dedicated **Data Hub**
-  (1×m5.4xlarge + 2×r5d.xlarge), **DataHubCreator** role, LO template enabled, Runtime 7.3.1.500+.
-  **Gap:** cost + may not be enabled for srm — confirm before provisioning.
+- **Lakehouse Optimizer** (`content/Modules/lakehouse-optimizer/`) — Data Hub `srm-hol-optimizer`
+  is **provisioned and AVAILABLE** (7.3.2, 1×m5.4xlarge master + 2×r5d.xlarge workers). The CLO
+  service (`cloudera_lakehouse_optimizer`, role `CLO_SERVER` on master0) is **STARTED / GOOD_HEALTH**.
+  Its REST API is live — Swagger at `https://<master0>:8087/clo/` documents the full surface
+  (`/config/health`, `/namespaces/active`, `/policies/active`, `/policies/{p}/tables/{t}/dryrun`,
+  `/policies/{p}/tables/{t}/evaluation`, `/tables/{id}/stats`, `/tasks`, …).
+
+  **REST validation is not completed.** CLO only accepts a Knox-issued JWT carrying
+  `aud=cdp-proxy-token`, delivered through the Knox path the HOL specifies:
+  `https://<gateway>/srm-hol-optimizer/cdp-proxy-token/clo/api/v1`. Calling CLO's port `:8087`
+  directly (even via the bastion SOCKS proxy, with a valid gateway-signed token) is rejected —
+  Knox is the only supported front door. The `cdp-proxy-token` topology's `JWTProvider` requires
+  `knox.token.audiences=cdp-proxy-token`; the `apikey` and `cdp-datashare-access` token services
+  do **not** stamp that audience, so a usable token can't be minted from them.
+
+  **To finish the module:** get the token from the Data Hub's **Knox Token Integration** UI
+  (Cloudera console → `srm-hol-optimizer` → Token Management), then call the five endpoints above
+  with `Authorization: Bearer <token>` against the `cdp-proxy-token/clo/api/v1` base URL.
 - **Security / Ranger** (`content/Modules/security/`) — create masking policy **`srm-iceberg-fgac`**
   on `planes.tailnum` in the DataLake **Ranger UI**, then re-query in Impala to see the hash. Doable, no extra infra.
 - **Data Catalog** (`content/Modules/data-catalog/`) — Cloudera **Data Catalog** in the console
