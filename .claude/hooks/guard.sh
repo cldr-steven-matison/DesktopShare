@@ -38,6 +38,15 @@
 #      Skill(nifi-and-ai) has loaded this session. The hook writes its own marker
 #      when it sees the Skill call. 8b: the first pre-skill READ is allowed with a
 #      nudge, not blocked.
+#   9. [DENY] An Agent call with no `model`. The session on this device runs the top
+#      tier, so "inherit the session model" hands retrieval work to the most expensive
+#      model there is. Told three times on 2026-08-25 alone, ignored each time (#247):
+#      prose failed, so the hook forces the choice every call. `fork` gets a nudge.
+#  10. [DENY] A sleep-based wait loop (until/while ... sleep, or a single sleep >= 30s)
+#      in a FOREGROUND Bash call — the session sits on the top model polling a pod or a
+#      build (2026-08-25, #244/#247: "why are you burning my tokens", twice). The same
+#      command with run_in_background:true passes, and so does handing the wait to a
+#      haiku agent.
 #   A. [AUTO] Engaging a still-todo issue for this device auto-claims it
 #      (status:in-progress) and tells the model. Fires on a MUTATING engagement
 #      (gh issue comment), not a read-only view.
@@ -248,11 +257,53 @@ case "$tool" in
     esac
     exit 0
     ;;
+  Agent)
+    # 9. Sub-agent model tier is an explicit choice, every call. No model -> the
+    # child inherits the session model, and on this device that is the top tier, so
+    # a file-listing agent bills like a design session. Retrieval/listing/mechanical
+    # edits/waiting on a process: haiku. Moderate reasoning: sonnet. opus/fable only
+    # for genuine hard reasoning, with the reason stated in the prompt.
+    amodel="$(printf '%s' "$payload" | jq -r '.tool_input.model // ""' 2>/dev/null)"
+    atype="$(printf '%s' "$payload" | jq -r '.tool_input.subagent_type // ""' 2>/dev/null)"
+    if [ "$atype" = "fork" ]; then
+      emit_ctx "Agent guard (agent/workflow.md 'Model, effort & context hygiene'): a fork runs at the SESSION model on the FULL conversation context — the most expensive sub-agent shape there is, and a model override is ignored. Allowed, but only right when the child genuinely needs the whole conversation. If this is retrieval, a survey, a mechanical edit, or waiting on a process, relaunch it as a fresh agent with model set to haiku or sonnet instead."
+    elif [ -z "$amodel" ]; then
+      emit_deny "BLOCKED: Agent call with no model set. On this device the session runs the top tier, so an unset model means the sub-agent inherits it and retrieval work bills at the highest price — the exact thing Steven said to stop three times on 2026-08-25 (#247). Set model explicitly and retry: haiku for retrieval, listings, grep/read-and-summarise, mechanical edits, screenshots, and waiting on a pod/build/process; sonnet for moderate reasoning or multi-step runbook execution; opus/fable ONLY for genuine hard reasoning, and then say why in the prompt. This is a denial, not a prompt, on purpose: it is an instruction to you and the retry is yours."
+    else
+      case "$amodel" in
+        opus|fable)
+          emit_ctx "Agent guard: model=$amodel. Fine only for genuine hard reasoning (design, debugging a real unknown). If the task is retrieval, a survey, a mechanical edit, or waiting on a process, this is the wrong tier — use haiku (or sonnet) and keep the top model for judgment (agent/workflow.md 'Model, effort & context hygiene', 2026-08-25 #247)."
+          ;;
+      esac
+    fi
+    exit 0
+    ;;
 esac
 
 # Everything below is Bash-only.
 [ "$tool" = "Bash" ] || exit 0
 [ -z "$cmd" ] && exit 0
+
+# 10. Sleep-based waiting in the foreground. An until/while ... sleep loop or a long
+# single sleep parks the session on the top model polling a pod, an image build, or a
+# rollout (2026-08-25, #244: two 'why are you burning my tokens' interrupts in one
+# session, memory feedback_verify_subagent_output_before_reporting). The wait belongs
+# either in run_in_background (the harness re-invokes the model when it exits) or in a
+# haiku agent told never to end its turn while the process is running. The same
+# command with run_in_background:true passes untouched, so the retry is one flag.
+bg="$(printf '%s' "$payload" | jq -r '.tool_input.run_in_background // false' 2>/dev/null)"
+if [ "$bg" != "true" ]; then
+  waitloop=""
+  if printf '%s' "$cmd" | grep -Eq '(^|[;&|(][[:space:]]*)(until|while)[[:space:]].*;[[:space:]]*do\b' \
+     && printf '%s' "$cmd" | grep -Eq '\bsleep\b'; then
+    waitloop="an until/while ... sleep polling loop"
+  elif printf '%s' "$cmd" | grep -Eq '\bsleep[[:space:]]+([3-9][0-9]|[1-9][0-9]{2,}|[0-9]+[mh])\b'; then
+    waitloop="a single sleep of 30s or more"
+  fi
+  if [ -n "$waitloop" ]; then
+    emit_deny "BLOCKED: $waitloop in a FOREGROUND Bash call. That parks this session on the top model waiting on a pod/build/rollout — Steven interrupted this twice on 2026-08-25 (#244/#247: 'why are you burning my tokens'). Do one of: (a) re-run this exact command with run_in_background:true — you are re-invoked when it exits, nothing to poll; (b) hand the wait to a haiku Agent whose prompt says never to end its turn while the process it is watching is still running, then verify its claim yourself (pgrep / kubectl get) before reporting; (c) make a single-shot check with no sleep and move on to work that does not depend on it. Do not retry the loop in the foreground."
+  fi
+fi
 
 # Record what this call is, so a Telegram ping can NAME the command the session is
 # parked on — including prompts guard never raises itself (an allow-list miss,

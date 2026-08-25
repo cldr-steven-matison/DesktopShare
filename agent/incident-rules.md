@@ -10,7 +10,7 @@ A sub-agent sees **none** of this file, `CLAUDE.md`, the memories, or a skill th
 
 - **Spell out the success criteria and exact output format** you want back — a sub-agent given a vague goal fills the gaps with its own assumptions, and a wrong one reads as corroboration, not error (the #199 `enc{}` case: a `Plan` sub-agent independently reached the same wrong conclusion the parent had).
 - **Hand it any domain rule its task can actually violate** — the specific one, in the prompt, not a pointer to a file it can't read.
-- **Set the effort level appropriate to its task** (survey/classification runs cheap; genuine reasoning does not) — see the `effort-control-is-the-lever` memory.
+- **Name the `model` on every `Agent` call, and never run a wait on the session model.** Retrieval, listings, mechanical edits and waiting on a pod/build go to `haiku`; moderate reasoning to `sonnet`; `opus`/`fable` only for genuine hard reasoning with the reason in the prompt. An unset model inherits the session model, which on WindowsDesktop is the top tier. (2026-08-25, #244 → #247: Steven said "optimize lower model execution and not run task waits on highest cost model" three separate times in one day; each later session still launched model-less agents and ran `until … sleep` polling loops on the top model. `guard.sh` rules 9 and 10 now deny both.) The tiers and the `run_in_background` alternative: `workflow.md` §"Model, effort & context hygiene".
 - **Prefer giving it retrieval work** — read the big file, return only the conclusion — so large dumps stay out of the main context. Ask for the conclusion or data, not narration.
 
 ## NiFi flow edits

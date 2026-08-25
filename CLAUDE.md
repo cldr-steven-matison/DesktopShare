@@ -34,6 +34,7 @@ Full list with the incident background is in `agent/incident-rules.md`. The shor
 - **Don't over-claim.** State plainly what happened. Adding logging isn't fixing.
 - **Commit and push only when explicitly asked.**
 - **Confirm before every restart or redeploy of a live service, and check the live flow first.** Dump the live NiFi flow, let in-flight processors drain, confirm exactly one pod `Running`, and ask fresh every time — an earlier "ok to deploy" never covers a later redeploy. The exact check + incident history: `agent/incident-rules.md` "Live service restarts".
+- **Every `Agent` call names its `model` (`haiku` for retrieval/mechanical/waiting, `sonnet` for moderate reasoning, `opus` only with a stated reason), and no wait ever runs on the session model** — `run_in_background` or a `haiku` agent, never a foreground `until … sleep` loop. `guard.sh` denies both. Details: `agent/workflow.md` "Model, effort & context hygiene".
 - **Never start an ad-hoc `kubectl port-forward`/`minikube tunnel` — check for one already running first.** The canonical set lives as zellij panes (`kube-service-ports-efm.kdl`). Any sub-agent touching a k8s service needs this spelled out in its prompt — it can't see this file. Details: `agent/incident-rules.md` "Port-forwards and tunnels".
 
 ## Finding the pattern you need

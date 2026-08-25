@@ -16,7 +16,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Skill",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Skill|Agent",
         "hooks": [
           {
             "type": "command",
