@@ -4,7 +4,8 @@
 # .claim-pending (per-session claim-before-work marker written by guard.sh), and
 # .nifi-skill-loaded (per-session nifi-and-ai-loaded marker, same shape), and
 # .session-issues / .last-tool (per-session comms context for the Telegram pings,
-# issue #192).
+# issue #192), and .patterns-noticed (per-session known-patterns marker, guard rule 11,
+# issue #247).
 /.claude/settings.local.json
 /.claude/skills/
 /.claude/.claim-pending
