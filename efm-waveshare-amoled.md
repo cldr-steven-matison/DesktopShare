@@ -60,11 +60,12 @@ auto-registry, its own `idf_component.yml`). Four changes make it a passenger in
 3. **Volatile-only storage.** Factory Brookesia has no `littlefs` partition, so `storage_init()`
    returns `NotFound` and flow defs re-arrive from EFM each boot. `main.cpp` already handles this and
    the ESP32-C3 env already ships it. No partition-table change.
-4. **10-processor set** — `GenerateFlowFile`, `LogAttribute`, `UpdateAttribute`, `PublishMQTT`,
+4. **11-processor set** — `GenerateFlowFile`, `LogAttribute`, `UpdateAttribute`, `PublishMQTT`,
    `ListenHTTP`, `PublishSparkplug`, **`GetIMU`** (QMI8658 accel/gyro, 2026-08-24, #191),
-   **`DisplayMessage`** (#227), **`GetTouch`** and **`PlayAudio`** (2026-08-24, #191 rungs 4+5 —
-   the agent's first Brookesia service deps; class manifest `6dcaac66-7ced-4223-9562-b5f97915d05c`).
-   Sense-by-sense as-built: `efm-amoled-capabilities.md`.
+   **`DisplayMessage`** (#227), **`GetTouch`**, **`PlayAudio`** and **`CaptureAudio`**
+   (2026-08-24, #191 rungs 4–6 — the agent's first Brookesia service deps; class manifest
+   `36700b34-8c41-4610-8596-040eee7b9c83`).
+   Sense-by-sense as-built: `efm-amoled-capabilities.md`. Full processor table below.
    `CaptureImage` is out (no OV2640; drops the `esp32-camera` dependency), `GetGPIO`/`SetGPIO` are
    out (control lines behind the TCA9554). `GetIMU` lives in MicroFi `src/processors/get_imu.cpp`
    behind `MICROFI_BOARD_QMI8658` (defined only by the AMOLED overlay CMake, so the XIAO builds see
@@ -78,6 +79,24 @@ WiFi state. Registered as a native **`IApp`** (Brookesia v0.8 API — `systems::
 `ESP_UTILS_REGISTER_PLUGIN_WITH_CONSTRUCTOR` only exist in the dead ≤0.5 API), swipe-up-from-bottom
 left to Brookesia, no controls.
 The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
+
+### The 11 processors
+
+| Processor | Type | What it does |
+|---|---|---|
+| `GenerateFlowFile` | source | Emits empty/test FlowFiles on a schedule — bring-up and manual triggers. |
+| `LogAttribute` | sink | Logs a FlowFile's attributes/content to serial — bring-up proof-of-life. |
+| `UpdateAttribute` | transform | Sets FlowFile attributes to literal values (no EL engine on this agent — no dynamic properties). |
+| `PublishMQTT` | sink | Publishes FlowFile content to an MQTT broker topic. |
+| `ListenHTTP` | source | Runs an HTTP server on the agent; each inbound request becomes a FlowFile (e.g. `:8095` endpoints). |
+| `PublishSparkplug` | sink | Frames FlowFile content as Sparkplug B device metrics to a broker. |
+| `GetIMU` | source | Polls the QMI8658 accel/gyro over the shared I2C bus; JSON or Attributes output; `Motion Threshold` gives shake-as-trigger. |
+| `DisplayMessage` | sink | Writes FlowFile content (or the `Message` property) into the agent's single-slot display mailbox. |
+| `GetTouch` | source | Subscribes to the Brookesia Display service's gesture signal; one FlowFile per completed gesture (tap/hold/swipe). |
+| `PlayAudio` | sink | Plays a URL (`http(s)://` or `file://littlefs/…`) through the `AudioPlayback` service; `Volume`/`Interrupt` properties. |
+| `CaptureAudio` | source | Binds/starts `AudioEncoder0`, records N seconds of mono 16 kHz PCM, publishes a WAV broker-direct over its own MQTT client, and emits a JSON meta FlowFile. |
+
+Sense-by-sense as-built detail (properties, JSON shapes, gotchas): `efm-amoled-capabilities.md`.
 
 ## Done
 
@@ -124,7 +143,9 @@ The #171 GPIO21 strobe stays off — no discrete user LED on this SKU.
    `c265dbcf-93f0-4f94-b0ed-5865c1512f6c`, then to the 7-processor id
    `05dfbcef-128e-4d93-aa46-baa95ef36730` when GetIMU landed, then to the 8-processor id
    `da9b1cec-9db6-42f7-ad28-d78e82330d50` when DisplayMessage landed (#227), then to the 10-processor id
-   `6dcaac66-7ced-4223-9562-b5f97915d05c` when GetTouch + PlayAudio landed (#191; DELETE + POST
+   `6dcaac66-7ced-4223-9562-b5f97915d05c` when GetTouch + PlayAudio landed (#191), then to the
+   11-processor id `36700b34-8c41-4610-8596-040eee7b9c83` when CaptureAudio landed (2026-08-24,
+   #191 rung 6; DELETE + POST
    `/efm/api/agent-class-manifest-config` — POST alone won't overwrite, PUT 500s; create new
    Designer nodes only *after* the pin lands or they never resolve). MicroFi tree changes: `microfi_agent_start()` extraction
    (`src/agent.cpp`), `CONFIG_MICROFI_WIFI_ADOPT_EXISTING` adopt-mode in `wifi.cpp`. XIAO
@@ -153,7 +174,8 @@ Hosted-build gotchas (all live in the super example's `components/microfi_agent/
 Platform home: **[`TunaStreetTest/waveshare-devices`](https://github.com/TunaStreetTest/waveshare-devices)**
 (public, created 2026-08-19) — the V2 HAL board, `microfi_agent` guest component, super-example
 wiring, boot-screen resources (as an overlay over pinned esp-brookesia master + `setup.sh`), the
-colorbar bring-up project, and the `tunastreet.hello` runtime-package template. WiFi creds stay in
+colorbar bring-up project, and the `tunastreet.hello`
+([`amoled-hello`](https://github.com/TunaStreetTest/amoled-hello)) runtime-package template. WiFi creds stay in
 gitignored `sdkconfig.local`. MicroFi's agent extraction is merged to MicroFi `main` (`5d180dc`;
 note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS the canonical repo).
 
@@ -166,6 +188,7 @@ note MicroFi's `origin` is a Tailscale loopback — this WindowsDesktop tree IS 
   getters in MicroFi `c2_client` (`c8af72e`; `pio run -e esp32s3-8mb` regression passed, XIAOs
   untouched). Overlay component: `platform/overlay/.../components/agent_status_tile/`.
 - **X-viewer runs as a runtime JS package and works on the glass** (#183). `tunastreet.xviewer`
+  ([`amoled-xviewer`](https://github.com/TunaStreetTest/amoled-xviewer))
   (`db5f06f` in waveshare-devices): Http service feed fetch, sandbox image download,
   `SetViewSrc`-from-file confirmed viable, 3-slot rotating JPEG cache, swipe L/R + «/» taps.
   Backend on WindowsDesktop `:8091`.
@@ -199,7 +222,8 @@ exist. Everything below is flashed and verified.
   R1-R5, `selftest.py`, and a frozen `fixtures/dirty-screen.json` so the lint's proof does not
   depend on a file somebody is about to repair. The two trap classes are now `ValueError`s at
   generation time, not comments: a flex parent cannot silently override absolute children, and no
-  tap target can be built without `pressLock` / `scrollable:false` / `pressed`+`released`. Racing's
+  tap target can be built without `pressLock` / `scrollable:false` / `pressed`+`released`.
+  [`amoled-racing`](https://github.com/TunaStreetTest/amoled-racing)'s
   screen regenerates byte-identical through the migrated generator (the file is smaller only
   because the JSON indent changed; parsed trees compare equal).
 - **The panel simulator became shared tooling** (#212, closed). `amoled-1.8-v2/tools/simulator/`
@@ -208,17 +232,23 @@ exist. Everything below is flashed and verified.
   `lint.js --check <app>` as the pre-flash gate. It rendered flow/flex layouts, gesture payloads and
   cache-backed images that the racing-only version never simulated.
   **It is the required pre-flash step for any UI change.**
-- **`tunastreet.agent`** (#197) -- new runtime package. Heartbeat sweep, running-vs-catalogue
+- **`tunastreet.agent`** ([`amoled-agent`](https://github.com/TunaStreetTest/amoled-agent))
+  (#197) -- new runtime package. Heartbeat sweep, running-vs-catalogue
   processor count, and the metrics the agent actually ships (uptime, memory, CPU, queued
   FlowFiles). Backend `~/amoled-agent` on **`:8094`**, digesting one EFM call
   (`GET /efm/api/agents/<id>`) into exactly the fields the panel renders. **Needs the firewall rule
-  `Allow Agent Port 8094`** -- same per-port rule as `:8091`/`:8092`/`:8093`.
+  `Allow Agent Port 8094`** -- same per-port rule as `:8091`/`:8092`/`:8093`. **This is also what
+  #197 cost DisplayMessage**: the new `tunastreet.agent` package reads the `:8094` backend, and its
+  arrival is when the native `microfi.agent.status` tile — the only surface `DisplayMessage` writes
+  to — went `.visible = false`. A flow-sent message lands on the board with no screen to show it on
+  until that tile is surfaced again or DisplayMessage is rerouted through `tunastreet.agent`.
 - **`tunastreet.xviewer` rebuilt on the kit** (#198). Real tools bar (LIKE / VIEWS / REPLIES /
   CLEAR) at the tap-target minimums, prev/next moved onto the media card as two 184x220 zones,
   20px post text. Backend now serves `metrics.replies` (X's `reply_count`) and a composed profile
   card at `/xviewer/img/profile.jpg` -- most posts carry no media, and the card is the biggest
   surface on the panel, so a text post shows the account's own avatar rather than black.
-- **`tunastreet.tminus` rebuilt on the kit and deployed** (#184). Launch art fills what was dead
+- **`tunastreet.tminus`** ([`amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus))
+  **rebuilt on the kit and deployed** (#184). Launch art fills what was dead
   space; the screen had to leave flex to get a background image at all. Backend `~/amoled-tminus`
   on `:8092`, now defaulting to the next launch that has not lifted off -- LL2's `upcoming` window
   keeps a launch after T-0, so the headline had been a Falcon 9 that flew six hours earlier.
@@ -258,9 +288,11 @@ and no `/xviewer/img/profile.jpg` proved a request was never issued.
 
 ## Next
 
-5. **Ember (#184) product redesign** — Grok's court, on the proven package/backend rails.
-6. **X-viewer (#183): done, ready for final testing** — like/unlike eyes-on 2026-08-19; only final
-   test + polish sign-off remain.
+5. ~~Ember (#184) product redesign~~ — done. The redesign shipped as `tunastreet.tminus`
+   ([`amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus)), rebuilt on the kit and
+   deployed (above).
+6. **X-viewer (#183): closed 2026-08-20** — like/unlike eyes-on 2026-08-19, swipe debounce fixed,
+   full phase R3 verify pass done. See `amoled-x-viewer-plan.md:152` and `:209`.
 
 This board on WindowsDesktop's COM8 is Claude's to flash without asking (Steven, 2026-08-24);
 the XIAOs and live k8s services keep their asks.
@@ -290,6 +322,20 @@ curl http://192.168.1.121:10090/efm/api/agent-class-manifest-config/AMOLED
   whose source is unpublished — recovery is only `FactoryXiaozhi_260601.bin`. The #188 platform
   flash accepts this once; after that, apps arrive as files, not flashes.
 - **Dead panel after a flash** is usually init order, not hardware: AXP2101 → TCA9554 → panel.
-- **No flow is published** to class `AMOLED`.
+- **The class flow is at v8** — `GetTouch → CaptureAudio ← ListenHTTP(:8095 /record)` plus
+  `CaptureAudio → PublishMQTT`. Rebuild any version with
+  [`files/issue-191/amoled-class-flow.py`](files/issue-191/amoled-class-flow.py); the v8 export is
+  [`amoled-class-flow-record-both.json`](files/issue-191/amoled-class-flow-record-both.json).
 - **WSL→Windows interop** has died mid-session here (`accept4 failed 110` on every Windows exe). Only
   known fix is `wsl --shutdown`, which takes minikube down — Steven's call.
+- **`kMaxFlowNodes=4` caps the class flow at 4 nodes** — only two sense pairs fit on one flow at a
+  time (e.g. `GetIMU + DisplayMessage` or `GetTouch + CaptureAudio`, never all four senses at once).
+  Detail: `efm-amoled-capabilities.md`.
+- **The V2 amplifier is inaudible below `Volume: 100`** on `PlayAudio` — Brookesia's default is 75,
+  too quiet to hear on this hardware. Detail: `efm-amoled-capabilities.md`.
+- **`sounds/` is staged into littlefs at CMake *configure* time**, not build time — adding a clip
+  needs `idf.py reconfigure` (or a CMake touch) or the image silently keeps the old set. Detail:
+  `efm-amoled-capabilities.md`.
+- **`AudioEncoder0` is initialized at boot but not started** — only an AI-agent session or
+  `CaptureAudio` binding it starts it; `CaptureAudio` binds and starts the service itself rather than
+  assuming it's already running. Detail: `efm-amoled-capabilities.md`.

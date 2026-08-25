@@ -128,10 +128,10 @@ part of this pass — decide it when the first post-split app update actually ha
 - [ ] `CONFIG_BROOKESIA_APP_STORE_INDEX_URL` set in `platform/sdkconfig.microfi`
 - [ ] Install **and** update of one app verified end-to-end on the glass
 - [ ] `waveshare-devices/amoled-1.8-v2/tools/README.md` documents the new path
-- [ ] Five repos created under `TunaStreetTest`, each public, `Apache-2.0`-licensed, with a rewritten
+- [x] Five repos created under `TunaStreetTest`, each public, `Apache-2.0`-licensed, with a rewritten
       README
 - [ ] No `DesktopShare` issue links anywhere in the five new repos
 - [ ] `amoled-racing`'s README credits `cldr-jquiroscr/cloudera-racing-standalone`, worded as
       "inspired by / sourced from," not as a license grant
-- [ ] `waveshare-devices` README links out to all five new repos
+- [x] `waveshare-devices` README links out to all five new repos
 - [ ] `steven-matison/amoled-x-ember` left alone (private, retired) — not renamed, not transferred

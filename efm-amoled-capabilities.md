@@ -36,7 +36,7 @@ to `REQUIRES` in the overlay's `microfi_agent/CMakeLists.txt`.
 | AXP2101 PMIC | yes (board-local raw-register driver) | Device service (`GetPowerBatteryState`…) or device handle by name |
 | ES8311 audio (DAC+ADC) | yes, fully up — services `AudioPlayback`/`AudioEncoder0`, AFE/wakenet active | services; or `AudioCaptureOperation::connect_data()` for raw PCM |
 | CO5300 display | yes | `SystemGui` service (native code can call it); `IApp` + gui runtime (status-tile precedent) |
-| CST820 touch | yes — Display service runs the read loop | `TouchGesture` service event (typed helper); raw points via `Display::get_instance().connect_touch_updated()` |
+| CST820 touch | yes — Display service runs the read loop | Display service's gesture signal, `connect_touch_gesture()` (typed helper, what GetTouch as-built uses); raw points via `Display::get_instance().connect_touch_updated()` were also considered at discovery |
 | TCA9554 expander | yes — pins 0/1/2 are LCD/panel/touch reset lines | handle by name, but all pins are spoken for |
 
 ## The candidate ladder, re-ordered by what discovery found
@@ -84,6 +84,11 @@ original guess, and that's the point of the pass:
 
 - Per-device processor sets stay a source-list choice in the overlay's
   `microfi_agent/CMakeLists.txt` — XIAOs unchanged, `pio run -e esp32s3-8mb` regression gate.
+  Mechanism: each board gets its own `SRCS` list, and each sense `.cpp` is wrapped whole in an
+  `#ifdef` on a `MICROFI_BOARD_*` compile define (`MICROFI_BOARD_QMI8658`,
+  `MICROFI_BOARD_DISPLAY_MESSAGE`, `MICROFI_BOARD_TOUCH_GESTURE`, `MICROFI_BOARD_PLAY_AUDIO`,
+  `MICROFI_BOARD_CAPTURE_AUDIO`) — so a source listed in another board's build compiles to an empty
+  translation unit there.
 - Every manifest change → re-pin the AMOLED class: `DELETE` then `POST`
   `/efm/api/agent-class-manifest-config` (POST alone won't overwrite, PUT 500s).
 - New processor statics ride the existing `* (extram_bss)` PSRAM mapping automatically — except
@@ -199,7 +204,8 @@ topic carries events, not a 1 Hz stream — the "shake → alert" demo without a
 
 ### Build order & manifest re-pin (when the board work happens)
 
-This is `device:WindowsDesktop` work (board + `waveshare-devices` tree live there) — the sequence,
+This is `device:WindowsDesktop` work (board +
+[`waveshare-devices`](https://github.com/TunaStreetTest/waveshare-devices) tree live there) — the sequence,
 for whoever picks it up:
 
 1. ✅ `get_imu.cpp` in the AMOLED source list of the overlay's `microfi_agent/CMakeLists.txt`
@@ -528,12 +534,24 @@ then the egress flow.
 ### Cross-cutting, still open
 
 - ~~**Egress for CaptureAudio**~~ — settled: broker-direct WAV (CaptureImage precedent), `ConsumeMQTT` bridges on the array.
-- **One AMOLED build or a split** — six processors is a bigger manifest/flash footprint than the
-  XIAO 6-set. The `esp32s3-8mb` env has far more headroom than the 2 MB XIAO (which hit 96.8% flash),
-  but confirm the full set fits before committing all six to one source list.
+- ~~**One AMOLED build or a split**~~ — resolved: one build. All 11 processors flash at **59.0%**
+  on `esp32s3-8mb` (see lines 246 and 364 above) — plenty of headroom, no split needed.
 - **Naming** — sources use the `Get*` verb (GetIMU/GetPower/GetTouch) for consistency with
   `GetGPIO`; this refines the issue's original `PublishPowerTelemetry` / `TouchEvent` labels
   (`Publish*` reads as egress). Worth a quick confirm before the manifest strings are pinned.
-- **Demo/chapter mapping** — as with IMU, none of these are matched to an actual chapter need yet.
-  DisplayMessage + GetTouch is the most self-contained demo (touch a tile, drive the glass) with no
-  array dependency at all.
+- ~~**Demo/chapter mapping**~~ — resolved: pinned to **Ch12** (EFM and MicroFi capstone, tracked
+  on #178) — see "Chapter mapping — decided on #227" above and the `Complete Guide to Edge Flow
+  Management.md` tracker's row 12.
+
+**Genuinely open, recorded here, not tracked as separate issues:**
+
+(a) **`kMaxFlowNodes=4`** — a class flow holds only 4 nodes, so all senses cannot share one flow.
+    Proposed fix: a `MICROFI_MAX_FLOW_NODES` / `MICROFI_MAX_FLOW_CONNECTIONS` override to 8 for the
+    AMOLED, with the XIAOs keeping 4, and making the over-cap case an error instead of the current
+    silent drop.
+(b) **No Windows firewall rule for LAN http audio clips** — `file://littlefs/sounds/…` is the
+    working path today. Port collision risk: the board's own `ListenHTTP` already owns `:8095`, and
+    `amoled-app-store-plan.md` separately proposes `:8095` for the App Store server.
+(c) **DisplayMessage has no visible surface** — the native `microfi.agent.status` tile has been
+    `.visible = false` since #197. Two routes: flip the tile visible again, or route the text
+    through the `:8094` backend into `tunastreet.agent`.

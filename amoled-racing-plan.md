@@ -13,7 +13,7 @@ leaderboard as a run in a browser.
 
 | Piece | Path | Notes |
 |---|---|---|
-| Panel package | `waveshare-devices/amoled-1.8-v2/apps/tunastreet.racing/` | Brookesia v0.8 runtime JS + JSON-UI, no reflash of the platform |
+| Panel package | [`waveshare-devices`](https://github.com/TunaStreetTest/waveshare-devices)`/amoled-1.8-v2/apps/tunastreet.racing/` (published standalone as [`amoled-racing`](https://github.com/TunaStreetTest/amoled-racing)) | Brookesia v0.8 runtime JS + JSON-UI, no reflash of the platform |
 | Backend | `~/amoled-racing/` (own git repo) | FastAPI on `0.0.0.0:8093`, firewall rule `Allow Racing Port 8093` |
 | Simulator | `~/amoled-racing/simulator/` | runs the **real** package off disk; browser + headless + CDP driver |
 | Screen / art generators | `DesktopShare/files/racing/gen_racing_screen.py`, `gen_racing_art.py` | the JSON-UI and the sprite PNGs are generated, not hand-maintained |

@@ -30,7 +30,8 @@ below stands as spec, and the code runs again with one
 still serve the panel from a host on 192.168.1.x — in practice
 WindowsDesktop, since StarlinkAI left that LAN.
 
-- App package: [`steven-matison/amoled-x-ember`](https://github.com/steven-matison/amoled-x-ember)
+- App package: `amoled-x-ember` (retired, private repo — superseded by
+  [`amoled-tminus`](https://github.com/TunaStreetTest/amoled-tminus))
   `apps/tunastreet.ember/` (JSON-UI + QuickJS, modeled line-for-line on
   `tunastreet.xviewer` — HTTP via the `Http` service with RequestAsync +
   events, no fetch/setTimeout in the sandbox).

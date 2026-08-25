@@ -200,7 +200,8 @@ cards; declined for now ("lets move on", 2026-08-20).
 
 - **App package**: [`TunaStreetTest/waveshare-devices`](https://github.com/TunaStreetTest/waveshare-devices)
   `amoled-1.8-v2/apps/tunastreet.xviewer/` — the platform repo is where runtime packages live, beside
-  the `tunastreet.hello` template.
+  the `tunastreet.hello` template. Published standalone as
+  [`TunaStreetTest/amoled-xviewer`](https://github.com/TunaStreetTest/amoled-xviewer).
 - **Backend + simulator**: `~/amoled-x-viewer` on WindowsDesktop (local git, `b6991c4`). Its repo
   home rides the open backend-home question; the retired C++ `firmware/` skeleton in that tree is
   historical.
