@@ -14,6 +14,9 @@
 #      A verified finish ritual auto-approves; everything else is handed to the model
 #      as a rule to obey, because "did Steven ask for this?" lives in the turn, which
 #      the hook cannot see. Advisory by design.
+#  2b. [CTX] A commit/push carrying skills/nifi-and-ai/ changes names the public-mirror
+#      step (skills/publish-skill.sh + sanitize) — the mirror never updates itself and
+#      the README step was skipped on 2026-08-25 (#247).
 #   3. [DENY on a real duplicate, else CTX] Never start an ad-hoc kubectl port-forward
 #      / minikube tunnel / minikube service — the canonical set lives as zellij panes
 #      (kube-service-ports-efm.kdl); a duplicate on the same target silently orphans
@@ -424,6 +427,14 @@ fi
 #    attached, because "did Steven ask for this?" lives in the turn, not in the tree.
 if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; then
   finish_n=""; finish_why=""
+  # 2b. A commit/push that carries skills/nifi-and-ai/ changes (dirty, staged, or in
+  # unpushed commits) is not finished until the public mirror is pushed too — the
+  # mirror never updates itself and skills/README.md was not read on 2026-08-25 (#247).
+  pubnote=""
+  if { git -C "$proj" status --porcelain -- skills/nifi-and-ai 2>/dev/null; \
+       git -C "$proj" log @{u}.. --name-only --format= 2>/dev/null; } | grep -q 'skills/nifi-and-ai/'; then
+    pubnote=" ALSO: this commit/push carries skills/nifi-and-ai/ changes. The public mirror (cldr-steven-matison/NiFiandAi) does NOT update itself — after the push run: bash skills/publish-skill.sh (skills/README.md 'Publishing'). It pushes the skill verbatim, so the content must already be sanitized: no device/namespace/CR/peer names, no internal paths, no issue numbers (placeholder style: \$NS, <nifi-svc>, {owner}/{repo}). Then bash skills/sync-skills.sh."
+  fi
   nums="$(printf '%s' "$cmd" | grep -oE '#[0-9]+' | tr -d '#' | awk '!seen[$0]++')"
   if [ -z "$nums" ] && command -v git >/dev/null 2>&1 \
      && ! printf '%s' "$cmd" | grep -Eq '(^|[;&| ])git +(commit)\b'; then
@@ -480,12 +491,12 @@ if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; 
   fi
   if [ -n "$finish_n" ]; then
     ds_note_session_issue "$finish_n" 2>/dev/null || true
-    emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits."
+    emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits.$pubnote"
   fi
   # Not verifiable as a finish ritual -> hand the rule to the model. Advisory by
   # design: label/clock heuristics always mis-fire on the honest case, and this gate
   # never blocked an unrequested commit anyway — it billed Steven for the correct one.
-  emit_ctx "Commit/push guard (agent/workflow.md): commit and push ONLY when Steven asked for it in this turn, or as the issue-FINISH ritual (device-comms.md 'Finishing an issue'). The guard could not verify this one as a finish ritual (no issue reference, issue not claimed by this device, or gh offline), so it is on YOU: if he did not ask for this commit and it is not a finish ritual, abandon it now and say what you would have committed instead. Do not commit unrequested work — no bundled 'while I was in there' commits."
+  emit_ctx "Commit/push guard (agent/workflow.md): commit and push ONLY when Steven asked for it in this turn, or as the issue-FINISH ritual (device-comms.md 'Finishing an issue'). The guard could not verify this one as a finish ritual (no issue reference, issue not claimed by this device, or gh offline), so it is on YOU: if he did not ask for this commit and it is not a finish ritual, abandon it now and say what you would have committed instead. Do not commit unrequested work — no bundled 'while I was in there' commits.$pubnote"
 fi
 
 # 3. Ad-hoc port-forwards / tunnels. The canonical set lives as zellij panes
