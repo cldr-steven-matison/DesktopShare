@@ -142,8 +142,42 @@ ansible-playbook provision-trino-vw.yml -v
 - JDBC: `jdbc:trino://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site:443`
 - Hue: `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site`
 
-> **The LB is private.** The Trino endpoint is reachable within the CDP/VPC network path, not from
-> the public internet. External/public demo access goes through the EC2 bastion + SSH SOCKS proxy into the VPC.
+> **The LB is private.** The Trino coordinator, Trino Web UI, and Hue all resolve to the private CDW
+> NLB (`10.10.x`) — reachable within the CDP/VPC network path, not from the public internet. Access
+> from the Mac goes through the EC2 bastion in the persistent VPC (#190).
+
+### Reaching Trino UI + Hue from the Mac — one command
+
+Daily driver (built 2026-08-25 — the "local DNS mapping" path, preferred over the older SOCKS proxy):
+
+```bash
+cd ~/Documents/GitHub/iceberg-rest-catalog-demo/bastion && ./trino-up.sh   # ./trino-up.sh --down to tear down
+```
+
+`trino-up.sh` chains three steps: `bastion-up.sh` (re-roll/start the bastion, refresh SSH ingress to
+the current Mac IP) → idempotent `/etc/hosts` map of both `*.cloudera.site` names → `127.0.0.1` →
+`sudo ssh -L 127.0.0.1:443:<trino-host>:443` through the bastion. Then browse the real hostnames with
+the real Cloudera cert and Knox/SAML redirects intact — **no browser proxy config**:
+
+- Trino UI: `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/ui/`
+- Hue: `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/`
+
+Key facts:
+
+- **Both UIs share ONE internal CDW NLB (SNI-routed)**, so a single `:443` forward serves both — the
+  browser's SNI/Host preserves TLS + vhost routing.
+- **Hostnames are stable** (derived from env name + tenant subdomain `a465-9q4k`), so the `/etc/hosts`
+  entries survive the weekly rebuild; only the bastion public IP churns, and `bastion-up.sh` resolves
+  it by tag.
+- **Two prerequisites are yours to do each session, not Claude permission prompts:** `aws sso login
+  --profile cldr-se` (token expires), and the **Mac sudo password** `trino-up.sh` asks for once per
+  run (binding `:443` + editing `/etc/hosts` inherently needs root).
+- **Older alternative (no sudo, needs browser proxy config):** `./bastion-connect.sh <ip>` opens
+  `ssh -D 1080` SOCKS; Firefox SOCKS5 `127.0.0.1:1080` + `network.proxy.socks_remote_dns=true`.
+  `trino-up.sh` is preferred because it's system-wide (curl / JDBC / any browser) with no proxy toggles.
+
+Full detail: [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md)
+§External / VPC access and [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190).
 
 ---
 
@@ -182,7 +216,7 @@ and a REST Catalog `load-table` call (4-step OAuth flow completes, manifest retu
 
 ### Screenshots (CDW Management Console)
 
-> **Note:** The Trino LB is private — Hue and the Trino Web UI are VPC-internal. They're reachable from the Mac browser through the EC2 bastion + SSH SOCKS proxy (see [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md) §External / VPC access). The CDW Management Console (`cloud.cloudera.com`) is publicly accessible regardless.
+> **Note:** The Trino LB is private — Hue and the Trino Web UI are VPC-internal. They're reachable from the Mac through the EC2 bastion — daily driver `bastion/trino-up.sh` (see §"Reaching Trino UI + Hue from the Mac"). The CDW Management Console (`cloud.cloudera.com`) is publicly accessible regardless.
 
 ![CDW cluster list row — srm-iceberg-cdp-env, env-xgfnld, Good Health, 2 DBCs / 1 VW](/images/trino-cdw-cluster-running.png)
 
@@ -285,7 +319,7 @@ Repeatedly run on the wrong tier — the cost lever, in order of impact:
 
 | Item | Detail |
 |---|---|
-| **External/public reachability** | The Trino endpoint is private (private LB). **Solved for the Mac browser via an EC2 bastion + SSH SOCKS proxy** — see [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md) §External / VPC access and [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190). This covers Hue and the Trino Web UI. It does **not** give minikube NiFi pods a path to HMS thrift — pod→HMS for NiFi PutIceberg (#151) is a separate, unsolved path. |
+| **External/public reachability** | The Trino endpoint is private (private LB). **Solved for the Mac via the EC2 bastion (#190) — daily driver is `bastion/trino-up.sh`** (bastion + `/etc/hosts` + `ssh -L 443`; real hostnames, no browser proxy — see §"Reaching Trino UI + Hue from the Mac" above). Older SOCKS-proxy path (`bastion-connect.sh`) still works. Both cover Hue and the Trino Web UI. Neither gives minikube NiFi pods a path to HMS thrift — pod→HMS for NiFi PutIceberg (#151) is a separate, unsolved path. |
 | ~~Trino as seed engine~~ | **Resolved (#179):** `redeploy.sh` uses Impala Data Hub (step 3-4) for all seeding — `seed-airlines.sql` (3 rows) + `seed-flights.sql` (120k rows). Trino VW is the query engine, not the seed engine. |
 | **Teardown is destructive; rebuild ~1h40m** | Destroy + rebuild replaces the weekly redeploy. `redeploy.sh` uses `semi-private`; CDW Trino provision is a required post-redeploy step (see Monday checklist above). Total: ~1h55m. |
 
