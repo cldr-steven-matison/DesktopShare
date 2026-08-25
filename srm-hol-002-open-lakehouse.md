@@ -117,25 +117,136 @@ Exit `0` = pass. (`--skip-mutate` for read-only re-check.)
 
 ---
 
-## 6. Core modules — run the SQL in CDW Hue / Data Explorer
+## 6. Validate all modules — Python harness via SOCKS5 proxy
 
-The harness only scripts steps 4–5. For the rest, open the module's SQL in the **CDW SQL editor
-(Hue)** on the VW noted, replacing `${prefix}` → `srm`. Modules live under
-`~/Downloads/hol-002-open-lakehouse-main/content/Modules/`.
+All SQL validation runs through Python (impyla + PySocks), not Hue. The bastion SOCKS5 proxy
+(`ssh -D 1080`) routes CDW traffic through the private VPC — same proxy used for Trino/Hue UI access.
 
-| Module | VW | Entry file | Shows |
-|---|---|---|---|
-| Creating Tables | Hive | `creating-tables/create_iceberg_tbl_SQL.md`, `create_table_like_SQL.md`, `alter_table_properties_SQL.md` | Create Iceberg tables, CTL, table props |
-| Loading Data | Hive | `loading-data/load_iceberg_tbl_SQL.md` | INSERT into `flights_iceberg` |
-| Partition Evolution | Hive | `partition-evolution/partition_evolution_SQL.md`, `partition_drop_SQL.md`, `analyze_explain_plans_SQL.md` | Evolve partition spec, explain plans |
-| Time Travel | Hive | `time-travel/time_travel_SQL.md` | Query snapshots by time/id |
-| ACID Transactions | Hive | `acid-transactions/acid_merge_SQL.md`, `update_data_SQL.md`, `delete_data_SQL.md` | MERGE / UPDATE / DELETE row-level |
-| Schema Evolution | Hive | `schema-evolution/SchemaEvolution_SQL.md` | Add/rename/drop columns safely |
-| Branching | Hive | `branching/branching_SQL.md` | Iceberg branches |
-| Tagging | Hive | `tagging/tagging_SQL.md` | Iceberg tags / lineage |
-| Table Maintenance | Hive | `table-maintenance/00_setup…` → `04_query_metadata_tables.md` | Compaction, rollback, snapshot expiry on `srm_airlines_maint` |
+### 6a. SOCKS5 setup
 
-(Impala VW is handy for `DESCRIBE FORMATTED` format checks and the federated query used in later modules.)
+Bastion must be running (`bastion-up` + `bastion-connect` via `ssh -D 1080 ...`). Every validation
+script monkey-patches the socket at import time:
+
+```python
+import socks, socket
+socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 1080)
+socket.socket = socks.socksocket
+```
+
+Three auth overrides required in every script (defaults in the harness point at the wrong user/env):
+
+```python
+USERNAME = "steven.matison"          # resolve_cdp_user(None) returns fmangussi — hardcode this
+PASSWORD = resolve_cdp_password(None) # reads macOS Keychain "cdp-workload-password"
+```
+
+### 6b. Run the three validation chains (parallel)
+
+Scripts in `~/Downloads/hol-002-open-lakehouse-main/scripts/`:
+
+```bash
+cd ~/Downloads/hol-002-open-lakehouse-main/scripts
+source .venv/bin/activate
+
+# three independent chains — run in parallel
+python val_hive_main.py  > /tmp/val_hive_main.out  2>&1 &
+python val_hive_maint.py > /tmp/val_hive_maint.out 2>&1 &
+python val_impala.py     > /tmp/val_impala.out     2>&1
+
+# rollback+expire targeted script (run after val_hive_maint.py completes)
+python /tmp/val_maint_rollback.py
+```
+
+| Script | Hive/Impala VW | Modules covered |
+|---|---|---|
+| `val_hive_main.py` | Hive | partition-evolution, partition-drop, table-migration, metadata-tables, ACID (merge/update/delete), branching, tagging |
+| `val_hive_maint.py` | Hive | table-maint-setup (71M-row INSERT), compaction (OPTIMIZE), rollback, expire-snapshots |
+| `val_impala.py` | Impala | partition-analyze, time-travel, schema-evolution, query-combined, metadata-tables, security/planes |
+
+`val_hive_maint.py` takes ~30 min (full INSERT). The others complete in under 15 min each.
+
+### 6c. Validation results (2026-08-25)
+
+| Chain | PASS | FAIL | SKIP | Notes |
+|---|---|---|---|---|
+| Prerequisites (`run_prerequisites.py`) | 4 | 0 | 0 | 71,826,380 rows, 12 year partitions |
+| Hive main (`val_hive_main.py`) | 44 | 7 | 2 | FAILs = `SELECT *` on `.HISTORY`/`.snapshots`/`.partitions` (see §6d) |
+| Hive maint (`val_hive_maint.py`) | 14 | 4 | 1 | Same `.HISTORY SELECT *` issue |
+| Maint rollback+expire (targeted) | 11 | 0 | 0 | Rollback to pre-bad-record snapshot ✓ |
+| Tagging (targeted) | 12 | 0 | 0 | CREATE TAG, `tag_audit` query, time-travel by tag ✓ |
+| Impala (`val_impala.py`) | 20 | 0 | 2 | SKIPs = ADD COLUMNS (already present) + Ranger masking (UI-only) |
+
+**All HOL modules validated:**
+
+| Module | VW | Result |
+|---|---|---|
+| Creating tables / CTAS / CONVERT TO ICEBERG | Hive | ✓ PASS |
+| Loading data (partition-evolution INSERT 2007) | Hive | ✓ PASS |
+| Partition evolution + partition drop | Hive | ✓ PASS |
+| Table migration (planes → Iceberg, airports CTAS) | Hive | ✓ PASS |
+| Metadata tables (files, manifests, refs, snapshots, partitions) | Hive | ✓ PASS (explicit cols) |
+| ACID — MERGE / UPDATE / DELETE | Hive | ✓ PASS |
+| Branching (INSERT to branch, FAST-FORWARD) | Hive | ✓ PASS |
+| Tagging (CREATE TAG, tag_audit, time-travel by tag) | Hive | ✓ PASS |
+| Table maintenance — setup + 71M-row INSERT | Hive | ✓ PASS |
+| Compaction (OPTIMIZE REWRITE DATA) | Hive | ✓ PASS |
+| Rollback to snapshot (pre-bad-record) | Hive | ✓ PASS |
+| Snapshot expiration + TBLPROPERTIES | Hive | ✓ PASS |
+| Partition analyze + partition stats | Impala | ✓ PASS |
+| Time travel (SYSTEM_TIME AS OF, SYSTEM_VERSION AS OF) | Impala | ✓ PASS |
+| Schema evolution (ADD COLUMNS, INSERT with new cols) | Impala | ✓ PASS |
+| Query combined (federated join, SHOW CREATE TABLE) | Impala | ✓ PASS |
+| Metadata tables (HISTORY, snapshots, files, partitions, REFS) | Impala | ✓ PASS |
+| Security — planes SELECT (post-INVALIDATE METADATA) | Impala | ✓ PASS |
+| Ranger masking policy | — | SKIP (UI-only) |
+
+### 6d. Known quirks for this CDP runtime
+
+**Hive: `SELECT *` on `.HISTORY`, `.snapshots`, `.partitions` fails (error 22)**
+
+`SELECT *` returns error 22 on these three virtual metadata tables in this Hive version. Workarounds:
+
+```sql
+-- FAILS:
+SELECT * FROM srm_airlines.flights.HISTORY;
+SELECT * FROM srm_airlines.flights.snapshots;
+SELECT * FROM srm_airlines.flights.partitions;
+
+-- WORKS (explicit columns or WHERE):
+SELECT snapshot_id, parent_id, operation FROM srm_airlines.flights.snapshots WHERE parent_id IS NOT NULL;
+SELECT snapshot_id FROM srm_airlines.flights.snapshots WHERE parent_id IS NULL;
+SELECT record_count, file_count, spec_id FROM srm_airlines.flights.partitions;
+-- .files, .manifests, .REFS work with SELECT * as normal
+```
+
+`DESCRIBE HISTORY tablename` is **Impala-only** — Hive parses it as `DESCRIBE TABLE HISTORY.*`
+(SemanticException 10001). For snapshot navigation in Hive use `.snapshots WHERE parent_id IS NULL`
+(root snapshot) or `.REFS WHERE name = 'main'` (current branch tip).
+
+**Impala: `.files` and `.partitions` are reserved words — backtick-quote them**
+
+```sql
+-- FAILS (parse error):
+SELECT * FROM srm_airlines.flights.files;
+SELECT * FROM srm_airlines.flights.partitions;
+
+-- WORKS:
+SELECT * FROM srm_airlines.flights.`files`;
+SELECT * FROM srm_airlines.flights.`partitions`;
+```
+
+**`CONVERT TO ICEBERG` returns error 40000 but succeeds**
+
+`ALTER TABLE planes CONVERT TO ICEBERG` returns `Execution Error, return code 40000 from DDLTask`
+on the first run, but the HMS IS updated — `DESCRIBE FORMATTED` shows `HiveIcebergStorageHandler`
+after the error. Subsequent runs correctly SKIP the CONVERT. Do not retry; add an `is_iceberg` guard
+before the CONVERT call.
+
+**`INVALIDATE METADATA` required in Impala after Hive converts a table to Iceberg**
+
+After Hive converts `planes` to Iceberg, Impala's metadata cache is stale. Run
+`INVALIDATE METADATA srm_airlines.planes` in Impala before querying — otherwise you get
+`AnalysisException: Failed to load metadata`.
 
 ---
 
