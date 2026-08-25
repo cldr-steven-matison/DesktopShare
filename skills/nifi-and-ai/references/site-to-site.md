@@ -30,7 +30,7 @@ spec:
   configOverride:
     nifiProperties:
       upsert:
-        nifi.remote.input.host: mynifi-0.mynifi.cfm-streaming.svc.cluster.local
+        nifi.remote.input.host: <nifi-pod>.<nifi-svc>.$NS.svc.cluster.local   # e.g. mynifi-0.mynifi.<ns>.svc.cluster.local
         nifi.remote.input.secure: "true"
         nifi.remote.input.http.enabled: "true"
 ```
@@ -100,35 +100,36 @@ Fixed sequencing — the port UUID is a chicken-and-egg:
 ```yaml
 apiVersion: cfm.cloudera.com/v1alpha1
 kind: User
-metadata: { name: cso-s2s-peer, namespace: cfm-streaming }
+metadata: { name: s2s-peer, namespace: $NS }
 spec:
-  identity: cso-s2s-peer
-  instanceTarget: { kind: Nifi, name: mynifi, namespace: cfm-streaming }
+  identity: s2s-peer
+  instanceTarget: { kind: Nifi, name: <nifi-cr-name>, namespace: $NS }
   accessPolicies:
     - actions: [read]
       resources: [/site-to-site]
     - actions: [write]
-      resources: [/data-transfer/input-ports/3a6dbcdb-01a0-1000-0000-0000192492e7]
+      resources: [/data-transfer/input-ports/<port-uuid>]
 ```
 
-`certificate.generate: true` on the `User` CR is a **no-op in operator b126** — no secret, no
+`certificate.generate: true` on the `User` CR is a **no-op in CFM operator 3.0.0 (b126)** — no secret, no
 `Certificate` CR, nothing in the operator log. Mint the peer cert yourself, off the same issuer as
 §3, `dnsNames` equal to `spec.identity`:
 
 ```yaml
 apiVersion: cert-manager.io/v1
 kind: Certificate
-metadata: { name: cso-s2s-peer-cert, namespace: cfm-streaming }
+metadata: { name: s2s-peer-cert, namespace: $NS }
 spec:
-  secretName: cso-s2s-peer-cert
-  commonName: cso-s2s-peer
-  dnsNames: [cso-s2s-peer]
+  secretName: s2s-peer-cert
+  commonName: s2s-peer
+  dnsNames: [s2s-peer]
   usages: [digital signature, key encipherment, client auth]
   issuerRef: { name: cfm-operator-ca-issuer-signed, kind: ClusterIssuer, group: cert-manager.io }
 ```
 
-An admin `User` follows the same shape with a broader grant (`/tenants`, `/policies`,
-`/parameter-contexts`, `/provenance`, `/counters`) — see `files/cso-prod-1/user-nifi-admin.yaml`.
+An admin `User` follows the same shape with a broader grant (`read`+`write` on `/flow`,
+`/controller`, `/process-groups/root`, `/tenants`, `/policies`, `/parameter-contexts`,
+`/provenance`, `/counters`).
 
 ## 5. Transport: HTTP not RAW; `nifi.remote.input.*` keys; RPG targets a port by instance id
 
@@ -195,9 +196,7 @@ flow too.
 | `403 No applicable policies could be found` creating a PG as the seeded admin | `initialAdminIdentity` seeds a login, not a flow-author grant | Declare a flow-author `User` CR (write on `/flow`, `/controller`, `/process-groups/root`) |
 | `500 Unable to save Authorizations`, sometimes followed by a crash-loop | Operator owns `authorizations.xml`; a runtime POST can't persist and can tear the file | Declare via `User`/`UserGroup`/`AccessPolicyProfile` CR; never `POST /policies` |
 | `certificate unknown`/PKIX failure in the S2S handshake | Peer cert minted off an issuer other than `verificationCASecret`'s | Mint every cert off the same `ClusterIssuer` as the node certs — never the operator's `selfSigned` issuer |
-| `User` CR applied, no cert/secret appears | `certificate.generate: true` is a no-op in operator b126 | Mint the peer cert yourself with cert-manager off the same CA |
+| `User` CR applied, no cert/secret appears | `certificate.generate: true` is a no-op in CFM operator 3.0.0 (b126) | Mint the peer cert yourself with cert-manager off the same CA |
 | Peer policy references a port that doesn't exist | Port UUID needed in the peer's `accessPolicies` resource path | Fixed order: flow-author `User` → create port → peer `User` with the real UUID |
 | Input port created but won't start | A port with no downstream connection is invalid | Give it a downstream connection (a funnel is enough) before starting |
 | `SiteToSiteReportingRecordSink` session unauthenticated/rejected | Assuming `use.parent.ssl`-style inheritance applies | Set its `SSL Context Service` explicitly — no parent-SSL fallback |
-
-Source docs: minifi-site-to-site-lab.md, minifi-site-to-site.md, cso-prod-1-preprod-plan.md, VALIDATION.md, efm-metrics-java-s2s-lab-plan.md.
