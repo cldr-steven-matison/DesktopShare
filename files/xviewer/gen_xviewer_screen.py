@@ -17,13 +17,13 @@ either path.
 
 Layout (368x448, four stacked absolute regions, no gaps/overlaps):
 
-  y=0..28    topbar   -- "n/N" position (left) + status/error text (right)
-  y=28..248  media    -- 368x220 card image plus two non-interactive chevron
+  y=0..46    topbar   -- "n/N" position (left) + status/error text (right)
+  y=46..266  media    -- 368x220 card image plus two non-interactive chevron
                          glyphs. NO tap zones: navigation is the screen-root
                          swipe and nothing else (#220)
-  y=248..364 post_text -- wrapped post body, 20px
-  y=364..448 toolbar   -- LIKE (heart image + count), VIEWS, COMMENTS
-                         (replies) -- the #198 "tools" bar
+  y=266..372 post_text -- wrapped post body, 16px (#236)
+  y=372..448 toolbar   -- LIKE (heart image + count), VIEWS, COMMENTS
+                         (replies) -- the #198 "tools" bar, 76px tall (#236)
 
 Design decisions worth explaining to a future reader:
 
@@ -58,8 +58,8 @@ Design decisions worth explaining to a future reader:
   button) produce on their own. So this bar reuses tool_bar()'s own numbers
   (tool_bar()'s image-branch sizing formula for the heart) but lays all
   three out directly via canvas()/label()/sprite() so LIKE, VIEWS and
-  COMMENTS read as one consistent row of three 84px-tall boxes -- all
-  comfortably inside the 76-88 tap-target band.
+  COMMENTS read as one consistent row of three 76px-tall boxes -- the
+  minimum legal height in the 76-88 tap-target band (#236).
 
 - There is no fourth CLEAR tool (#218). It emitted `xviewer.clear` on BOTH
   `pressed` and `released` -- one tap ran two full feed refetches -- and
@@ -118,8 +118,8 @@ BLACK = "#000000"  # xviewer's own chrome black, distinct from tokens' BG (#0f0f
 
 TOPBAR_H = 46          # tall enough to hold its text clear of the rounded corner
 MEDIA_H = 220           # matches the backend's CARD_W x CARD_H contract exactly
-TOOLBAR_H = 84          # within the 76-88 tap-target band
-POST_TEXT_H = H - TOPBAR_H - MEDIA_H - TOOLBAR_H  # 116
+TOOLBAR_H = 76          # the minimum legal tap-target height (#236)
+POST_TEXT_H = H - TOPBAR_H - MEDIA_H - TOOLBAR_H  # 106
 
 
 def topbar():
@@ -150,21 +150,23 @@ def media():
 
 
 def post_text():
-    """Wrapped post body, 20px (top of the 16-22 body band, per the brief's
-    18-20px ask) -- up from the old 16px. Direct screen child (screen()
-    doesn't validate placement modes the way canvas()/stack() do), so no
-    wrapping container is needed for a single absolute label."""
+    """Wrapped post body, 16px (#236: the only lower rung on the ladder below
+    the old 20px, and the kit's hard floor) -- shrunk to give the text more
+    room, since TOOLBAR_H dropping to 76 grows this box from 98 to 106.
+    Direct screen child (screen() doesn't validate placement modes the way
+    canvas()/stack() do), so no wrapping container is needed for a single
+    absolute label."""
     return pk.label("post_text", 16, TOPBAR_H + MEDIA_H, W - 32, POST_TEXT_H,
-                     text="loading feed...", role="body", size=20,
+                     text="loading feed...", role="body", size=16,
                      color=tk.INK, align="left")
 
 
 def toolbar():
     """The #198 tools bar: LIKE (heart image + count), VIEWS, COMMENTS
-    (replies). Three 84px-tall boxes (within the 76-88 band), sized to the
-    total width exactly (116 + 10 + 116 + 10 + 116 == 368) -- see the module
-    docstring for why this doesn't just call tool_bar() directly, and why
-    there is no fourth CLEAR box (#218).
+    (replies). Three 76px-tall boxes (the minimum legal tap-target height,
+    #236), sized to the total width exactly (116 + 10 + 116 + 10 + 116 ==
+    368) -- see the module docstring for why this doesn't just call
+    tool_bar() directly, and why there is no fourth CLEAR box (#218).
 
     LIKE's image sizing mirrors tool_bar()'s own image-branch formula
     (img_h = h - 26 when a caption is present, img_w = min(iw - 12, img_h))
@@ -200,7 +202,7 @@ def toolbar():
     t_views = pk.canvas("t_views", x_views, 0, views_w, TOOLBAR_H, bg=tk.DARK,
                          radius=tk.RADIUS, children=[
         pk.label("t_views_v", 0, 10, views_w, 34, text="0", role="value",
-                  size=28, color=tk.INK, align="center"),
+                  size=24, color=tk.INK, align="center"),
         pk.label("t_views_c", 0, 46, views_w, 20, text="VIEWS", role="footer",
                   size=16, color=tk.MUTED, align="center"),
     ])
@@ -208,7 +210,7 @@ def toolbar():
     t_comments = pk.canvas("t_comments", x_comments, 0, comments_w, TOOLBAR_H,
                             bg=tk.DARK, radius=tk.RADIUS, children=[
         pk.label("t_comments_v", 0, 10, comments_w, 34, text="0", role="value",
-                  size=28, color=tk.INK, align="center"),
+                  size=24, color=tk.INK, align="center"),
         pk.label("t_comments_c", 0, 46, comments_w, 20, text="REPLIES",
                   role="footer", size=16, color=tk.MUTED, align="center"),
     ])
