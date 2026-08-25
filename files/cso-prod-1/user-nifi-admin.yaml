@@ -1,14 +1,39 @@
 # Admin access for the human/automation identity on cso-prod-1, granted the operator-native way
 # (never hand-POST users/policies to REST — 500 → torn authorizations.xml → CrashLoop).
-# Identity = the mapped DN of nifi-admin-cert (no SAN on that cert, so NiFi uses subject DN via
-# identity.mapping ^CN=(.*?), ?O=(.*?) -> "CN=$1, O=$2").
+#
+# Identity maps by SAN, not subject DN: NiFi 2.6.0 under the CFM operator uses
+# SANX509PrincipalExtractor, which throws "At least one Subject Alternative name must be provided"
+# (HTTP 500 on every request) for a client cert without a SAN. So the cert carries dnsNames: [nifi-admin]
+# and User.spec.identity is exactly that SAN — the same shape as s2s-peer.yaml.
+#
+# The cert MUST be minted off cfm-operator-ca-issuer-signed (cluster-issuer.yaml) — the same CA as the
+# node certs and verificationCASecret. History (2026-08-25): first minted off the operator's own
+# nifi-node-certs issuer (not in NiFi's truststore) AND without a SAN, with the User identity written as
+# the DN "CN=nifi-admin, O=Cloudera" — neither could ever authenticate; the first session's admin API
+# calls actually used the operator's own cert. Corrected in run 2.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nifi-admin-cert
+  namespace: cfm-streaming
+spec:
+  secretName: nifi-admin-cert
+  commonName: nifi-admin
+  dnsNames:
+    - nifi-admin
+  usages: [digital signature, key encipherment, client auth]
+  issuerRef:
+    name: cfm-operator-ca-issuer-signed
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
 apiVersion: cfm.cloudera.com/v1alpha1
 kind: User
 metadata:
   name: nifi-admin
   namespace: cfm-streaming
 spec:
-  identity: "CN=nifi-admin, O=Cloudera"
+  identity: nifi-admin
   instanceTarget:
     kind: Nifi
     name: mynifi

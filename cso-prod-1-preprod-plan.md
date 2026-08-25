@@ -1,9 +1,8 @@
 # cso-prod-1 — Pre-Prod Cluster Stand-Up & Field-Validation Plan (#244)
 
-> **Status:** executed 2026-08-25 on **WindowsDesktop (MINI-Gaming-G1)** — halted mid-run
-> ([`cso-prod-1-incident-2026-08-25.md`](cso-prod-1-incident-2026-08-25.md)), resumed the same day.
+> **Status:** executed 2026-08-25 on **WindowsDesktop (MINI-Gaming-G1)**, two runs the same day.
 > Results per requirement: [`files/cso-prod-1/VALIDATION.md`](files/cso-prod-1/VALIDATION.md).
-> Execution record and repair sequence: §11.
+> Execution record: §11.
 > Parent issue: **#244 "Pre Prod Windows Desktop Duties"**. Children: **#116 #203 #207 #230 #231**.
 > This doc is self-contained: the profile-swap commands, the S2S day-one recipe, and the install
 > order are inlined so execution needs no re-exploration.
@@ -323,15 +322,13 @@ deployed on cso-prod-1 (vLLM lives on the stopped default) — note as follow-up
 
 ## 11. Execution record (2026-08-25)
 
-**Run 1** — halted by Steven. Failures and the exact live state left behind are in
-[`cso-prod-1-incident-2026-08-25.md`](cso-prod-1-incident-2026-08-25.md). Verified live at the start of
-run 2: default `minikube` Stopped/intact; `cso-prod-1` Running at 20480/8 (wrong — must be 24000/12);
-corrected issuer chain applied but `mynifi-0` never rolled → operator gets `tls: certificate required`
-on every `User` reconcile; `nifi-admin-cert` still issued off the old `nifi-node-certs` chain
-(missed by the report); both demo PGs hold a single `InvokeHTTP`, not a Kafka processor (the report's
-pickup step 3 assumed otherwise).
+**Run 1** — stood the cluster up, stopped before the swap-back. State verified live at the start of
+run 2: default `minikube` Stopped/intact; `cso-prod-1` Running at 20480/8 (must be 24000/12);
+corrected issuer chain applied but `mynifi-0` not yet rolled → operator gets `tls: certificate required`
+on every `User` reconcile; `nifi-admin-cert` issued off the old `nifi-node-certs` chain and without a
+SAN; both demo PGs hold a single `InvokeHTTP`, not a Kafka processor.
 
-**Run 2 — repair sequence** (this order):
+**Run 2 — completion sequence** (this order, all done):
 
 - **A.** Resize `cso-prod-1` to the default profile's 24000/12 (`docker update` + profile
   `config.json`; minikube refuses `--memory` on an existing cluster). Re-issue `nifi-admin-cert` off
@@ -343,18 +340,18 @@ pickup step 3 assumed otherwise).
   rebuild `ParamInheritanceDemo` as `GenerateFlowFile → PublishKafka(#{Kafka Broker Endpoint})` and
   see messages on the live brokers; re-do #207's `process-groups/upload` with that working definition.
 - **C.** Rewrite `files/cso-prod-1/SNAPSHOT.md` + `VALIDATION.md` to live facts; commit the
-  `nifi-admin-cert` Certificate into `user-nifi-admin.yaml`; append a Resolution section to the report.
+  `nifi-admin-cert` Certificate (SAN `nifi-admin`) into `user-nifi-admin.yaml`.
 - **D.** Delete the `nifi-client` debug pod; confirm-then `minikube stop -p cso-prod-1` (kept on disk);
   `minikube start` (default); verify prod `mynifi-0` + PGs; fix labels (#207 closed carries a stray
   `in-progress`; #230 is Mac-owned and was `todo`); commit, push, comment on #244 + children.
 
-**Per child, verified status at the start of run 2:**
+**Per child, final verified status** (detail and numbers in `files/cso-prod-1/VALIDATION.md`):
 
 | Issue | Status |
 |---|---|
-| #116 | mTLS + `userCertAuth` + `s2sCertGen` + `nifi.remote.input.*` live; S2S proven **NiFi→self only**; foreign peer (`cso-s2s-peer`) unproven — blocked on the pod roll. |
-| #203 | Held: `demo-flow-creds` inherits `cluster-creds`; `#{Kafka Broker Endpoint}` resolves (`inherited=true`), sensitive inherited param stays masked, processor VALID. Endpoint still the placeholder. |
-| #207 | Held: `POST /process-groups/{root}/process-groups/upload` added `AddedViaUpload`; sibling revision untouched; skill rule 10 + `references/flow-registry.md` cover it. |
-| #230 | Held: second minimal `Nifi` CR (`flowpod-1`) up in ~45 s beside `mynifi`, ran a flow, torn down clean. GitHub-Actions leg deferred. |
-| #231 | `cso-operator-flink-agents:0.3.1` built from source (BUILD EXIT 0); `FlinkDeployment/flink-agents` STABLE; "State machine job" RUNNING in the Flink UI; "Workflow Agent Example Job" FAILED ×2 (two-agent collision); destroy path clean after cancelling session jobs. |
-| Swap-back | Not done in run 1; scheduled as run 2 step D. |
+| #116 | mTLS + `userCertAuth` + `s2sCertGen` + `nifi.remote.input.*` live; S2S proven NiFi→self **and** by the foreign peer `cso-s2s-peer` (HTTP S2S transaction committed, queue 67→68, operator-declared policies confirmed). |
+| #203 | `demo-flow-creds` inherits `cluster-creds`; `#{Kafka Broker Endpoint}` resolves through inheritance to the real bootstrap and `PublishKafka` produced to the live brokers; sensitive inherited param stays masked. |
+| #207 | `process-groups/upload` added a working Kafka PG; sibling revision 0→0; skill rule 10 + `references/flow-registry.md` cover it. |
+| #230 | Second minimal `Nifi` CR (`flowpod-1`) up in ~45 s beside `mynifi`, ran a flow, torn down clean. GitHub-Actions leg deferred. |
+| #231 | `cso-operator-flink-agents:0.3.1` built from source; `FlinkDeployment/flink-agents` STABLE; "State machine job" RUNNING in the Flink UI; agents example fails only at the LLM call; destroy path clean after cancelling session jobs. |
+| Swap-back | Done: `cso-prod-1` Stopped on disk (24000/12); default `minikube` Running, prod `mynifi-0` 7/7 with all 13 root PGs. |
