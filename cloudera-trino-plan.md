@@ -146,10 +146,17 @@ ansible-playbook provision-trino-vw.yml -v
 > NLB (`10.10.x`) — reachable within the CDP/VPC network path, not from the public internet. Access
 > from the Mac goes through the EC2 bastion in the persistent VPC (#190).
 
-### Reaching Trino UI + Hue from the Mac — bastion SOCKS proxy
+### Reaching the srm-iceberg UIs from the Mac — TWO paths, do not conflate them
 
-This is the method that produced the working Trino Web UI screenshot (#190, 2026-08-20) and is
-re-verified live 2026-08-25 (Trino `/ui/`→303 Knox, Hue→302 SAML through the proxy from the Mac).
+There are **two distinct access paths** and using the wrong one is the recurring failure. CDW
+Virtual Warehouses live on a **private** NLB and MUST go through the bastion SOCKS proxy. Data Hubs
+have **public** gateways and MUST go **direct** — tunneling them through the bastion times out
+because the bastion's source IP isn't in the Data Hub security group. Re-verified live 2026-08-25.
+
+**Path A — CDW Virtual Warehouses (Trino / Hive / Impala) → via bastion SOCKS proxy.**
+`*.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site` has NO public DNS (private CDW NLB, `10.10.x`);
+the tunnel is mandatory. This is the method that produced the working Trino Web UI screenshot
+(#190, 2026-08-20).
 
 ```bash
 cd ~/Documents/GitHub/iceberg-rest-catalog-demo/bastion
@@ -158,24 +165,49 @@ cd ~/Documents/GitHub/iceberg-rest-catalog-demo/bastion
 ./bastion-up.sh --stop          # stop compute billing when done
 ```
 
-Then point the browser at the SOCKS proxy **with remote DNS on** and browse the real hostnames — the
-`*.cloudera.site` names resolve to their private IPs *over the tunnel*, so TLS/SNI + Knox/SAML
-redirects work unchanged. One tunnel serves Trino UI, Hue, and any future private service:
+Point the browser at the SOCKS proxy **with remote DNS on** — the private `*.cloudera.site` names
+resolve over the tunnel, so TLS/SNI + Knox/SAML redirects work unchanged:
 
 - Firefox: SOCKS5 host `127.0.0.1` port `1080`; `about:config` → `network.proxy.socks_remote_dns = true`
 - FoxyProxy: SOCKS5 `127.0.0.1:1080`, "send DNS through proxy" ON
 - Chrome (whole browser): `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir=/tmp/bastion-chrome --proxy-server="socks5://127.0.0.1:1080"`
-- Trino UI: `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/ui/`
-- Hue: `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/`
+
+| VW | UI URL (through proxy) |
+|---|---|
+| Trino UI | `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/ui/` |
+| Trino Hue | `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/` |
+| Hive Hue | `https://hue-srm-iceberg-hive-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/` |
+| Impala Hue | `https://hue-srm-iceberg-impala-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/` |
+
+**Path B — Data Hubs → direct, proxy OFF.** Gateways `*.srm-iceb.a465-9q4k.cloudera.site` resolve to
+**public IPs** and the security group already allows the Mac's public IP. Reach them with the browser
+proxy disabled (or scoped away — see below). Two Data Hubs on the env:
+
+| Data Hub | UI | URL (direct) |
+|---|---|---|
+| `srm-iceberg-impala` (Data Mart) | Hue | `https://srm-iceberg-impala-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-impala/cdp-proxy/hue/` |
+| | Impala UI | `.../srm-iceberg-impala/cdp-proxy/impalaui?scheme=https&host=srm-iceberg-impala-coordinator0.srm-iceb.a465-9q4k.cloudera.site&port=25000` |
+| | CM UI | `https://srm-iceberg-impala-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-impala/cdp-proxy/cmf/home/` |
+| `srm-hol-optimizer` (Lakehouse Optimizer) | CM UI | `https://srm-hol-optimizer-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-hol-optimizer/cdp-proxy/cmf/home/` |
+| | Hue | `https://srm-hol-optimizer-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-hol-optimizer/cdp-proxy/hue/` |
+
+**Browser proxy scoping (the fix for the recurring breakage):** in FoxyProxy, send **only**
+`*.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site` through `127.0.0.1:1080` and leave everything
+else (including `*.srm-iceb.a465-9q4k.cloudera.site`) direct. A catch-all SOCKS setting sends the
+Data Hub URLs through the bastion and they time out (curl exit / HTTP `000`). Then all four services
+work from one browser with no toggling.
 
 Notes:
 
 - **The bastion public IP churns** on every start; `bastion-connect.sh` auto-discovers the running
   bastion by tag if you omit the IP arg.
 - **Prerequisite each session:** `aws sso login --profile cldr-se` (token expires) before `bastion-up.sh`.
-- **Do NOT use `/etc/hosts` + `ssh -L 443`** here: the `iceberg-lab` minikube tunnel already binds
-  `127.0.0.1:443`, so a local `:443` forward can't bind and the browser hits minikube's nginx ingress
-  → **404**. SOCKS on `:1080` sidesteps the collision entirely (and needs no sudo).
+- **Do NOT use `/etc/hosts` + `ssh -L 443`** for the CDW VWs: the `iceberg-lab` minikube tunnel
+  already binds `127.0.0.1:443`, so a local `:443` forward can't bind and the browser hits minikube's
+  nginx ingress → **404**. SOCKS on `:1080` sidesteps the collision entirely (and needs no sudo).
+- **Rediscovering URLs** (CLI `~/.venvs/cdpcli/bin/cdp`, CDW cluster `env-c4vcf7`): VW Hue/JDBC from
+  `dw describe-vw --cluster-id env-c4vcf7 --vw-id <id>` (`endpoints`); Data Hub UIs from
+  `datahub describe-cluster --cluster-name <name>` (`endpoints.endpoints[].serviceUrl`).
 
 Full detail: [`cloudera-iceberg-rest-catalog-aws-plan.md`](cloudera-iceberg-rest-catalog-aws-plan.md)
 §External / VPC access and [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190).

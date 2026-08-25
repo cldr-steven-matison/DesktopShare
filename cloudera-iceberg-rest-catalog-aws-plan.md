@@ -58,7 +58,9 @@ The `semi-private` template puts CDW workers, CDW load balancers, and DataLake c
 | **Impala workers** | private `10.10.x` IPs | — | Direct worker access (gateway host is the current workaround) |
 | DL gateway (Knox) | `srm-iceberg-aw-dl-gateway.…` | `3.141.161.46` (**public**) | *not* blocked — why the REST Catalog already works |
 
-**Solution: EC2 bastion inside the VPC + SSH dynamic SOCKS proxy** (see [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190)). The bastion's ENI has a `10.10.x` source IP that the private NLB and services already have a VPC return route to — so a browser tunnelled through it reaches all private-subnet UIs at their real hostnames, TLS/SNI and Knox redirects intact. One tunnel serves Trino UI, Hue, and any future private service.
+**Solution: EC2 bastion inside the VPC + SSH dynamic SOCKS proxy** (see [#190](https://github.com/cldr-steven-matison/DesktopShare/issues/190)). The bastion's ENI has a `10.10.x` source IP that the private NLB and services already have a VPC return route to — so a browser tunnelled through it reaches the private-subnet **CDW** UIs at their real hostnames, TLS/SNI and Knox redirects intact. One tunnel serves every private CDW VW (Trino, Hive, Impala).
+
+> **⚠️ Two paths — this is the recurring failure.** Only the **CDW Virtual Warehouses** are private and need the tunnel. **Data Hubs** (`*.srm-iceb.a465-9q4k.cloudera.site` gateways) resolve to **public** IPs whose security group already allows the Mac's public IP — they must be reached **direct, proxy OFF**. Tunnelling a Data Hub through the bastion **times out** (`000`), because the bastion's source IP isn't in the Data Hub SG. See the complete UI map below.
 
 **Live bastion (created 2026-08-20, #190):**
 
@@ -86,6 +88,29 @@ cd ~/Documents/GitHub/iceberg-rest-catalog-demo/bastion
 ```
 
 The scripts resolve VPC/subnet by **Name tag**, not hardcoded ID, so they survive the weekly rebuild's new IDs. `bastion-up.sh` re-points the SSH ingress at the current Mac IP on every run.
+
+**Complete UI map — all four services (verified live 2026-08-25).** CDW cluster `env-c4vcf7`; rediscover URLs via `~/.venvs/cdpcli/bin/cdp dw describe-vw --cluster-id env-c4vcf7 --vw-id <id>` and `cdp datahub describe-cluster --cluster-name <name>` (`endpoints.endpoints[].serviceUrl`).
+
+*Path A — CDW VWs, through the SOCKS proxy* (private NLB, no public DNS):
+
+| VW | UI URL |
+|---|---|
+| Trino UI | `https://srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/ui/` |
+| Trino Hue | `https://hue-srm-trino-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/` |
+| Hive Hue | `https://hue-srm-iceberg-hive-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/` |
+| Impala Hue | `https://hue-srm-iceberg-impala-vw.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site/` |
+
+*Path B — Data Hubs, direct with proxy OFF* (public gateway, Mac IP in SG):
+
+| Data Hub | UI | URL |
+|---|---|---|
+| `srm-iceberg-impala` (Data Mart) | Hue | `https://srm-iceberg-impala-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-impala/cdp-proxy/hue/` |
+| | Impala UI | `.../srm-iceberg-impala/cdp-proxy/impalaui?scheme=https&host=srm-iceberg-impala-coordinator0.srm-iceb.a465-9q4k.cloudera.site&port=25000` |
+| | CM UI | `https://srm-iceberg-impala-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-iceberg-impala/cdp-proxy/cmf/home/` |
+| `srm-hol-optimizer` (Lakehouse Optimizer) | CM UI | `https://srm-hol-optimizer-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-hol-optimizer/cdp-proxy/cmf/home/` |
+| | Hue | `https://srm-hol-optimizer-gateway.srm-iceb.a465-9q4k.cloudera.site/srm-hol-optimizer/cdp-proxy/hue/` |
+
+**Browser proxy scoping (so all four work from one browser, no toggling):** in FoxyProxy send **only** `*.dw-srm-iceberg-cdp-env.a465-9q4k.cloudera.site` through `127.0.0.1:1080`; leave everything else (including `*.srm-iceb.a465-9q4k.cloudera.site`) direct. A catch-all SOCKS setting is what breaks the Data Hub URLs.
 
 **Survives the weekly reaper.** The bastion is a plain EC2 in the persistent VPC; the CDP reaper deletes only CDP objects (env/DataLake/Data Hub), and the weekly redeploy is `terraform apply` (not destroy), so the VPC ID is stable. Re-run `bastion-up.sh` if the reaper ever takes the instance.
 
