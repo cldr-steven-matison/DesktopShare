@@ -1,6 +1,8 @@
 # Prod Cutover — default `minikube` → `cso-prod-1`
 
-> **Status:** planned 2026-08-26 on **WindowsDesktop (MINI-Gaming-G1)**. **Not executed.**
+> **Status:** planned 2026-08-26 on **WindowsDesktop (MINI-Gaming-G1)**. **Executed the same evening
+> (window opened 20:05Z, core flows running on `cso-prod-1` by ~20:45Z).** What actually happened,
+> where it diverged from this runbook, and the open items: **§9 Execution record** at the bottom.
 > Pre-prod that got us here: [`cso-prod-1-preprod-plan.md`](cso-prod-1-preprod-plan.md) ·
 > [`files/cso-prod-1/VALIDATION.md`](files/cso-prod-1/VALIDATION.md) · [`files/cso-prod-1/SNAPSHOT.md`](files/cso-prod-1/SNAPSHOT.md).
 > Related issues: **#244** (pre-prod parent, held at `review` for this switchover), **#116** (external
@@ -76,7 +78,7 @@ carries 80 days of canvas drift and skips the `cluster-creds` consolidation that
 ClusterIssuer `cfm-operator-ca-issuer-signed`, `KubernetesConfigMapStateProvider` for cluster state,
 PVC `custom-python-extensions` mounted at `/opt/nifi/nifi-current/python/extensions`.
 
-### 3.2 The 13 root Process Groups — 196 processors (112 RUNNING / 48 ENABLED / 19 DISABLED)
+### 3.2 The 13 root Process Groups — 162 processors (the rows below sum to 162; an earlier draft said 196)
 
 | PG | procs | sub-PGs | Parameter Context |
 |---|---|---|---|
@@ -343,3 +345,60 @@ and it stays available until Steven explicitly retires the profile.
   confirming rather than assuming, and worth closing #251 off this window.
 - **Auto-created Kafka topics** — 17 of the 23 have no CR. Confirm `auto.create.topics.enable` on the
   new cluster or create them explicitly; a silently missing topic looks like a dead flow.
+
+---
+
+## 9. Execution record — 2026-08-26
+
+Window opened 20:05Z (`minikube stop`), `cso-prod-1` up 20:12Z, core flows running ~20:45Z, app on
+mTLS ~21:00Z. Phase 0 ran with prod up and cost no downtime. Everything below was verified live.
+
+### What landed
+| Item | Result |
+|---|---|
+| Flow exports | 13 files in `files/cso-prod-1/flows/prod/` + `parameter-contexts.md` — 0 `enc{}`, sensitive `null`, per-PG counts match §3.2 (162) |
+| Clips | **byte-exact**: 5 925 files / 176 842 784 421 file-bytes both sides (grew from the 5 890 / 165 GB measured at planning); all Streamers queue JSONs present; `clips-storage` PVC bound to the copied dir |
+| DBs | two scoped `pg_dump`s restored — `efm` (agent_class 9, agent 9, flow 171; Flyway validated all 39 migrations), `ssb_admin` (36 tables). EFM API lists 8 classes |
+| Small PVCs | `efm-agent-binaries` 576 736 591 B, `efm-resources`, `custom-python-extensions` — byte-exact |
+| Images | `cso-operator-app`, `streamwhisper` saved **from minikube's own daemon** (the host copy of streamwhisper is a different image), `racing/*:2.0.0` from the host daemon; geticeberg NAR rebuilt (1.0.3-SNAPSHOT, holds both processors) and autoloaded from PVC-backed `data/extensions` |
+| Kafka | external NodePorts on exactly 31623 / 31850 / 31935 / 30336 (`kafka-eval.yaml`); 6 `KafkaTopic` CRs Ready (`kafkatopics.yaml`); lag was 0 on all 3 consumer groups before the stop |
+| NiFi | CR amended (`nifi-cso-prod-1.yaml`: python-extensions PVC + env + property upsert) → 7/7; `cluster-creds` + 4 children with inheritance proven; 13 PGs uploaded and bound; prod-running PGs restarted with prod's counts (TwitchChatBot 23, WatchlistChatJoiner 16, TopStreamerJoiner 5/4, poller 7, AMOLED 3+6, StreamersApp 58) |
+| Operators / services | public flink operator → `csa-operator` 1.5.0-b275 (SSB up); EFM 1/1; qdrant, embedding, whisper, cso-operator-app (mTLS, `MODULES=rag,streamers,efm`), mosquitto, racing, iceberg-demo (0 replicas as on prod), schema-registry, surveyor, kube-prometheus-stack, 3 MiNiFi metrics Services, `minifi-agent-k8s-gaming` re-enrolled with a fresh EFM-minted identity |
+| Parity | `jq` config diff empty, `nvidia.com/gpu: 1`, vLLM 7B-AWQ/`hermes` serving → **#251 cleared** |
+
+### Where the runbook was wrong or silent (fixed in place above where it mattered)
+1. **Phase 2 as written cannot run.** `docker exec` needs a running container. The PVC data is at
+   `/var/hostpath-provisioner/<ns>/<pvc>` on the named docker volumes (`minikube`, `cso-prod-1`); the copy
+   is a helper container mounting both: `docker run --rm -v minikube:/src:ro -v cso-prod-1:/dst alpine sh -c
+   'tar -C /src/hostpath-provisioner/default -cf - clips-storage | tar -C /dst/hostpath-provisioner/default -xf -'`
+   — entirely inside the Docker VM, ~9 min for 177 GB. Run it detached (`-d`) and `docker wait` it.
+2. **Flow-definition import leaves sub-PG→parent-scope controller-service references dangling** (9 of 16
+   post-import invalids). Repoint by narrow single-property PUT — see `VALIDATION.md` §#253.
+3. **Sensitive controller-service properties export as `null`** (OAuth2 client secrets) — and
+   `StandardOauth2AccessTokenProvider` keys them by display name (`Client secret`).
+4. **Exports don't say which processors were RUNNING** (only ENABLED/DISABLED). Capture a per-processor
+   run-state list *before* stopping prod next time. Cost this time: prod's one intentionally-stopped
+   StreamersApp processor could not be identified and now runs.
+5. **Secrets the §4.3 list missed:** `efm-db-pass`, `efm-encryption`, `cloudera-registry` (values are the
+   documented ones in `blog/efm-persistance.md` — reading them out of the stopped profile's etcd was blocked
+   by the permission classifier); the CSA chart's own generated secrets (`ssb-fernet-key`,
+   `ssb-postgresql-auth`, …) regenerate on install — SSB-stored credentials may need re-entry.
+6. **Not captured by a deploy/sts/svc/pvc/cm sweep:** the bare pod `minifi-agent-k8s-gaming` (re-enrolled via
+   `generateCommand`), the app's ServiceAccount (`cso-operator-app/k8s/rbac.yaml`), ServiceMonitors.
+7. `files/kafka-eval-prometheus.yaml` is a **second Kafka CR named `my-cluster` in `default`** — applying it
+   "for the pod monitor" declared a second cluster (deleted before Strimzi built it). Don't apply it on prod.
+8. `psql` in the SSB postgres container defaults into `ssb_admin`, so `DROP DATABASE ssb_admin` fails;
+   restore into the chart's fresh db instead.
+9. `cso-prod-1`'s canvas was already empty (no #244 demo PGs) — one less cleanup, not a loss.
+10. The default `psql`-style `kubectl wait` selectors matched nothing — wait on the pod **by name**, and
+    never let a restore proceed past a failed wait.
+
+### Still open after the window
+- `GetIceberg` / `QueryAirlines` / `QueryFlights`: sensitive dynamic props (s3 keys **and the SQL text**)
+  exported `null`; iceberg-demo is at 0 replicas as on prod. #154/#156 own this.
+- 7 `TunaStarlink*` processors invalid (dangling relationships) — identical to prod, unfinished work.
+- Bots: started with the refresh tokens from `/home/tunas/.env` (Twitch refresh tokens don't rotate); if a
+  bot fails auth the device-code re-auth from §2 still applies.
+- Prod NiFi's 746 parked FlowFiles (731 `InvokeHTTP→output`, 15 `→eol` in StreamersApp) did not cross, as planned.
+- Windows Firewall rules unchanged (forwards bind the same host ports); confirm the three MiNiFi agents via the
+  Prometheus heartbeat counter once the ServiceMonitors are re-applied.

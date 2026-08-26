@@ -1,0 +1,48 @@
+# #253 Phase 5 — cso-operator-app talks to the userCertAuth prod NiFi over mTLS (decision 3 in
+# cso-prod-1-cutover-plan.md: keep userCertAuth, give the app a client cert; singleUserAuth would
+# throw away #116). Same shape as user-nifi-admin.yaml / s2s-peer.yaml:
+#   - identity maps by SAN, not DN -> dnsNames: [cso-operator-app] == User.spec.identity
+#   - minted off cfm-operator-ca-issuer-signed (cluster-issuer.yaml), the CA in NiFi's truststore
+#   - users/policies declared ONLY via the User CR, never hand-POSTed
+# The Certificate lives in `default` so its Secret lands where the app pod can mount it
+# (k8s/deployment.yaml in cso-operator-app mounts secret cso-operator-app-cert at /etc/nifi-client).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cso-operator-app-cert
+  namespace: default
+spec:
+  secretName: cso-operator-app-cert
+  commonName: cso-operator-app
+  dnsNames:
+    - cso-operator-app
+  usages: [digital signature, key encipherment, client auth]
+  issuerRef:
+    name: cfm-operator-ca-issuer-signed
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cfm.cloudera.com/v1alpha1
+kind: User
+metadata:
+  name: cso-operator-app
+  namespace: cfm-streaming
+spec:
+  identity: cso-operator-app
+  instanceTarget:
+    kind: Nifi
+    name: mynifi
+    namespace: cfm-streaming
+  # What backend/services/nifi.py actually does: GET /flow/process-groups/{id} to list/inspect
+  # PGs by name, PUT /flow/process-groups/{id} to start/stop them. Policies on /process-groups/root
+  # inherit to every child PG.
+  accessPolicies:
+    - actions: [read, write]
+      resources:
+        - /flow
+        - /process-groups/root
+        - /data/process-groups/root
+    - actions: [read]
+      resources:
+        - /controller
+        - /system

@@ -104,6 +104,7 @@ auto-sync made per-device tracking obsolete. Per-change skill history lives in g
 ## WindowsDesktop (Windows gaming PC, hostname MINI-Gaming-G1)
 
 - **Role**: EFM/minikube host — runs the `cld-streaming` cluster (NiFi, EFM, Kafka/Strimzi, vLLM, cso-operator-app); the control-plane counterpart StarlinkAI's MiNiFi agent will call into over Tailscale
+- **Prod profile since 2026-08-26 (#253): `cso-prod-1`**, node IP `192.168.58.2`, `minikube profile cso-prod-1` is the active profile (so `minikube tunnel` / `minikube service` and the zellij layout target it unchanged). The old default `minikube` profile (`192.168.49.2`, 80 days of canvas) is **stopped on disk as the rollback** — `minikube stop -p cso-prod-1 && minikube start` brings it back exactly; **never `minikube delete` either.** NiFi on prod is now `userCertAuth` (mTLS; `files/racing/nifi-api.sh` still works — it uses the operator cert inside the pod), PVC-backed repos, `python-extensions` PVC + the geticeberg NAR in `data/extensions`. Record: `cso-prod-1-cutover-plan.md` §9.
 - **Checked in**: 2026-07-17 (re-verified 2026-08-12 — git/python/kubectl/minikube versions below still current)
 - **Claude Code version**: 2.1.228 (2026-08-12)
 

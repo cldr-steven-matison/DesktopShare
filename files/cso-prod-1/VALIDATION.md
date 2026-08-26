@@ -182,10 +182,45 @@ would be inventing data.
   `minikube` restarted; prod `mynifi-0` verified Running with its PGs.
 
 ## Follow-ups (not done here)
-- #116: cso-prod-1 Kafka has internal listeners only; the #116 plan-of-record requires external NodePort
-  continuity (31623/31850/31935/30336) before MicroFi/Nano can use it. Full prod PG migration still ahead.
-- #203: apply the `cluster-creds` pattern to prod (`Kafka Broker Endpoint` duplicated in `game-params` + `FlowParams`).
-- #230: GitHub-Actions push-to-running-flow.
-- #231: **done 2026-08-26** — GPU vLLM on cso-prod-1, example green. Remaining: the default (prod)
-  profile's vLLM still runs `--tool-call-parser qwen3_coder` against a Qwen2.5 model, so its
-  tool-calling is silently broken the same way cso-prod-1's was. Prod not touched; needs its own ask.
+- #116: **done 2026-08-26 in #253** — external NodePort listener on `cso-prod-1` pinned to prod's exact
+  ports (`kafka-eval.yaml`); the MiNiFi devices reach it unchanged through the zellij forwards.
+- #203 / #249: **done 2026-08-26 in #253** — see §#253 below for the payload.
+- #230 / #250: no GitHub Actions (Steven's call); the 13 prod flow definitions are committed under
+  `flows/prod/` and are what the cutover imported.
+- #231 / #251: the prod vLLM that ran `qwen3_coder` was retired with the default profile; prod is now
+  cso-prod-1's vLLM (7B-AWQ, `hermes`, `--max-model-len 8192`).
+
+## #253 — Prod cutover, executed 2026-08-26 (cso-prod-1 IS prod now)
+Runbook + full execution record: [`../../cso-prod-1-cutover-plan.md`](../../cso-prod-1-cutover-plan.md) §9.
+What this cluster's own validation gained:
+
+- **Parameter-context inheritance payload (#249, the gap VALIDATION §#203 left in prose).** The working
+  `POST /nifi-api/parameter-contexts` body for a child — the reference must carry the full `component`
+  block; a bare `{"id": …}` is accepted and silently dropped:
+  ```json
+  {"revision":{"version":0},
+   "component":{"name":"FlowParams",
+     "inheritedParameterContexts":[{"id":"<base-id>","component":{"id":"<base-id>","name":"cluster-creds"}}],
+     "parameters":[{"parameter":{"name":"Input Topic","sensitive":false,"value":"events"}}]}}
+  ```
+  Verified with `GET /parameter-contexts/<child>?includeInheritedParameters=true` → `Kafka Broker
+  Endpoint`, `WhisperServerUrl`, `Qdrant Url` all `inherited=true` from `cluster-creds`; base values change
+  only via `POST /parameter-contexts/<base>/update-requests`. **Consolidation picked the FQDN**
+  `my-cluster-kafka-bootstrap.cld-streaming.svc.cluster.local:9092` (prod's two copies had drifted:
+  `game-params` FQDN vs `FlowParams` short `…svc:9092`). `vLLM Base URL` had 0 referencing components
+  and was dropped. Live now: `cluster-creds` `Kafka Broker Endpoint` refs=6 across two children.
+- **Flow-definition import leaves sub-PG→parent-scope controller-service refs dangling.** A per-PG
+  download writes a processor's reference to a CS defined higher in the *same* export as an opaque v3
+  UUID that matches nothing in the file (no `externalControllerServices` block either). On upload the CS
+  imports fine under a new id, but the processor keeps the old value → `Controller Service with ID … is
+  invalid`. 9 of 16 post-import invalids were this (OAuth2 providers, `MapCacheClientService`,
+  `JsonTreeReader`/`JsonRecordSetWriter`). Fix: narrow `PUT /processors/{id}` with **only** that one
+  property (never the masked full entity), mapping by CS type + name in the processor's scope.
+- **`StandardOauth2AccessTokenProvider` keys its properties by display name** — `Client ID`, `Client
+  secret`; `client-secret` lands as a dynamic property and the service stays INVALID. Sensitive CS
+  properties export as `null`, so both providers needed the secret re-set (disable → narrow PUT → enable).
+- **Exports carry `scheduledState` ENABLED/DISABLED only** — which processors were RUNNING is not in the
+  file. Restart by PG for PGs that were fully running; by name where prod had a partial (TopStreamerJoiner).
+- **The app's mTLS identity** ([`user-cso-operator-app.yaml`](user-cso-operator-app.yaml)): Certificate in
+  `default` (so the Secret is mountable by the pod) off `cfm-operator-ca-issuer-signed`, SAN = identity,
+  `User` CR with read/write on `/flow`, `/process-groups/root`, `/data/process-groups/root`.
