@@ -1,63 +1,86 @@
-# Getting Started with Cloudera Anywhere — CDF, CSM & CSA
+# Cloudera Anywhere — API Automation Reference (goes01)
 
-Cloudera Anywhere runs each data service as its own cluster behind one console. This walks through reaching the `goes01` environment and doing a first task in each of the three streaming services — CDF (Data Flow), CSM (Streams Messaging), and CSA (Streaming Analytics). All three are already deployed; nothing here provisions anything.
+How an agent authenticates to the `goes01` Anywhere environment and drives each data service over REST. This is an access + API reference for automation — not a UI walkthrough. All services are already deployed; nothing here provisions.
 
-## Prerequisite — trust the goes01 certificates
+## Prerequisites
 
-The goes01 hosts use an internal CA, so a fresh machine rejects their certs until you import the root chain.
+**Certificates.** goes01 uses an internal CA; import the root chain once:
 
 ```bash
 git clone https://github.infra.cloudera.com/GOES/goes-certs.git
-cd goes-certs
-sudo sh goes_pvc_certs_import_mac.sh ./certs/goes01_awc/
+cd goes-certs && sudo sh goes_pvc_certs_import_mac.sh ./certs/goes01_awc/   # needs Admin By Request elevation
 ```
 
-The script needs admin rights through Admin By Request — request elevation first, then re-run. Once it finishes, the goes01 hosts verify cleanly in the browser and in `curl` (no `-k`).
+After this the goes01 hosts verify without `-k`.
 
-## Access — the console and the service URLs
+**Network.** Every host resolves to a private `10.80.x` address (e.g. `console` → `10.80.156.1`, `cdf` → `10.80.155.216`, `csa` → `10.80.155.227`, `csm` → `10.80.133.150`). Calls only work from on-network / VPN. In this env the `console`, `cdf`, and `csa` subnets are reachable; the `csm` node (`10.80.133.150`) was not reachable from a laptop session.
 
-Sign in to the AWC console; the first request redirects to Knox SSO, and the session then carries across every service subdomain.
+## Authentication
 
+All access is gated by Knox SSO (`knox-cdpsso`). The credential is the `hadoop-jwt` session cookie — grab it from a logged-in browser (DevTools → Application → Cookies, or the `cookie:` header of any XHR). It works as either a `Cookie` or a `Bearer` header, and is accepted across every `*.demos.cloudera-labs.com` service host.
+
+```bash
+export AWC_JWT='<hadoop-jwt value>'
+export AWC_XSRF='<XSRF-TOKEN value>'   # additionally required by CDF (see below)
 ```
-https://console.goes01-se-goes.demos.cloudera-labs.com
+
+The token is session-scoped and expires; re-copy it when calls start returning `401` (API paths) or `302 → …/knox-cdpsso/websso` (UI paths).
+
+## Discovery — the AWC Console API
+
+The console exposes a clean, OpenAPI-3.1 control API (`Anywhere Cloud Console API`) — the reliable automation entry point. Use it to enumerate what's deployed and where it lives.
+
+```bash
+CONSOLE=https://console.goes01-se-goes.demos.cloudera-labs.com/api/v0/console
+
+# Every deployed service: name, product, status, landing URL
+curl -s -H "Authorization: Bearer $AWC_JWT" "$CONSOLE/experiences" \
+  | jq -r '.[] | "\(.appName)\t\(.status)\t\(.landingPageUrl)"'
 ```
 
-The console lists the deployed services (its `experiences`). The three we care about:
+Other read endpoints: `/clusters`, `/infrastructure` (cloud credentials), `/flavors`, `/engines`, `/blueprints`, plus SSE streams at `/experiences/events` and `/clusters/events`. The `POST /deployApp` / `/validateDeployment` endpoints provision new experiences — out of scope here. Full spec: `awc-console.{json,yaml}` (exported from `/docs/#awc-console`).
 
-| Service | Open this | What it is |
+The three streaming services (all `deployed`, product version `1.6.0`):
+
+| Service | Host | API base |
 |---|---|---|
-| **CDF** | `https://cdf.goes01-cdf-cluster.demos.cloudera-labs.com` | Data Flow — Apache NiFi canvas |
-| **CSM** | `https://goes01-csm-surveyor.goes01-csm-s-bf633e.goes01-csm-cluster.demos.cloudera-labs.com` | Streams Messaging — **Surveyor** (the Kafka topic UI) |
-| **CSA** | `https://goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com` | Streaming Analytics — SQL Stream Builder (SSB) |
+| CDF (Data Flow) | `cdf.goes01-cdf-cluster.demos.cloudera-labs.com` | `/cdf/api/v1/` |
+| CSM (Streams Messaging) | `goes01-csm-kafka.goes01-csm-cluster…` (Kafka), Surveyor host (UI/REST) | Kafka protocol + Surveyor REST |
+| CSA (Streaming Analytics) | `goes01-csa-csa-ssb-sse.goes01-csa-cluster…` | `/api/v1/` (SSB) |
 
-CSM's Kafka brokers are reachable at `goes01-csm-kafka.goes01-csm-cluster.demos.cloudera-labs.com` — Surveyor shows the exact bootstrap host/port and the connection settings under its cluster view.
+## CDF — Cloudera Data Flow API
 
-## CDF — your first flow
+CDF is the DataFlow (`dfx`) web app, not a raw NiFi at `/nifi-api`. Its host serves the SPA (`HTTP 200` + HTML) for **any** unknown path — so verify response bodies, not status codes. The real API is under `/cdf/api/v1/` and requires the **XSRF token** (cookie + `X-XSRF-TOKEN` header) on top of the JWT.
 
-Open the CDF URL to land on the NiFi canvas.
+```bash
+CDF=https://cdf.goes01-cdf-cluster.demos.cloudera-labs.com
+cdf_api() {
+  curl -s -H "Cookie: hadoop-jwt=$AWC_JWT; XSRF-TOKEN=$AWC_XSRF" \
+          -H "X-XSRF-TOKEN: $AWC_XSRF" -H "Accept: application/json" "$CDF$1"
+}
 
-1. Drag a **GenerateFlowFile** processor onto the canvas; set its Run Schedule to a few seconds so it isn't a firehose.
-2. Drag a **LogAttribute** processor; connect GenerateFlowFile → LogAttribute on the `success` relationship.
-3. Start both processors and watch the queue move — that confirms NiFi is live end to end.
+cdf_api /cdf/api/v1/deployments | jq   # -> {"elements":[...],"page":{"totalElements":N,...}}
+```
 
-To feed CSM instead of logging, swap LogAttribute for **PublishKafka**, point it at the CSM bootstrap above, and set the topic to the one created next.
+Deployments live under `/cdf/api/v1/deployments` (paginated). Flow authoring is under `/cdf/api/v1/designer/…`. NiFi-level flow automation happens inside a CDF deployment's own NiFi API (rules in the `nifi-and-ai` skill apply there).
 
-## CSM — your first topic
+## CSA — SQL Stream Builder (SSB) API
 
-Open the CSM (Surveyor) URL.
+SSB serves a JSON REST API at `/api/v1/`, gated by the same `hadoop-jwt`. Confirmed live (unknown routes return a structured JSON `500`, e.g. `{"type":"internal_server_error","error_message":"No endpoint GET …"}` — auth is passing, the path is just wrong).
 
-1. Create a topic (e.g. `getting-started`) with a small partition count.
-2. Produce a few test messages to it — from Surveyor, or with a console producer against the Kafka bootstrap host.
-3. Consume from the topic in Surveyor to confirm the messages landed and to watch throughput.
+```bash
+SSB=https://goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com
+curl -s -H "Authorization: Bearer $AWC_JWT" "$SSB/api/v1/<endpoint>"
+```
 
-## CSA — your first SQL job
+Route names follow Cloudera SSB's API (sessions, SQL execute, tables/data-sources, jobs); enumerate them against a logged-in session — this instance did not expose a public OpenAPI at `/swagger`.
 
-Open the CSA (SSB) URL.
+## CSM — Streams Messaging (Kafka + Surveyor)
 
-1. Register the CSM Kafka cluster / define a table over the `getting-started` topic.
-2. Run `SELECT * FROM getting_started;` — SSB streams the live rows into the results pane.
-3. Add a window or aggregate (e.g. count per interval) to see continuous SQL over the stream.
+CSM is split into separate experiences on `goes01-csm-cluster`: **Kafka** (`goes01-csm-kafka.goes01-csm-cluster…:8443`), **Surveyor** (the topic UI, with its own REST API), and governance (Ranger, Atlas). Kafka automation is the Kafka protocol against the bootstrap host — not HTTP — using the workload identity behind the same SSO. Surveyor and the brokers resolved to `10.80.133.150`, which was **not reachable from this session**; run CSM automation from a host on that subnet, and pull the exact bootstrap host/port and connection settings from Surveyor's cluster view or the `goes01-csm-kafka` experience.
 
-## Putting it together — CDF → CSM → CSA
+## Notes
 
-Point CDF's PublishKafka at the `getting-started` topic, and CSA's SSB table reads that same topic: NiFi ingests and lands data on Kafka, and Flink/SSB runs continuous SQL over it — ingest → stream → analyze, entirely on the existing goes01 services.
+- Verify **bodies** on the SPA-fronted hosts (CDF especially): a `200` can be the app shell, not the API.
+- `hadoop-jwt` = one credential for all services; CDF additionally needs `XSRF-TOKEN`.
+- Everything is private-network; the `csm` subnet needs on-network access this laptop session lacked.
