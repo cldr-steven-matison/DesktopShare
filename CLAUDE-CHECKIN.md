@@ -133,6 +133,8 @@ auto-sync made per-device tracking obsolete. Per-change skill history lives in g
 
 Everything below runs in the `cld-streaming` minikube cluster, exposed via `kubectl port-forward` panes in `~/.config/zellij/layouts/kube-service-ports-efm.kdl`. As of 2026-07-17, **EFM and all 4 Kafka forwards are bound to both the LAN IP and the Tailscale IP** (paired panes, one per address) — reachable from StarlinkAI now. Everything else listed after that is currently LAN/loopback-only and not yet exposed on the tailnet.
 
+**Second profile `cso-prod-1` (staged replacement prod, 2026-08-25/26):** pre-prod validation passed 2026-08-25 (`files/cso-prod-1/VALIDATION.md` — cert-manager v1.16.3, CFM 3.0.0-b126 / NiFi 2.6.0, Strimzi CSM 1.6.0-b99, upstream flink-kubernetes-operator 1.13.0, vLLM `Qwen/Qwen2.5-7B-Instruct-AWQ`, Flink Agents `cso-operator-flink-agents:0.3.1`); the cutover in `cso-prod-1-cutover-plan.md` is planned, not yet executed. Until it runs, every service listed below is still the default profile's. The 13 prod root PGs are exported under `files/cso-prod-1/flows/prod/`.
+
 **Reachable now from StarlinkAI (efm-host-ip):**
 - **EFM UI/API**: `http://efm-host-ip:10090` (also `http://gaming-pc-lan-ip:10090` on LAN)
 - **Kafka** — StarlinkAI needs these in its Windows hosts file (`C:\Windows\System32\drivers\etc\hosts`), mapped to `efm-host-ip` (same hostnames NvidiaNano uses mapped to the LAN IP `gaming-pc-lan-ip`):
@@ -369,6 +371,10 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 ### Network
 - Connection: LAN, `192.168.1.203` (same 192.168.1.x subnet as the rest of the array; `172.17.0.1` is the docker0 bridge) — static IP reservation still to do
 - Tailscale IP: not joined yet — Tailscale not installed on this host
+
+### Repo homes on this host
+- DesktopShare: `/home/tunas/DesktopShare` (same layout as WindowsDesktop — every repo directly under `/home/tunas/`)
+- Cloned 2026-08-26 for the #226 authoring run so the plan docs could read the real precedents rather than descriptions of them: `EdgeFlowManager`, `ClouderaStreamingOperators`, `cso-operator-app`, `MiNiFi-Kubernetes-Playground`, `NiFi2-Processor-Playground`, `cloudera-ce-aws`, `iceberg-mcp-server`, `CAI_Workbench_MCP_Server`, `NiFiandAi` — all at `/home/tunas/<repo>`. Read-only so far; none has a deploy or a running service here. `nifi-custom-processors` is local-only on WindowsDesktop and is not here.
 
 ---
 
