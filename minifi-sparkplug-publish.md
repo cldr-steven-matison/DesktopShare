@@ -155,6 +155,15 @@ Package with the standard `nifi-nar-maven-plugin`, producing `nifi-sparkplug-nar
 This is more work than A1 but gives you declared properties in the EFM Designer, real validation,
 and one artifact to ship — worth it once the flow leaves prototype.
 
+> **Built, testable implementation:** the skeleton above is fleshed out into a complete, buildable
+> NAR bundle — `PublishSparkplug` with the full NBIRTH/NDATA/NDEATH + `bdSeq`/`seq` state machine,
+> Tahu encoding, Paho transport behind a testable seam, and a JUnit/TestRunner suite — in the
+> **[`nifi-sparkplug-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-sparkplug-bundle)**
+> bundle of the NiFi2-Processor-Playground repo (alongside the worked `nifi-iceberg-read-bundle`).
+> `mvn clean install` builds the self-contained NAR; side-load it into a MiNiFi Java agent's
+> `extensions/` exactly as described under Deploy (Java). Build/deploy specifics live in that
+> bundle's README.
+
 ### Deploy (Java)
 
 Deployment is the same **side-load-into-`extensions/`** pattern proven for the CDF IIoT NAR:
