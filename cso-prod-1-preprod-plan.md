@@ -102,13 +102,28 @@ plus a written record of what held vs. didn't, reported back on #244 and each ch
 # --- stop default (name is literally 'minikube'); preserves disk, do NOT delete ---
 minikube stop
 
-# --- create cso-prod-1: sized IDENTICALLY to the default profile (Memory 24000 / CPUs 12,
-#     ~/.minikube/profiles/minikube/config.json). That is the rule — no other sizing rationale. ---
-minikube start -p cso-prod-1 --driver=docker --cpus 12 --memory 24000 --kubernetes-version=v1.35.1
+# --- create cso-prod-1: created IDENTICALLY to the default profile — every creation flag, not
+#     just the sizing. The whole of ~/.minikube/profiles/minikube/config.json is the spec.
+#     That is the rule — no other rationale. ---
+minikube start -p cso-prod-1 \
+  --driver=docker \
+  --memory=24000 --cpus=12 --disk-size=20000 \
+  --kubernetes-version=v1.35.1 --container-runtime=docker \
+  --gpus all \
+  --mount --mount-string="/usr/lib/wsl:/usr/lib/wsl" \
+  --extra-config=kubelet.cgroup-driver=systemd \
+  --base-image="gcr.io/k8s-minikube/kicbase:v0.0.50@sha256:eb4fec00e8ad70adf8e6436f195cc429825ffb85f95afcdb5d8d9deb576f3e93"
 kubectl config use-context cso-prod-1 && kubectl config current-context   # must print cso-prod-1
 minikube -p cso-prod-1 addons enable ingress
 minikube -p cso-prod-1 addons enable metrics-server
+#   (--gpus all auto-enables nvidia-device-plugin; default-storageclass + storage-provisioner are on
+#    by default — that is the default profile's full addon set)
 #   (NO kube-prometheus-stack, NO EFM)
+
+# --- prove parity before building anything on it: this diff must be EMPTY ---
+diff <(jq -S 'del(.Name,.KubernetesConfig.ClusterName,.Nodes)' ~/.minikube/profiles/minikube/config.json) \
+     <(jq -S 'del(.Name,.KubernetesConfig.ClusterName,.Nodes)' ~/.minikube/profiles/cso-prod-1/config.json)
+kubectl get node -o jsonpath='{.items[0].status.capacity}'   # must include "nvidia.com/gpu":"1"
 
 # --- teardown at session end: KEEP on disk (cso-prod-1 is a keeper), then restore default ---
 minikube stop -p cso-prod-1          # NOT `minikube delete`

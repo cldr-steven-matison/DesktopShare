@@ -1,0 +1,101 @@
+# vLLM on cso-prod-1 - lifted from the default profile's running deployment.
+# GPU-backed: needs the profile created with --gpus all (parity with default).
+# HF_TOKEN comes from secret default/hf-token (not committed).
+#
+# Two deliberate deviations from what the default profile runs, both forced by #231's
+# agents example (measured 2026-08-26, see VALIDATION.md #231):
+#
+#  1. --tool-call-parser hermes, not qwen3_coder. The model is Qwen2.5, which emits
+#     Hermes-style <tool_call> tags; the qwen3_coder parser does not match them, so vLLM
+#     returns the raw tag text as `content` with tool_calls: null and every OpenAI-tool
+#     client sees zero tool calls. The default profile still runs qwen3_coder - that is a
+#     live finding to raise there, not something changed here.
+#
+#  2. Qwen2.5-7B-Instruct-AWQ, not Qwen2.5-3B-Instruct. The quickstart agent does a bare
+#     json.loads() on the model's reply. Over a 15-review probe the 3B returned parseable
+#     JSON 2/15 (stock prompt), 4/15 (with an explicit "JSON only" instruction) and 5/15
+#     (after also fixing the quickstart's malformed pseudo-JSON input) - it prepends prose.
+#     Prompt wording does not move it; it is a 3B instruction-following ceiling.
+#     AWQ 4-bit keeps the 7B inside the RTX 4060's 8 GB, at 8k context instead of 32k.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vllm-server
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  name: vllm-server
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+    spec:
+      containers:
+      - args:
+        - Qwen/Qwen2.5-7B-Instruct-AWQ
+        # 0.84, not 0.9+: the RTX 4060 reports 8.0 GiB but only ~6.93 GiB is free at
+        # startup (WSL2 + display overhead), and vLLM refuses to start if the requested
+        # fraction exceeds free memory. 0.84 -> 6.72 GiB, which clears it.
+        - --gpu-memory-utilization
+        - '0.84'
+        - --max-model-len
+        - '8192'
+        - --enable-chunked-prefill
+        - --enforce-eager
+        - --enable-auto-tool-choice
+        - --tool-call-parser
+        - hermes
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: HF_TOKEN
+              name: hf-token
+        - name: VLLM_USE_V1
+          value: '0'
+        - name: VLLM_WSL2_ENABLE_PIN_MEMORY
+          value: '1'
+        image: vllm/vllm-openai:v0.25.0
+        imagePullPolicy: IfNotPresent
+        name: vllm-server
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        stdin: true
+        tty: true
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: shm
+      serviceAccountName: vllm-server
+      volumes:
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi
+        name: shm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: vllm-service
+  namespace: default
+spec:
+  ports:
+  - port: 8000
+    protocol: TCP
+    targetPort: 8000
+  selector:
+    app: vllm-server
+  type: ClusterIP
