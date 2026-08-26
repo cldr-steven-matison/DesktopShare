@@ -1,0 +1,92 @@
+# The 6 CR-managed Kafka topics on prod (captured live 2026-08-26, #253 Phase 0).
+# The other 17 topics are auto-created — confirm auto.create.topics.enable on cso-prod-1 (runbook §8).
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: my-cluster
+  name: game-metrics
+  namespace: cld-streaming
+spec:
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'
+  partitions: 3
+  replicas: 3
+  topicName: game_metrics
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: my-cluster
+  name: gaming-pc-stream-load
+  namespace: cld-streaming
+spec:
+  partitions: 3
+  replicas: 3
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: my-cluster
+  name: new-clips
+  namespace: cld-streaming
+spec:
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'
+  partitions: 3
+  replicas: 3
+  topicName: new_clips
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: my-cluster
+  name: processed-clips
+  namespace: cld-streaming
+spec:
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'
+  partitions: 3
+  replicas: 3
+  topicName: processed_clips
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: my-cluster
+  name: processed-gifs
+  namespace: cld-streaming
+spec:
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'
+  partitions: 3
+  replicas: 3
+  topicName: processed_gifs
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  labels:
+    strimzi.io/cluster: my-cluster
+  name: twitch-chat-activity
+  namespace: cld-streaming
+spec:
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '259200000'
+  partitions: 3
+  replicas: 3
+  topicName: twitch_chat_activity

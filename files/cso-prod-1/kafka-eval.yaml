@@ -18,6 +18,26 @@ spec:
         port: 9093
         type: internal
         tls: true
+      # #253 / #116 carry-forward: external NodePort listener with the SAME ports prod uses today.
+      # MicroFi, Nano, AMOLED and the racing game publish to these exact ports (node IP moves
+      # 192.168.49.2 -> 192.168.58.2; the zellij port-forward panes repoint in Phase 5).
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: false
+        configuration:
+          bootstrap:
+            nodePort: 31623
+          brokers:
+            - broker: 0
+              advertisedHost: my-cluster-combined-0.my-cluster-kafka-brokers.cld-streaming.svc
+              nodePort: 31850
+            - broker: 1
+              advertisedHost: my-cluster-combined-1.my-cluster-kafka-brokers.cld-streaming.svc
+              nodePort: 31935
+            - broker: 2
+              advertisedHost: my-cluster-combined-2.my-cluster-kafka-brokers.cld-streaming.svc
+              nodePort: 30336
     config:
       offsets.topic.replication.factor: 3
       transaction.state.log.replication.factor: 3

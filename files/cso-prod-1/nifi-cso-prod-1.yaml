@@ -1,7 +1,8 @@
 # cso-prod-1 NiFi CR — CFM operator 3.0.0-b126, NiFi 2.6.0
 # Secure + Site-to-Site FROM DAY ONE (#116). userCertAuth (singleUserAuth cannot hold S2S peer policies).
-# Native processors only — no custom-nars / custom-python-extensions PVCs (representative flows are
-# minimal native test PGs, not the full prod cutover).
+# #253 cutover: custom-python-extensions PVC mounted (six live processors across StreamersApp /
+# TwitchChatBot / WatchlistChatJoiner are Python) — same block as prod's mynifi. Apply
+# python-extensions-loader.yaml + the PVC BEFORE this CR so the mount binds on first start.
 # Issuers: apply cluster-issuer.yaml FIRST (same artifact as prod — ClouderaStreamingOperators/cluster-issuer.yaml):
 # selfSigned cfm-operator-ca-issuer -> CA cert cert-manager/cfm-operator-ca-tls -> CA ClusterIssuer
 # cfm-operator-ca-issuer-signed. Node/S2S certs off that CA issuer, and the SAME CA as verificationCASecret,
@@ -63,10 +64,27 @@ spec:
       upsert:
         nifi.cluster.leader.election.implementation: KubernetesLeaderElectionManager
         nifi.web.prometheus.metrics.authenticated: "false"
+        # custom Python processors (prod parity)
+        nifi.python.extensions.directories: ./python_extensions,/opt/nifi/nifi-current/python/extensions
         # S2S transport (HTTP, secure) — day one
         nifi.remote.input.host: mynifi-0.mynifi.cfm-streaming.svc.cluster.local
         nifi.remote.input.secure: "true"
         nifi.remote.input.http.enabled: "true"
+
+  # custom Python processors — identical to prod mynifi's statefulset block
+  statefulset:
+    env:
+      - name: NIFI_PYTHON_LISTENER_STARTUP_TIMEOUT
+        value: "600 sec"
+      - name: NIFI_PYTHON_PROXIED_LOG_LEVEL
+        value: DEBUG
+    volumeMounts:
+      - name: python-extensions
+        mountPath: /opt/nifi/nifi-current/python/extensions
+    volumes:
+      - name: python-extensions
+        persistentVolumeClaim:
+          claimName: custom-python-extensions
 
   stateManagement:
     clusterProvider:
