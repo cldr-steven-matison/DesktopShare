@@ -341,7 +341,7 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 ## NvidiaSpark-1 (NVIDIA DGX Spark GB10, hostname spark-dd06)
 
 - **Role**: Desk-class local-AI host — GB10 Grace Blackwell, 128 GB unified memory, aarch64. Planned to run k3d + Cloudera Streaming Operators (NiFi/Kafka/Flink) on-box, an EFM MiNiFi Java agent as class `NvidiaSpark-1`, local LLM/embedding/Whisper serving that the array's flows target as an inference endpoint, and the local knowledge base for Claude Code. **WindowsDesktop stays the production CSO host; its GPU services run as-is until the Spark equivalents are proven** (cutover ladder in `nvidia-dgx-spark-k3d-cso.md`). Planning docs: `nvidia-dgx-spark-plan.md` (EPIC spine, [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)), `nvidia-dgx-spark-research.md`, `-landscape.md`, `-runbook.md`, `-k3d-cso.md`, `-efm-agent.md`, `-local-kb.md`, `-cloudera-aws.md`, `-cloudera-demos.md`; guide tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
-- **Checked in**: 2026-08-26 — box landed and booted; block filled from the real host (`nvidia-smi`, `uname -a`, `free -g`, `df -h`, `lscpu`). Hostname arm `spark-dd06*` → `NvidiaSpark-1` added to `ds_device_labels()` in `.claude/hooks/lib-device.sh` the same session, so the SessionStart inbox check maps this host from next session on. **Still pending on this host** (Phase 3 arrival-day work per `nvidia-dgx-spark-plan.md`, not yet done): `gh`/`tailscale`/`k3d`/`kubectl`/`helm` install, static IP reservation, Tailscale join, EFM agent enrollment, first serving endpoint. Until `gh` is installed the device inbox (`device:NvidiaSpark-1`) can't be checked from here.
+- **Checked in**: 2026-08-26 — box landed and booted; block filled from the real host (`nvidia-smi`, `uname -a`, `free -g`, `df -h`, `lscpu`). Hostname arm `spark-dd06*` → `NvidiaSpark-1` added to `ds_device_labels()` in `.claude/hooks/lib-device.sh` the same session, so the SessionStart inbox check maps this host from next session on. **Still pending on this host** (Phase 3 arrival-day work per `nvidia-dgx-spark-plan.md`, not yet done): `tailscale`/`k3d`/`kubectl`/`helm` install, static IP reservation, Tailscale join, EFM agent enrollment, first serving endpoint. **`gh` is installed** (2026-08-26, v2.98.0 arm64 at `~/.local/bin/gh`, authed as `TunaStreetTest`) so the SessionStart inbox check works from here — but `~/.local/bin` is not on the hook's non-login PATH, so `lib-device.sh` now prepends it (and `/usr/local/bin`, `/opt/homebrew/bin`) at source time for both checkin.sh and guard.sh.
 - **Claude Code version**: 2.1.246
 
 ### Hardware (as confirmed on the box 2026-08-26)
@@ -362,7 +362,8 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 - nvidia-container-toolkit (nvidia-ctk): 1.20.0 — GPU-container path present (end-to-end `docker run --gpus all … nvidia-smi` not yet re-verified this session)
 - CUDA: toolkit 13.0 (`nvcc` V13.0.88), `/usr/local/cuda` → `cuda-13.0`
 - jq 1.7 present; node present
-- **Not yet installed**: `gh`, `tailscale`, `k3d`, `kubectl`, `helm`, `minikube` — arrival-day install pending
+- **Installed 2026-08-26**: `gh` 2.98.0 (arm64, `~/.local/bin/gh`, authed as `TunaStreetTest`)
+- **Not yet installed**: `tailscale`, `k3d`, `kubectl`, `helm`, `minikube` — arrival-day install pending
 
 ### Network
 - Connection: LAN, `192.168.1.203` (same 192.168.1.x subnet as the rest of the array; `172.17.0.1` is the docker0 bridge) — static IP reservation still to do

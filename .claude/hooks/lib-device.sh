@@ -15,6 +15,22 @@
 #      rule 8's comment); a live NiFi/EFM write is blocked while it's absent.
 #      checkin.sh clears it at session start so a stale one can't survive.
 
+# Ensure user-local bin dirs are on PATH so `command -v gh` (and other CLIs the
+# hooks call) resolve even when the hook runs with a minimal non-login PATH.
+# On NvidiaSpark-1 (2026-08-26) gh installed to ~/.local/bin, which a non-login
+# hook shell does not inherit from ~/.profile — so checkin.sh fell back to the
+# "gh not on PATH — check the inbox manually" line and guard.sh's rule-A
+# auto-claim (gh issue view) went blind. Runs at source time in both hooks.
+# Idempotent; harmless where a dir is absent or already present.
+for _ds_bin in "$HOME/.local/bin" /usr/local/bin /opt/homebrew/bin; do
+  case ":$PATH:" in
+    *":$_ds_bin:"*) ;;
+    *) [ -d "$_ds_bin" ] && PATH="$_ds_bin:$PATH" ;;
+  esac
+done
+unset _ds_bin
+export PATH
+
 # Echo the space-separated device label(s) for the current host (empty if unmapped).
 ds_device_labels() {
   local host
