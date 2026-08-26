@@ -63,10 +63,10 @@ The DGX Spark is documented as a personal AI supercomputer and as nothing else. 
 | Gate | Decided by | State |
 |---|---|---|
 | Model lock — lead (~27 B NVFP4) and stretch (~100 B) demo drivers | `nvidia-dgx-spark-landscape.md` §6 → Steven | open |
-| CSO image architecture on aarch64 | Answered 2026-08-24 from WindowsDesktop — all 16 Cloudera images are `linux/arm64` multi-arch on the registry; [#243](https://github.com/cldr-steven-matison/DesktopShare/issues/243) on the Mac is optional confirmation | **closed — arm64 native** |
+| CSO image architecture on aarch64 | Answered 2026-08-24 from WindowsDesktop — all 16 Cloudera images are `linux/arm64` multi-arch on the registry; [#243](https://github.com/cldr-steven-matison/DesktopShare/issues/243) re-scoped 2026-08-26 to an on-box pull check, optional | **closed — arm64 native** |
 | k3d with GPU vs k3s bare | `nvidia-dgx-spark-k3d-cso.md` — k3d primary as asked, k3s documented fallback | recorded |
 | Guide repo | staged in `files/nvidia-spark-guide/` now; public repo at first validated chapter | decided 2026-08-24 |
-| Hardware on the LAN | [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) `device:NvidiaSpark-1` | blocked — awaiting delivery |
+| Hardware on the LAN | [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) `device:NvidiaSpark-1` | **closed — landed 2026-08-26 (`spark-dd06`)**; D unblocked, Phase 3 next |
 
 ## Subplans (source docs → chapters)
 
