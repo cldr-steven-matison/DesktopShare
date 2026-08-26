@@ -18,7 +18,7 @@ Full protocol + how to report back: `agent/device-comms.md`. Device ↔ hostname
 | FTF3XR2065 (Mac) | FTF3XR2065 | `device:FTF3XR2065` | — |
 | Stevens-MacBook-Pro (personal Mac) | Stevens-MacBook-Pro | `device:macbook` | — |
 | DigitalOcean droplet | nifi.sceneserver.net | (none yet) | — |
-| NvidiaSpark-1 | *(pending arrival — hostname set on first boot)* | `device:NvidiaSpark-1` | planning owned by WindowsDesktop until the box lands |
+| NvidiaSpark-1 | spark-dd06 (DGX Spark GB10) | `device:NvidiaSpark-1` | landed 2026-08-26 — runs its own session directly |
 
 **Two Macs, two labels — don't conflate them.** `FTF3XR2065` is the Cloudera-issued M4 Pro work
 laptop (arm64, full local minikube). `Stevens-MacBook-Pro` is the personal 2017 Intel MacBook Pro
@@ -338,29 +338,35 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ---
 
-## NvidiaSpark-1 (NVIDIA DGX Spark, hostname pending — box not yet delivered)
+## NvidiaSpark-1 (NVIDIA DGX Spark GB10, hostname spark-dd06)
 
-- **Role**: Incoming desk-class local-AI host — GB10 Grace Blackwell, 128 GB unified memory, aarch64. Planned to run k3d + Cloudera Streaming Operators (NiFi/Kafka/Flink) on-box, an EFM MiNiFi Java agent as class `NvidiaSpark-1`, local LLM/embedding/Whisper serving that the array's flows target as an inference endpoint, and the local knowledge base for Claude Code. **WindowsDesktop stays the production CSO host; its GPU services run as-is until the Spark equivalents are proven** (cutover ladder in `nvidia-dgx-spark-k3d-cso.md`). Planning docs: `nvidia-dgx-spark-plan.md` (EPIC spine, [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)), `nvidia-dgx-spark-research.md`, `-landscape.md`, `-runbook.md`, `-k3d-cso.md`, `-efm-agent.md`, `-local-kb.md`, `-cloudera-aws.md`, `-cloudera-demos.md`; guide tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
-- **Checked in**: not yet — this block is a placeholder filed 2026-08-24 so the label, the roster, and the plan agree before arrival. Arrival-day steps (runbook `nvidia-dgx-spark-runbook.md` §"Joining the array"): fill this block from the real box (`nvidia-smi`, `uname -a`, `free -g`, `df -h`), add the hostname arm to `ds_device_labels()` in `.claude/hooks/lib-device.sh`, and record the LAN/Tailscale IPs and the serving endpoint URLs here so NiFi `InvokeHTTP` / RAG flows can target them.
-- **Claude Code version**: —
+- **Role**: Desk-class local-AI host — GB10 Grace Blackwell, 128 GB unified memory, aarch64. Planned to run k3d + Cloudera Streaming Operators (NiFi/Kafka/Flink) on-box, an EFM MiNiFi Java agent as class `NvidiaSpark-1`, local LLM/embedding/Whisper serving that the array's flows target as an inference endpoint, and the local knowledge base for Claude Code. **WindowsDesktop stays the production CSO host; its GPU services run as-is until the Spark equivalents are proven** (cutover ladder in `nvidia-dgx-spark-k3d-cso.md`). Planning docs: `nvidia-dgx-spark-plan.md` (EPIC spine, [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)), `nvidia-dgx-spark-research.md`, `-landscape.md`, `-runbook.md`, `-k3d-cso.md`, `-efm-agent.md`, `-local-kb.md`, `-cloudera-aws.md`, `-cloudera-demos.md`; guide tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
+- **Checked in**: 2026-08-26 — box landed and booted; block filled from the real host (`nvidia-smi`, `uname -a`, `free -g`, `df -h`, `lscpu`). Hostname arm `spark-dd06*` → `NvidiaSpark-1` added to `ds_device_labels()` in `.claude/hooks/lib-device.sh` the same session, so the SessionStart inbox check maps this host from next session on. **Still pending on this host** (Phase 3 arrival-day work per `nvidia-dgx-spark-plan.md`, not yet done): `gh`/`tailscale`/`k3d`/`kubectl`/`helm` install, static IP reservation, Tailscale join, EFM agent enrollment, first serving endpoint. Until `gh` is installed the device inbox (`device:NvidiaSpark-1`) can't be checked from here.
+- **Claude Code version**: 2.1.246
 
-### Hardware (from NVIDIA's spec sheet; confirm on the box)
-- CPU: NVIDIA GB10 Grace Blackwell Superchip, 20-core Arm (10× Cortex-X925 + 10× Cortex-A725)
-- GPU: Blackwell GPU, ~1 PFLOP FP4 (sparse)
-- RAM: 128 GB LPDDR5x unified, 273 GB/s
-- Storage: 4 TB NVMe (self-encrypting)
-- Network: ConnectX-7 (200 Gb/s, dual QSFP for Spark-to-Spark), 10 GbE, Wi-Fi 7
+### Hardware (as confirmed on the box 2026-08-26)
+- CPU: NVIDIA GB10 Grace Blackwell Superchip — 20-core Arm confirmed (10× Cortex-X925 + 10× Cortex-A725), 1 thread/core
+- GPU: NVIDIA GB10 (Blackwell), driver 580.173.02, CUDA 13.0 — unified-memory device (`nvidia-smi` reports memory as "Not Supported" since it shares the 128 GB pool); idle ~35 °C / 4 W at check-in
+- RAM: 128 GB LPDDR5x unified — `free -g` shows 121 GB total, ~116 GB available; 16 GB swap
+- Storage: 4 TB NVMe (`/dev/nvme0n1p2`, 3.7 TB usable, 3.5 TB free / 2% used at check-in)
+- Network: ConnectX-7 (200 Gb/s, dual QSFP for Spark-to-Spark), 10 GbE, Wi-Fi 7 (per spec; NIC map to confirm when static IP is set)
 
 ### OS
-- OS: DGX OS (Ubuntu-based, aarch64) — version recorded on first boot
-- Kernel: —
+- OS: Ubuntu 24.04.4 LTS (Noble) — DGX OS base, aarch64
+- Kernel: 6.17.0-1031-nvidia (`#31-Ubuntu SMP PREEMPT_DYNAMIC`)
 
 ### Key tool versions
-- Git / Python / Docker / nvidia-container-toolkit / CUDA / k3d / kubectl / helm: recorded on first boot
+- Git: 2.43.0
+- Python: 3.12.3
+- Docker: 29.2.1
+- nvidia-container-toolkit (nvidia-ctk): 1.20.0 — GPU-container path present (end-to-end `docker run --gpus all … nvidia-smi` not yet re-verified this session)
+- CUDA: toolkit 13.0 (`nvcc` V13.0.88), `/usr/local/cuda` → `cuda-13.0`
+- jq 1.7 present; node present
+- **Not yet installed**: `gh`, `tailscale`, `k3d`, `kubectl`, `helm`, `minikube` — arrival-day install pending
 
 ### Network
-- Connection: LAN (static IP reserved on arrival)
-- Tailscale IP: to join the array tailnet on arrival (NVIDIA ships a Tailscale playbook)
+- Connection: LAN, `192.168.1.203` (same 192.168.1.x subnet as the rest of the array; `172.17.0.1` is the docker0 bridge) — static IP reservation still to do
+- Tailscale IP: not joined yet — Tailscale not installed on this host
 
 ---
 

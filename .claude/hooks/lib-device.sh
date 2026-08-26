@@ -26,6 +26,7 @@ ds_device_labels() {
     TunaStarlink*)        echo "StarlinkAI" ;;              # StarlinkAI (Beelink)
     tunastreet*)          echo "NvidiaNano" ;;              # NvidiaNano (Jetson Orin Nano; hostname doesn't say "jetson")
     *[Jj]etson*)          echo "NvidiaNano" ;;              # fallback for any other Jetson host
+    spark-dd06*)          echo "NvidiaSpark-1" ;;           # NvidiaSpark-1 (DGX Spark GB10, aarch64) — landed 2026-08-26
     *)                    echo "" ;;
   esac
 }
