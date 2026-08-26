@@ -1,0 +1,440 @@
+{
+    "flowContents": {
+        "identifier": "939e089b-ebe8-3ae8-8ed0-5383878d1720",
+        "instanceIdentifier": "f86182bf-019f-1000-0000-0000549c5714",
+        "name": "GetIcebergDemo",
+        "comments": "",
+        "position": {
+            "x": 1520.0,
+            "y": -296.0
+        },
+        "processGroups": [],
+        "remoteProcessGroups": [],
+        "processors": [
+            {
+                "identifier": "cd309436-cf13-31ef-abc4-a46f11d44605",
+                "instanceIdentifier": "f8618332-019f-1000-0000-00004c914cc6",
+                "name": "GetIceberg",
+                "comments": "",
+                "position": {
+                    "x": -120.0,
+                    "y": 24.0
+                },
+                "type": "org.apache.nifi.processors.iceberg.GetIceberg",
+                "bundle": {
+                    "group": "com.example",
+                    "artifact": "nifi-geticeberg-nar",
+                    "version": "1.0.1-SNAPSHOT"
+                },
+                "properties": {},
+                "propertyDescriptors": {
+                    "s3.path-style-access": {
+                        "name": "s3.path-style-access",
+                        "displayName": "s3.path-style-access",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "s3.secret-access-key": {
+                        "name": "s3.secret-access-key",
+                        "displayName": "s3.secret-access-key",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "s3.access-key-id": {
+                        "name": "s3.access-key-id",
+                        "displayName": "s3.access-key-id",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "s3.endpoint": {
+                        "name": "s3.endpoint",
+                        "displayName": "s3.endpoint",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "io-impl": {
+                        "name": "io-impl",
+                        "displayName": "io-impl",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "record-writer": {
+                        "name": "record-writer",
+                        "displayName": "record-writer",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "catalog-service": {
+                        "name": "catalog-service",
+                        "displayName": "catalog-service",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "table-name": {
+                        "name": "table-name",
+                        "displayName": "table-name",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "client.region": {
+                        "name": "client.region",
+                        "displayName": "client.region",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    },
+                    "catalog-namespace": {
+                        "name": "catalog-namespace",
+                        "displayName": "catalog-namespace",
+                        "identifiesControllerService": false,
+                        "sensitive": true,
+                        "dynamic": false
+                    }
+                },
+                "style": {},
+                "schedulingPeriod": "1 min",
+                "schedulingStrategy": "TIMER_DRIVEN",
+                "executionNode": "PRIMARY",
+                "penaltyDuration": "30 sec",
+                "yieldDuration": "1 sec",
+                "bulletinLevel": "WARN",
+                "runDurationMillis": 0,
+                "concurrentlySchedulableTaskCount": 1,
+                "autoTerminatedRelationships": [],
+                "scheduledState": "ENABLED",
+                "retryCount": 10,
+                "retriedRelationships": [],
+                "backoffMechanism": "PENALIZE_FLOWFILE",
+                "maxBackoffPeriod": "10 mins",
+                "componentType": "PROCESSOR",
+                "groupIdentifier": "939e089b-ebe8-3ae8-8ed0-5383878d1720"
+            }
+        ],
+        "inputPorts": [],
+        "outputPorts": [],
+        "connections": [
+            {
+                "identifier": "2b35103a-cac9-3a50-9b56-44416259c86b",
+                "instanceIdentifier": "f86183a7-019f-1000-ffff-ffff95c65a17",
+                "source": {
+                    "id": "cd309436-cf13-31ef-abc4-a46f11d44605",
+                    "type": "PROCESSOR",
+                    "groupId": "939e089b-ebe8-3ae8-8ed0-5383878d1720",
+                    "name": "GetIceberg",
+                    "comments": "",
+                    "instanceIdentifier": "f8618332-019f-1000-0000-00004c914cc6"
+                },
+                "destination": {
+                    "id": "e8fc3d73-7552-3079-a140-61e11f940cba",
+                    "type": "FUNNEL",
+                    "groupId": "939e089b-ebe8-3ae8-8ed0-5383878d1720",
+                    "name": "Funnel",
+                    "comments": "",
+                    "instanceIdentifier": "f8618386-019f-1000-0000-000052a30a1f"
+                },
+                "labelIndex": 1,
+                "zIndex": 0,
+                "selectedRelationships": [
+                    "success"
+                ],
+                "backPressureObjectThreshold": 10000,
+                "backPressureDataSizeThreshold": "1 GB",
+                "flowFileExpiration": "0 sec",
+                "prioritizers": [],
+                "bends": [],
+                "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+                "loadBalanceCompression": "DO_NOT_COMPRESS",
+                "componentType": "CONNECTION",
+                "groupIdentifier": "939e089b-ebe8-3ae8-8ed0-5383878d1720"
+            }
+        ],
+        "labels": [],
+        "funnels": [
+            {
+                "identifier": "e8fc3d73-7552-3079-a140-61e11f940cba",
+                "instanceIdentifier": "f8618386-019f-1000-0000-000052a30a1f",
+                "position": {
+                    "x": 200.0,
+                    "y": 300.0
+                },
+                "componentType": "FUNNEL",
+                "groupIdentifier": "939e089b-ebe8-3ae8-8ed0-5383878d1720"
+            }
+        ],
+        "controllerServices": [
+            {
+                "identifier": "1724f44d-9398-3fe1-9ad7-a6b43941a1d6",
+                "instanceIdentifier": "f8618308-019f-1000-0000-00001c286a74",
+                "name": "DemoJsonWriter",
+                "comments": "",
+                "type": "org.apache.nifi.json.JsonRecordSetWriter",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-record-serialization-services-nar",
+                    "version": "2.6.0.4.3.4.0-234"
+                },
+                "properties": {
+                    "schema-reference-reader": null,
+                    "schema-branch": null,
+                    "Allow Scientific Notation": "false",
+                    "compression-level": "1",
+                    "schema-cache": null,
+                    "Timestamp Format": null,
+                    "Date Format": null,
+                    "Pretty Print JSON": "true",
+                    "compression-format": "none",
+                    "Schema Write Strategy": "no-schema",
+                    "suppress-nulls": "never-suppress",
+                    "output-grouping": "output-array",
+                    "schema-name": "${schema.name}",
+                    "schema-registry": null,
+                    "Time Format": null,
+                    "schema-access-strategy": "inherit-record-schema",
+                    "schema-version": null,
+                    "schema-text": "${avro.schema}",
+                    "Schema Reference Writer": null
+                },
+                "propertyDescriptors": {
+                    "schema-reference-reader": {
+                        "name": "schema-reference-reader",
+                        "displayName": "Schema Reference Reader",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-branch": {
+                        "name": "schema-branch",
+                        "displayName": "Schema Branch",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Allow Scientific Notation": {
+                        "name": "Allow Scientific Notation",
+                        "displayName": "Allow Scientific Notation",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "compression-level": {
+                        "name": "compression-level",
+                        "displayName": "Compression Level",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-cache": {
+                        "name": "schema-cache",
+                        "displayName": "Schema Cache",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Timestamp Format": {
+                        "name": "Timestamp Format",
+                        "displayName": "Timestamp Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Date Format": {
+                        "name": "Date Format",
+                        "displayName": "Date Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Pretty Print JSON": {
+                        "name": "Pretty Print JSON",
+                        "displayName": "Pretty Print JSON",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "compression-format": {
+                        "name": "compression-format",
+                        "displayName": "Compression Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Write Strategy": {
+                        "name": "Schema Write Strategy",
+                        "displayName": "Schema Write Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "suppress-nulls": {
+                        "name": "suppress-nulls",
+                        "displayName": "Suppress Null Values",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "output-grouping": {
+                        "name": "output-grouping",
+                        "displayName": "Output Grouping",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-name": {
+                        "name": "schema-name",
+                        "displayName": "Schema Name",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-registry": {
+                        "name": "schema-registry",
+                        "displayName": "Schema Registry",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Time Format": {
+                        "name": "Time Format",
+                        "displayName": "Time Format",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-access-strategy": {
+                        "name": "schema-access-strategy",
+                        "displayName": "Schema Access Strategy",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-version": {
+                        "name": "schema-version",
+                        "displayName": "Schema Version",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "schema-text": {
+                        "name": "schema-text",
+                        "displayName": "Schema Text",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Schema Reference Writer": {
+                        "name": "Schema Reference Writer",
+                        "displayName": "Schema Reference Writer",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    }
+                },
+                "controllerServiceApis": [
+                    {
+                        "type": "org.apache.nifi.serialization.RecordSetWriterFactory",
+                        "bundle": {
+                            "group": "org.apache.nifi",
+                            "artifact": "nifi-standard-services-api-nar",
+                            "version": "2.6.0.4.3.4.0-234"
+                        }
+                    }
+                ],
+                "scheduledState": "DISABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "939e089b-ebe8-3ae8-8ed0-5383878d1720"
+            },
+            {
+                "identifier": "17933c4b-418e-3c13-a1d7-ba2f1d104196",
+                "instanceIdentifier": "f86182e3-019f-1000-0000-00007d2ae256",
+                "name": "DemoRestCatalog",
+                "comments": "",
+                "type": "com.cloudera.nifi.services.iceberg.RESTCatalogService",
+                "bundle": {
+                    "group": "org.apache.nifi",
+                    "artifact": "nifi-iceberg-services-nar",
+                    "version": "2.6.0.4.3.4.0-234"
+                },
+                "properties": {
+                    "hadoop-config-resources": null,
+                    "warehouse-path": "s3://warehouse/",
+                    "Catalog URI": "http://iceberg-rest.iceberg-demo.svc.cluster.local:8181",
+                    "OAuth2 Access Token Provider": null
+                },
+                "propertyDescriptors": {
+                    "hadoop-config-resources": {
+                        "name": "hadoop-config-resources",
+                        "displayName": "Hadoop Configuration Resources",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false,
+                        "resourceDefinition": {
+                            "cardinality": "MULTIPLE",
+                            "resourceTypes": [
+                                "FILE"
+                            ]
+                        }
+                    },
+                    "warehouse-path": {
+                        "name": "warehouse-path",
+                        "displayName": "Warehouse",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "Catalog URI": {
+                        "name": "Catalog URI",
+                        "displayName": "Catalog URI",
+                        "identifiesControllerService": false,
+                        "sensitive": false,
+                        "dynamic": false
+                    },
+                    "OAuth2 Access Token Provider": {
+                        "name": "OAuth2 Access Token Provider",
+                        "displayName": "OAuth2 Access Token Provider",
+                        "identifiesControllerService": true,
+                        "sensitive": false,
+                        "dynamic": false
+                    }
+                },
+                "controllerServiceApis": [
+                    {
+                        "type": "org.apache.nifi.services.iceberg.IcebergCatalogService",
+                        "bundle": {
+                            "group": "org.apache.nifi",
+                            "artifact": "nifi-iceberg-services-api-nar",
+                            "version": "2.6.0.4.3.4.0-234"
+                        }
+                    }
+                ],
+                "scheduledState": "DISABLED",
+                "bulletinLevel": "WARN",
+                "componentType": "CONTROLLER_SERVICE",
+                "groupIdentifier": "939e089b-ebe8-3ae8-8ed0-5383878d1720"
+            }
+        ],
+        "defaultFlowFileExpiration": "0 sec",
+        "defaultBackPressureObjectThreshold": 10000,
+        "defaultBackPressureDataSizeThreshold": "1 GB",
+        "scheduledState": "ENABLED",
+        "executionEngine": "INHERITED",
+        "maxConcurrentTasks": 1,
+        "statelessFlowTimeout": "1 min",
+        "flowFileConcurrency": "UNBOUNDED",
+        "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+        "componentType": "PROCESS_GROUP"
+    },
+    "externalControllerServices": {},
+    "parameterContexts": {},
+    "flowEncodingVersion": "1.0",
+    "parameterProviders": {},
+    "latest": false
+}
