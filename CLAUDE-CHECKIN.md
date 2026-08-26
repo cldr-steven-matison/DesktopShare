@@ -152,7 +152,7 @@ Everything below runs in the `cld-streaming` minikube cluster, exposed via `kube
 - MiNiFi agent (K8s pod): port `8888` (loopback-only port-forward)
 - cso-operator-app UI: `http://127.0.0.1:8090` via `minikube service --url` (see `reference_app_url.md`)
 - Cloudera Surveyor UI: via `minikube service cloudera-surveyor-service --namespace cld-streaming`
-- NiFi UI: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443/nifi/` — Windows hosts entry → `127.0.0.1`, the `nifi-web:8443` zellij pane (added 2026-08-26, #253), and the **`nifi-admin` client cert** in the Windows user store (`files/cso-prod-1/user-nifi-admin.yaml` mints it; p12 at `C:\temp\nifi-admin-cso-prod-1`). cso-prod-1 is `userCertAuth` — no password login. The CR's Ingress route 502s until the minikube ingress addon runs `--enable-ssl-passthrough`
+- NiFi UI: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443/nifi/` — Windows hosts entry → `127.0.0.1` + the `nifi-web:8443` zellij pane, which forwards **`nifi-ui-proxy`** (`files/cso-prod-1/nifi-ui-proxy.yaml`): an in-cluster nginx holding the `nifi-admin` client cert, so the browser gets plain server TLS off the cluster CA (already trusted in the Windows user Root store) — **no client-cert prompt, no password** (cso-prod-1 is `userCertAuth`). Loopback only — whoever reaches the pane is `nifi-admin`. A raw p12 of the same identity sits at `C:\temp\nifi-admin-cso-prod-1` for API tools. The CR's Ingress route 502s until #254 (`--enable-ssl-passthrough`) lands
 
 If StarlinkAI needs any of the "not yet exposed" services, they'd need the same treatment as EFM/Kafka: an additional `kubectl port-forward --address efm-host-ip ...` pane.
 

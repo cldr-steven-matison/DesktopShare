@@ -1,0 +1,106 @@
+# #253 — a cert-free browser window into the userCertAuth prod NiFi on cso-prod-1.
+#
+# NiFi here authenticates ONLY by client certificate (decision 3 in cso-prod-1-cutover-plan.md keeps
+# userCertAuth for #116's S2S policies). A browser can do that, but Chrome/Edge make the cert picker a
+# chore. This nginx holds the nifi-admin client cert (secret nifi-admin-cert, minted by
+# user-nifi-admin.yaml) and speaks mTLS to NiFi on the browser's behalf; the browser sees a plain
+# server-TLS endpoint, no client-cert prompt. Whoever reaches this proxy IS nifi-admin — it is only
+# ever exposed through the loopback zellij pane (`nifi-web:8443` in kube-service-ports-efm.kdl),
+# never a NodePort/LAN address.
+#
+# Host/scheme/port are identical end to end (https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443),
+# so NiFi's host-header whitelist and the URLs it generates need no X-Proxy* headers and no
+# nifi.web.proxy.host change — nothing on the NiFi CR moves, nothing restarts.
+#
+# The serving cert is minted off the same cluster CA as everything else; import
+# files/cso-prod-1 ca (see CLAUDE-CHECKIN "NiFi UI") into the Windows user Root store once and the
+# browser shows no warning at all.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nifi-ui-proxy-tls
+  namespace: cfm-streaming
+spec:
+  secretName: nifi-ui-proxy-tls
+  commonName: mynifi-web.mynifi.cfm-streaming.svc.cluster.local
+  dnsNames:
+    - mynifi-web.mynifi.cfm-streaming.svc.cluster.local
+    - localhost
+  usages: [digital signature, key encipherment, server auth]
+  issuerRef:
+    name: cfm-operator-ca-issuer-signed
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nifi-ui-proxy-conf
+  namespace: cfm-streaming
+data:
+  nginx.conf: |
+    events {}
+    http {
+      access_log /dev/stdout;
+      server {
+        listen 8443 ssl;
+        server_name mynifi-web.mynifi.cfm-streaming.svc.cluster.local localhost;
+        ssl_certificate     /etc/proxy-tls/tls.crt;
+        ssl_certificate_key /etc/proxy-tls/tls.key;
+        client_max_body_size 0;
+        location / {
+          proxy_pass https://mynifi-web.cfm-streaming.svc.cluster.local:8443;
+          # the identity: nifi-admin's client cert
+          proxy_ssl_certificate     /etc/nifi-admin/tls.crt;
+          proxy_ssl_certificate_key /etc/nifi-admin/tls.key;
+          proxy_ssl_server_name on;                 # Jetty checks SNI (nifi-api.sh has the same workaround)
+          proxy_ssl_name mynifi-web.mynifi.cfm-streaming.svc.cluster.local;
+          proxy_ssl_verify off;
+          proxy_set_header Host mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443;
+          proxy_http_version 1.1;
+          proxy_buffering off;
+          proxy_read_timeout 300s;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nifi-ui-proxy
+  namespace: cfm-streaming
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: nifi-ui-proxy}
+  template:
+    metadata:
+      labels: {app: nifi-ui-proxy}
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports: [{containerPort: 8443}]
+          volumeMounts:
+            - {name: conf, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: proxy-tls, mountPath: /etc/proxy-tls, readOnly: true}
+            - {name: nifi-admin, mountPath: /etc/nifi-admin, readOnly: true}
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+      volumes:
+        - name: conf
+          configMap: {name: nifi-ui-proxy-conf}
+        - name: proxy-tls
+          secret: {secretName: nifi-ui-proxy-tls}
+        - name: nifi-admin
+          secret: {secretName: nifi-admin-cert}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nifi-ui-proxy
+  namespace: cfm-streaming
+spec:
+  selector: {app: nifi-ui-proxy}
+  ports: [{name: https, port: 8443, targetPort: 8443}]
