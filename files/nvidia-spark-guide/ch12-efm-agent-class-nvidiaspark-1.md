@@ -1,6 +1,6 @@
 # Chapter 12: EFM agent class NvidiaSpark-1
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when the DGX Spark is on the LAN and this chapter's runbook has run on it. Source doc: `nvidia-dgx-spark-efm-agent.md` (DesktopShare root) · driving issue: [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-efm-agent.md` (DesktopShare root) · driving issue: [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
 ## Scope
 

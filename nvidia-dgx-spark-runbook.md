@@ -1,5 +1,7 @@
 # NVIDIA DGX Spark — Day-1 Setup Runbook
 
+> **Status (2026-08-26):** the box landed as `spark-dd06` and its as-built facts are in `CLAUDE-CHECKIN.md` — they supersede the §0/§1 expectations below (121 GB usable, 16 GB swap, 3.7 TB NVMe, driver 580.173.02, CUDA 13.0, Docker 29.2.1). Two conventions changed after this draft: the serving endpoint is **`:8000`** everywhere (this draft's `:8888` is superseded — the playbooks, the fleet and `nvidia-dgx-spark-k3d-cso.md` / `-efm-agent.md` all use `:8000`), and the NIM-vs-OpenAI-endpoint decision lives in `nvidia-dgx-spark-cloudera-aws.md` §4, not in work-stream C. The full device runbook expansion is owed under [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233); on-box execution is [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235).
+>
 > **Status (2026-08-24):** Work-stream **B** of the DGX Spark readiness EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)). **Authored on the Mac; executed on-box when the Spark lands.** This is the arrival-day checklist: from unbox to a hardened, LAN-reachable OpenAI-compatible endpoint. Commands are the *expected* shape from the sourced recipes and NVIDIA/Red Hat docs — verify each against the actual box (live state outranks docs) and fill the confirmed values back in on first run. Model choices come from `nvidia-dgx-spark-landscape.md` §6.
 
 ## 0. Before it arrives (do on the Mac now)

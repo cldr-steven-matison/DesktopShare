@@ -1,5 +1,7 @@
 # NVIDIA DGX Spark — Cloudera Integration Demo Plan
 
+> **Status (2026-08-26):** the box landed as `spark-dd06`. This is still the four-demo first-package draft; the re-map onto F/G/H/I and Demos 5–10 are owed under [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234). Two facts moved: the live RAG LLM on WindowsDesktop today is `Qwen/Qwen2.5-3B-Instruct` at `:8000` (the manifest default in `cso-operator-app-plan.md` is 1.5B), and the endpoint convention on the box is `:8000`. "The Spark" in this draft means the DGX Spark.
+>
 > **Status (2026-08-24):** Work-stream **C** of the DGX Spark readiness EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)). Demo designs only — authored on the Mac, built on-box in the deferred execution phase. **Reuse-first: every demo maps to a pattern we already run**, with the Spark swapped in as a bigger, faster local inference target. The through-line is the SE arc from `nvidia-dgx-spark-landscape.md` §5: *develop against the model on the desk, repoint the base URL at Cloudera AI Inference to scale it — same OpenAI/NIM API.*
 
 ## 1. Why these demos exist

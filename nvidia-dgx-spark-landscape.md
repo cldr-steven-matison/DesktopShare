@@ -1,5 +1,7 @@
 # NVIDIA DGX Spark — Capability Landscape
 
+> **Status (2026-08-26):** the box landed as `spark-dd06`; this is still the first-package draft and its expansion (MoE-vs-dense, engine table, leaderboards, the co-hosting budget, three sourced candidates per slot in §6) is owed under [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232). Until then the dated, confidence-tagged numbers in `nvidia-dgx-spark-research.md` §2, §4 and §5 win over any figure here, the co-hosting budget lives in `nvidia-dgx-spark-k3d-cso.md` §5, and the model lock is still open. "The Spark" in this draft means the DGX Spark.
+>
 > **Status (2026-08-24):** Work-stream **A** of the DGX Spark readiness EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)). Outward research, box not yet in hand. Purpose: establish what one Grace Blackwell / 128 GB box can actually serve in mid-2026 — and at what usable speed — so the runbook (B) and Cloudera demos (C) target the right models. Every throughput/footprint number below is sourced. Scope: single-box first, dual-Spark scale-up noted as a phase-2 hardware option.
 
 ## 1. The one number that governs everything: 273 GB/s
