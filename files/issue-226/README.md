@@ -42,3 +42,55 @@ Two things `spark-operators.sh` does that the fleet installer does not: it disab
 (`ssb.enabled=false` — §5's budget makes SSB demo-time, not resident) and it installs ingress-nginx
 **with** `--enable-ssl-passthrough`, the flag minikube's addon omits and the reason prod's NiFi
 Ingress route 502s (#254).
+
+## The NiFi UI from a browser (#257, option A) — added 2026-08-27
+
+- `nifi-admin-p12.sh` — exports the `nifi-admin` identity from secret `nifi-admin-cert` to
+  `~/nifi-admin-spark/` (`admin.crt`/`admin.key`/`ca.crt` plus `nifi-admin.p12` for browser import),
+  then re-verifies the live path through the box's `:443` and prints the four browser steps.
+  It deploys nothing and touches no running service — the UI needed no new component here, because
+  ingress-nginx runs host-network with `--enable-ssl-passthrough`: the browser's TLS terminates on
+  NiFi's own Jetty, so the client cert travels end to end and k3s' host ports mean no tunnel at all.
+  The two client-side prerequisites are a hosts entry for
+  `mynifi-web.mynifi.cfm-streaming.svc.cluster.local` (the Ingress routes by SNI on that name and
+  `nifi.web.proxy.host` answers `400 Invalid SNI` to every other) and the p12 + CA import.
+  **Re-run it after each cert renewal** — the admin cert is 90-day (first renewal 2026-10-26).
+  Nothing it writes is committed: whoever holds the p12 is `nifi-admin`.
+
+### Reaching the Spark NiFi UI from another device (WindowsDesktop / Mac / StarlinkAI)
+
+The same option-A path works from any device on the LAN (or the tailnet) — the browser's TLS
+terminates on NiFi's own Jetty through the box's `:443`, so the other machine needs only the two
+files and the SNI hosts entry. **Run `nifi-admin-p12.sh` on the box first** (it's the only place the
+secret lives), then copy the two artifacts to the target device — never commit them, whoever holds
+`nifi-admin.p12` **is** `nifi-admin`:
+
+```
+scp tunas@192.168.1.203:/home/tunas/nifi-admin-spark/nifi-admin.p12 .
+scp tunas@192.168.1.203:/home/tunas/nifi-admin-spark/ca.crt .
+```
+
+Then, on the target device:
+
+1. **Hosts entry** (the only admin/sudo step) — point the SNI name at the box's LAN IP:
+   - **Windows** — `C:\Windows\System32\drivers\etc\hosts` (edit as Administrator):
+     `192.168.1.203  mynifi-web.mynifi.cfm-streaming.svc.cluster.local`
+   - **macOS / Linux** — `sudo sh -c 'echo "192.168.1.203  mynifi-web.mynifi.cfm-streaming.svc.cluster.local" >> /etc/hosts'`
+     (macOS, flush after: `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`)
+2. **Import the CA + client cert:**
+   - **Windows (Chrome/Edge — OS store):** `certutil -user -addstore Root ca.crt` then
+     `certutil -user -importpfx -p nifi-admin My nifi-admin.p12` (or double-click each: Current User →
+     Trusted Root CA for `ca.crt`, Personal for the p12, password `nifi-admin`).
+   - **macOS (Safari/Chrome — Keychain):** `security add-trusted-cert -k ~/Library/Keychains/login.keychain-db ca.crt`
+     then `security import nifi-admin.p12 -k ~/Library/Keychains/login.keychain-db -P nifi-admin`
+     (or drag `ca.crt` into Keychain Access → set Always Trust, double-click the p12).
+   - **Linux, Chrome/Chromium (NSS store — needs `libnss3-tools`):**
+     `certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n spark-ca -i ca.crt` then
+     `pk12util -d sql:$HOME/.pki/nssdb -i nifi-admin.p12 -W nifi-admin`.
+   - **Firefox, any OS:** it ignores the OS store — import both inside Settings → Privacy & Security →
+     Certificates → View Certificates (`ca.crt` under Authorities with "trust for websites",
+     `nifi-admin.p12` under Your Certificates, password `nifi-admin`).
+3. Browse **`https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/`** and pick the
+   `nifi-admin (spark-dd06)` certificate when prompted — the canvas menu → current user reads
+   `nifi-admin`. Off-LAN, join the tailnet and use the box's tailnet IP in the hosts entry instead of
+   `192.168.1.203` (the SNI name stays the same, or `400 Invalid SNI`).
