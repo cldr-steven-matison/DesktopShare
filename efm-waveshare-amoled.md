@@ -356,6 +356,55 @@ shows the live feed with images.**
 emits its own Tailscale flow base-URL server-side (the relay rewrite covers it board-side). Full working
 record: StarlinkAI local memory `project_tuna_starlink_amoled_fleet`.
 
+## Third board — Cloudera on WindowsDesktop (2026-08-27)
+
+A **third** V2 board, **Cloudera-branded**, brought up on **WindowsDesktop (COM10)** — issue
+[#258](https://github.com/cldr-steven-matison/DesktopShare/issues/258). Same platform as the other
+two (Brookesia v0.8 + the 11-processor MicroFi agent), on the ATT LAN, with its data services on
+WindowsDesktop itself.
+
+**Board:** MAC `28:84:85:8D:58:2C` → agent id `microfi-2884858d582c`, class `AMOLED`. Windows **COM10**
+(`303a:1001`, MAC in SER — re-identify by MAC after replug). Distinct from Tuna Street (`1cdbd47b8584`)
+and Tuna Starlink (`2884858d4cbc`). **Agent is ONLINE** (`heartbeat #0 -> 200`, IP `192.168.1.205`).
+
+**Networking — like Tuna Street, not Tuna Starlink.** Runs on the **ATT LAN** (`main/main.cpp` evicts
+STARLINK, joins `ATTyjuHfEi`; creds in gitignored `sdkconfig.local`). Reaches EFM **directly** at
+`192.168.1.121:10090` — no Tailscale relay — and the racing backend directly at
+`192.168.1.121:8093`. (When ATT drops and the LAN moves to STARLINK, the board's WiFi needs
+re-provisioning — a board-config concern that belongs in the #260 profile's `wifi` field.)
+
+**Branding (Cloudera):**
+- **Boot splash** — the official **CLOUDERA wordmark** on the brand orange (`#FF550D`, sampled from
+  Steven's logo art), centered, nothing else. Composer: `boot-screen/compose_cloudera_logo.py`.
+- **Orange desktop** (`#F96702`) — overlaid `shell.json` → `shell.desktop.bgColor`.
+- **Dark brown/orange status bar** (`#7A3200`, light text) — same `shell.json` overlay,
+  `shell.statusBar` + the status text styles.
+- **2×2 launcher** — `portrait.json` grid geometry (2 cols, item 156×146, icon 120) + the stock
+  **Files tile filtered out** in `shell_app_launcher.cpp`, leaving **App Store · Settings · Agent ·
+  RACING**. Same technique as PR #1's Tuna Starlink launcher.
+- **Custom racing icon** — full-bleed opaque black (no orange edge bleed), car + inset orange racing
+  stripes + checkerboard finish. `boot-screen/compose_racing_icon.py`,
+  `apps/tunastreet.racing/res/images/launcher_icon.png` (declared 120×120 to fill the tile).
+
+**Apps:** `tunastreet.agent` + `tunastreet.racing` (staged via the trimmed
+`TUNASTREET_APP_PACKAGES`). The racing panel package lives only in `waveshare-devices/apps/` — the
+`amoled-racing` repo is backend-only.
+
+**Flash-cadence fact (the blog #223 oversells "quick deploys" — correct it):** a change's cost
+depends on **where it lives**. **App-package resources** on `littlefs_data` (the racing icon, app
+files) flash in **~20 s** via the littlefs-only path (`write-flash 0xaa1000 littlefs_data.bin`,
+rebuilt with the `littlefs-python` recipe — geometry `block_size=4096, block_count=1250`). But
+**shell/launcher/status-bar/splash** changes did **not** take via a littlefs-only flash this session
+— they needed a **full rebuild + full flash** (~build-time). Treat shell resources as full-flash
+until proven otherwise; only app-package resources are the confirmed fast path.
+
+**Toward one `main` for every board (#260):** the per-board divergences (splash, colors, launcher
+geometry, tile filter, app list, WiFi target, C2 URL) are being lifted into
+`amoled-1.8-v2/platform/profiles/<name>/profile.json` + `apply_profile.py`. Scaffolding for
+tuna-street / tuna-starlink / cloudera has landed; wiring `setup.sh` + reverting the base overlay to
+generic is the remaining half. **This board also has a battery** — status-bar battery gauge is filed
+as [#261](https://github.com/cldr-steven-matison/DesktopShare/issues/261) (read the AXP2101).
+
 ## Commands
 
 ```bash
