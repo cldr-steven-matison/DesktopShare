@@ -302,6 +302,60 @@ no-IDF `littlefs-python` app-iteration path for hosts without a toolchain): `wav
 repo, `amoled-1.8-v2/tools/`. The current-flash `littlefs_data.bin` + boot log are staged on
 StarlinkAI at `~/amoled-x-ember/cache/device/` for the Grok session.
 
+## Second board — Tuna Starlink on StarlinkAI (2026-08-27)
+
+A **second** V2 board, brought up entirely on **StarlinkAI** (Beelink, hostname `TunaStarlink`) as device #1
+of a "Tuna Starlink" fleet. Same platform as the Tuna Street board — Brookesia v0.8 + the 11-processor
+MicroFi agent — rebranded, on Starlink WiFi, with its data services hosted on StarlinkAI itself.
+
+**Board:** MAC `28:84:85:8d:4c:bc` → agent id `microfi-2884858d4cbc`, class `AMOLED`. Windows **COM9**
+(usbipd `1-2`, `303a:1001`); flashed Windows-side via `cmd.exe` interop, no usbipd bridge needed. Factory
+image was `FactoryXiaozhi` — an older compile-time-apps Brookesia with no JS runtime / App Store / littlefs,
+so the one-time platform flash is the only way to run apps (board is freely reflashable; recovery bin kept).
+
+**Build environment:** the full ESP-IDF **6.0.2** toolchain was stood up on StarlinkAI (bare Ubuntu 26.04).
+Gotcha: system Python is 3.14, which IDF rejects — install a 3.12 via `uv` (`uv python install 3.12`); the
+host toolchain (`build-essential cmake ninja …`) needs one `apt` line. MicroFi's AMOLED processors were
+delivered from WindowsDesktop over Tailscale SSH as branch `amoled-processors` (#252); `platform/setup.sh`
+then builds the image unchanged.
+
+**Branding (`tunastarlink.*`):** Grok-generated boot splash (tuna-as-Starlink-satellite on true black, amber
+`#ffb000` wordmark; art in `files/tuna-starlink/`); **2×2 launcher** (App Store · Settings · Agent · X-Viewer
+— the stock Files tile is filtered out in `shell_app_launcher.cpp`); apps `tunastarlink.agent` (the real
+MicroFi monitor) + `tunastarlink.xviewer` (the @tunastarlink feed), each a copy of its `tunastreet.*`
+original with only the package id + backend URL changed.
+
+**Networking — the key difference from the Tuna Street board.** This board runs on the **open STARLINK WiFi**
+(`main/main.cpp` evicts the ATT AP and connects STARLINK; creds in gitignored `sdkconfig.local`). STARLINK and
+WindowsDesktop's ATT LAN both use `192.168.1.x` but are **separate networks**: the board (`192.168.1.236`)
+reaches StarlinkAI (`192.168.1.245`) but **not** WindowsDesktop (`192.168.1.121`) or EFM. So the board's data
+services all live on StarlinkAI, and StarlinkAI bridges to EFM over **Tailscale** (EFM = `100.68.113.126:10090`).
+
+**Backends on StarlinkAI (`.245`, no NiFi):**
+
+| Port | Service |
+|---|---|
+| `:8091` | X-Viewer feed — @tunastarlink's own timeline via tweepy (tuna-starlink-app OAuth1 tokens), images pre-scaled to 368×220; text posts show an avatar card. `~/amoled-xviewer/app.py`. |
+| `:8094` | Agent monitor — digests EFM `GET /agents/<id>` over Tailscale into the tile's fields. `~/amoled-agent/app.py`. |
+| `:10090` | EFM C2 relay — forwards the board's heartbeat/ack to EFM over Tailscale, and **rewrites EFM's Tailscale IP → the relay's LAN IP** in responses so the agent's flow-fetch/ack route back through it. `~/amoled-agent/efm_relay.py`. |
+
+Windows firewall inbound rules opened 8091/8094/10090 (`C:\amoled-spike\tsl-firewall.bat`, self-elevating).
+C2 URLs point at the relay (`sdkconfig.microfi` → `192.168.1.245:10090`). **Agent shows ONLINE; X-Viewer
+shows the live feed with images.**
+
+**Two facts worth keeping:**
+- **Agent liveness is the relay's heartbeat stamp, not EFM `lastSeen`** — EFM freezes `lastSeen`/`uptime` for
+  a healthy agent (returns `{"requestedOperations":null}` 200s without advancing them; same trap as the
+  status-tile note above). The relay stamps `/tmp/amoled_last_hb` per heartbeat and the `:8094` backend derives
+  ONLINE/STALE/SILENT from that.
+- **`pbs.twimg.com` 403s requests without a browser User-Agent** — intermittently dropped post images and the
+  avatar until the backend sent a Chrome UA. And **image/latency work stays in the backend, never the app's
+  render/gesture path** — an in-app image prefetch blocked the JS thread and broke the swipe debounce.
+
+**Open items:** the three backends run under `setsid` but don't auto-start on a StarlinkAI reboot; EFM still
+emits its own Tailscale flow base-URL server-side (the relay rewrite covers it board-side). Full working
+record: StarlinkAI local memory `project_tuna_starlink_amoled_fleet`.
+
 ## Commands
 
 ```bash
