@@ -300,13 +300,15 @@ Two things this work-stream does **not** touch, stated so nobody has to ask. Win
 
 ## Definition of done
 
-- Qdrant and TEI run on `spark-dd06`; `/embed` returns a 768-float vector and `desktopshare-kb` exists at 768-d Cosine.
-- Every source in §2's table is indexed, with a recorded chunk count per source, and a 20-chunk spot check shows no secret-shaped line survived the drop rule.
-- `claude mcp add ds-kb --scope project …` is in .mcp.json and the §3.4 query returns the same docs the `efm-agent-deploy` row of `agent/known-patterns.tsv` injects.
-- The reindex step is in `.claude/hooks/checkin.sh`, backgrounded, fails open, no-ops on every device that is not `spark-dd06`.
-- The validator passes the ten-command test set — 6/6 violations caught with the right rule cited, 4/4 clean commands passed, verdict returned in under 5 seconds — before it is wired into `.claude/hooks/guard.sh`, and it is advisory when it is.
-- §5's before/after pair exists for one complete document: tokens, latency and `doc-check.py` error count on both chains, priced at the published rates.
-- `python3 files/issue-226/doc-check.py --repo . --research-dir files/issue-226/research --status-date 2026-08-27 nvidia-dgx-spark-local-kb.md` reports zero errors.
+> **Met 2026-08-27** (`96ec9bf` retrieval · `a11cad4` validator + measurement), except the two items marked below. Every checked item was verified on `spark-dd06`.
+
+- ✅ Qdrant and TEI run on `spark-dd06`; `/embed` returns a 768-float vector and `desktopshare-kb` exists at 768-d Cosine.
+- ✅ Every source in §2's table is indexed (4197 chunks), with a recorded chunk count per source, and a 20-chunk spot check shows no secret-shaped line survived the drop rule.
+- ✅ `claude mcp add ds-kb --scope project …` is in .mcp.json and the §3.4 query returns the `efm-agent-deploy` docs (via the v2 server, §3.3) — pending only the one-time interactive approval in `claude`.
+- ✅ The reindex step is in `.claude/hooks/checkin.sh`, backgrounded, fails open, no-ops on every device that is not `spark-dd06`.
+- ✅ The validator passes the ten-command test set — 6/6 violations caught with the right rule cited, 4/4 clean commands passed, verdict under 1 s — and is wired into `.claude/hooks/guard.sh` as an advisory (rule 10.5). **⏳ pending: the one-week soak (H5 gate) before blocking is even discussed.**
+- ✅ / **descoped:** the §5 before/after pair exists for one workload (lint) on one document — tokens, latency and `doc-check.py` count on both the local and hosted chain (§5.1). The *full authoring-chain* baseline (one document through all of `authoring-workflow.js` with per-phase accounting) is **descoped from #240**: the seed pair already proves the shape (move the mechanical half, keep judgment hosted), and the live question it raised — whether a *bigger* local model could take on the authoring itself — is a model-evaluation task under work-stream A (#232), not more measurement here (2026-08-27 decision).
+- ✅ `python3 files/issue-226/doc-check.py --repo . --research-dir files/issue-226/research --status-date 2026-08-27 nvidia-dgx-spark-local-kb.md` reports zero errors.
 
 ## When this ships
 
