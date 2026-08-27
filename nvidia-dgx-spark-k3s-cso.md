@@ -299,6 +299,50 @@ Four rules the executor follows here, every one of which has cost the repo a ses
 - **The API token goes in a Parameter Context** as a sensitive parameter, referenced `#{spark-llm-token}`. Never GET-then-PUT a processor that has a sensitive property — NiFi masks it as `********` on GET and the PUT writes that literal over the real credential (`agent/incident-rules.md`).
 - **New logic goes in its own new Process Group**, added via `POST /process-groups/{root}/process-groups/upload` from a committed export. Never read `flow.json.gz` to add a component.
 
+**As built, 2026-08-27 (spark-dd06).** The PG exists and the Phase-4 gate is met — a request
+produced to the box's own Kafka comes back as the box's own model's answer on the box's own results
+topic. Exported to `files/issue-226/flows/SparkLlmBridge.json`.
+
+The chain needed one stage the sketch above does not have. `EvaluateJsonPath` writes attributes but
+leaves the FlowFile content as the *inbound* request JSON, which is not an OpenAI request — so a
+`ReplaceText` between it and `InvokeHTTP` builds the chat-completions body from the extracted
+attributes. Six processors, laid out on the centre column at the NiFi row pitch of 200 with the error
+sink pushed to `x = 300` on `PublishResults`' row (`skills/nifi-and-ai/references/layout.md`):
+
+```text
+# as-built, verified on the box
+SparkLlmBridge (own PG under root; root was empty)
+  ConsumeRequests      ConsumeKafka    spark-inference-requests, group spark-llm-bridge   (0,   0)
+    → ExtractPromptAndId  EvaluateJsonPath  prompt=$.prompt, request_id=$.request_id     (0, 200)
+    → BuildChatRequest    ReplaceText       Always Replace / Entire text, body below     (0, 400)
+    → CallLocalLLM        InvokeHTTP        POST #{vLLM Base URL}/v1/chat/completions    (0, 600)
+    → PublishResults      PublishKafka      spark-inference-results, key ${request_id}   (0, 800)
+  LogFailures            LogAttribute      every failure path converges here           (300, 800)
+```
+
+The four rules above were followed and each one earned its place:
+
+- **`HTTP Method` was set explicitly to `POST` and the persisted value re-read** — not the intended one.
+- **`Retry` self-loops** on `CallLocalLLM` with a 10-minute FlowFile Expiration and a 1000-object
+  back-pressure threshold. `Failure` and `No Retry` go to `LogFailures`; only `Original` is
+  auto-terminated.
+- **A Parameter Context holds the endpoints** — `vLLM Base URL`, `Kafka Bootstrap`, `LLM Model`. No
+  sensitive parameter was needed: this vLLM takes no API key. When one is added it goes in this
+  context as sensitive, and nothing about the processors is GET-then-PUT.
+- **The PG is its own new PG.** Root was empty, so this is the first thing on the canvas.
+
+Two things measured here that the plan did not predict:
+
+- **The Kafka bootstrap inside the flow is the internal listener**,
+  `my-cluster-kafka-bootstrap.cld-streaming.svc:9092` — cross-namespace service DNS from
+  `cfm-streaming`. The `32100` NodePort of §7 is for off-box clients only; a flow that used it would
+  hairpin out of the cluster and back.
+- **`max_tokens` has to be sized for a *reasoning* model, not a chat model.** At 256 the first gate
+  request came back with `"content": null` and the whole budget spent in the `reasoning` field —
+  a response that parses fine and says nothing. At 2048 `content` holds a real sentence. Any consumer
+  of `spark-inference-results` must read `choices[0].message.content` and treat null as a failure
+  rather than an empty answer.
+
 Custom Python only where native cannot reach. The native chain covers the LLM call, and Cloudera's own documented RAG ingestion pattern is native too — [CFM 4.0.0's release notes](https://docs.cloudera.com/cfm/4.0.0/release-notes/topics/cfm-whats-new.html) document `ParseDocument → ChunkDocument → PutChroma`, and the same shape targets Qdrant, with [`PutQdrant`/`QueryQdrant`](https://www.mail-archive.com/issues@nifi.apache.org/msg163058.html) as the store and retrieve legs. The risk is aarch64 wheels: [`ParseDocument`](https://github.com/apache/nifi-python-extensions/blob/main/src/extensions/chunking/ParseDocument.py) pulls OCR models (`yolox`, `detectron2_onnx`, `chipper`) whose dependencies have no guaranteed prebuilt aarch64 wheels. That is the one place a hand-written Python processor may be justified — a thin wrapper around a library that does build on Arm — and the shape rule still applies: one thing per processor, no timers or background threads inside it.
 
 ## 7. Kafka on the box vs WindowsDesktop's Kafka

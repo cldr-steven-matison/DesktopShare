@@ -83,7 +83,7 @@ Runbook B top to bottom: DGX OS first boot and updates → static IP, Tailscale,
 
 ### Phase 4 — Platform (F)
 
-k3s with the GPU device plugin, then the operators in the canonical order (cert-manager → Strimzi → CSA → CFM), then NiFi → local-LLM flows, then Flink on GPU. The cutover ladder starts only after all of that: one WindowsDesktop GPU service per rung, load-tested from a second device, rollback proven before the next rung. **Gate:** a NiFi flow on the Spark's own cluster lands an LLM response into the Spark's own Kafka.
+k3s with the GPU device plugin, then the operators in the canonical order (cert-manager → Strimzi → CSA → CFM), then NiFi → local-LLM flows, then Flink on GPU. The cutover ladder starts only after all of that: one WindowsDesktop GPU service per rung, load-tested from a second device, rollback proven before the next rung. **Gate:** a NiFi flow on the Spark's own cluster lands an LLM response into the Spark's own Kafka — **met 2026-08-27**: the `SparkLlmBridge` PG on the box's `mynifi` consumes `spark-inference-requests`, calls the box's own `/v1/chat/completions`, and publishes the answer to `spark-inference-results` keyed by `request_id` (`nvidia-dgx-spark-k3s-cso.md` §6 as-built, export `files/issue-226/flows/SparkLlmBridge.json`). Flink on GPU and the cutover ladder remain.
 
 ### Phase 5 — Integrations (H, I, C)
 
