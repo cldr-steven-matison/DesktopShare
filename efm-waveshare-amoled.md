@@ -386,9 +386,18 @@ re-provisioning — a board-config concern that belongs in the #260 profile's `w
   stripes + checkerboard finish. `boot-screen/compose_racing_icon.py`,
   `apps/tunastreet.racing/res/images/launcher_icon.png` (declared 120×120 to fill the tile).
 
-**Apps:** `tunastreet.agent` + `tunastreet.racing` (staged via the trimmed
-`TUNASTREET_APP_PACKAGES`). The racing panel package lives only in `waveshare-devices/apps/` — the
-`amoled-racing` repo is backend-only.
+**Apps:** `tunastreet.racing` only, since 2026-08-27 (#263, below) — the `tunastreet.agent` tile
+went with the agent. The racing panel package lives in the `amoled-racing` leader repo
+(`apps/tunastreet.racing`, cloned as `~/amoled-racing`), which since 2026-08-27 carries app +
+backend together.
+
+**No EFM agent since 2026-08-27 ([#263](https://github.com/cldr-steven-matison/DesktopShare/issues/263)).**
+Battery boards are meant to leave the LAN, so the agent is now a per-board option and this board
+is built with `hasAgent: false`: the `microfi_agent` and `agent_status_tile` components compile as
+one-file stubs, `main.cpp` never starts the agent task, and the boot log says
+`MicroFi EFM agent: disabled by board profile 'cloudera' (hasAgent=false)`. EFM's
+`microfi-2884858d582c` row therefore stays MISSING/offline — that is expected, not a fault. The
+Tuna Street board (USB-only) keeps its agent.
 
 **Flash-cadence fact (the blog #223 oversells "quick deploys" — correct it):** a change's cost
 depends on **where it lives**. **App-package resources** on `littlefs_data` (the racing icon, app
@@ -400,10 +409,23 @@ until proven otherwise; only app-package resources are the confirmed fast path.
 
 **Toward one `main` for every board (#260):** the per-board divergences (splash, colors, launcher
 geometry, tile filter, app list, WiFi target, C2 URL) are being lifted into
-`amoled-1.8-v2/platform/profiles/<name>/profile.json` + `apply_profile.py`. Scaffolding for
-tuna-street / tuna-starlink / cloudera has landed; wiring `setup.sh` + reverting the base overlay to
-generic is the remaining half. **This board also has a battery** — status-bar battery gauge is filed
-as [#261](https://github.com/cldr-steven-matison/DesktopShare/issues/261) (read the AXP2101).
+`amoled-1.8-v2/platform/profiles/<name>/profile.json` + `apply_profile.py` — landed and
+flash-verified under #260 (`BOARD_PROFILE=<name> bash setup.sh`; all three boards build from one
+`main`). **This board also has a battery** — the status-bar gauge landed under
+[#261](https://github.com/cldr-steven-matison/DesktopShare/issues/261) (the AXP2101 stack already
+existed end-to-end; the shell polls `GetPowerBatteryState` on the clock's 1 s tick) and sits at the
+**left** edge of the bar, opposite WiFi + clock (Steven, 2026-08-27). Profile fields now:
+`brand.*`, `splash`, `launcher.*`, `apps`, `wifi.evictAp`, `c2.baseUrl`, `hasBattery`, `hasAgent`.
+The generated `board_profile.cmake` is plain `set()` variables included *before* `project()` (so the
+agent components can read `BOARD_HAS_AGENT` while registering) and re-emitted as build-wide compile
+definitions after it. Mechanism doc: `platform/profiles/README.md`.
+
+**Where the apps come from (2026-08-27):** the `tunastreet.*` packages moved to their per-app
+leader repos (`TunaStreetTest/amoled-<app>`, app + backend), cloned as `~/amoled-{agent,racing,tminus,x-viewer}`;
+`waveshare-devices/amoled-1.8-v2/apps/` keeps only `tunastreet.hello` and the `tunastarlink.*`
+copies. `setup.sh` hands the build a `;`-list of app roots (`AMOLED_APP_ROOTS` to override) and
+`main/CMakeLists.txt` resolves each profile app across them — a package missing from every root
+fails the configure loudly.
 
 ## Commands
 
@@ -425,6 +447,19 @@ curl http://192.168.1.121:10090/efm/api/agent-class-manifest-config/AMOLED
   whose source is unpublished — recovery is only `FactoryXiaozhi_260601.bin`. The #188 platform
   flash accepts this once; after that, apps arrive as files, not flashes.
 - **Dead panel after a flash** is usually init order, not hardware: AXP2101 → TCA9554 → panel.
+- **"Scrambled" text on runtime-updated labels = unaligned partial flush, not a font problem**
+  ([#262](https://github.com/cldr-steven-matison/DesktopShare/issues/262), 2026-08-27). The CO5300
+  needs 2-pixel-aligned window addresses and `esp_lcd_co5300`'s `draw_bitmap` does no rounding;
+  the V2 HAL board was cloned from the SH8601 V1 board, which never set
+  `CONFIG_BROOKESIA_HAL_ADAPTOR_DISPLAY_LCD_PANEL_DRAW_{X,Y}_ALIGN_BYTES`, so they defaulted to 1
+  and LVGL flushed odd-x label repaints → the panel shifted the pixel stream → garbage glyphs. Only
+  *repainted* regions showed it (the clock, the agent tile's BEATS/text, #220's scrolling tiles);
+  a full-screen draw starts at x=0 and looks fine, which is why it read as an app/font bug for
+  weeks. Fix: both set to **2** in the V2 `sdkconfig.defaults.board` — the same values upstream's
+  own CO5300 boards (`esp32_s3_touch_amoled_1_75c`, `_2_16`) carry. The Brookesia display source
+  then installs an LVGL rounder (`x1` down to even, `x2` up to odd). Board defaults only reach
+  `sdkconfig` when the file is absent, so this needs a `setup.sh` run (it `rm`s `sdkconfig`), not
+  a bare `idf.py build`.
 - **The class flow is at v8** — `GetTouch → CaptureAudio ← ListenHTTP(:8095 /record)` plus
   `CaptureAudio → PublishMQTT`. Rebuild any version with
   [`files/issue-191/amoled-class-flow.py`](files/issue-191/amoled-class-flow.py); the v8 export is
