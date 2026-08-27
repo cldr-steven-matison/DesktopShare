@@ -478,6 +478,13 @@ was the binding constraint on prod, and on this box it is not.
 
 ## 9. The cutover ladder
 
+> **Status (2026-08-27): planning-only, indefinitely.** Steven's call once Phase 4 landed — no GPU
+> service moves off WindowsDesktop in the foreseeable future, so everything below is a written
+> ladder to review, not a runbook to execute. It is not a blocker for any other work stream: the
+> Spark box has its own k3s, Kafka, NiFi and endpoint, and has already done work prod cannot (§8).
+> Keep the rungs, criteria and rollbacks current; do not run them without a fresh, explicit ask.
+
+
 One rung at a time, never a batch. A rung moves only when the Spark equivalent is up, load-tested **from a second device** (not from the box itself), and has a rollback that has actually been exercised. WindowsDesktop keeps running its version throughout — nothing is torn down to make room.
 
 | Rung | WindowsDesktop today | Spark equivalent | Proof from a second device | Switch mechanism | Rollback | Go/no-go |
