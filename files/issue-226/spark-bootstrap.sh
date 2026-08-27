@@ -23,9 +23,16 @@ step() { printf '\n== %s ==\n' "$*"; }
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
 
 step "1. OS updates (runbook §1)"
+# Deliberately NON-fatal. Everything below — the firewall in particular — is independent of the
+# upgrade, and a transient mirror state must not abort the run (2026-08-27: a re-run 404'd on four
+# perl .debs because the security pocket had rolled past the cached index, and `set -e` killed the
+# script before step 6 applied the corrected ufw ports).
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -q
-apt-get upgrade -y -q
+apt_upgrade() { apt-get update -q && apt-get upgrade -y -q; }
+if ! apt_upgrade; then
+  echo "!! upgrade failed — retrying once with a fresh index (usual cause: 404 on a .deb, stale index)"
+  apt_upgrade || echo "!! upgrade still failing — SKIPPED. Nothing below depends on it; chase it separately."
+fi
 if [ -f /var/run/reboot-required ]; then
   echo "!! updates want a reboot — do it after this script finishes, then re-run the GPU check in step 3"
 else
@@ -40,8 +47,15 @@ step "3. NVIDIA runtime registered with Docker + GPU-in-container proof (runbook
 # Registered, not set-as-default: the serving containers pass --gpus explicitly, and k3s uses its own
 # containerd (step 8), not Docker.
 nvidia-ctk runtime configure --runtime=docker
-# Docker holds nothing on this box (docker0 is linkdown, no published ports) — restart is safe.
-systemctl restart docker
+# Restart Docker ONLY if the runtime is not already registered. On Day 1 Docker held nothing here and
+# a restart was free; it is not free any more — the vLLM serving container (`vllm-qwen36`, :8000,
+# `--restart unless-stopped`) runs under this daemon, and bouncing it costs minutes of weight reload
+# and breaks any in-flight InvokeHTTP. A re-run of this script must not take the endpoint down.
+if docker info --format '{{range $k,$v := .Runtimes}}{{$k}} {{end}}' | grep -q nvidia; then
+  echo "nvidia runtime already registered — NOT restarting docker (the vLLM container runs under it)"
+else
+  systemctl restart docker
+fi
 docker info --format 'runtimes: {{range $k,$v := .Runtimes}}{{$k}} {{end}}' | grep -q nvidia && echo "nvidia runtime registered"
 # arm64 manifest confirmed on nvcr.io 2026-08-27 (13.0.1-base and -devel both publish linux/arm64).
 docker run --rm --gpus all nvcr.io/nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
