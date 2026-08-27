@@ -78,6 +78,21 @@ if [ -f "$proj/skills/sync-skills.sh" ]; then
   [ -n "$synced" ] && out+="$synced"$'\n\n'
 fi
 
+# 1c. Reindex the local KB for what the pull changed — spark-dd06 ONLY (#240,
+#     work-stream H). Enqueue-and-return: it backgrounds and never blocks session
+#     start (checkin.sh fails open on every step; an embedding run must too), it
+#     reindexes only changed paths (a full pass over ~415k words is a cold-start
+#     job, not a per-session one), and it is a hard no-op on every other device —
+#     WindowsDesktop/Mac must not gain a SessionStart dependency on a box that may
+#     be powered down. reindex.sh itself also skips when Qdrant/TEI are unreachable.
+if [ "$(hostname -s 2>/dev/null)" = "spark-dd06" ] && [ -x "$proj/files/issue-226/kb/reindex.sh" ]; then
+  changed="$(git -C "$proj" diff --name-only ORIG_HEAD..HEAD -- '*.md' '*.flow.json' 2>/dev/null)"
+  if [ -n "$changed" ]; then
+    printf '%s\n' "$changed" | nohup "$proj/files/issue-226/kb/reindex.sh" >/dev/null 2>&1 &
+    out+="KB reindex enqueued (spark-dd06) for $(printf '%s\n' "$changed" | grep -c .) changed path(s)."$'\n\n'
+  fi
+fi
+
 # 2. Map this host -> the device label(s) it is responsible for
 #    (device-comms.md "Responsibility map"; some agents are reached by proxy).
 #    The map lives in lib-device.sh so checkin.sh and guard.sh can't drift.

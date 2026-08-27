@@ -61,8 +61,9 @@ We already solved most of the hard problems once. Before writing a new fix from 
 
 1. **The `nifi-and-ai` skill** — top-level technical playbook. If the task touches NiFi/MiNiFi/EFM, the pattern is probably in its `SKILL.md` or a `references/` file.
 2. **This session's memory index** — `MEMORY.md` in the local Claude project memory dir. One-line pointers to what past sessions learned on *this* device.
-3. **DesktopShare root MDs** — grep the `.md` library. There are enough post-mortems and plans in the root that a five-second grep beats a 15-minute re-derivation.
-4. **Sub-repo grep** — if the pattern belongs to app code, grep the app repo. `backend/services/streamers.py` in particular has a lot of hard-won convention already baked in.
+3. **On `spark-dd06`: the `ds-kb` KB** — the `kb_search` MCP tool does semantic retrieval over this same corpus (root docs, `completed/`, `blog/`, `agent/`, the skill, EFM guide, flows, sub-repo code). A better *grep* for a prose question; not a replacement for loading the skill. Local to the box for now (#240).
+4. **DesktopShare root MDs** — grep the `.md` library. There are enough post-mortems and plans in the root that a five-second grep beats a 15-minute re-derivation.
+5. **Sub-repo grep** — if the pattern belongs to app code, grep the app repo. `backend/services/streamers.py` in particular has a lot of hard-won convention already baked in.
 
 Grep is a rung on this ladder, not the ladder. If the answer is in the playbook, don't grep 2000-line files for it.
 

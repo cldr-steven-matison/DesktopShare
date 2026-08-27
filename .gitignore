@@ -26,3 +26,10 @@
 # alternate-data-stream crumb WSL surfaces as a literal file.
 __pycache__/
 *:Zone.Identifier
+
+# .mcp.json is kept box-local, not committed: it registers the `ds-kb` local-KB
+# MCP server (#240), which only works on spark-dd06 where Qdrant/TEI run. Committing
+# it would give every other device a tool that errors on call. The scripts it points
+# at (files/issue-226/kb/) ARE committed; the registration command is in
+# CLAUDE-CHECKIN.md's NvidiaSpark-1 block for any device that stands up its own KB.
+/.mcp.json

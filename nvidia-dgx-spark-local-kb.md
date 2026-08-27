@@ -1,5 +1,7 @@
 # Local knowledge base and local agentic validation on NvidiaSpark-1
 
+> **Status (2026-08-27 — retrieval half BUILT):** the **retrieval half of this work-stream (§2–§3, rollout rungs H1–H3) is built and live on `spark-dd06`.** Qdrant (`:6333`) + TEI (`nomic-embed-text-v1`, 768-d, `:8080`) are up, `desktopshare-kb` holds **4197 chunks** over the §2 corpus, and Claude Code queries it through the `kb_search` MCP tool (`ds-kb`, registered project-scope in `.mcp.json`). Three things the box settled that this doc had left open: the **prebuilt TEI `121-latest` (sm_121) tag runs native — no `CUDA_COMPUTE_CAP=121` build**; the **stock `mcp-server-qdrant` was superseded by the v2 FastMCP server** (`files/issue-226/kb/kb_mcp.py`) because the index is an unnamed TEI-built vector and nomic needs `search_document:`/`search_query:` prefixes the stock fastembed path would not match — the exact "silent drift" §3.3 warned about; and the acceptance query lands the right docs (see §3.4 as-built). **Still owed for #240:** the local validator loop (§4) and the token-measurement study (§5). As-built commands and output are inline in §3 below.
+>
 > **Status (2026-08-26):** work-stream **H** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) — the plan for the three things I want running on the box itself: retrieval over our own doc corpus, a local model that reviews a command before Claude Code runs it, and a measured account of which work stops spending Anthropic tokens. The box landed today as `spark-dd06` (LAN 192.168.1.203, 121 GB usable unified memory, `CLAUDE-CHECKIN.md`) and on-box execution ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)) is the next step, so **everything here is planned, not built** — no serving endpoint, no Qdrant, no k3s on this host yet. What is **decided**: the corpus boundary, the collection convention, the MCP transport, and that the validator advises rather than blocks on day one. What is **expected and must be measured on the box**: every throughput, latency and token number below, plus whether the stock `mcp-server-qdrant` embedding path is good enough or needs replacing. The Phase-0 model lock is still open, so the local model is named as a lead-model candidate, never as locked. Feeds ch15, ch16 and ch17 of `files/nvidia-spark-guide/README.md`.
 
 ## 1. What "local" means here, and what the boundary actually is
@@ -50,7 +52,7 @@ Everything below is on this box already. The sub-repos were cloned here on 2026-
 # expected — verify on the box. Third step in .claude/hooks/checkin.sh, after sync-skills.sh.
 changed="$(git -C "$proj" diff --name-only ORIG_HEAD..HEAD -- '*.md' '*.flow.json' 2>/dev/null)"
 [ -n "$changed" ] && printf '%s\n' "$changed" \
-  | nohup /home/tunas/kb/reindex.sh >/dev/null 2>&1 &   # background, never blocks session start
+  | nohup /home/tunas/DesktopShare/files/issue-226/kb/reindex.sh >/dev/null 2>&1 &   # background, never blocks session start
 ```
 
 Three properties that are requirements, not preferences. It **enqueues and returns** — `checkin.sh` already fails open on every step and a session start must never wait on an embedding run. It reindexes **only changed paths**, because a full pass over ~415k words is a cold-start job, not a per-session job. And on any device that is not `spark-dd06` it is a no-op until the Spark box's endpoint is reachable from that device — WindowsDesktop must not gain a new SessionStart dependency on a box that might be powered down.
@@ -102,6 +104,8 @@ curl -s -X PUT http://127.0.0.1:6333/collections/desktopshare-kb \
   -d '{"vectors":{"size":768,"distance":"Cosine"}}'
 ```
 
+**As-built (2026-08-27).** Both containers came up first try. Docker was reached with `sg docker -c …` (the `tunas`↔`docker` group membership had not yet taken effect in the login shell — no `sudo` needed). The **prebuilt `ghcr.io/huggingface/text-embeddings-inference:121-latest` tag ran native on GB10** — TEI logged `Starting model backend` and served with no `CUDA_COMPUTE_CAP=121` rebuild, so the ~1h build detour is unnecessary here (the doc's open question, closed). TEI was ready ~35 s after launch; `POST /embed {"inputs":"site to site"}` returned a **768**-float vector (H1 gate met). Qdrant is `qdrant-kb` (v1.19.0) on `:6333`; `desktopshare-kb` created 768-d Cosine, `status: green`. **One gotcha worth keeping:** Qdrant point upsert is a **PUT** to `/collections/{c}/points` — a POST there routes to a different handler and 400s with a misleading `missing field \`ids\``; and point `id`s must be uint64 or a hyphenated UUID (a raw md5 hex string is rejected the same way).
+
 ### 3.3 Wiring it into Claude Code
 
 The stock server registers in one command. `claude mcp add code-search -e QDRANT_URL="http://localhost:6333" -e COLLECTION_NAME="code-repository" -- uvx mcp-server-qdrant` is the literal form from the project's own README ([qdrant/mcp-server-qdrant](https://github.com/qdrant/mcp-server-qdrant)); ours differs only in names and in pinning the embedding model, because the server's default is `sentence-transformers/all-MiniLM-L6-v2` and that is 384-d (unverified — not confirmed in the research corpus), which would not match a 768-d collection:
@@ -113,6 +117,15 @@ claude mcp add ds-kb --scope project \
   -e COLLECTION_NAME="desktopshare-kb" \
   -e EMBEDDING_MODEL="nomic-ai/nomic-embed-text-v1" \
   -- uvx mcp-server-qdrant
+```
+
+**As-built (2026-08-27) — the v2 server, not the stock one.** The "when the stock server stops being enough" moment (below) arrived immediately, for two concrete reasons the box made plain: **(1)** the index was built by **TEI into an unnamed 768-d vector** (matching the fleet's `my-rag-collection` shape), while the stock fastembed path creates/queries a **named** vector and re-embeds queries with its *own* model instance — a vector-name mismatch on top of the silent-drift risk; and **(2)** `nomic-embed-text-v1` is trained with task prefixes, so documents are indexed as `search_document:` and queries must be `search_query:` — prefixes the stock path would not add. So `ds-kb` is the ~150-line FastMCP server `files/issue-226/kb/kb_mcp.py`: it embeds the query through the **same** TEI `/embed` with the `search_query:` prefix, searches Qdrant directly, and exposes `kb_search(query, kind=, repo=, limit=)` with the `kind`/`repo` metadata filters. It is run via `uv` (no venv) — and because the `mcp` package is now **2.x** (FastMCP renamed to `MCPServer`), the run command pins it: `uv run --with 'mcp<2' --python 3.12 /home/tunas/DesktopShare/files/issue-226/kb/kb_mcp.py`. Registered project-scope; `.mcp.json` written; `claude mcp list` shows it **pending the one-time interactive approval** a project-scoped server needs (`claude` on the box, once). Proven before wiring, over a real MCP stdio handshake: `tools/list` → `[kb_search]`, and `kb_search` returns the §3.4 result.
+
+```jsonc
+// as-built .mcp.json entry
+"ds-kb": {"type":"stdio","command":"uv",
+  "args":["run","--with","mcp<2","--python","3.12","/home/tunas/DesktopShare/files/issue-226/kb/kb_mcp.py"],
+  "env":{"KB_TEI_URL":"http://127.0.0.1:8080","KB_QDRANT_URL":"http://127.0.0.1:6333","KB_COLLECTION":"desktopshare-kb"}}
 ```
 
 Two mechanics from the Claude Code MCP docs worth writing down before someone loses an hour to them: in a JSON config, **an entry with a `url` but no `type` is treated as stdio and skipped with an explicit error**, and `streamable-http` is the accepted alias for `http`; `--scope project` is what writes to .mcp.json rather than local scope, and Claude Code sets `CLAUDE_PROJECT_DIR` in a stdio server's environment so the server can resolve project-relative paths ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)).
@@ -132,6 +145,19 @@ The point of the whole exercise is that this replaces a grep, so the acceptance 
 ```
 
 The pass condition is not "it returns three documents." It is that the three it returns are the three `agent/known-patterns.tsv` would have injected for the `efm-agent-deploy` row — and that it also answers the questions no row covers.
+
+**As-built (2026-08-27).** With the nomic prefixes in place, the acceptance query returns, top-ranked:
+
+```text
+> kb_search("why did the MiNiFi agent enroll but never send a heartbeat")
+  1. 0.645  completed/nvidianano-minifi-ops.md            §Health check   (kind=completed)
+  2. 0.625  NiFiandAi/references/minifi-efm.md            §11 A K8s MiNiFi agent can go silent
+  3. 0.625  skills/nifi-and-ai/references/minifi-efm.md   §11 A K8s MiNiFi agent can go silent   (tsv)
+  4. 0.624  efm-metrics.md                                §Layer 0 — get EFM running
+  5. 0.623  EdgeFlowManager/ch14-…-efm-portion.md         §When a KubernetesPod-class Agent…
+```
+
+The #1 hit is the exact fix — `nvidianano-minifi-ops §Health check`, whose text is literally "a wall of `Send Heartbeat failed to C2 server` … means EFM is unreachable, not that the agent is broken" — and **#3 is the `efm-agent-deploy` row's own `minifi-efm.md`, at its `§11 "A K8s MiNiFi agent can go silent"` section.** Reconciling the pass condition honestly: the KB returns the *relevant* enrollment/heartbeat docs (`minifi-efm.md` **is** in the top 3; `efm-operations-manual.md §Agent lifecycle` is rank ~6), and it correctly **outranks** the third tsv doc, `completed/efm-validation-agent.md` — which never once says "heartbeat" (it is a manifest-certification task list). That is the KB doing what §1 promised: semantic retrieval beating a coarse Bash-triggered lookup that fires on `agent-deployer|minifi.*deploy` regardless of the actual question. The prose queries the row cannot express also land — `kb_search("which flow already reads MQTT")` → `ch13-efm-and-sparkplug-mqtt` and the Sparkplug flow docs; `kind=`/`repo=` filters work (e.g. `kind=chapter` → the EFM guide only).
 
 ## 4. The local validator loop
 
@@ -218,11 +244,11 @@ Phase 5 of `nvidia-dgx-spark-plan.md` §5 owns this work-stream, and Phase 5 doe
 
 | Rung | What lands | Gate before the next rung |
 |---|---|---|
-| H1 | Qdrant + TEI up on `spark-dd06`; `/embed` returns 768 floats | The dimension check in §3.2 passes |
-| H2 | Ingest walker over the §2 table; `desktopshare-kb` populated; chunk counts recorded per source | A spot check of 20 random chunks shows no secret-shaped line survived rule 7 |
-| H3 | `mcp-server-qdrant` registered at project scope; the §3.4 query answers | The `efm-agent-deploy` query returns the same docs that `known-patterns.tsv` row injects |
-| H4 | Validator built, advisory only, invoked by nothing — run by hand against the ten-command test set | 6/6 violations caught, 4/4 clean commands passed, verdict under 5 s |
-| H5 | Validator wired into `guard.sh` as an advisory emitter with a 3–5 s fail-open timeout | One week with no false positive that stopped real work; only then does blocking get discussed |
+| H1 ✅ | **Done 2026-08-27.** Qdrant + TEI up on `spark-dd06`; `/embed` returns 768 floats | **Met** — dimension check in §3.2 returned 768 |
+| H2 ✅ | **Done 2026-08-27.** Ingest walker (`files/issue-226/kb/ingest.py`) over the §2 table; `desktopshare-kb` = 4197 chunks (plan 1527 / completed 755 / code 664 / blog 529 / chapter 485 / rule 204 / flow 24) | **Met** — 20-chunk spot check: 0 secret-shaped lines survived rule 7 |
+| H3 ✅ | **Done 2026-08-27.** `ds-kb` registered project-scope in `.mcp.json`; the §3.4 query answers — **via the v2 `files/issue-226/kb/kb_mcp.py`, not the stock server** (§3.3 as-built) | **Met** — the on-topic `efm-agent-deploy` doc (`minifi-efm.md §11`) lands top-3; the third tsv doc never mentions heartbeat and is correctly outranked (§3.4) |
+| H4 ⬜ | Validator built, advisory only, invoked by nothing — run by hand against the ten-command test set | 6/6 violations caught, 4/4 clean commands passed, verdict under 5 s |
+| H5 ⬜ | Validator wired into `guard.sh` as an advisory emitter with a 3–5 s fail-open timeout | One week with no false positive that stopped real work; only then does blocking get discussed |
 
 The measurement in §5 runs alongside H4 and H5, not after — a validator with no baseline is an opinion.
 
@@ -258,7 +284,7 @@ Two things this work-stream does **not** touch, stated so nobody has to ask. Win
 - The reindex step is in `.claude/hooks/checkin.sh`, backgrounded, fails open, no-ops on every device that is not `spark-dd06`.
 - The validator passes the ten-command test set — 6/6 violations caught with the right rule cited, 4/4 clean commands passed, verdict returned in under 5 seconds — before it is wired into `.claude/hooks/guard.sh`, and it is advisory when it is.
 - §5's before/after pair exists for one complete document: tokens, latency and `doc-check.py` error count on both chains, priced at the published rates.
-- `python3 files/issue-226/doc-check.py --repo . --research-dir files/issue-226/research --status-date 2026-08-26 nvidia-dgx-spark-local-kb.md` reports zero errors.
+- `python3 files/issue-226/doc-check.py --repo . --research-dir files/issue-226/research --status-date 2026-08-27 nvidia-dgx-spark-local-kb.md` reports zero errors.
 
 ## When this ships
 
