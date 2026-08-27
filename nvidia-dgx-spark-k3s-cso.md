@@ -272,6 +272,27 @@ The roster records 121 GB usable of the 128 GB unified pool plus 16 GB swap, and
 | **Subtotal** | **103 GB** | |
 | Page cache + host headroom | 18 GB | the balance of 121 GB |
 
+**Measured, 2026-08-27, under load** (the flink-agents job streaming reviews through vLLM while
+NiFi, Kafka and every operator ran). `kubectl top node` → **25 157 Mi across all pods, 17 % CPU**;
+`free -g` → 74 of 121 GB used, 47 available. Per pod, the ones that matter:
+
+| Pod | Budgeted (above) | Measured |
+|---|---|---|
+| `mynifi-0` | 8 GB | 3 629 Mi |
+| Kafka, 3 KRaft brokers | 9 GB (3 each) | 928 / 932 / 1 060 Mi |
+| `flink-kubernetes-operator` | — (inside the 6 GB operators line) | 876 Mi |
+| `strimzi-cluster-operator` | — (same line) | 435 Mi at rest, but **OOMKilled at the chart's 384 Mi limit** while reconciling |
+| `flink-agents` JM + TM | 6 GB | 410 + 722 Mi |
+| `ingress-nginx` | not in the original budget | 235 Mi |
+| cert-manager ×3, cfm-operator | — | under 50 Mi each |
+
+The budget was conservative by roughly 3× on the streaming tier: the whole Kubernetes side fits in
+~25 GB, not the ~43 GB those rows implied. The vLLM side is what actually spends the box — the host
+container's resident set sits around 9 GB of *host* RAM with the weights and KV cache in the unified
+pool, and the balance of the 74 GB used is that pool. TEI, Whisper and Qdrant are not deployed yet,
+so their four rows remain estimates. The one line that was *under*-budgeted is the operators row —
+`strimzi-cluster-operator` needs 1 Gi, not the chart's 384 Mi default.
+
 Three rules that come with the budget. Give **every** pod a memory request — the one without a request is the one the kernel kills, and on prod that is NiFi. Do not run Schema Registry, Surveyor, SSB or a monitoring stack resident; they are demo-time only. And the vLLM playbook's UMA gotcha applies to the host, not the cluster: [NVIDIA's own vLLM playbook](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md) documents `sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'` as the manual cache flush when unified memory looks full but is not.
 
 The stretch model is a mode, not a resident. Running a ~100 B-class model means scaling the streaming stack down first — the same scale-to-0 discipline `cso-operator-app-plan.md` already documents for the RAG tier, which destroys nothing because the data lives on separate objects.
@@ -422,6 +443,37 @@ One aarch64 quirk worth recording for ch11: `nvidia-smi --query-gpu=memory.total
 inside the container on GB10. The device is found and usable; it is unified memory, so there is no
 discrete total to report. Any capacity check that greps that field will read as a failure when
 nothing is wrong.
+
+**As built, 2026-08-27 (spark-dd06) — the agents half.** `FlinkDeployment/flink-agents` reached
+**`STABLE` / `READY`** and the example job runs against the box's own endpoint. Artifacts:
+`files/issue-226/flink-agents/` (Dockerfile, `flinkdeployment.yaml`, the two agent scripts).
+
+**The `cso-prod-1` Dockerfile needed no aarch64 changes at all.** Both base images
+(`maven:3-eclipse-temurin-17`, `flink:1.20.5-java17`) are multi-arch and everything else builds from
+source or installs from PyPI, so `docker build --platform linux/arm64` produced
+`spark-flink-agents:0.3.1` (4.35 GB, `arm64/linux`) from prod's recipe byte-for-byte. **The CUDA-wheel
+table at the top of this section does not apply to this image** — that is the separate GPU-PyTorch
+Flink recipe. flink-agents reaches the model over HTTP, so it needs no CUDA and makes no GPU claim,
+which is also why it and `flink-gpu.yaml` never compete for the box's single `nvidia.com/gpu`.
+
+**k3s does not use the Docker daemon**, so a locally built image has to be imported into k3s's own
+containerd before a `pullPolicy: Never` deployment can find it — `docker save … | k3s ctr images
+import -`, which needs root. That is the one step in this section a session cannot do for itself.
+
+Fact 1 above re-confirmed against the built image (`chat_models/` is exactly `anthropic, azure,
+ollama, openai, tongyi`), and one thing the fact left ambiguous is now pinned down:
+**`OPENAI_COMPLETIONS_*` calls `client.chat.completions.create`** — the *chat* API, not raw
+completions. That distinction matters on this box specifically: its `/v1/completions` returns 200 but
+emits `<think>` blocks inline for this reasoning model, which would break the agent's `json.loads`.
+The chat path does not.
+
+**Fact 4 is confirmed in the direction it predicted.** The same example job that FAILED on
+`cso-prod-1` runs clean here: `Workflow Agent Example Job (vLLM)` `RUNNING`, **149 chat-completions
+calls all `200 OK`, zero exceptions and zero `JSONDecodeError`** at the time of writing (the source is
+the bounded 584 KB review file, so the job ends on its own) — measured in the TaskManager log
+against `http://192.168.1.203:8000/v1/chat/completions`. vLLM reported `Running: 2 reqs`,
+~162 tok/s generation, and 74.9 % speculative-draft acceptance while the job streamed. Model size
+was the binding constraint on prod, and on this box it is not.
 
 
 ## 9. The cutover ladder
