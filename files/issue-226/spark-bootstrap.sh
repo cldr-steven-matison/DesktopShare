@@ -77,8 +77,17 @@ ufw default allow outgoing
 ufw allow from "$LAN" to any port 22 proto tcp comment 'ssh from LAN'
 ufw allow in on tailscale0 comment 'tailnet'
 ufw allow from "$LAN" to any port 8000 proto tcp comment 'OpenAI-compatible serving (runbook :8000)'
-for p in 31623 31850 31935 30336; do
-  ufw allow from "$LAN" to any port "$p" proto tcp comment "k3s NodePort $p"
+# The box's OWN Kafka external listener (files/issue-226/kafka-spark.yaml) — 32100 bootstrap,
+# 32101-32103 brokers. Deliberately NOT prod's 31623/31850/31935/30336: a client on WindowsDesktop
+# talks to both clusters and the two blocks must not collide (k3s-cso §7). k3s NodePorts are host
+# ports, so allowing them here is all a producer on another device needs.
+for p in 32100 32101 32102 32103; do
+  ufw allow from "$LAN" to any port "$p" proto tcp comment "k3s NodePort $p (kafka external)"
+done
+# ingress-nginx runs host-network with --enable-ssl-passthrough, so the NiFi UI's Ingress route
+# is the box's own :443 (k3s-cso §4). :80 is the redirect leg.
+for p in 80 443; do
+  ufw allow from "$LAN" to any port "$p" proto tcp comment "ingress-nginx $p"
 done
 # k3s pod and service CIDRs (docs.k3s.io/installation/requirements — ufw must not block them)
 ufw allow from 10.42.0.0/16 to any comment 'k3s pods'

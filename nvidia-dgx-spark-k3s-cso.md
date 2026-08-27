@@ -200,6 +200,61 @@ helm upgrade --install cfm-operator --namespace cfm-streaming --version 3.0.0-b1
 
 Schema Registry and Surveyor are optional on this box — both are scaled to 0 on prod today (`cso-prod-1-cutover-plan.md` §4). Install them only when a demo needs them, because §5's budget has no room for idle pods.
 
+**As built, 2026-08-27 (spark-dd06).** The whole sequence is now one idempotent script,
+`files/issue-226/spark-operators.sh` — `preflight → secrets → certmanager → issuers → ingress → csm →
+csa → cfm → verify`, each step re-runnable by name. It reads `~/.cloudera-creds`
+(`CLOUDERA_USER` / `CLOUDERA_PASS` / `NIFI_ADMIN_PASS`, mode 600) and the license file at
+/home/tunas/license.txt; neither is in the repo. Three things the ported script does that `files/agent-install-operators.sh` does not:
+
+1. **Point 1 above is resolved: ingress-nginx is installed, `4.13.5`, with `--enable-ssl-passthrough`.**
+   `controller.hostNetwork=true` + `hostPort.enabled=true`, so the controller binds the box's own
+   `:80`/`:443` directly — k3s runs on the host, so there is no tunnel and no `LoadBalancer` to
+   resolve. Verified after install: `:443` is the passthrough listener and `:442` the internal TLS
+   one, which is the shape the flag produces. This is exactly what minikube's `ingress` addon omits
+   and why prod's NiFi Ingress route 502s ([#254](https://github.com/cldr-steven-matison/DesktopShare/issues/254)),
+   so `files/cso-prod-1/nifi-cso-prod-1.yaml`'s `uiConnection` block carries over unchanged.
+2. **SSB is off** — `--set ssb.enabled=false`. The CSA chart ships `ssb-sse`, `ssb-mve` and
+   `ssb-postgresql` resident by default; §5's budget makes SSB demo-time. `flink-kubernetes-operator`
+   is the half this box actually needs (§8). The `ssb.database.image.repository` override stays in
+   the invocation, so re-enabling per demo still avoids the VPN-only `docker-private.infra.cloudera.com`.
+3. **The CA issuers are a step, not a prerequisite** — `files/cso-prod-1/cluster-issuer.yaml` is applied
+   between cert-manager and the operators, and `cfm-operator-ca-issuer-signed` reached
+   `Ready: True "Signing CA verified"` on this box. The NiFi CR's `nodeCertGen`, `s2sCertGen` and
+   `userCertAuth.verificationCASecret` all point at it, which is what makes Site-to-Site work day one.
+
+Registry pulls needed no fallback: `helm registry login` and every `oci://` chart pull resolved, and
+the four charts installed at the pinned versions — cert-manager `v1.16.3`, strimzi-cluster-operator
+`1.6.0-b99`, csa-operator `1.5.0-b275`, cfm-operator `3.0.0-b126`. The gate §2 answered from the
+registry holds in practice, not just on paper (#243).
+
+The CRs applied on top are the box's own, staged next to the script:
+`files/issue-226/kafka-spark.yaml` (§7's NodePort block), `files/issue-226/kafkatopics-spark.yaml`
+(§7's three topics) and `files/issue-226/nifi-spark.yaml` (this section's NiFi, on `local-path`).
+`files/cso-prod-1/user-nifi-admin.yaml` applies unchanged — same namespace, same instance name.
+
+Measured on the way through, all on 2026-08-27:
+
+- **Kafka `my-cluster` reached `Ready: True`** with three combined KRaft nodes on `local-path`, the
+  three `KafkaTopic` CRs `Ready`, and `kubectl get kafka -o jsonpath='{.status.listeners}'` reporting
+  the external bootstrap as `192.168.1.203:32100` — the LAN address, not a service name. A
+  produce/consume round trip on `spark-inference-requests` returned the message.
+- **`mynifi-0` reached `7/7 Running`** (the NiFi container plus its six log sidecars) on the
+  `local-path` repos, and the operator created the `mynifi-web` Ingress on the `nginx` class.
+- **The Ingress route answers `200` with the admin client cert** —
+  `curl --resolve mynifi-web.mynifi.cfm-streaming.svc.cluster.local:443:192.168.1.203 --cert … /nifi-api/flow/current-user`
+  returns `{"identity":"nifi-admin","anonymous":false,…}` with read+write on every permission set.
+  That is the same request shape that returns 502 on prod, and it is the passthrough flag that makes
+  the difference — worth carrying back to `cso-prod-1` when #254 is fixed there.
+- **A pod on this cluster can reach the box's own vLLM**: a throwaway `curl` pod against
+  `http://192.168.1.203:8000/v1/models` returned the model list. §6's `#{vLLM Base URL}` has a real
+  target before the PG is built — k3s pods egress to the host's LAN address with no extra plumbing.
+
+One thing the operators cost that §5's budget did not predict: **`strimzi-cluster-operator` OOMKills
+at the chart's default 384Mi limit** on this box, twice, while reconciling the cluster and its topics.
+`spark-operators.sh` raises it to 1Gi and it has been stable since. And the `Nifi` CRD has no
+`spec.statefulset.resources` — the operator's own field is `spec.resources.{nifi,log,s2s}`, and a
+first apply with the wrong one is rejected outright with a strict-decoding error rather than ignored.
+
 ## 5. Resource budget inside 128 GB
 
 The roster records 121 GB usable of the 128 GB unified pool plus 16 GB swap, and 3.7 TB of NVMe (`CLAUDE-CHECKIN.md`). The constraint that makes this a budget rather than a guess comes from [rajsinghtechbot/dgx-spark-vllm-k8s](https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s): on UMA a container's `resources.limits.memory` caps GPU allocation too, and of the ~119.67 GiB `nvidia-smi` reports, roughly 24–29 GiB is driver/hardware reserved, leaving ~90–95 GiB effective — 85 GiB OOM-kills a large model during load, 93 GiB is stable, 95 GiB will not schedule. Those are single-source measurements from a two-node build, so treat them as the shape of the constraint, not gospel.
@@ -335,9 +390,11 @@ The Spark box is a development and demo platform and an inference target, not a 
 - GPU Operator whole-chart version vs `devicePlugin.version` sub-component pin — the two sources use different version namespaces and neither is wrong.
 - Do the NiFi Python extension wheels (`unstructured`, `detectron2_onnx`) resolve for aarch64 in the CFM NiFi image? No source in the corpus answers it.
 - Which aarch64 PyTorch wheel index serves `sm_121` for the Flink GPU image rebuild?
-- Traefik is disabled at k3s install (`--disable traefik`, §3.1) — so is ingress-nginx installed, or does the NiFi CR's `uiConnection` skip Ingress entirely? The CR's ssl-passthrough annotations decide it, and the decision has to be made before the CR is applied.
-- Which NodePort block does the box's Kafka external listener use? It must not collide with 31623/31850/31935/30336, and it needs its own ufw rule (§3.1, §7).
+- ~~Traefik is disabled at k3s install — so is ingress-nginx installed, or does the NiFi CR's `uiConnection` skip Ingress entirely?~~ **Answered 2026-08-27:** ingress-nginx `4.13.5` is installed with `--enable-ssl-passthrough`, host-network on the box's `:80`/`:443`, so the CR's annotations mean what they say and prod's CR carries over unchanged (§4 as-built).
+- ~~Which NodePort block does the box's Kafka external listener use?~~ **Answered 2026-08-27:** `32100` bootstrap, `32101–32103` brokers, `advertisedHost` = `192.168.1.203` — `files/issue-226/kafka-spark.yaml`, and the ufw rule is in `files/issue-226/spark-bootstrap.sh` (which had been carrying prod's four ports by mistake).
 - Does the fleet ever want the two Kafka clusters bridged, and if so via NiFi Site-to-Site or an `InvokeHTTP` leg? Out of scope for v1, but it changes §7 if the answer is yes.
+
+- The chart default for `strimzi-cluster-operator` is a **384Mi** memory limit, and it OOMKills on this box while reconciling the 3-broker cluster and its topics (observed on the first install, 2026-08-27). `spark-operators.sh` raises it to 1Gi. Is 1Gi the right number under a bigger topic count, or is this the first symptom of something aarch64-specific? No source in the corpus discusses the operator's own footprint.
 
 ## Definition of done
 

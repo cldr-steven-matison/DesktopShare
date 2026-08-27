@@ -1,0 +1,80 @@
+# Kafka on NvidiaSpark-1's own k3s — Phase 4 (F, #238), the box's own `my-cluster`.
+# Shape carried from files/cso-prod-1/kafka-nodepool.yaml + kafka-eval.yaml, with three k3s deltas:
+#   1. storage class `local-path` (k3s's default provisioner; `standard` is minikube's and does not exist here)
+#   2. its OWN NodePort block 32100–32103 — prod's 31623/31850/31935/30336 stay prod's, and the two
+#      clusters must not collide when a client on WindowsDesktop talks to both (k3s-cso §7)
+#   3. `advertisedHost` is the box's LAN IP, not an in-cluster svc name — k3s NodePorts ARE host ports,
+#      so a producer on another device connects straight to 192.168.1.203 with no tunnel (k3s-cso §3.1)
+# Resource requests come from k3s-cso §5's budget: 3 GB per broker. Every pod gets a request —
+# the one without a request is the one the kernel kills on a 128 GB unified box.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: combined
+  namespace: cld-streaming
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 3
+  roles:
+    - controller
+    - broker
+  resources:
+    requests: { memory: 3Gi, cpu: "1" }
+    limits:   { memory: 3Gi }
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 20Gi
+        class: local-path
+        kraftMetadata: shared
+        deleteClaim: false
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: my-cluster
+  namespace: cld-streaming
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    version: 4.1.1.1.6
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: false
+        configuration:
+          bootstrap:
+            nodePort: 32100
+          brokers:
+            - broker: 0
+              advertisedHost: 192.168.1.203
+              nodePort: 32101
+            - broker: 1
+              advertisedHost: 192.168.1.203
+              nodePort: 32102
+            - broker: 2
+              advertisedHost: 192.168.1.203
+              nodePort: 32103
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

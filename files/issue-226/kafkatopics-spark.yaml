@@ -1,0 +1,49 @@
+# The two topics the Phase-4 gate needs (nvidia-dgx-spark-plan.md §5): a NiFi flow on the box's
+# own cluster consumes a request, calls the box's own vLLM at :8000, publishes the response.
+# Both live on the box's `my-cluster`, not prod's.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: spark-inference-requests
+  namespace: cld-streaming
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: spark-inference-results
+  namespace: cld-streaming
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'
+---
+# The third topic k3s-cso §7 names for this box — the local-knowledge-base ingest lane (H, #240).
+# Declared with the cluster so the topic list matches the doc; nothing consumes it until H lands.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: spark-kb-documents
+  namespace: cld-streaming
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: '2'
+    retention.ms: '604800000'

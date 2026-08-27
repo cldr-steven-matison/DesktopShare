@@ -16,3 +16,29 @@ The rendered corpus is `nvidia-dgx-spark-research.md`; these JSON files remain t
 - `vllm-serve.sh` — the first endpoint: `nvidia/Qwen3.6-35B-A3B-NVFP4` on `:8000` per NVIDIA's DGX Spark vLLM playbook recipe verbatim (image digest pinned at first run; port bound to loopback + the LAN IP only).
 
 User-level tools installed the same day into `~/.local/bin`: `kubectl v1.32.13`, `helm v3.21.4`.
+
+## Phase 4 — operators on the box's own k3s (F, #238) — added 2026-08-27
+
+- `spark-operators.sh` — the whole Phase-4 install as one idempotent script, run as `tunas` with no sudo:
+  preflight → namespaces + secrets → helm registry login → cert-manager → CA cluster issuers →
+  ingress-nginx → CSM/Strimzi → CSA → CFM → verify. Order and chart versions are `files/agent-install-operators.sh`'s,
+  which `cso-prod-1` proved on 2026-08-25; the k3s deltas are the six in `nvidia-dgx-spark-k3s-cso.md` §4.
+  Takes step names as arguments (`spark-operators.sh cfm`) to re-run one rung. Reads
+  `~/.cloudera-creds` (`CLOUDERA_USER` / `CLOUDERA_PASS` / `NIFI_ADMIN_PASS`, mode 600) and `~/license.txt` —
+  neither is in the repo and neither ever should be.
+- `kafka-spark.yaml` — the box's own `my-cluster`: 3 combined KRaft nodes, `local-path` storage,
+  and its **own** NodePort block `32100` bootstrap / `32101–32103` brokers with `advertisedHost`
+  set to the box's LAN IP. Prod's `31623/31850/31935/30336` stay prod's — a client on WindowsDesktop
+  talks to both clusters, so the two blocks must not collide.
+- `kafkatopics-spark.yaml` — `spark-inference-requests` and `spark-inference-results`, the two topics
+  the Phase-4 gate flows between.
+- `nifi-spark.yaml` — the box's `mynifi`: `files/cso-prod-1/nifi-cso-prod-1.yaml` with `local-path`
+  storage, generous repo sizes (3.7 TB of NVMe here, and prod's `emptyDir` repos are why a pod delete
+  there wipes a flow), a real 8 GB memory request, and the same userCertAuth + S2S-day-one security
+  block off `files/cso-prod-1/cluster-issuer.yaml`. Apply the issuers first. Admin access comes from
+  `files/cso-prod-1/user-nifi-admin.yaml` unchanged — same namespace, same instance name.
+
+Two things `spark-operators.sh` does that the fleet installer does not: it disables SSB
+(`ssb.enabled=false` — §5's budget makes SSB demo-time, not resident) and it installs ingress-nginx
+**with** `--enable-ssl-passthrough`, the flag minikube's addon omits and the reason prod's NiFi
+Ingress route 502s (#254).
