@@ -943,6 +943,20 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 
 ## Session History
 
+### Session 24 (2026-08-27)
+
+Steven reported streamers + fetching on but only 1 clip after a while. Fetching was fine (the host had rebooted at 16:33 local and FetchClips was only restarted at 17:28); the real fault was **vLLM, which had never served the app on cso-prod-1**. Every `processed_clips` record since the cutover (08-26 21:23 → 08-27 21:55, ~30 clips) was `quoted / topic unclear` or `disqualified: no title` — zero generated captions — and nothing in the UI or logs said so (`_generate_title` swallows exceptions; the caption path falls back to quoted mode).
+
+| Finding / change | Details |
+|---|---|
+| **Root cause 1 — model-name mismatch** | The cutover switched prod vLLM to `Qwen/Qwen2.5-7B-Instruct-AWQ` @ `--gpu-memory-utilization 0.84` (`files/cso-prod-1/vllm.yaml`, 08-26 18:03, for the flink-agents demo). The app still sends `VLLM_MODEL=Qwen/Qwen2.5-3B-Instruct` (`k8s/configmap.yaml`) → vLLM 404s every title/caption call. |
+| **Root cause 2 — GPU contention** | 7B-AWQ @ 0.84 (6.7 GiB) cannot share the 8 GB RTX 4060 with `whisper-server` (whisper-large-v3 fp16 on `cuda:0`, `batch_size=24`, balloons to ~7.3 GB). After the reboot whisper started first; vLLM went `CrashLoopBackOff` (14 restarts, `Engine core initialization failed`). Two older vLLM pods sat `Failed` with "no healthy devices" from earlier. |
+| **Fix — prod put back the way it was** (Steven: "no one asked prod to be different") | Scaled whisper→0 and vLLM→0, `kubectl apply -f ~/ClouderaStreamingOperators/vllm-Qwen2.5-3B-Instruct.yaml` (3B, bitsandbytes, 0.75, `qwen3_coder`), Ready in ~2 min (weights re-downloaded, 112 s), whisper→1. No app code/config change — `VLLM_MODEL` already matched. |
+| **Verified** | `/v1/models` → `Qwen/Qwen2.5-3B-Instruct`; whisper transcribes a 12 MB clip in 24 s with vLLM resident (no OOM); direct `POST /api/streamers/process-clip` on the xqc queue record → `caption_mode: reaction` with a real caption (rampagejackson's re-run was disqualified by the gendered-pronoun guard — i.e. a caption *was* generated). First generated caption on this cluster. |
+| **Pronoun guard no longer drops clips** | Live clip at 22:17 (jasontheween) got a generated caption that the gendered-pronoun guard rejected after its 4 attempts → `disqualified`. Steven: "it's not supposed to drop them, it's supposed to drop the caption to the quoted text." `process_clip` now sets `quote_reason = "gendered pronoun"` (also `empty caption` / `degenerate output`) and takes the same quoted-post fallback as `topic unclear` / `fabricated quote`; a lingering `quote_reason` is cleared when a later retry succeeds. Deployed with `MODULES=rag,streamers,efm`. |
+| Not done | The two stale `ContainerStatusUnknown` vLLM pods (`-mkfgq`, `-p9fsf`) hold no resources; deletion was blocked by the session's permission classifier — `kubectl delete pod` them at leisure. FetchClips was stopped from the UI at 21:55 UTC and left stopped. `files/cso-prod-1/vllm.yaml` + VALIDATION/cutover-plan still describe 7B-AWQ; annotated, not rewritten. |
+| Diagnostics worth reusing | `processed_clips` caption-mode timeline via aiokafka in the app pod (last 30 records: ts / streamer / caption_mode / error) is the fastest way to see whether vLLM is actually producing; the review UI can't tell. `nvidia-smi` on the WSL host shows who holds the GPU (`/python3.11` PID 1 = whisper, vLLM image is 3.12). |
+
 ### Session 23 (2026-08-02)
 
 Clip header overlay redesign, driven live via mockups iterated on [DesktopShare issue #87](https://github.com/cldr-steven-matison/DesktopShare/issues/87), plus watchlist/catalog housekeeping from [issue #86](https://github.com/cldr-steven-matison/DesktopShare/issues/86).

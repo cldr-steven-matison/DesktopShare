@@ -382,7 +382,7 @@ mTLS ~21:00Z. Phase 0 ran with prod up and cost no downtime. Everything below wa
 | Kafka | external NodePorts on exactly 31623 / 31850 / 31935 / 30336 (`kafka-eval.yaml`); 6 `KafkaTopic` CRs Ready (`kafkatopics.yaml`); lag was 0 on all 3 consumer groups before the stop |
 | NiFi | CR amended (`nifi-cso-prod-1.yaml`: python-extensions PVC + env + property upsert) → 7/7; `cluster-creds` + 4 children with inheritance proven; 13 PGs uploaded and bound; prod-running PGs restarted with prod's counts (TwitchChatBot 23, WatchlistChatJoiner 16, TopStreamerJoiner 5/4, poller 7, AMOLED 3+6, StreamersApp 58) |
 | Operators / services | public flink operator → `csa-operator` 1.5.0-b275 (SSB up); EFM 1/1; qdrant, embedding, whisper, cso-operator-app (mTLS, `MODULES=rag,streamers,efm`), mosquitto, racing, iceberg-demo (0 replicas as on prod), schema-registry, surveyor, kube-prometheus-stack, 3 MiNiFi metrics Services, `minifi-agent-k8s-gaming` re-enrolled with a fresh EFM-minted identity |
-| Parity | `jq` config diff empty, `nvidia.com/gpu: 1`, vLLM 7B-AWQ/`hermes` serving → **#251 cleared** |
+| Parity | `jq` config diff empty, `nvidia.com/gpu: 1`, vLLM 7B-AWQ/`hermes` serving → **#251 cleared** (**reverted to 3B-bnb/0.75 on 2026-08-27** — broke streamers captions + GPU contention with whisper; see `streamers/cso-operator-app-streamers.md` Session 24) |
 
 ### Where the runbook was wrong or silent (fixed in place above where it mattered)
 1. **Phase 2 as written cannot run.** `docker exec` needs a running container. The PVC data is at

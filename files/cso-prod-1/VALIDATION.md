@@ -189,6 +189,9 @@ would be inventing data.
   `flows/prod/` and are what the cutover imported.
 - #231 / #251: the prod vLLM that ran `qwen3_coder` was retired with the default profile; prod is now
   cso-prod-1's vLLM (7B-AWQ, `hermes`, `--max-model-len 8192`).
+  **Reverted 2026-08-27:** prod vLLM is back on `vllm-Qwen2.5-3B-Instruct.yaml` (3B, bitsandbytes, 0.75) at
+  Steven's direction — 7B-AWQ@0.84 404'd the streamers app's `VLLM_MODEL` (3B) and could not share the 8 GB GPU with
+  `whisper-server`; zero captions were generated 08-26→08-27. `streamers/cso-operator-app-streamers.md` Session 24.
 
 ## #253 — Prod cutover, executed 2026-08-26 (cso-prod-1 IS prod now)
 Runbook + full execution record: [`../../cso-prod-1-cutover-plan.md`](../../cso-prod-1-cutover-plan.md) §9.
