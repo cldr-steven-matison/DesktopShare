@@ -305,6 +305,17 @@ branch's commits readable as a unit, matching the existing merge history. **Keep
 merging** — issue branches are never deleted (`workflow.md`). If the merge isn't clean, stop and
 reconcile; don't force it.
 
+**AMOLED app/device issues have a second repo to check — the per-app leader.** Each app
+(`agent`/`racing`/`tminus`/`xviewer`/`hello`) lives in its own leader repo
+`TunaStreetTest/amoled-<app>`, which carries the on-device package **and** its `backend/`
+(`:8091`–`:8094` on WindowsDesktop) — the backends are **not** tracked in `waveshare-devices` at all.
+So working an app almost always means editing its backend too, and a clean `waveshare-devices` tree
+does **not** mean the work shipped. Before status→`review`/`done` on any AMOLED app/device issue,
+confirm the **leader repo** has both the app-package change and the backend change pushed to its
+`main`. Don't trust `git status` / `git log --branches --not --remotes` in a local clone — those
+clones' history is unrelated to the leader; check the leader's `main` directly. Background + the
+2026-08-27 recovery: `amoled-app-store-plan.md` Part C.
+
 **Set `status:done` before you close, always.** Whatever the issue carried
 (`todo`/`in-progress`/`review`), strip it and add `status:done` in the same edit, *then* close.
 A closed issue whose label still reads `review`/`in-progress`/`todo` makes `gh issue list` label

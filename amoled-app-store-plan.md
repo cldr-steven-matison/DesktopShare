@@ -113,10 +113,50 @@ instead of a flattened single initial commit.
 **`waveshare-devices` root `README.md`** gets a short "Apps" section added, linking out to all five
 new repos — so the platform repo is the hub every app repo points back to, and vice versa.
 
-**Explicitly deferred, not blocking #224**: whether future app development stays in
-`waveshare-devices/apps/` with a per-release export to the split repos, or moves to developing
-directly in each split repo going forward. No sync pipeline exists yet and none is being built as
-part of this pass — decide it when the first post-split app update actually happens.
+## Part C — the per-app repo is the leader; the backend rides with it (resolved 2026-08-27)
+
+The decision deferred at split time — "does future app development stay in
+`waveshare-devices/apps/` with a per-release export, or move into each split repo" — got answered
+the hard way. The first post-split updates (#236 xviewer, #222 tminus, and more) landed **only** in
+standalone clones, never reached the leaders, and rode to `status:done`/closed anyway. Two commits
+had to be recovered onto the leaders on 2026-08-27 after the fact.
+
+**Resolved (Steven's call): the `TunaStreetTest/amoled-*` per-app repo is the leader for its app —
+and it carries more than the device package.** Each leader now holds `apps/tunastreet.<n>/` **plus
+`backend/`, `firmware/`, `simulator/`, `scripts/`** — none of which exist under
+`waveshare-devices/amoled-1.8-v2/apps/`, which only ever held the on-device package half (`app/` +
+`res/` + `manifest.json`). So:
+
+- **The platform repo (`waveshare-devices`) does not track the backends at all.** A clean
+  `waveshare-devices` tree is **not** proof the app shipped — the app + backend live in the leader
+  repo, a *different* remote. Always check the leader.
+- **An app and its backend are one unit.** Working the device app almost always means touching its
+  backend (`:8091`–`:8094` on WindowsDesktop). Both are pushed to the **same** leader repo, together,
+  before any status change.
+- **`waveshare-devices` reduces to platform + hub, not an app-dev home.** It keeps only the true
+  platform — board port (`platform/`), `uikit/`, `tools/`, boot screen — and the README "Apps"
+  section linking out to the five leaders. App development moves **into the leader repo**; you edit
+  `apps/tunastreet.<n>/` and `backend/` there, in one place, one push. The
+  `amoled-1.8-v2/apps/tunastreet.<n>/` copies in `waveshare-devices` are the retired second home that
+  caused this — they stop being a source of truth.
+
+**Target state → what's left to collapse the competing homes** (the leaders already carry app +
+backend, so no app work is at risk):
+
+1. Retire the app source under `waveshare-devices/amoled-1.8-v2/apps/tunastreet.<n>/` — after
+   confirming each leader's `apps/tunastreet.<n>/` is at or ahead of the `waveshare-devices` copy, so
+   nothing is lost. `waveshare-devices` keeps `apps/tunastreet.hello/` only if it's still wanted as
+   the in-repo template, or drops to a pointer to `amoled-hello`.
+2. Re-clone the standalone dev clones (`~/amoled-agent`, `~/amoled-racing`, `~/amoled-x-viewer`,
+   `~/amoled-tminus`) **from the leaders** so their local history matches — the paused cleanup pass.
+3. The App-Store build (Part A) sources each `.bpk` from the leader's `apps/tunastreet.<n>/`, not
+   from `waveshare-devices`.
+
+**Close-ritual rule (mirrored into `agent/device-comms.md`):** before an AMOLED app/device issue
+goes to `review` or `done`, confirm the **leader repo** (`TunaStreetTest/amoled-<app>`) has both the
+app-package change **and** the backend change pushed to it — `git -C ~/amoled-<app> status` clean and
+`git log --branches --not --remotes` empty is not enough when the local clone's history is unrelated
+to the leader; verify against the leader's `main` directly.
 
 ## Done when
 
