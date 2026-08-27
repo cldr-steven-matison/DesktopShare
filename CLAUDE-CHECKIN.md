@@ -374,7 +374,7 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ### Network
 - Connection: LAN, `192.168.1.203` (same 192.168.1.x subnet as the rest of the array; `172.17.0.1` is the docker0 bridge) — static IP reservation still to do
-- Tailscale IP: `100.68.14.110` (hostname `nvidiaspark-1`, joined 2026-08-27) — **on the wrong tailnet**: it logged in as `tunastreet@outlook.com` (`tailfc0937.ts.net`, only peer an offline gaming PC), not the array's `steven.matison@gmail.com` tailnet where WindowsDesktop/EFM and StarlinkAI live. Needs `sudo tailscale logout` + `sudo tailscale up --hostname nvidiaspark-1 --accept-routes` with the gmail login before any over-tailnet path is used.
+- Tailscale IP: `100.104.155.57` (hostname `nvidiaspark-1`, `nvidiaspark-1.tail1f447b.ts.net`, tailnet `steven.matison@gmail.com`, joined 2026-08-27 after a first join landed on the wrong `tunastreet@outlook.com` tailnet and was redone with `tailscale logout` + `tailscale up`). WindowsDesktop (`100.68.113.126`) and StarlinkAI (`100.110.253.66`) confirmed as online peers; EFM `actuator/health` UP over the tailnet from here. The `:8000` endpoint is published on the LAN address + loopback only — not on the tailnet address — by design (runbook §4); flows on tailnet-only peers would need that bind added deliberately.
 
 ### Repo homes on this host
 - DesktopShare: `/home/tunas/DesktopShare` (same layout as WindowsDesktop — every repo directly under `/home/tunas/`)
