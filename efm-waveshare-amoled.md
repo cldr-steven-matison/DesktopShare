@@ -413,8 +413,11 @@ geometry, tile filter, app list, WiFi target, C2 URL) are being lifted into
 flash-verified under #260 (`BOARD_PROFILE=<name> bash setup.sh`; all three boards build from one
 `main`). **This board also has a battery** — the status-bar gauge landed under
 [#261](https://github.com/cldr-steven-matison/DesktopShare/issues/261) (the AXP2101 stack already
-existed end-to-end; the shell polls `GetPowerBatteryState` on the clock's 1 s tick) and sits at the
-**left** edge of the bar, opposite WiFi + clock (Steven, 2026-08-27). Profile fields now:
+existed end-to-end; the shell polls `GetPowerBatteryState` on the clock's 1 s tick). The bar is
+**WiFi (left) · clock (centre) · battery (right)** — three `spaceBetween` groups in the shared
+`overlay.json`, outer two fixed-width so the clock stays centred on a USB-only board (Steven,
+2026-08-27; the first cut had battery left with WiFi + clock bunched right — see the close-out
+section below). Profile fields now:
 `brand.*`, `splash`, `launcher.*`, `apps`, `wifi.evictAp`, `c2.baseUrl`, `hasBattery`, `hasAgent`.
 The generated `board_profile.cmake` is plain `set()` variables included *before* `project()` (so the
 agent components can read `BOARD_HAS_AGENT` while registering) and re-emitted as build-wide compile
@@ -426,6 +429,39 @@ leader repos (`TunaStreetTest/amoled-<app>`, app + backend), cloned as `~/amoled
 copies. `setup.sh` hands the build a `;`-list of app roots (`AMOLED_APP_ROOTS` to override) and
 `main/CMakeLists.txt` resolves each profile app across them — a package missing from every root
 fails the configure loudly.
+
+## 2026-08-27 evening — top bar, paged launcher, racing icon (#262 / #263 close-out)
+
+Both WindowsDesktop boards reflashed (waveshare-devices `15105fb` + `db2caa9`, amoled-racing `9eb0382`).
+
+- **Status bar = WiFi · clock · battery.** `overlay.json`'s `status` row is three groups
+  (`status_left`/`status_center`/`status_right`). Upstream's `SUPER_STATUS_WIFI_PATH` /
+  `_CLOCK_PATH` constants still point at the old single `status_right` group, so
+  `shell_status.cpp` builds its own paths from `SUPER_STATUS_BAR_PATH` (the battery path was
+  already local for the same reason) — move a pill in the JSON and you move its path in the C++.
+- **Tuna Street launcher = two 2×2 pages, swipe sideways / swipe back** (all four apps, Files
+  hidden; profile now carries the fleet 2×2 geometry). Mechanism, `shell_app_launcher.cpp`
+  delta 4: the grid is **never scrollable** — pages sit one stride to the right of `grid_stage`
+  (off-stage tiles are neither drawn nor hit-tested) and a flip rebinds every tile's `x`. The
+  swipe comes from the Display gesture stream, handled in `handle_display_touch_gesture` while
+  the shell is foreground (that path used to return early on the home screen). **Making the
+  grid scrollable is the wrong tool**: a drift then opens the tile (the template dropped
+  `requireValidPress` in #205) and barely moves — so a press that drifts 18 px sideways is
+  flagged a swipe and its click is swallowed. And `grid_stage`'s runtime frame is 1 px when
+  `populate_launcher` runs; rows-per-page comes from the constants
+  (`heightDp − content.y − launcherGridTop` = 388 dp → 2 rows) — the frame gave 1-row pages and
+  put X-Viewer on page 3. Boot log now prints `Launcher grid: columns(2), rows/page(2), pages(2)`.
+  Cloudera / Tuna Starlink are one page and unaffected.
+- **Racing icon**: the #258 red-car composition is md5 `51416569f2326389669b2bbd6df346b4`; the
+  `amoled-racing` leader clone carried a different cut, so it had never reached a board.
+- **"Agent / T-Minus / X-Viewer don't work" after a flash = check the backends first.** All
+  three were simply down (`:8094` / `:8092` / `:8091`); Racing has no backend, which is why it
+  was the one that worked. Start each with `scripts/run.sh` in its leader clone; X-Viewer needs
+  its own `.venv` (`python3 -m venv .venv && .venv/bin/pip install tweepy pillow flask`).
+- **Cost**: a full `setup.sh` rebuild is **~10.5 min** on this box. With two boards plugged in,
+  build both profiles **at once** in separate work trees (`BROOKESIA_DIR=…` per board, copy each
+  build's five segments out before the other's fullclean) — serializing them idled the second
+  board for a whole build.
 
 ## Commands
 
