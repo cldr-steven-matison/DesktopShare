@@ -1,0 +1,57 @@
+# Flink on the GB10's GPU — k3s-cso §8, the first half of the Phase-4 Flink gate.
+#
+# Stock CSA Flink, no custom image: the point of this deployment is only that a TaskManager on
+# this box can claim `nvidia.com/gpu: 1` and that Flink's External Resource Framework sees it.
+# The flink-agents image (the second half of §8) is a separate, built artifact.
+#
+# The CSA operator embeds Flink 1.20 and the tag is a multi-arch index with linux/arm64 —
+# checked against the registry manifest 2026-08-27, so no image swap is needed on aarch64.
+#
+# Two things that are easy to get wrong and are the reason this file exists:
+#   1. The GPU limit must sit in the taskManager podTemplate, on the container named
+#      `flink-main-container`. Putting it in taskManager.resource does nothing — the operator
+#      only passes memory/cpu through there (completed/flink-minikube-gpu-working.md).
+#   2. `runtimeClassName: nvidia` is required on the pod, exactly as for the gpu-smoke pod.
+#      k3s auto-created that RuntimeClass at install; without it the container gets no driver.
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-gpu
+  namespace: cld-streaming
+spec:
+  image: container.repository.cloudera.com/cloudera/flink:1.20.1-csaop1.5.0-b275
+  flinkVersion: v1_20
+  serviceAccount: flink
+  podTemplate:
+    spec:
+      imagePullSecrets:
+        - name: cloudera-creds
+      containers:
+        - name: flink-main-container
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "1"
+    # Flink 1.20 External Resource Framework — the device plugin (§3.3) supplies the resource;
+    # these four keys are what make Flink itself aware of it and expose device indices to
+    # operators via getExternalResourceInfos().
+    external-resources: gpu
+    external-resource.gpu.amount: "1"
+    external-resource.gpu.driver-factory.class: org.apache.flink.externalresource.gpu.GPUDriverFactory
+    external-resource.gpu.kubernetes.config-key: nvidia.com/gpu
+  jobManager:
+    resource:
+      memory: 1536m
+      cpu: 1
+  taskManager:
+    resource:
+      memory: 4096m
+      cpu: 1
+    podTemplate:
+      spec:
+        runtimeClassName: nvidia
+        imagePullSecrets:
+          - name: cloudera-creds
+        containers:
+          - name: flink-main-container
+            resources:
+              limits:
+                nvidia.com/gpu: 1

@@ -394,6 +394,36 @@ Flink Agents rides on top as an evaluation capability, pinned at exactly **0.3.1
 
 The `FlinkDeployment` destroy path is clean only once session jobs are terminal; with jobs running the finalizer waits on `CLEANUPFAILED`.
 
+**As built, 2026-08-27 (spark-dd06) — the GPU half.** No custom image was needed to prove it. The
+stock CSA Flink image runs native on aarch64 (`container.repository.cloudera.com/cloudera/flink:1.20.1-csaop1.5.0-b275`
+is a multi-arch index with `linux/arm64`, checked against the registry manifest), so
+`files/issue-226/flink-gpu.yaml` is a `FlinkDeployment` on that image with nothing layered on:
+
+- The GPU limit sits in the **taskManager `podTemplate`**, on the container named
+  `flink-main-container`, with `runtimeClassName: nvidia` on the pod. As built, the TaskManager pod
+  reports `runtimeClass=nvidia` and `limits={"cpu":"1","memory":"4Gi","nvidia.com/gpu":"1"}`.
+- `nvidia-smi` **inside the TaskManager container** returns `NVIDIA GB10`, driver `580.173.02`.
+- Flink's own External Resource Framework picked it up, not just Kubernetes:
+  `ExternalResourceUtils: Enabled external resources: [gpu]` then
+  `GPUDriver: Discover GPU resources: [GPU Device(0)]`. All four §8 config keys load as written.
+- A session cluster with **no job creates no TaskManager** — the operator's native mode allocates
+  TMs on demand. The GPU claim is therefore only observable once a job is submitted;
+  `./bin/flink run -d /opt/flink/examples/streaming/TopSpeedWindowing.jar` inside the JM pod is
+  enough, and it reached `RUNNING`.
+- `files/issue-226/flink-rbac.yaml` is prod's RBAC unchanged, but the `flink` ServiceAccount and Role
+  already existed — the CSA operator creates them in its own namespace.
+
+The destroy-path warning above is confirmed and is the right way round: with the job cancelled first,
+`kubectl delete flinkdeployment flink-gpu` returned in **2.4 s** and the node's `nvidia.com/gpu`
+allocatable went straight back to 1. The deployment is not left running — it is one `kubectl apply`
+away, and leaving it up would hold the box's only GPU allocation against every other pod.
+
+One aarch64 quirk worth recording for ch11: `nvidia-smi --query-gpu=memory.total` reports **`[N/A]`**
+inside the container on GB10. The device is found and usable; it is unified memory, so there is no
+discrete total to report. Any capacity check that greps that field will read as a failure when
+nothing is wrong.
+
+
 ## 9. The cutover ladder
 
 One rung at a time, never a batch. A rung moves only when the Spark equivalent is up, load-tested **from a second device** (not from the box itself), and has a rollback that has actually been exercised. WindowsDesktop keeps running its version throughout — nothing is torn down to make room.
