@@ -655,6 +655,29 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +(view|comment) +[0-9]+' && command 
   fi
 fi
 
+# 10.5 Local pre-execution validator — ADVISORY (spark-dd06 only, #240 §4, rung H5).
+# When a Bash command matches a rule-relevant *risky* shape, ask the box's own model
+# (files/issue-226/kb/validator.py, thinking off, ~1 s) for a verdict against our
+# cardinal rules and surface it as context. It is advisory only — it emits `allow` +
+# context, never a deny/ask; blocking is only discussed after a clean soak (§6 H5).
+# Placed before rule 11 so a genuine risky-command verdict outranks the generic doc
+# pointer, but it exits ONLY on BLOCK/WARN — ALLOW or any failure falls straight
+# through. Fails open on every path: box-only, risky-shape-gated so the common path
+# pays nothing, an endpoint reachability check, and a hard `timeout`. Disable with
+# DS_VALIDATOR=0. Never runs on any other device.
+if [ "${DS_VALIDATOR:-1}" != "0" ] && [ "$(hostname -s 2>/dev/null)" = "spark-dd06" ] \
+   && printf '%s' "$cmd" | grep -Eiq -- '(-X +PUT.*nifi-api|nifi-api.*-X +PUT|agent-deployer|generateCommand|agentIdentifier|kubectl.*delete +pod|port-forward|minikube +tunnel|rollout +restart|kubectl.*delete +(deploy|deployment|statefulset|sts))' \
+   && command -v python3 >/dev/null 2>&1 \
+   && curl -sf -m 2 http://127.0.0.1:8000/v1/models >/dev/null 2>&1; then
+  vj="$(KB_VALIDATOR_TIMEOUT=3 timeout 5 python3 "$proj/files/issue-226/kb/validator.py" "$cmd" 2>/dev/null)"
+  vd="$(printf '%s' "$vj" | jq -r '.verdict // "ALLOW"' 2>/dev/null)"
+  if [ "$vd" = "BLOCK" ] || [ "$vd" = "WARN" ]; then
+    vrule="$(printf '%s' "$vj" | jq -r '.rule // ""' 2>/dev/null)"
+    vreason="$(printf '%s' "$vj" | jq -r '.reason // ""' 2>/dev/null)"
+    emit_ctx "[local validator · ADVISORY, not a block] $vd — $vreason ($vrule). This is a rule check from the box's own model (#240 §4), not permission: confirm the rule yourself and that Steven asked for this before proceeding. The model cannot see whether he did."
+  fi
+fi
+
 # 11. Known patterns — inject "the repo already holds this" at the call site, once per
 # key per session. Data lives in agent/known-patterns.tsv (key, regex, docs, note) so a
 # row can be added without touching this script. Marker: one key per line, cleared by
