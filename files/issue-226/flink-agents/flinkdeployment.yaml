@@ -1,0 +1,33 @@
+# flink-agents 0.3.1 session cluster on NvidiaSpark-1's k3s — k3s-cso §8, the agents half.
+# Carried from files/cso-prod-1/flink-agents/flinkdeployment.yaml (#231) with two changes:
+# the image name, and no GPU claim — flink-agents reaches the model over HTTP, so the GPU
+# half is proven separately by files/issue-226/flink-gpu.yaml and the two never compete for
+# the box's single nvidia.com/gpu.
+#
+# pullPolicy Never because the image is built with Docker and imported into k3s's OWN
+# containerd (k3s does not use the Docker daemon):
+#   sudo bash -c 'docker save spark-flink-agents:0.3.1 | k3s ctr images import -'
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-agents
+  namespace: cld-streaming
+spec:
+  image: spark-flink-agents:0.3.1
+  imagePullPolicy: Never
+  flinkVersion: v1_20
+  serviceAccount: flink
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "2"
+    # pemja must load parent-first or the embedded libpython sees two copies of the classes.
+    classloader.parent-first-patterns.additional: pemja
+    python.executable: /opt/flink/agents-venv/bin/python
+    python.client.executable: /opt/flink/agents-venv/bin/python
+  jobManager:
+    resource:
+      memory: 1536m
+      cpu: 1
+  taskManager:
+    resource:
+      memory: 1536m
+      cpu: 1
