@@ -1,8 +1,10 @@
-# Cloudera Streaming Operators on the DGX Spark — k3d, GPU, and the cutover ladder
+# Cloudera Streaming Operators on the DGX Spark — k3s, GPU, and the cutover ladder
 
-> **Status (2026-08-26):** work-stream **F** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238). The box landed today as `spark-dd06` (`CLAUDE-CHECKIN.md`, NvidiaSpark-1 block) and this session runs on it; [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) — on-box bring-up — is the next execution step, and [#243](https://github.com/cldr-steven-matison/DesktopShare/issues/243) (the arm64 image check) is now an on-box `docker pull` + `docker image inspect` that belongs to §2 of this doc. **Decided:** every Cloudera image the fleet runs is arm64-native, so no upstream-image fallback is planned; k3d is tried first with bare k3s as a one-page swap; WindowsDesktop stays production and moves one GPU service per rung. **Expected, not proven:** that those images *run* under k3d on GB10, every command block marked `# expected`, the memory budget in §5, and every rung's throughput. **Open:** the Phase-0 model lock (Steven's call) — nothing here names a locked model.
+> **Status (2026-08-27):** substrate is k3s v1.32.13+k3s1 on the host (containerd, NVIDIA runtime auto-detected); the CUDA base image is confirmed arm64 on nvcr.io; lead model locked to nvidia/Qwen3.6-35B-A3B-NVFP4 on NVIDIA vLLM; kubectl/helm installed; root-level bring-up is files/issue-226/spark-bootstrap.sh under #235.
+>
+> **Status (2026-08-26):** work-stream **F** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238). The box landed today as `spark-dd06` (`CLAUDE-CHECKIN.md`, NvidiaSpark-1 block) and this session runs on it; [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) — on-box bring-up — is the next execution step, and [#243](https://github.com/cldr-steven-matison/DesktopShare/issues/243) (the arm64 image check) is now an on-box `docker pull` + `docker image inspect` that belongs to §2 of this doc. **Decided:** every Cloudera image the fleet runs is arm64-native, so no upstream-image fallback is planned; WindowsDesktop stays production and moves one GPU service per rung. **Expected, not proven:** that those images *run* under k3s on GB10, every command block marked `# expected`, the memory budget in §5, and every rung's throughput. **Open:** the Phase-0 model lock (Steven's call) — nothing here names a locked model.
 
-The Spark box is the first host in the array with enough memory to hold a serious model *and* a Cloudera streaming stack at the same time. That is the whole reason to put k3d on it rather than just `docker run` a serving container: NiFi, Kafka and Flink only exist as Kubernetes operators, and I want a flow on the box's own cluster calling a model on the box's own GPU. This doc is the plan to get there without touching WindowsDesktop's production cluster until each replacement is proven from a second machine.
+The Spark box is the first host in the array with enough memory to hold a serious model *and* a Cloudera streaming stack at the same time. That is the whole reason to put k3s on it rather than just `docker run` a serving container: NiFi, Kafka and Flink only exist as Kubernetes operators, and I want a flow on the box's own cluster calling a model on the box's own GPU. This doc is the plan to get there without touching WindowsDesktop's production cluster until each replacement is proven from a second machine.
 
 ## 1. What runs where
 
@@ -49,7 +51,7 @@ Cloudera's own docs do **not** settle this, and the aggregate claim "the operato
 | NiFi Python extensions | wheels, in-pod | **unknown** | no aarch64 note anywhere in the corpus | native processor chain | no `ParseDocument` OCR path |
 | PyFlink / Flink Agents wheels | built into the image | **unknown** | build-time question, §8 | Java-only Flink jobs | no agents, no Python UDFs |
 
-Two things the probe does not answer, and both are on-box work: whether the images *run* under k3d on GB10 (cgroup v2, NiFi's bundled native libs, CUDA in the Flink image), and whether the Python wheel layers resolve for aarch64. #243 is the pull-and-inspect half, and it runs here, on `spark-dd06` — not on the Mac, which was the original scope.
+Two things the probe does not answer, and both are on-box work: whether the images *run* under k3s on GB10 (cgroup v2, NiFi's bundled native libs, CUDA in the Flink image), and whether the Python wheel layers resolve for aarch64. #243 is the pull-and-inspect half, and it runs here, on `spark-dd06` — not on the Mac, which was the original scope.
 
 ```bash
 # expected — verify on the box (#243). Docker 29.2.1 and nvidia-ctk 1.20.0 are installed; the
@@ -69,55 +71,71 @@ done
 # expect: linux/arm64 on every line. Anything else flips that row to its fallback column above.
 ```
 
-## 3. k3d with GPU
+## 3. k3s with GPU
 
-**Nobody has run k3d on a real DGX Spark.** That is `[3-0]` in `files/issue-226/research/verify.json` — primary-docs, community-empirical and staleness lenses all agree that every first-hand report of Kubernetes on GB10 uses plain k3s or Talos (`nvidia-dgx-spark-research.md` §3). The ask says k3d, so k3d goes first, and §3.4 is the swap if it fights back.
+Running k3s wrapped inside a Docker container, node-per-container, is not used here: no first-hand report of Kubernetes on a real GB10 runs it that way, and using it would mean building a custom CUDA node image from scratch. Plain k3s on the bare host is the substrate instead, which is what every first-hand report of Kubernetes on GB10 actually uses — primary-docs, community-empirical and staleness lenses all agree on this in `[3-0]`, `files/issue-226/research/verify.json` (`nvidia-dgx-spark-research.md` §3), and [NVIDIA's own forum thread](https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772) runs k3s on real GB10 hardware and serves a model at `:8000`.
 
-### 3.1 The CUDA node image
+### 3.1 k3s install and GPU runtime verification
 
-[k3d's own CUDA guide](https://k3d.io/stable/usage/advanced/cuda/) says the stock k3s node image is Alpine-based and "the NVIDIA container runtime is not supported on Alpine yet," so the node image has to be rebuilt on a CUDA base with the toolkit installed, containerd configured, the k3s binaries copied in, and the device-plugin daemonset bundled under `/var/lib/rancher/k3s/server/manifests/`. Every GPU pod then sets `runtimeClassName: nvidia`. [k3d-io/k3d #1108](https://github.com/k3d-io/k3d/issues/1108) — the issue that produced that page — adds that the image should copy only `/bin` plus `/etc`, point `CRI_CONFIG_FILE` at the crictl config under `/var/lib/rancher/k3s/agent/etc/`, and ship a containerd template with `default_runtime_name = "nvidia"`. **The page never mentions arm64.** It is architecture-silent, not arm64-confirmed.
+k3s installs directly on the host using its own bundled containerd — not Docker — so there is no node image to build. [k3s's own docs](https://docs.k3s.io/advanced#nvidia-container-runtime-support) describe how it auto-detects the NVIDIA container runtime with no template edit required; DGX OS ships `nvidia-ctk` 1.20.0, and k3s writes the `nvidia` runtime into `/var/lib/rancher/k3s/agent/etc/containerd/config.toml` on install. [NVIDIA's own DGX Spark container-runtime docs](https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html) give a confirmed-working GPU test on this exact hardware using `nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04`.
 
-[NVIDIA's own DGX Spark container-runtime docs](https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html) give a confirmed-working GPU test on this exact hardware using `nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04` — that tag, not `13.0.0-base`, is the one to build from.
+Both the `13.0.1-devel-ubuntu24.04` and `13.0.1-base-ubuntu24.04` tags publish a `linux/arm64` manifest — checked directly against the nvcr.io manifest on 2026-08-27 — and Docker Hub's `nvidia/cuda:13.0.1-devel-ubuntu24.04` does too, so the §3.3 smoke pod needs no fallback swap.
 
-**Open question:** a first-hand forum report of a DGX-Spark/arm64/CUDA-13 Docker build (`files/issue-226/research/g04-speech-tier-metrics-cost.json`) states "nvcr.io/nvidia/cuda has no ARM64 tags, so use nvidia/cuda from Docker Hub instead" — which conflicts with NVIDIA's own doc above and would also threaten the §3.3 gpu-smoke pod on the same registry. Confirm which is true for this tag before building; don't assume either source.
+The version pinned to the CSA/CSM 1.32 ceiling (§3.2) is `v1.32.13+k3s1`:
 
 ```bash
-# expected — verify on the box. The k3d docs' default base is nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04;
-# this box is CUDA 13.0 / driver 580.173.02 / Ubuntu 24.04.4 (CLAUDE-CHECKIN.md), so the CUDA tag has to
-# be one that publishes a linux/arm64 manifest — confirm before building, do not assume.
-docker manifest inspect nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 | grep -c 'arm64'
-docker build -t k3s-cuda:v1.32-cuda13 -f Dockerfile.k3s-cuda .
-k3d cluster create spark --image k3s-cuda:v1.32-cuda13 --gpus=1 \
-  --port 31623:31623@server:0 --port 31850:31850@server:0 \
-  --port 31935:31935@server:0 --port 30336:30336@server:0
+# expected — verify on the box.
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.32.13+k3s1 sh -s - \
+  --write-kubeconfig-mode 644 --disable traefik
+grep nvidia /var/lib/rancher/k3s/agent/etc/containerd/config.toml
+kubectl get runtimeclass   # expect a "nvidia" RuntimeClass (handler nvidia); create one if k3s did not
 ```
 
-The NodePort mappings matter and are easy to miss: a k3d "node" is a container, so a Kafka NodePort is not reachable from the LAN unless it is published at cluster-create time (§7).
+If no `nvidia` RuntimeClass exists, create it:
+
+```yaml
+# expected — verify on the box, only if `kubectl get runtimeclass` above shows none
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata: { name: nvidia }
+handler: nvidia
+```
+
+One gotcha carries over from the Docker side of the box, not k3s's own containerd: the toolkit ships preinstalled but not configured for Docker, so `docker run --gpus` (used in §2's manifest-and-inspect loop, and any local image build) fails first with [`unknown or invalid runtime name: nvidia`](https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646). The fix is `sudo nvidia-ctk runtime configure --runtime=docker --set-as-default` followed by `sudo systemctl restart docker` — a one-time step, unrelated to k3s's own runtime detection above.
+
+NodePorts on k3s are host ports — k3s runs directly on the host, not inside a container, so a Kafka NodePort is reachable on the LAN the moment ufw allows it; nothing has to be published at cluster-create time (§7).
+
+**As built, 2026-08-27 (spark-dd06).** `files/issue-226/spark-bootstrap.sh` step 8 ran the install above; `kubectl get nodes` → `spark-dd06 Ready control-plane,master v1.32.13+k3s1`, `containerd://2.1.5-k3s1.32`, internal IP `192.168.1.203`. k3s **auto-created the `nvidia` RuntimeClass** (alongside `nvidia-experimental`, `crun` and the wasm handlers) — the manual RuntimeClass manifest above was not needed. `kubectl` v1.32.13 and `helm` v3.21.4 live in `~/.local/bin`; the session uses `KUBECONFIG=/etc/rancher/k3s/k3s.yaml` (mode 644 from the install flag).
 
 ### 3.2 Kubernetes version — a hard ceiling
 
-[CSA Operator 1.4/1.5 system requirements](https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-system-requirements.html) state Kubernetes 1.25 or later with a **maximum supported 1.32**, and [CSM Operator 1.4](https://docs.cloudera.com/csm-operator/1.4/release-notes/topics/csm-op-system-req.html) states the same window. So the k3s image baked into the node image is pinned inside 1.25–1.32 — not "latest". WindowsDesktop's `cso-prod-1` runs k8s v1.35.1, above that ceiling, and gets away with it; that is not a reason to repeat it on a box where the Flink half is the point.
+[CSA Operator 1.4/1.5 system requirements](https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-system-requirements.html) state Kubernetes 1.25 or later with a **maximum supported 1.32**, and [CSM Operator 1.4](https://docs.cloudera.com/csm-operator/1.4/release-notes/topics/csm-op-system-req.html) states the same window. So the k3s version installed on the host is pinned inside 1.25–1.32 — not "latest" — at `v1.32.13+k3s1` (§3.1). WindowsDesktop's `cso-prod-1` runs k8s v1.35.1, above that ceiling, and gets away with it; that is not a reason to repeat it on a box where the Flink half is the point.
 
 ### 3.3 Device plugin, UMA, and time-slicing
 
-GB10's unified memory makes the classic NVIDIA device plugin fail on `nvmlDeviceGetMemoryInfo` with "Not Supported," and the fix is device plugin **v0.17.4 or newer** — `[3-0]`, all three lenses. The mechanism is in [Collabnix's GB10 article](https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/); the changelog line "Ignore errors getting device memory using NVML" is in [NVIDIA's v0.17.4 release notes](https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4). One honest caveat carried forward from the staleness lens: an automated fetch attributed the same line to v0.18.1, so confirm the version against [the releases list](https://github.com/NVIDIA/k8s-device-plugin/releases) before pinning it in a chart value. The tie to real hardware is [kubernetes-sigs/dra-driver-nvidia-gpu #1073](https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073): a genuine DGX Spark GB10 node on Talos v1.13.0-rc.0 with Kubernetes v1.34.3, GPU Operator v26.3.1 and driver 595.58.03 hit exactly this error.
+GB10's unified memory makes the classic NVIDIA device plugin fail on `nvmlDeviceGetMemoryInfo` with "Not Supported," and the fix is device plugin **v0.17.4 or newer** — `[3-0]`, all three lenses. The mechanism is in [Collabnix's GB10 article](https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/); the changelog line "Ignore errors getting device memory using NVML" is in [NVIDIA's v0.17.4 release notes](https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4). One honest caveat carried forward from the staleness lens: an automated fetch attributed the same line to v0.18.1, so confirm the version against [the releases list](https://github.com/NVIDIA/k8s-device-plugin/releases) before pinning it in a chart value — v0.20.0 is the latest release as of 2026-08-27. The tie to real hardware is [kubernetes-sigs/dra-driver-nvidia-gpu #1073](https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073): a genuine DGX Spark GB10 node on Talos v1.13.0-rc.0 with Kubernetes v1.34.3, GPU Operator v26.3.1 and driver 595.58.03 hit exactly this error.
 
 `nvidia-smi` reporting `Memory-Usage: Not Supported` on this box is expected and benign — it is what the roster already records for `spark-dd06`. MIG is unavailable on GB10 — inferred from its absence in NVIDIA's MIG User Guide support table (only A100/A30/H100/H200/B200/RTX PRO 6000/5000 Blackwell are listed), corroborated by forum threads, but not an explicit vendor non-support statement, so `[med]` confidence, not the `[3-0]` the device-plugin fix above meets — so time-slicing (temporal sharing, no memory isolation) is the only GPU-sharing mechanism, which matters the moment vLLM and a Flink TaskManager both want the GPU.
 
 ```bash
-# expected — verify on the box. Drivers and toolkit ship with DGX OS, so both are disabled in the chart.
-helm install gpu-operator nvidia/gpu-operator --namespace gpu-operator --create-namespace \
-  --set driver.enabled=false --set toolkit.enabled=false --set devicePlugin.version=v0.17.4
+# expected — verify on the box. Drivers and toolkit ship with DGX OS, so the plain device-plugin chart is
+# used instead of the full GPU Operator. v0.17.4 is the UMA-fix floor; v0.20.0 is the latest release today.
+helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+helm repo update
+helm install nvdp nvdp/nvidia-device-plugin --namespace nvidia-device-plugin --create-namespace \
+  --version 0.20.0 --set runtimeClassName=nvidia   # chart versions carry no 'v'; anything ≥ 0.17.4 has the UMA fix
 kubectl get nodes -o json | jq '.items[].status.capacity'      # expect "nvidia.com/gpu": "1"
-kubectl logs -n gpu-operator -l app=nvidia-device-plugin-daemonset   # 0 capacity ⇒ read this first
+kubectl logs -n nvidia-device-plugin -l app.kubernetes.io/name=nvidia-device-plugin   # 0 capacity ⇒ read this first
 ```
 
-Version namespaces do not line up in the sources and need settling on the box before ch09 pins a recipe: Collabnix passes `--set devicePlugin.version=v0.17.4` (a sub-component), while `dgx-spark-vllm-k8s` cites [GPU Operator](https://github.com/NVIDIA/gpu-operator/releases) v26.3.2 (a whole chart). [GPU Operator 26.7's release notes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html) name GH200 and GB200 as Grace-family platforms and never mention GB10 or DGX Spark, so the docs lag actual use by at least one minor line.
+**As built, 2026-08-27.** `helm install nvdp nvdp/nvidia-device-plugin --version 0.20.0 --set runtimeClassName=nvidia` — and one gotcha the chart docs do not lead with: its daemonset carries a **required node affinity** (`feature.node.kubernetes.io/pci-10de.present=true` **or** `feature.node.kubernetes.io/cpu-model.vendor_id=NVIDIA` **or** `nvidia.com/gpu.present=true`), so with no Node Feature Discovery on the cluster the daemonset sat at `DESIRED 0`. `kubectl label node spark-dd06 nvidia.com/gpu.present=true` scheduled it; ~60 s later the node reported `nvidia.com/gpu: 1` capacity and allocatable. The plugin log shows exactly the UMA line the `[3-0]` claim predicted — `W devices.go:77 Ignoring error getting device memory: Not Supported` — then `Registered device plugin for 'nvidia.com/gpu' with Kubelet`. The smoke pod (`files/issue-226/gpu-smoke.yaml`) reached `Succeeded` and its log is `nvidia-smi` showing `NVIDIA GB10`, driver 580.173.02, CUDA 13.0, `Memory-Usage: Not Supported`, 40 °C / 4 W idle.
+
+The device-plugin chart version and a full GPU Operator chart version are different namespaces worth not confusing: this box pins the device-plugin chart directly (`nvdp/nvidia-device-plugin`) rather than the whole GPU Operator, since DGX OS already owns the driver and toolkit. [GPU Operator 26.7's release notes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html) name GH200 and GB200 as Grace-family platforms and never mention GB10 or DGX Spark — one more reason the plain device plugin, not the whole operator, is the right fit here.
 
 The smoke test is one pod, before any Cloudera chart goes near the cluster:
 
 ```yaml
-# expected — verify on the box. runtimeClassName is mandatory under k3d per the k3d CUDA docs.
+# expected — verify on the box. runtimeClassName is required on k3s.
 apiVersion: v1
 kind: Pod
 metadata: { name: gpu-smoke }
@@ -126,34 +144,20 @@ spec:
   restartPolicy: Never
   containers:
     - name: smi
-      image: nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04  # if the manifest check in §3.1 shows no arm64, swap to Docker Hub nvidia/cuda:13.0.3-devel-ubuntu24.04
+      image: nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04
       command: ["nvidia-smi"]
       resources: { limits: { nvidia.com/gpu: 1 } }
 ```
-
-### 3.4 The k3s-bare fallback
-
-If k3d's Docker-in-Docker layer fights GPU passthrough or cgroup v2, the swap is one page. [NVIDIA's own forum thread](https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772) runs k3s with the Docker runtime on real GB10 hardware and serves a model at `:8000`; [k3s's docs](https://docs.k3s.io/advanced#nvidia-container-runtime-support) describe a simpler containerd path where k3s auto-detects the NVIDIA runtime with no template edit. The first failure to expect on a fresh box is [`unknown or invalid runtime name: nvidia`](https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646) — the toolkit ships preinstalled but not configured, and `nvidia-ctk runtime configure` plus a Docker restart fixes it.
-
-```bash
-# expected — verify on the box. Fallback only; do not run this while a k3d cluster holds the GPU.
-sudo nvidia-ctk runtime configure --runtime=docker --set-as-default
-sudo systemctl restart docker
-curl -sfL https://get.k3s.io | sh -s - --docker --write-kubeconfig-mode 644 --disable traefik
-grep nvidia /var/lib/rancher/k3s/agent/etc/containerd/config.toml
-```
-
-Everything from §4 onward is identical on either substrate — only the cluster-create step changes.
 
 ## 4. Operator install, ported from `files/agent-install-operators.sh`
 
 The canonical order is cert-manager → namespaces and secrets → Strimzi/CSM → CSA → CFM → Schema Registry → Surveyor, and the chart versions are the ones `cso-prod-1` proved on 2026-08-25: cert-manager `v1.16.3`, `strimzi-cluster-operator` `1.6.0-b99`, `csa-operator` `1.5.0-b275`, `cfm-operator` `3.0.0-b126`, `schema-registry` and `surveyor` `1.6.0-b99` (`files/cso-prod-1/VALIDATION.md`, `files/agent-install-operators.sh`).
 
-Six things change moving that script from minikube to k3d:
+Six things change moving that script from minikube to k3s:
 
-1. **No `minikube tunnel`, no `minikube service`, no `minikube addons enable ingress`.** k3d ships Traefik. The `cso-prod-1` NiFi CR (`files/cso-prod-1/nifi-cso-prod-1.yaml`) sets `uiConnection.type: Ingress` with `nginx.ingress.kubernetes.io/ssl-passthrough` annotations — Traefik ignores those, so NiFi's UI comes up unreachable. Either create the cluster with `--k3s-arg "--disable=traefik@server:*"` and install ingress-nginx, or change `uiConnection` on the box's own CR. Decide before the CR is applied, not after.
-2. **No `minikube image load`.** k3d has its own image store: `k3d image import -c spark <image>` for anything built locally (§8's Flink image, and `streamwhisper` / `cso-operator-app` if the RAG tier ever lands here).
-3. **StorageClass is `local-path`, not `standard`.** `cso-prod-1`'s CR already had to move off `nifi-storage` because it does not exist on a fresh profile (`files/cso-prod-1/SNAPSHOT.md`); on k3s/k3d the default provisioner is `local-path`, so every `storageClass:` line in the NiFi CR changes again. The Spark box has 3.7 TB of NVMe, so the persistence sizes can be generous — prod's `mynifi` repos are `emptyDir` and that is the reason a pod delete there wipes a flow.
+1. **No `minikube tunnel`, no `minikube service`, no `minikube addons enable ingress`.** The box's k3s install (§3.1) already runs with `--disable traefik`, so no ingress controller ships by default. The `cso-prod-1` NiFi CR (`files/cso-prod-1/nifi-cso-prod-1.yaml`) sets `uiConnection.type: Ingress` with `nginx.ingress.kubernetes.io/ssl-passthrough` annotations, which need ingress-nginx installed to mean anything. Either install ingress-nginx, or change `uiConnection` on the box's own CR. Decide before the CR is applied, not after.
+2. **No `minikube image load`.** k3s uses its own containerd directly on the host: `docker save <image> | sudo k3s ctr images import -` for anything built locally (§8's Flink image, and `streamwhisper` / `cso-operator-app` if the RAG tier ever lands here).
+3. **StorageClass is `local-path`, not `standard`.** `cso-prod-1`'s CR already had to move off `nifi-storage` because it does not exist on a fresh profile (`files/cso-prod-1/SNAPSHOT.md`); on k3s the default provisioner is `local-path`, so every `storageClass:` line in the NiFi CR changes again. The Spark box has 3.7 TB of NVMe, so the persistence sizes can be generous — prod's `mynifi` repos are `emptyDir` and that is the reason a pod delete there wipes a flow.
 4. **Registry login and licence file.** `helm registry login container.repository.cloudera.com` plus a `cloudera-creds` docker-registry secret in both `cld-streaming` and `cfm-streaming`, and the Cloudera license file copied to the box — it lives at /home/tunas/license.txt on WindowsDesktop today, and the helm invocations below expect it at the same path here. Pre-create `cloudera-creds` non-interactively: `files/setup-cloudera-streaming.sh` prompts for credentials if the secret is absent, which stalls an unattended run (`files/cso-prod-1/SNAPSHOT.md`).
 5. **The CSA/Flink block is commented out** in `files/setup-cloudera-streaming.sh` (lines ~157–167) and must be uncommented for any Flink work; `cso-prod-1` sidestepped it with the public upstream chart. Use `files/agent-install-operators.sh`'s CSA invocation instead, including the `ssb.database.image.repository` override that points Postgres at `container.repository.cloudera.com/cloudera_thirdparty/hardened/postgres` — without it the chart reaches for `docker-private.infra.cloudera.com`, which needs VPN and fails with `ImagePullBackOff`.
 6. **Namespaces stay `cld-streaming` and `cfm-streaming`.** Same names as the rest of the fleet, so runbooks, the skill's examples and every `kubectl -n` in the repo keep working.
@@ -202,14 +206,14 @@ The roster records 121 GB usable of the 128 GB unified pool plus 16 GB swap, and
 
 | Consumer | Budget | Basis |
 |---|---|---|
-| vLLM: lead-model weights + KV cache | 60 GB | `--gpu-memory-utilization` set so the container limit stays well under the ~93 GiB stable ceiling above; the model itself is not locked (`nvidia-dgx-spark-landscape.md`) |
+| vLLM: lead-model weights + KV cache | 60 GB | `--gpu-memory-utilization` set so the container limit stays well under the ~93 GiB stable ceiling above; lead model locked to `nvidia/Qwen3.6-35B-A3B-NVFP4` (~22 GB) per NVIDIA's DGX Spark vLLM playbook recipe (upstream `vllm/vllm-openai`, arm64, digest pinned at first run — `files/issue-226/vllm-serve.sh`), `:8000` (Phase 0, decided 2026-08-27) |
 | TEI embeddings (arm64 CUDA) | 4 GB | replaces the 768-d nomic-embed tier on `:80` (`cso-operator-app-plan.md`) |
 | Whisper-large-v3 | 6 GB | current WindowsDesktop shape, `:8001` |
 | Qdrant | 4 GB | collection `my-rag-collection`, disk-backed on NVMe here rather than `emptyDir` |
 | NiFi `mynifi-0` (JVM + five repos) | 8 GB | prod runs BestEffort and gets OOMKilled first when the node is tight (`cso-operator-app-plan.md`) — set a real request here |
 | Kafka, 3 KRaft brokers | 9 GB | 3 GB each, same shape as `files/cso-prod-1/kafka-eval.yaml` |
 | Flink JobManager + 1 TaskManager | 6 GB | 1536m JM proved on `cso-prod-1` (`files/cso-prod-1/VALIDATION.md`); TM sized up for the GPU job |
-| Operators, cert-manager, k3d server, MiNiFi Java agent | 6 GB | four controllers plus the agent tarball |
+| Operators, cert-manager, k3s server, MiNiFi Java agent | 6 GB | four controllers plus the agent tarball |
 | **Subtotal** | **103 GB** | |
 | Page cache + host headroom | 18 GB | the balance of 121 GB |
 
@@ -248,7 +252,7 @@ Two clusters, no mirroring in v1. WindowsDesktop keeps the fleet bus: bootstrap 
 
 The Spark box gets its own `my-cluster` in its own `cld-streaming` with its own topics — `spark-inference-requests`, `spark-inference-results`, `spark-kb-documents` — declared as `KafkaTopic` CRs in the same shape as `files/cso-prod-1/kafkatopics.yaml` (3 partitions, 3 replicas, `min.insync.replicas: 2`). Nothing from the prod topic list is recreated here.
 
-The external listener copies `files/cso-prod-1/kafka-eval.yaml`'s NodePort block with **different ports**, because two Kafka clusters on one LAN with the same advertised NodePorts is a debugging trap, and because the k3d node is a container whose ports have to be published at create time (§3.1). Pick a distinct block, publish it in the `k3d cluster create` line, and record it in `CLAUDE-CHECKIN.md` when it is real.
+The external listener copies `files/cso-prod-1/kafka-eval.yaml`'s NodePort block with **different ports**, because two Kafka clusters on one LAN with the same advertised NodePorts is a debugging trap. On k3s these are host ports — reachable on the LAN the moment ufw allows them (§3.1); the box's ufw already allows 31623/31850/31935/30336 from 192.168.1.0/24, and a distinct block for the box's own Kafka needs its own ufw rule. Pick a distinct block and record it in `CLAUDE-CHECKIN.md` when it is real.
 
 Bridging the two buses, when a demo needs it, is a NiFi problem and not a Kafka problem: a PG on the box consuming from `192.168.1.121:31623` and publishing locally, or NiFi Site-to-Site between the two NiFis — `cso-prod-1` already proved a foreign peer committing an S2S transaction against an operator-managed secure NiFi (`files/cso-prod-1/VALIDATION.md`). Cross-cluster MirrorMaker is not in scope.
 
@@ -268,7 +272,7 @@ Everything else carries over unchanged, including the deployment shape:
 
 ```yaml
 # as-built (completed/flink-minikube-gpu-working.md) — GPU limits must sit in the taskManager
-# podTemplate for the operator to pass them through. On k3d add runtimeClassName: nvidia here too.
+# podTemplate for the operator to pass them through. runtimeClassName: nvidia is required here too.
   taskManager:
     resource: { memory: "4096m", cpu: 1 }
     podTemplate:
@@ -327,19 +331,17 @@ The Spark box is a development and demo platform and an inference target, not a 
 
 ## Open questions
 
-- Does the k3d CUDA node image build at all on aarch64? No source documents it; the k3d CUDA page is architecture-silent and the only k3d GPU issue in the tracker never mentions arm64. First real answer comes from §3.1 on the box.
-- Which CUDA base tag publishes a `linux/arm64` manifest at CUDA 13.0? The k3d default is a 12.4.1 Ubuntu 22.04 tag; the box is CUDA 13.0 on Ubuntu 24.04.4.
 - Device plugin `v0.17.4` or `v0.18.1`? Two fetches of NVIDIA's release notes attribute the same changelog line to different versions. Confirm against the releases list before pinning a chart value.
 - GPU Operator whole-chart version vs `devicePlugin.version` sub-component pin — the two sources use different version namespaces and neither is wrong.
 - Do the NiFi Python extension wheels (`unstructured`, `detectron2_onnx`) resolve for aarch64 in the CFM NiFi image? No source in the corpus answers it.
 - Which aarch64 PyTorch wheel index serves `sm_121` for the Flink GPU image rebuild?
-- Traefik or ingress-nginx on the box's k3d? The NiFi CR's ssl-passthrough annotations decide it, and the decision has to be made before the CR is applied.
-- Which NodePort block does the box's Kafka external listener use? It must not collide with 31623/31850/31935/30336, and it has to be published in the `k3d cluster create` line.
+- Traefik is disabled at k3s install (`--disable traefik`, §3.1) — so is ingress-nginx installed, or does the NiFi CR's `uiConnection` skip Ingress entirely? The CR's ssl-passthrough annotations decide it, and the decision has to be made before the CR is applied.
+- Which NodePort block does the box's Kafka external listener use? It must not collide with 31623/31850/31935/30336, and it needs its own ufw rule (§3.1, §7).
 - Does the fleet ever want the two Kafka clusters bridged, and if so via NiFi Site-to-Site or an `InvokeHTTP` leg? Out of scope for v1, but it changes §7 if the answer is yes.
 
 ## Definition of done
 
-- `k3d cluster create` succeeds on `spark-dd06` with a CUDA node image, `kubectl get nodes -o json` reports `"nvidia.com/gpu": "1"`, and the §3.3 smoke pod prints `nvidia-smi` output — or the §3.4 k3s fallback does the same and the swap is recorded.
+- k3s installs on `spark-dd06` at `v1.32.13+k3s1` with the `nvidia` RuntimeClass in place, `kubectl get nodes -o json` reports `"nvidia.com/gpu": "1"`, and the §3.3 smoke pod prints `nvidia-smi` output.
 - All six images in §2's `docker image inspect` loop report `linux/arm64` (#243 closed on the box, not the Mac).
 - cert-manager, CSM, CSA and CFM install at the §4 versions in `cld-streaming` / `cfm-streaming`, and a `Nifi` CR reaches Running with its UI reachable.
 - A `KafkaTopic` CR creates `spark-inference-requests` on the box's own `my-cluster`, and a client on WindowsDesktop can produce to it over the box's external listener.
@@ -350,12 +352,12 @@ The Spark box is a development and demo platform and an inference target, not a 
 
 ## When this ships
 
-- Every `# expected` block above becomes an `# as-built` block with the real output, and this doc is the source that `files/nvidia-spark-guide/ch07-embeddings-rerank-whisper-tier.md`, `ch08-k3d-with-gpu.md`, `ch09-cso-operators-on-aarch64.md`, `ch10-nifi-to-local-llm.md` and `ch11-flink-on-gpu-and-flink-agents.md` are written from — all five stubs already name this file.
-- `CLAUDE-CHECKIN.md`'s NvidiaSpark-1 block gets the real k3d/kubectl/helm versions, the static IP reservation, the cluster's NodePort block, and its endpoint map; `CONTEXT.md` gets any new namespace or endpoint name.
+- Every `# expected` block above becomes an `# as-built` block with the real output, and this doc is the source that `files/nvidia-spark-guide/ch07-embeddings-rerank-whisper-tier.md`, `ch08-k3s-with-gpu.md`, `ch09-cso-operators-on-aarch64.md`, `ch10-nifi-to-local-llm.md` and `ch11-flink-on-gpu-and-flink-agents.md` are written from — all five stubs already name this file.
+- `CLAUDE-CHECKIN.md`'s NvidiaSpark-1 block gets the real k3s/kubectl/helm versions, the static IP reservation, the cluster's NodePort block, and its endpoint map; `CONTEXT.md` gets any new namespace or endpoint name.
 - The Flink GPU image finally gets a checked-in Dockerfile under `files/`, which `completed/gpu-minikube-grok-flink-image.md` and `completed/flink-minikube-gpu-working.md` never had.
-- `agent/known-patterns.tsv` gets a row for k3d-on-GB10 so the next session does not re-derive §3, and any canonical flow shape from §6 goes back into the `nifi-and-ai` skill.
+- `agent/known-patterns.tsv` gets a row for k3s-on-GB10 so the next session does not re-derive §3, and any canonical flow shape from §6 goes back into the `nifi-and-ai` skill.
 - #243 closes on the box; #238 flips to review; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) unblocks once the cluster exists, and the ch21 demo catalogue can start pulling from a working stack.
-- Blog drafts follow `agent/writing-style.md` — the k3d-on-GB10 write-up is genuinely first-of-its-kind: a [forum search for NiFi and DGX Spark](https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark) returns nothing, and [NVIDIA's playbook library](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md) has no Kafka, NiFi or Flink playbook at all.
+- Blog drafts follow `agent/writing-style.md` — the k3s-on-GB10 write-up is genuinely first-of-its-kind: a [forum search for NiFi and DGX Spark](https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark) returns nothing, and [NVIDIA's playbook library](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md) has no Kafka, NiFi or Flink playbook at all.
 
 ## Resources
 
@@ -363,7 +365,7 @@ The Spark box is a development and demo platform and an inference target, not a 
 - Fleet precedent: `files/cso-prod-1/VALIDATION.md` · `files/cso-prod-1/SNAPSHOT.md` · `cso-prod-1-preprod-plan.md` · `cso-prod-1-cutover-plan.md` · `files/agent-install-operators.sh` · `files/setup-cloudera-streaming.sh` · `files/cso-prod-1/nifi-cso-prod-1.yaml` · `files/cso-prod-1/kafka-eval.yaml` · `files/cso-prod-1/kafkatopics.yaml` · `files/cso-prod-1/flows/prod/parameter-contexts.md`
 - GPU Flink precedent: `flink-plan.md` §7 · `completed/gpu-minikube-grok-flink-image.md` · `completed/flink-minikube-gpu-working.md` · `flink-agents-cso-plan.md`
 - NiFi and app precedent: `completed/how-to-nifi-and-ai.md` · `skills/nifi-and-ai/SKILL.md` · `cso-operator-app-plan.md` · `agent/incident-rules.md` · `CLAUDE-CHECKIN.md`
-- [k3d CUDA guide](https://k3d.io/stable/usage/advanced/cuda/) · [k3d-io/k3d #1108](https://github.com/k3d-io/k3d/issues/1108) · [k3s NVIDIA runtime docs](https://docs.k3s.io/advanced#nvidia-container-runtime-support)
+- [k3s NVIDIA runtime docs](https://docs.k3s.io/advanced#nvidia-container-runtime-support)
 - [Collabnix: GB10 + Kubernetes](https://collabnix.com/nvidia-dgx-spark-kubernetes-run-gpu-workloads-on-the-gb10-grace-blackwell-superchip/) · [Collabnix: k3s on DGX Spark](https://collabnix.com/setting-up-a-k3s-kubernetes-cluster-on-nvidia-dgx-spark-with-full-gpu-support/) · [NVIDIA forum: k3s on DGX Spark](https://forums.developer.nvidia.com/t/local-kubernetes-cluster-with-k3s-on-nvidia-dgx-spark/355772) · [Invalid runtime name: nvidia](https://forums.developer.nvidia.com/t/invalid-runtime-name-nvidia/350646)
 - [k8s-device-plugin v0.17.4](https://github.com/NVIDIA/k8s-device-plugin/releases/tag/v0.17.4) · [dra-driver-nvidia-gpu #1073](https://github.com/kubernetes-sigs/dra-driver-nvidia-gpu/issues/1073) · [GPU Operator 26.7 notes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/release-notes.html) · [dgx-spark-vllm-k8s](https://github.com/rajsinghtechbot/dgx-spark-vllm-k8s) · [dgxarley](https://github.com/vroomfondel/dgxarley)
 - [CSA Operator 1.4 requirements](https://docs.cloudera.com/csa-operator/1.4/release-notes/topics/csa-op-system-requirements.html) · [CSM Operator 1.4 requirements](https://docs.cloudera.com/csm-operator/1.4/release-notes/topics/csm-op-system-req.html) · [CFM Operator 2.11.0 component versions](https://docs.cloudera.com/cfm-operator/2.11.0/release-notes/topics/cfm-op-component-versions.html) · [Cloudera container registry](https://container.repository.cloudera.com/v2/)

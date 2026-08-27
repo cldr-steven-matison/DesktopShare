@@ -27,9 +27,9 @@ Turning 128 GB of unified memory at 273 GB/s into endpoints the rest of the stac
 
 ### Part III — Kubernetes on the DGX Spark
 
-k3d with a real GPU, then Cloudera Streaming Operators — NiFi, Kafka, Flink — running on Arm, with the box's own models as an inference target.
+k3s with a real GPU, then Cloudera Streaming Operators — NiFi, Kafka, Flink — running on Arm, with the box's own models as an inference target.
 
-- **Ch8** — [k3d with GPU on GB10](ch08-k3d-with-gpu.md)
+- **Ch8** — [k3s with GPU on GB10](ch08-k3s-with-gpu.md)
 - **Ch9** — [Cloudera Streaming Operators on aarch64 — feasibility and install](ch09-cso-operators-on-aarch64.md)
 - **Ch10** — [NiFi → local LLM: custom Python processors and InvokeHTTP shapes](ch10-nifi-to-local-llm.md)
 - **Ch11** — [Flink on GPU + Flink Agents](ch11-flink-on-gpu-and-flink-agents.md)

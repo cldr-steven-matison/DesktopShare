@@ -8,3 +8,11 @@ Artifacts of the 2026-08-24 re-plan of EPIC #226 (see `nvidia-dgx-spark-plan.md`
 - `doc-check.py` — the deterministic checker the chain runs (and the operator re-runs before the finish ritual): title + dated Status blockquote, closer order, no pre-arrival phrasing, no `git commit`/`git push`, language-tagged fences, every backticked filename exists, every URL traces to the corpus or an existing repo doc, every `§N` sibling reference resolves to a real `## N.` header, chapter refs within ch01–ch22, bare-"Spark" warnings in Cloudera sentences. `python3 files/issue-226/doc-check.py nvidia-dgx-spark-*.md` — exit 1 on any error.
 
 The rendered corpus is `nvidia-dgx-spark-research.md`; these JSON files remain the source of record for every number it and the plan docs cite — `doc-check.py` rejects any URL that is not in them or in an existing repo doc.
+
+## On-box bring-up (D, #235) — added 2026-08-27 on NvidiaSpark-1
+
+- `spark-bootstrap.sh` — the root half of Day-1, run once by Steven with `sudo`: OS updates, docker group, NVIDIA runtime for Docker + `nvidia-smi`-in-a-container proof, Java 21 (MiNiFi Java), Tailscale (join backgrounded, auth URL printed), ufw (deny-in; 22/8000/k3s NodePorts from the LAN + tailnet; k3s CIDRs), earlyoom off, **k3s `v1.32.13+k3s1`** on the host (own containerd, NVIDIA runtime auto-detected), NIC MACs for the router reservation. Idempotent.
+- `gpu-smoke.yaml` — the first pod on the k3s cluster (`runtimeClassName: nvidia`, `nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04`, `nvidia-smi`), before any Cloudera chart.
+- `vllm-serve.sh` — the first endpoint: `nvidia/Qwen3.6-35B-A3B-NVFP4` on `:8000` per NVIDIA's DGX Spark vLLM playbook recipe verbatim (image digest pinned at first run; port bound to loopback + the LAN IP only).
+
+User-level tools installed the same day into `~/.local/bin`: `kubectl v1.32.13`, `helm v3.21.4`.

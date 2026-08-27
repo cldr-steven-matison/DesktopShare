@@ -1,10 +1,10 @@
-# Chapter 11: Flink on GPU + Flink Agents
+# Chapter 8: k3s with GPU on GB10
 
 > **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-k3s-cso.md` (DesktopShare root) · driving issue: [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
 ## Scope
 
-Reviving the `custom-flink-gpu` image on Arm, `nvidia.com/gpu` in the TaskManager podTemplate, and Flink Agents (its own FlinkDeployment, Flink ≥ 1.20.3) with the Spark as the OpenAI-compatible backend.
+The nvidia container runtime, k3s on the host with its containerd auto-detecting that runtime, the version pin under the Cloudera operators' 1.32 ceiling, and the device-plugin version floor for unified memory — with a GPU pod proven on the cluster.
 
 ## Prerequisites
 

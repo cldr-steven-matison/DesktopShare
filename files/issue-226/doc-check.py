@@ -18,10 +18,10 @@ FORBIDDEN = [
 LLM_TELLS = ["delve", "leverage", "in the fast-paced", "it's worth noting", "it is worth noting", "certainly!", "in conclusion", "as we can see"]
 CLOSERS = ["## Definition of done", "## When this ships", "## Resources"]
 SIBLINGS = ["nvidia-dgx-spark-research.md", "nvidia-dgx-spark-landscape.md", "nvidia-dgx-spark-runbook.md",
-            "nvidia-dgx-spark-k3d-cso.md", "nvidia-dgx-spark-efm-agent.md", "nvidia-dgx-spark-local-kb.md",
+            "nvidia-dgx-spark-k3s-cso.md", "nvidia-dgx-spark-efm-agent.md", "nvidia-dgx-spark-local-kb.md",
             "nvidia-dgx-spark-cloudera-aws.md", "nvidia-dgx-spark-cloudera-demos.md", "nvidia-dgx-spark-plan.md"]
 SHORT = {"research": "nvidia-dgx-spark-research.md", "landscape": "nvidia-dgx-spark-landscape.md",
-         "runbook": "nvidia-dgx-spark-runbook.md", "k3d-cso": "nvidia-dgx-spark-k3d-cso.md",
+         "runbook": "nvidia-dgx-spark-runbook.md", "k3s-cso": "nvidia-dgx-spark-k3s-cso.md",
          "efm-agent": "nvidia-dgx-spark-efm-agent.md", "local-kb": "nvidia-dgx-spark-local-kb.md",
          "cloudera-aws": "nvidia-dgx-spark-cloudera-aws.md", "cloudera-demos": "nvidia-dgx-spark-cloudera-demos.md",
          "demos": "nvidia-dgx-spark-cloudera-demos.md", "plan": "nvidia-dgx-spark-plan.md"}
@@ -169,7 +169,7 @@ def check(doc, repo, research_dir, status_date, corpus_urls, known_urls):
             errors.append(f"§-reference to missing doc {m.group(1)}")
         elif n not in nums:
             errors.append(f"`{m.group(1)}` §{n} does not exist (it has ## {sorted(nums)})")
-    for m in re.finditer(r'\b(research|landscape|runbook|k3d-cso|efm-agent|local-kb|cloudera-aws|cloudera-demos|demos|plan) ?§ ?(\d+)', text):
+    for m in re.finditer(r'\b(research|landscape|runbook|k3s-cso|efm-agent|local-kb|cloudera-aws|cloudera-demos|demos|plan) ?§ ?(\d+)', text):
         target = os.path.join(repo, SHORT[m.group(1)]); n = int(m.group(2))
         nums = h2_numbers(target)
         if nums is None:

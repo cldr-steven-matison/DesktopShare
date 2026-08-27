@@ -1,0 +1,18 @@
+# gpu-smoke — the first pod on the k3s cluster, before any Cloudera chart (nvidia-dgx-spark-k3s-cso.md §3).
+# runtimeClassName: nvidia is required; nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 publishes linux/arm64
+# (checked against the registry manifest 2026-08-27). Expect: Completed, log = nvidia-smi showing GB10.
+#   kubectl apply -f files/issue-226/gpu-smoke.yaml && kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/gpu-smoke --timeout=300s && kubectl logs gpu-smoke
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-smoke
+spec:
+  runtimeClassName: nvidia
+  restartPolicy: Never
+  containers:
+    - name: smi
+      image: nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04
+      command: ["nvidia-smi"]
+      resources:
+        limits:
+          nvidia.com/gpu: 1
