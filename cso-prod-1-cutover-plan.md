@@ -255,7 +255,25 @@ Verify file count (5 890) and total bytes on both sides before proceeding. Same 
 ### Phase 3 — Start `cso-prod-1` and deploy the Window-1 gap
 
 `minikube start -p cso-prod-1`. **Re-prove parity first** — the `jq` `config.json` diff must be empty
-and the node must report `"nvidia.com/gpu":"1"` — before building anything on it. Then, in order:
+and the node must report `"nvidia.com/gpu":"1"` — before building anything on it.
+
+**Post-start, every time: re-apply the NiFi Ingress `ssl-passthrough` patch (#254).** `minikube start`
+re-runs the addon manager, which re-applies the *stock* `ingress-nginx-controller` Deployment and
+strips the manually-added arg — verified 2026-08-27: the start bumped the Deployment generation and
+rolled a fresh ReplicaSet, dropping `--enable-ssl-passthrough`. Without it the `mynifi-web` Ingress
+route 502s (nginx terminates TLS instead of passing it through to NiFi). Re-apply:
+
+```bash
+kubectl patch deploy ingress-nginx-controller -n ingress-nginx --type=json \
+  -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-ssl-passthrough"}]'
+kubectl rollout status deploy ingress-nginx-controller -n ingress-nginx --timeout=90s
+```
+
+Prod's day-to-day UI path (`nifi-web:8443` pane → `nifi-ui-proxy`) does **not** depend on this; it only
+makes the declared Ingress route work. Verify: `curl -kv` to the route through the tunnel presents
+NiFi's cert (`CN=mynifi`, issuer `cfm-operator-ca`), not nginx's "Fake Certificate".
+
+Then, in order:
 
 1. Secrets (§4.3).
 2. Kafka external NodePort listeners (31623 / 31850 / 31935 / 30336) + the 6 `KafkaTopic` CRs.
