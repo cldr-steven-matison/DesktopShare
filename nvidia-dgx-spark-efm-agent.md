@@ -1,6 +1,6 @@
 # NvidiaSpark-1 as an EFM agent — the class, the flow, and the use cases it unlocks
 
-> **Status (2026-08-28): §1 enrolled, §2 built, published & fully field-validated on `spark-dd06`.** The class flow v1 is live at flowVersion 4 — **all four inference doors (`/reason`, `/embed`, `/rerank`, `/transcribe`) and `:9936 /metrics` return 200 end-to-end over the LAN.** `/transcribe` runs the full multipart-reconstruction leg (§2 "As built"). Export: [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json) (23 proc / 26 conn / 1 CS). Original design status below.
+> **Status (2026-08-28): §1 enrolled, §2 built, consolidated, published & fully field-validated on `spark-dd06`.** The class flow is live at **flowVersion 5 — consolidated to a single-handler router (#270 §2)**: **one** `HandleHttpRequest` on `:8190` fronts **all four** inference doors (`/reason`, `/embed`, `/rerank`, `/transcribe`), a path→`target.url` map drives **one** dynamic `InvokeHTTP`, and **one** `HandleHttpResponse` answers every route; `/transcribe` keeps its multipart-reconstruction sub-branch, and `:9936 /metrics` is unchanged. All four doors + metrics return 200 end-to-end over the LAN; `:8191/:8192/:8193` no longer listen. Export: [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json) (16 proc / 19 conn / 1 CS) with a prose companion [`NvidiaSpark-1.designer-flow.flow-notes.md`](files/issue-226/flows/NvidiaSpark-1.designer-flow.flow-notes.md). The earlier four-separate-legs build (flowVersion 3–4, 23 proc / 26 conn) is described below as the "before"; the consolidation is the canonical shape now (`skills/nifi-and-ai/references/patterns.md` "Consolidated router"). Original design status below.
 >
 > **Status (2026-08-26):** work-stream **G** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239). The box **landed 2026-08-26 as `spark-dd06`** (Ubuntu 24.04.4 DGX OS, kernel 6.17.0-1031-nvidia, driver 580.173.02, CUDA 13.0, 121 GB usable of 128 GB, LAN `192.168.1.203`, Tailscale not joined — `CLAUDE-CHECKIN.md`), and on-box execution [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) is the next step: §1 of this doc is the second half of Phase 3. **Decided here:** MiNiFi **Java** as the runtime, agent class `NvidiaSpark-1`, enrollment only through `generateCommand` with a server-minted `agentIdentifier`, a four-front-door class flow, and a fifth `/metrics` leg matching the fleet's existing exporter convention. **Expected, not decided:** the four target endpoint URLs on the box (they follow the Phase-0 model lock and `nvidia-dgx-spark-runbook.md` §2), and every latency number below — the Jetson's numbers are real, the DGX Spark's are not measured yet. Nothing in this doc has been run on `spark-dd06`.
 
@@ -88,63 +88,69 @@ The class is `NvidiaSpark-1` — device name, EFM agent class and GitHub label a
 The Jetson's flow is three `HandleHttp` legs into local daemons — `:8080 /classify → 127.0.0.1:5910` (trt-infer), `:8081 /streamChatListener → :5902` (mpv), `:8082 /matrixListener → :5901` (matrix) — plus a fourth `:9936 /metrics` leg (`completed/nvidianano-minifi-ops.md`, `efm-observability.md`). Same skeleton here, different cargo: on the Jetson two of three legs drive a display, on the DGX Spark all four legs are inference.
 
 ```text
-NvidiaSpark-1 class flow v1 — AS BUILT 2026-08-28 (spark-dd06, flowVersion 3, C2-pushed)
+NvidiaSpark-1 class flow — AS BUILT & CONSOLIDATED 2026-08-28 (spark-dd06, flowVersion 5, C2-pushed)
 
-  :8190 /reason     → InvokeHTTP → 127.0.0.1:8000/v1/chat/completions  ┐
-  :8191 /embed      → InvokeHTTP → 127.0.0.1:8001/embed                │  each leg:
-  :8192 /rerank     → InvokeHTTP → 127.0.0.1:8002/rerank              │  HandleHttpRequest → InvokeHTTP
-  :8193 /transcribe → InvokeHTTP → 127.0.0.1:8003/inference           ┘   → HandleHttpResponse (one, status
-                                                                          ${invokehttp.status.code:replaceEmpty('502')})
-  :9936 /metrics    → ExecuteStreamCommand → 200 (Prometheus exposition, §4)
+  ONE listener, all four routes            path → target.url map           ONE dynamic caller + responder
+  :8190 /(reason|embed|rerank|transcribe)  ── UpdateAttribute-TargetUrl ── InvokeHTTP  HTTP URL=${target.url}
+    HandleHttpRequest ─→ RouteOnAttribute ─┤   /reason     → :8000/v1/chat/completions   ├─→ HandleHttpResponse
+                         (transcribe? )    │   /embed      → :8001/embed                  │   (status ${invokehttp
+                              │            │   /rerank     → :8002/rerank                 │    .status.code
+       transcribe ───────────┘            │   /transcribe → :8003/inference              │    :replaceEmpty('502')})
+         → multipart reconstruction leg ──┘   (Content-Type set per branch) ─────────────┘
+  :9936 /metrics  → ExecuteStreamCommand → 200 (Prometheus exposition, §4 — separate, unchanged)
 ```
 
-> **What changed from the original design.** No VLM is serving yet, so the `/classify → VLM` door
-> was **replaced by `/rerank → bge-reranker-v2-m3`** (the serving set that actually came up is
-> `:8000` Qwen LLM, `:8001` bge-m3 embed, `:8002` bge-reranker rerank, `:8003` whisper.cpp — #232).
-> Each leg is a **single** `HandleHttpResponse` (not an OK/Error split): `Response` **and**
-> `Retry`/`Failure`/`No Retry` all route to it, returning the upstream status and falling back to
-> **502 only on connection failure** — the field-proven StarlinkAI pattern. VLM `/classify` returns
-> as its own leg when a VLM lands on the box.
+> **What the consolidation changed (#270 §2).** The first build (flowVersion 3–4) used **four
+> separate legs** — one `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` triple per door on
+> `:8190–:8193` (23 proc / 26 conn). The fleet's simpler pattern, retrievable from StarlinkAI's flow
+> before building, is **one** listener + a path-driven **dynamic** `InvokeHTTP` + **one** responder.
+> Rebuilt to that shape at flowVersion 5 (**16 proc / 19 conn**): `HandleHttpRequest-Router` on `:8190`
+> accepts all four paths, `UpdateAttribute-TargetUrl` derives `target.url` from `${http.request.uri}`
+> via a nested `ifElse`, the single `InvokeHTTP-Router` calls `${target.url}`, and one
+> `HandleHttpResponse-Router` answers every route. `:8191/:8192/:8193` no longer listen — **all four
+> doors now answer on `:8190/<path>`.** The canonical shape lives in
+> `skills/nifi-and-ai/references/patterns.md` ("Consolidated router"); the serving set is `:8000` Qwen
+> LLM, `:8001` bge-m3 embed, `:8002` bge-reranker rerank, `:8003` whisper.cpp (#232). A VLM `/classify`
+> route, when one lands, is one more `equals()` arm in the map — not a new leg.
 
-Every leg is the same four-processor shape and one shared `StandardHttpContextMap` controller service. Per-leg detail:
+The single `HandleHttpResponse-Router` takes `Response` **and** `Retry`/`No Retry`/`Failure`, returning the upstream status and falling back to **502 only on connection failure** — the field-proven StarlinkAI pattern. Route → target on the box:
 
-| Leg | Listener | Target on the box | Request | Verified 2026-08-28 |
-|---|---|---|---|---|
-| `/reason` | `:8190` | `127.0.0.1:8000/v1/chat/completions` — vLLM `nvidia/Qwen3.6-35B-A3B-NVFP4` | chat-completions JSON, passed through | **200** — returns model JSON; `enable_thinking:false` honored, ~0.15 s |
-| `/embed` | `:8191` | `127.0.0.1:8001/embed` — TEI `BAAI/bge-m3` | `{"inputs": "..."}` | **200** — float vectors, ~0.07 s |
-| `/rerank` | `:8192` | `127.0.0.1:8002/rerank` — TEI `BAAI/bge-reranker-v2-m3` | `{"query": "...", "texts": [...]}` | **200** — scored indices, ~0.18 s |
-| `/transcribe` | `:8193` | `127.0.0.1:8003/inference` — whisper.cpp `large-v3` | multipart `file=@…` | **200** — transcript JSON (multipart-reconstruction leg), ~0.8 s |
+| Route | Target (`target.url`) | Request | Verified 2026-08-28 (through `:8190`) |
+|---|---|---|---|
+| `/reason` | `127.0.0.1:8000/v1/chat/completions` — vLLM `nvidia/Qwen3.6-35B-A3B-NVFP4` | chat-completions JSON | **200** — ~0.10 s (send the real `model` id; an unknown id 404s at vLLM, not a flow fault) |
+| `/embed` | `127.0.0.1:8001/embed` — TEI `BAAI/bge-m3` | `{"inputs": "..."}` | **200** — float vectors, ~0.08 s |
+| `/rerank` | `127.0.0.1:8002/rerank` — TEI `BAAI/bge-reranker-v2-m3` | `{"query": "...", "texts": [...]}` | **200** — scored indices, ~0.04 s |
+| `/transcribe` | `127.0.0.1:8003/inference` — whisper.cpp `large-v3` | multipart `file=@…` | **200** — transcript JSON (multipart leg), ~0.8 s |
 
-**As built (2026-08-28, `spark-dd06`, flowVersion 3).** 16 processors + 15 connections + one shared
-`StandardHttpContextMap` (`aa9d85ba-…`), `/validate` clean before each publish. Export checked in at
-[`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json).
-The three incident-backed `InvokeHTTP` settings are all applied and confirmed persisted:
-`penaltyDuration: 0 sec`, `Retry`/`No Retry`/`Failure` → the terminal response (never self-looped),
-per-leg read timeouts (2 min `/reason`, 5 min `/transcribe`, 30 s others). Proof the fixes hold: a
-malformed `/reason` returns **400 in 0.078 s**, not a 30 s hang.
+**As built (flowVersion 5).** 16 processors + 19 connections + one shared `StandardHttpContextMap`
+(`aa9d85ba-…`), `/validate` clean (`validationErrors: []`) before publish. The incident-backed
+`InvokeHTTP` settings hold on the shared caller: `penaltyDuration: 0 sec`, `Retry`/`No Retry`/`Failure`
+→ the terminal response (never self-looped), a generous read timeout (10 min) that covers the slowest
+route (`/transcribe`) while the fast JSON routes still return in ~0.1 s.
 
-- **`Request Content-Type` must be set explicitly.** `${Content-Type}` resolves **empty** —
-  `HandleHttpRequest` exposes no attribute by that name — so TEI answers `415 Unsupported Media Type`.
-  The three JSON doors carry a literal `application/json`; `/transcribe` carries `${mime.type}`.
+- **`Request Content-Type` is set per-branch on the flowfile, read as `${Content-Type}`.** A literal
+  `${Content-Type}` with nothing setting that attribute resolves **empty** and a JSON upstream answers
+  `415`. `UpdateAttribute-TargetUrl` sets `Content-Type = application/json` for the JSON routes;
+  `/transcribe`'s `UpdateAttribute-SetMultipartContentType` overwrites it with the multipart value —
+  so the one shared `InvokeHTTP` sends the right type for every route.
 - **whisper.cpp serves `/inference` only** — `/v1/audio/transcriptions` **404s** on this build
   (correcting `CLAUDE-CHECKIN.md`'s serving-tier note, which claimed both).
-- **`/transcribe` runs a multipart-reconstruction leg** (built 2026-08-28, flowVersion 4). A
+- **`/transcribe` keeps a multipart-reconstruction sub-branch** off `RouteOnAttribute-Transcribe`. A
   transparent forward can't work: `HandleHttpRequest` splits an inbound multipart request into
   per-part FlowFiles, and whisper `/inference` needs a reassembled `multipart/form-data` body with a
-  `file` part. The leg (cloned from StarlinkAI's transcription leg, 10 processors) is:
-  `HandleHttpRequest` → `UpdateAttribute`(set `fragment.identifier/index/count`) →
-  `RouteOnAttribute`(has-content-type?) → `ReplaceText`(prepend `--boundary`+part headers, one branch
-  with `Content-Type`, one without) → `MergeContent`(Defragment, binary-concat, `\r\n` demarcator,
-  `\r\n--boundary--\r\n` footer) → `UpdateAttribute`(set outgoing `Content-Type:
-  multipart/form-data; boundary=…`) → `InvokeHTTP`. The flow normalizes to its **own** fixed boundary,
-  so the caller's boundary is irrelevant. Verified: `POST -F file=@sample.wav` → 200 with a transcript,
-  byte-identical to a direct `:8003/inference` call.
-- **URLs are literals, not a parameter context.** The design (below) called for `#{…}` params; as
-  built they are literal loopback URLs because the target **port** is stable across a model swap (the
-  Nemotron stretch model swaps in on the same `:8000`), so the param-context's "model lock = one
-  param" benefit does not apply. Migrate to a param context only if a target host/port ever moves.
-
-The four target URLs live in an **EFM parameter context**, not in the processor properties. That is what makes the Phase-0 model lock a one-parameter change instead of a flow edit, and it is the same trick the production `CSOOperatorAppWindows` PG already uses on WindowsDesktop, where `FlowParams` holds `vLLM Base URL`, `WhisperServerUrl`, `Qdrant Url` and `Kafka Broker Endpoint` as non-sensitive parameters (`cso-prod-1-cutover-plan.md`, export `files/cso-prod-1/flows/prod/CSOOperatorAppWindows.flow.json`). The values themselves are not decided: `nvidia-dgx-spark-runbook.md` §2 stands the first endpoint up on `:8888`, the [vLLM playbook](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md) uses `:8000`, [SGLang](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md) `:30000`, Ollama `:11434`. Resolve them on the box during #235 and write them into the parameter context once.
+  `file` part. The sub-branch (cloned from StarlinkAI's transcription leg) is:
+  `UpdateAttribute`(set `fragment.identifier/index/count`) → `RouteOnAttribute`(has-content-type?) →
+  `ReplaceText`(prepend `--boundary`+part headers, one branch with `Content-Type`, one without) →
+  `MergeContent`(Defragment, binary-concat, `--boundary--` footer) → `UpdateAttribute`(set outgoing
+  `Content-Type: multipart/form-data; boundary=…`) → the shared `InvokeHTTP`. The flow normalizes to
+  its **own** fixed boundary, so the caller's boundary is irrelevant. Verified: `POST -F file=@sample.wav`
+  → 200 with a transcript.
+- **URLs are literals in the `target.url` map, not a parameter context.** The original design (below)
+  called for `#{…}` params; as built the four upstreams are literal loopback URLs inside
+  `UpdateAttribute-TargetUrl`'s nested `ifElse`, because the target **ports** are stable across a model
+  swap (the Nemotron stretch model swaps in on the same `:8000`), so the param-context's "model lock =
+  one param" benefit does not apply. Migrate the map's values to a param context only if a target
+  host/port ever moves.
 
 **What changes from the Jetson.** Four things, and only one of them is about the GPU:
 
@@ -243,7 +249,7 @@ Anything larger — model weights, engine files, container images — does **not
 
 The EFM guide's sample gallery (EFM guide Ch18) takes a card only after the flow is field-validated somewhere in the guide. Three cards come out of this work-stream, in this order:
 
-1. **`spark-inference-router-java`** — the four-front-door class flow. Agent: MiNiFi Java `2.24.08.0-19`, class `NvidiaSpark-1`, EFM-managed. Shape: four `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` triples on `:8190`–`:8193` plus one shared `StandardHttpContextMap`. Verification: one `curl` per door returning a real body and a 200, and one deliberate bad payload returning 502 fast rather than hanging. Successor to EFM guide Ch18's Entry 9 (Edge-AI Router), one tier up.
+1. **`spark-inference-router-java`** — the four-door class flow, **consolidated** (#270 §2). Agent: MiNiFi Java `2.24.08.0-19`, class `NvidiaSpark-1`, EFM-managed. Shape: **one** `HandleHttpRequest` on `:8190` for all four paths → `UpdateAttribute` path→`target.url` map → **one** dynamic `InvokeHTTP ${target.url}` → **one** `HandleHttpResponse`, plus the `/transcribe` multipart sub-branch and one shared `StandardHttpContextMap` (16 proc / 19 conn, down from four separate `:8190–:8193` legs). Verification: one `curl` per path on `:8190` returning a real body and a 200, and a bad payload returning fast rather than hanging. Successor to EFM guide Ch18's Entry 9 (Edge-AI Router), one tier up.
 2. **`spark-metrics-exporter-java`** — the `:9936 /metrics` leg with the GB10-specific `/proc/meminfo` script. Verification: `up{job="nvidiaspark1-minifi-metrics"}=1` in Prometheus with real values, and a fleet-board row.
 3. **`jetson-to-spark-escalation`** — the two-agent flow from use case 1, the first card in the gallery that spans two EFM classes. Verification: a low-confidence Jetson classification arriving as a VLM answer, with both agents' `agentId`s in the trace.
 
@@ -276,6 +282,7 @@ Each card carries the standard fields — name, purpose, agent, shape, files, ve
 - [x] `NvidiaSpark-1` enrolled via `generateCommand` with a server-minted `agentIdentifier`, heartbeating to `http://192.168.1.121:10090/efm/api`, visible as an online agent in EFM. *(2026-08-27, §1)*
 - [x] `c2.full.heartbeat=false` applied and confirmed the right way — a *new* `agentManifestId` series with small beats, not a falling number on the old series. *(2026-08-27, §1)*
 - [x] The class flow published with `HandleHttp` legs, `GET .../validate` clean before publish, and one `curl` per door returning a real body from another LAN device. *(2026-08-28 — all four doors return real bodies over the LAN; flowVersion 4)*
+- [x] Flow **consolidated** to one `HandleHttpRequest` + path-driven dynamic `InvokeHTTP` + one `HandleHttpResponse` (#270 §2), `/validate` clean, published flowVersion 5, all four doors on `:8190/<path>` + metrics re-validated 200. *(2026-08-28; 23→16 proc, 26→19 conn)*
 - [x] All `InvokeHTTP` processors carry non-default timeouts, `penaltyDuration: 0 sec`, and `Retry` routed to the terminal error response. *(confirmed persisted; malformed `/reason` → 400 in 0.078 s)*
 - [~] The `:9936` leg: `GET :9936/metrics` → 200 with real `/proc` values *(2026-08-28)*. Cluster scrape (`up{job=…}=1`, `fallbackScrapeProtocol`, fleet-board row) still to wire.
 - [ ] `dgx-spark-prometheus` on `:9835` scraped as a second target on the same host, with every memory gauge sourced from `/proc/meminfo`.
