@@ -28,14 +28,18 @@ TEI_URL = os.environ.get("KB_TEI_URL", "http://127.0.0.1:8080")
 QDRANT_URL = os.environ.get("KB_QDRANT_URL", "http://127.0.0.1:6333")
 COLLECTION = os.environ.get("KB_COLLECTION", "desktopshare-kb")
 EMBED_DIM = 768
-DS = "/home/tunas/DesktopShare"
+DS = "/home/tunas/BrainShare"
 HOME = "/home/tunas"
 
 # ── §2 source table: (glob, repo, kind, recursive) ────────────────────────────
+# NiFiandAi is deliberately NOT here: it is the public mirror of the nifi-and-ai
+# skill, already ingested (kind=rule) from DS/skills/nifi-and-ai below. Indexing
+# it again as kind=code double-indexed every skill passage under two roots and
+# split relevance (#270 §3). The skill is ingested from ONE canonical path.
 SUBREPOS = [
     "cso-operator-app", "ClouderaStreamingOperators", "MiNiFi-Kubernetes-Playground",
     "NiFi2-Processor-Playground", "cloudera-ce-aws", "iceberg-mcp-server",
-    "CAI_Workbench_MCP_Server", "NiFiandAi",
+    "CAI_Workbench_MCP_Server",
 ]
 
 
@@ -59,6 +63,11 @@ def sources():
         yield p, "EdgeFlowManager", "chapter"
     # prod flow exports → flow (special-cased in chunk_flow)
     for p in sorted(glob.glob(f"{DS}/files/cso-prod-1/flows/prod/*.flow.json")):
+        yield p, "DesktopShare", "flow"
+    # prose companions to checked-in flow exports (#270 §3c) — a "what this flow
+    # does / the pattern it shows" card per export, so flow-pattern questions are
+    # answerable from prose rather than the raw JSON flatten chunk_flow produces.
+    for p in sorted(glob.glob(f"{DS}/files/**/*.flow-notes.md", recursive=True)):
         yield p, "DesktopShare", "flow"
     # sub-repo docs (+ the one code dir the doc names: cso-operator-app/backend) → code
     skip = re.compile(r"/(\.git|node_modules|\.venv|venv|dist|build|__pycache__|\.next)/")
@@ -269,10 +278,11 @@ def main():
         # Chunk the raw source (dropping secret lines first would corrupt flow JSON);
         # rule 7 is applied to each chunk's final text below, so it is authoritative
         # regardless of source type.
-        if kind == "flow":
+        if kind == "flow" and path.endswith(".json"):
             chunks = list(chunk_flow(raw, path))
         else:
-            chunks = list(chunk_markdown(raw))  # code files use the same size-based packing
+            # markdown (incl. .flow-notes.md kind=flow) and code use size-based packing
+            chunks = list(chunk_markdown(raw))
         cnt = 0
         for idx, (heading, ctext) in enumerate(chunks):
             ctext = drop_secrets(ctext).strip()  # rule 7: no secret-shaped line survives

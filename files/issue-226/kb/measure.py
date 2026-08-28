@@ -30,7 +30,7 @@ import urllib.request
 
 VLLM = os.environ.get("KB_VLLM_URL", "http://127.0.0.1:8000")
 MODEL = os.environ.get("KB_VLLM_MODEL", "nvidia/Qwen3.6-35B-A3B-NVFP4")
-DS = "/home/tunas/DesktopShare"
+DS = "/home/tunas/BrainShare"
 
 # published rates the doc cites ($/MTok input, $/MTok output) — Anthropic pricing
 RATES = {"Opus 5": (5.0, 25.0), "Sonnet 5": (2.0, 10.0), "Haiku 4.5": (1.0, 5.0)}
