@@ -1,6 +1,6 @@
 # NvidiaSpark-1 as an EFM agent — the class, the flow, and the use cases it unlocks
 
-> **Status (2026-08-28): §1 enrolled, §2 built & published, 3/4 doors + meter field-validated on `spark-dd06`.** The class flow v1 is live at flowVersion 3 — `/reason`, `/embed`, `/rerank` and `:9936 /metrics` all return 200 end-to-end over the LAN; `/transcribe` is stubbed pending the multipart reconstruction pipeline (§2 "As built"). Export: [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json). Original design status below.
+> **Status (2026-08-28): §1 enrolled, §2 built, published & fully field-validated on `spark-dd06`.** The class flow v1 is live at flowVersion 4 — **all four inference doors (`/reason`, `/embed`, `/rerank`, `/transcribe`) and `:9936 /metrics` return 200 end-to-end over the LAN.** `/transcribe` runs the full multipart-reconstruction leg (§2 "As built"). Export: [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json) (23 proc / 26 conn / 1 CS). Original design status below.
 >
 > **Status (2026-08-26):** work-stream **G** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239). The box **landed 2026-08-26 as `spark-dd06`** (Ubuntu 24.04.4 DGX OS, kernel 6.17.0-1031-nvidia, driver 580.173.02, CUDA 13.0, 121 GB usable of 128 GB, LAN `192.168.1.203`, Tailscale not joined — `CLAUDE-CHECKIN.md`), and on-box execution [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) is the next step: §1 of this doc is the second half of Phase 3. **Decided here:** MiNiFi **Java** as the runtime, agent class `NvidiaSpark-1`, enrollment only through `generateCommand` with a server-minted `agentIdentifier`, a four-front-door class flow, and a fifth `/metrics` leg matching the fleet's existing exporter convention. **Expected, not decided:** the four target endpoint URLs on the box (they follow the Phase-0 model lock and `nvidia-dgx-spark-runbook.md` §2), and every latency number below — the Jetson's numbers are real, the DGX Spark's are not measured yet. Nothing in this doc has been run on `spark-dd06`.
 
@@ -113,7 +113,7 @@ Every leg is the same four-processor shape and one shared `StandardHttpContextMa
 | `/reason` | `:8190` | `127.0.0.1:8000/v1/chat/completions` — vLLM `nvidia/Qwen3.6-35B-A3B-NVFP4` | chat-completions JSON, passed through | **200** — returns model JSON; `enable_thinking:false` honored, ~0.15 s |
 | `/embed` | `:8191` | `127.0.0.1:8001/embed` — TEI `BAAI/bge-m3` | `{"inputs": "..."}` | **200** — float vectors, ~0.07 s |
 | `/rerank` | `:8192` | `127.0.0.1:8002/rerank` — TEI `BAAI/bge-reranker-v2-m3` | `{"query": "...", "texts": [...]}` | **200** — scored indices, ~0.18 s |
-| `/transcribe` | `:8193` | `127.0.0.1:8003/inference` — whisper.cpp `large-v3` | multipart `file=@…` | **400 — pipeline pending** (see below) |
+| `/transcribe` | `:8193` | `127.0.0.1:8003/inference` — whisper.cpp `large-v3` | multipart `file=@…` | **200** — transcript JSON (multipart-reconstruction leg), ~0.8 s |
 
 **As built (2026-08-28, `spark-dd06`, flowVersion 3).** 16 processors + 15 connections + one shared
 `StandardHttpContextMap` (`aa9d85ba-…`), `/validate` clean before each publish. Export checked in at
@@ -128,11 +128,17 @@ malformed `/reason` returns **400 in 0.078 s**, not a 30 s hang.
   The three JSON doors carry a literal `application/json`; `/transcribe` carries `${mime.type}`.
 - **whisper.cpp serves `/inference` only** — `/v1/audio/transcriptions` **404s** on this build
   (correcting `CLAUDE-CHECKIN.md`'s serving-tier note, which claimed both).
-- **`/transcribe` is not yet functional.** `HandleHttpRequest` splits an inbound multipart request
-  into per-part FlowFiles, and whisper `/inference` needs a reassembled `multipart/form-data` body
-  with a `file` part — so a transparent forward can't work. The fix is the same reconstruction chain
-  StarlinkAI's transcription leg uses (`MergeContent` → `ReplaceText`-prepend-part-header →
-  `UpdateAttribute`-set-multipart-content-type → `InvokeHTTP`); tracked as the next build under #239.
+- **`/transcribe` runs a multipart-reconstruction leg** (built 2026-08-28, flowVersion 4). A
+  transparent forward can't work: `HandleHttpRequest` splits an inbound multipart request into
+  per-part FlowFiles, and whisper `/inference` needs a reassembled `multipart/form-data` body with a
+  `file` part. The leg (cloned from StarlinkAI's transcription leg, 10 processors) is:
+  `HandleHttpRequest` → `UpdateAttribute`(set `fragment.identifier/index/count`) →
+  `RouteOnAttribute`(has-content-type?) → `ReplaceText`(prepend `--boundary`+part headers, one branch
+  with `Content-Type`, one without) → `MergeContent`(Defragment, binary-concat, `\r\n` demarcator,
+  `\r\n--boundary--\r\n` footer) → `UpdateAttribute`(set outgoing `Content-Type:
+  multipart/form-data; boundary=…`) → `InvokeHTTP`. The flow normalizes to its **own** fixed boundary,
+  so the caller's boundary is irrelevant. Verified: `POST -F file=@sample.wav` → 200 with a transcript,
+  byte-identical to a direct `:8003/inference` call.
 - **URLs are literals, not a parameter context.** The design (below) called for `#{…}` params; as
   built they are literal loopback URLs because the target **port** is stable across a model swap (the
   Nemotron stretch model swaps in on the same `:8000`), so the param-context's "model lock = one
@@ -269,13 +275,13 @@ Each card carries the standard fields — name, purpose, agent, shape, files, ve
 
 - [x] `NvidiaSpark-1` enrolled via `generateCommand` with a server-minted `agentIdentifier`, heartbeating to `http://192.168.1.121:10090/efm/api`, visible as an online agent in EFM. *(2026-08-27, §1)*
 - [x] `c2.full.heartbeat=false` applied and confirmed the right way — a *new* `agentManifestId` series with small beats, not a falling number on the old series. *(2026-08-27, §1)*
-- [~] The class flow published with `HandleHttp` legs, `GET .../validate` clean before publish, and one `curl` per door returning a real body from another LAN device. *(2026-08-28 — 3/4 doors return real bodies over the LAN; `/transcribe` pending the multipart pipeline)*
+- [x] The class flow published with `HandleHttp` legs, `GET .../validate` clean before publish, and one `curl` per door returning a real body from another LAN device. *(2026-08-28 — all four doors return real bodies over the LAN; flowVersion 4)*
 - [x] All `InvokeHTTP` processors carry non-default timeouts, `penaltyDuration: 0 sec`, and `Retry` routed to the terminal error response. *(confirmed persisted; malformed `/reason` → 400 in 0.078 s)*
 - [~] The `:9936` leg: `GET :9936/metrics` → 200 with real `/proc` values *(2026-08-28)*. Cluster scrape (`up{job=…}=1`, `fallbackScrapeProtocol`, fleet-board row) still to wire.
 - [ ] `dgx-spark-prometheus` on `:9835` scraped as a second target on the same host, with every memory gauge sourced from `/proc/meminfo`.
 - [ ] At least one use case from §3 running end-to-end from a device that is not the DGX Spark — use case 1 or 2 is the cheapest proof.
 - [x] The class's flow definition exported and checked in under `files/` before anything republishes it. *(`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`)*
-- [ ] `/transcribe` multipart reconstruction pipeline (whisper `/inference`) — next build under #239.
+- [x] `/transcribe` multipart reconstruction pipeline (whisper `/inference`). *(2026-08-28, flowVersion 4 — 10-processor leg cloned from StarlinkAI; 200 with transcript)*
 
 ## When this ships
 
