@@ -461,7 +461,43 @@ Both WindowsDesktop boards reflashed (waveshare-devices `15105fb` + `db2caa9`, a
 - **Cost**: a full `setup.sh` rebuild is **~10.5 min** on this box. With two boards plugged in,
   build both profiles **at once** in separate work trees (`BROOKESIA_DIR=…` per board, copy each
   build's five segments out before the other's fullclean) — serializing them idled the second
-  board for a whole build.
+  board for a whole build. **Watch the shared IDF component-download cache**: two `setup.sh`
+  configures started at the same instant race in `prepare_components` and one dies with a
+  `FileNotFoundError … .idx` mid-unpack. Stagger the second start until the first is past
+  dependency-prep (into compile), or give each its own cache — then they run truly parallel. A
+  failed configure also leaves a half-built `build/` that `set-target`'s implicit `fullclean`
+  refuses to delete (`… doesn't seem to be a CMake build directory`); `rm -rf …/build` and re-run.
+
+## Power button (#265, 2026-08-28)
+
+Brookesia ships **no software power-off path** — the only off mechanism in the stock image is the
+AXP2101 hardware OFFLEVEL long-press, which was not turning these boards off. The fix adds a real
+one, live on **all three profiles** (originally StarlinkAI's `12c706d`, which was never pushed;
+brought into origin and de-gated as waveshare-devices `220be17` / PR #2, merged to `main`).
+
+- **`power_manager` (V2 board HAL)** gains `power_off` (AXP2101 **soft power-off**, REG `0x10` bit0 —
+  drops DC1, the ESP32 rail) plus `poll_power_key` / `clear_power_key` (read + write-1-clear the
+  PMIC's latched PWRON key events, REG `0x49`).
+- **A `powerbtn` task** (`super/main/powerbtn.cpp`, board-driver-by-name via
+  `esp_board_device "axp2101_power_manager"`) arms by clearing the boot latch, then polls the
+  long-press latch and issues the soft power-off on it. Boot log: `POWERBTN: PWRON long-press
+  power-off armed`. **Not gated on `BOARD_HAS_BATTERY`** — every V2 board has the PWRON key, so the
+  task runs everywhere; `battlog` (its `12c706d` sibling) is not in origin's tree and was omitted.
+
+**Per-board behaviour** — same code, different physics:
+
+| Board | Power | Long-press bottom PWR does |
+|---|---|---|
+| Cloudera (COM10), Tuna Starlink (COM6/9) | battery | **true power-off** — rail stays down |
+| Tuna Street (COM8) | USB-only | **reboot** — rail drops, VBUS immediately re-powers |
+
+**Button map, for the record:** bottom = **PWR** (AXP2101 PWRON) → long-press = off/reboot per above.
+Top = **BOOT** (ESP32-S3 GPIO0 strap) → firmware-download mode; no runtime function in our image.
+
+Flashed to both WindowsDesktop boards 2026-08-28, app partition (`0x60000`) only — staged apps
+untouched. Both boot with the task armed and the AXP2101 handle resolved (COM8 + COM10 serial
+confirmed). The physical long-press → off/reboot is the one-line eyes-on check left for Steven; the
+soft-power-off code path is the one already proven turning StarlinkAI's board off on battery.
 
 ## Commands
 
