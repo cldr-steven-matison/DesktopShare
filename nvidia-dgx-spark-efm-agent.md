@@ -1,5 +1,7 @@
 # NvidiaSpark-1 as an EFM agent — the class, the flow, and the use cases it unlocks
 
+> **Status (2026-08-28): §1 enrolled, §2 built & published, 3/4 doors + meter field-validated on `spark-dd06`.** The class flow v1 is live at flowVersion 3 — `/reason`, `/embed`, `/rerank` and `:9936 /metrics` all return 200 end-to-end over the LAN; `/transcribe` is stubbed pending the multipart reconstruction pipeline (§2 "As built"). Export: [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json). Original design status below.
+>
 > **Status (2026-08-26):** work-stream **G** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239). The box **landed 2026-08-26 as `spark-dd06`** (Ubuntu 24.04.4 DGX OS, kernel 6.17.0-1031-nvidia, driver 580.173.02, CUDA 13.0, 121 GB usable of 128 GB, LAN `192.168.1.203`, Tailscale not joined — `CLAUDE-CHECKIN.md`), and on-box execution [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) is the next step: §1 of this doc is the second half of Phase 3. **Decided here:** MiNiFi **Java** as the runtime, agent class `NvidiaSpark-1`, enrollment only through `generateCommand` with a server-minted `agentIdentifier`, a four-front-door class flow, and a fifth `/metrics` leg matching the fleet's existing exporter convention. **Expected, not decided:** the four target endpoint URLs on the box (they follow the Phase-0 model lock and `nvidia-dgx-spark-runbook.md` §2), and every latency number below — the Jetson's numbers are real, the DGX Spark's are not measured yet. Nothing in this doc has been run on `spark-dd06`.
 
 The array already runs four MiNiFi agents against one EFM. Adding a fifth is not new work; what is new is that this one has 121 GB of unified memory behind it, so its class flow is not "sense something and publish it" — it is "be the thing the other four agents call." The Jetson proved that shape one tier down (EFM guide Ch19): a resident GPU daemon on loopback, a MiNiFi Java agent in front of it doing nothing but `HandleHttpRequest → InvokeHTTP → HandleHttpResponse`, and every other device on the LAN getting a real synchronous answer. `NvidiaSpark-1` is that pattern with a bigger engine and four doors instead of one.
@@ -86,24 +88,55 @@ The class is `NvidiaSpark-1` — device name, EFM agent class and GitHub label a
 The Jetson's flow is three `HandleHttp` legs into local daemons — `:8080 /classify → 127.0.0.1:5910` (trt-infer), `:8081 /streamChatListener → :5902` (mpv), `:8082 /matrixListener → :5901` (matrix) — plus a fourth `:9936 /metrics` leg (`completed/nvidianano-minifi-ops.md`, `efm-observability.md`). Same skeleton here, different cargo: on the Jetson two of three legs drive a display, on the DGX Spark all four legs are inference.
 
 ```text
-NvidiaSpark-1 class flow (EFM-designed, C2-pushed)
+NvidiaSpark-1 class flow v1 — AS BUILT 2026-08-28 (spark-dd06, flowVersion 3, C2-pushed)
 
-  :8190 /classify   → InvokeHTTP → local VLM        ┐
-  :8191 /transcribe → InvokeHTTP → local Whisper    │  each leg:
-  :8192 /reason     → InvokeHTTP → local LLM /v1    │  HandleHttpRequest → InvokeHTTP
-  :8193 /embed      → InvokeHTTP → local TEI        ┘   → HandleHttpResponse-OK (200)
-                                                        → HandleHttpResponse-Error (502)
+  :8190 /reason     → InvokeHTTP → 127.0.0.1:8000/v1/chat/completions  ┐
+  :8191 /embed      → InvokeHTTP → 127.0.0.1:8001/embed                │  each leg:
+  :8192 /rerank     → InvokeHTTP → 127.0.0.1:8002/rerank              │  HandleHttpRequest → InvokeHTTP
+  :8193 /transcribe → InvokeHTTP → 127.0.0.1:8003/inference           ┘   → HandleHttpResponse (one, status
+                                                                          ${invokehttp.status.code:replaceEmpty('502')})
   :9936 /metrics    → ExecuteStreamCommand → 200 (Prometheus exposition, §4)
 ```
 
+> **What changed from the original design.** No VLM is serving yet, so the `/classify → VLM` door
+> was **replaced by `/rerank → bge-reranker-v2-m3`** (the serving set that actually came up is
+> `:8000` Qwen LLM, `:8001` bge-m3 embed, `:8002` bge-reranker rerank, `:8003` whisper.cpp — #232).
+> Each leg is a **single** `HandleHttpResponse` (not an OK/Error split): `Response` **and**
+> `Retry`/`Failure`/`No Retry` all route to it, returning the upstream status and falling back to
+> **502 only on connection failure** — the field-proven StarlinkAI pattern. VLM `/classify` returns
+> as its own leg when a VLM lands on the box.
+
 Every leg is the same four-processor shape and one shared `StandardHttpContextMap` controller service. Per-leg detail:
 
-| Leg | Listener | Target on the box | Request | Response |
+| Leg | Listener | Target on the box | Request | Verified 2026-08-28 |
 |---|---|---|---|---|
-| `/classify` | `:8190` | `#{vlm.url}` — a local VLM (candidate: Cosmos Reason 2 8B from the [VSS playbook](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vss/README.md), or `gemma3:4b` on Ollama `:11434` per the [Live VLM WebUI playbook](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/live-vlm-webui/README.md)) | raw JPEG bytes, `application/octet-stream` | JSON: labels + confidence, same envelope the Jetson returns |
-| `/transcribe` | `:8191` | `#{whisper.url}` — Whisper on GPU | WAV/PCM bytes | JSON transcript |
-| `/reason` | `:8192` | `#{llm.url}` — OpenAI-compatible `/v1/chat/completions` | chat-completions JSON, passed through | the model's JSON response, passed through |
-| `/embed` | `:8193` | `#{tei.url}` — text-embeddings-inference | `{"inputs": [...]}` | float vectors |
+| `/reason` | `:8190` | `127.0.0.1:8000/v1/chat/completions` — vLLM `nvidia/Qwen3.6-35B-A3B-NVFP4` | chat-completions JSON, passed through | **200** — returns model JSON; `enable_thinking:false` honored, ~0.15 s |
+| `/embed` | `:8191` | `127.0.0.1:8001/embed` — TEI `BAAI/bge-m3` | `{"inputs": "..."}` | **200** — float vectors, ~0.07 s |
+| `/rerank` | `:8192` | `127.0.0.1:8002/rerank` — TEI `BAAI/bge-reranker-v2-m3` | `{"query": "...", "texts": [...]}` | **200** — scored indices, ~0.18 s |
+| `/transcribe` | `:8193` | `127.0.0.1:8003/inference` — whisper.cpp `large-v3` | multipart `file=@…` | **400 — pipeline pending** (see below) |
+
+**As built (2026-08-28, `spark-dd06`, flowVersion 3).** 16 processors + 15 connections + one shared
+`StandardHttpContextMap` (`aa9d85ba-…`), `/validate` clean before each publish. Export checked in at
+[`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json).
+The three incident-backed `InvokeHTTP` settings are all applied and confirmed persisted:
+`penaltyDuration: 0 sec`, `Retry`/`No Retry`/`Failure` → the terminal response (never self-looped),
+per-leg read timeouts (2 min `/reason`, 5 min `/transcribe`, 30 s others). Proof the fixes hold: a
+malformed `/reason` returns **400 in 0.078 s**, not a 30 s hang.
+
+- **`Request Content-Type` must be set explicitly.** `${Content-Type}` resolves **empty** —
+  `HandleHttpRequest` exposes no attribute by that name — so TEI answers `415 Unsupported Media Type`.
+  The three JSON doors carry a literal `application/json`; `/transcribe` carries `${mime.type}`.
+- **whisper.cpp serves `/inference` only** — `/v1/audio/transcriptions` **404s** on this build
+  (correcting `CLAUDE-CHECKIN.md`'s serving-tier note, which claimed both).
+- **`/transcribe` is not yet functional.** `HandleHttpRequest` splits an inbound multipart request
+  into per-part FlowFiles, and whisper `/inference` needs a reassembled `multipart/form-data` body
+  with a `file` part — so a transparent forward can't work. The fix is the same reconstruction chain
+  StarlinkAI's transcription leg uses (`MergeContent` → `ReplaceText`-prepend-part-header →
+  `UpdateAttribute`-set-multipart-content-type → `InvokeHTTP`); tracked as the next build under #239.
+- **URLs are literals, not a parameter context.** The design (below) called for `#{…}` params; as
+  built they are literal loopback URLs because the target **port** is stable across a model swap (the
+  Nemotron stretch model swaps in on the same `:8000`), so the param-context's "model lock = one
+  param" benefit does not apply. Migrate to a param context only if a target host/port ever moves.
 
 The four target URLs live in an **EFM parameter context**, not in the processor properties. That is what makes the Phase-0 model lock a one-parameter change instead of a flow edit, and it is the same trick the production `CSOOperatorAppWindows` PG already uses on WindowsDesktop, where `FlowParams` holds `vLLM Base URL`, `WhisperServerUrl`, `Qdrant Url` and `Kafka Broker Endpoint` as non-sensitive parameters (`cso-prod-1-cutover-plan.md`, export `files/cso-prod-1/flows/prod/CSOOperatorAppWindows.flow.json`). The values themselves are not decided: `nvidia-dgx-spark-runbook.md` §2 stands the first endpoint up on `:8888`, the [vLLM playbook](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md) uses `:8000`, [SGLang](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/sglang/README.md) `:30000`, Ollama `:11434`. Resolve them on the box during #235 and write them into the parameter context once.
 
@@ -156,7 +189,7 @@ Three independent layers, none of which replaces the others.
 
 **Layer 1 — EFM heartbeat.** Free the moment the agent enrolls. Prometheus already scrapes EFM's actuator on WindowsDesktop, so `NvidiaSpark-1` appears as a new `agentClass` label the first time it beats (`efm-observability.md`). The fleet board gets one more seconds-since-heartbeat tile (green <120 s / yellow <600 s / red beyond) and one more sawtooth line; the dashboard JSON is EFM guide Ch21's, source of truth [files/efm-fleet-dashboard.json](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/files/efm-fleet-dashboard.json).
 
-**Layer 2 — the flow-level exporter.** The Java agent's built-in Prometheus endpoint is conclusively blocked on an EFM-managed headless agent — embedded web API off, `nifi.web.http.*` on the C2 denylist, no Prometheus NAR in the build. The pattern that ships instead is a fifth `HandleHttp` leg on the class flow serving Prometheus exposition format on `:9936`, via `ExecuteStreamCommand` running a base64-wrapped `sh` script (`ExecuteStreamCommand` mangles inline quoted `sh -c`; the base64 wrapper is mandatory). Live today on NvidiaNano, WindowsDesktop and StarlinkAI (`efm-observability.md`).
+**Layer 2 — the flow-level exporter.** The Java agent's built-in Prometheus endpoint is conclusively blocked on an EFM-managed headless agent — embedded web API off, `nifi.web.http.*` on the C2 denylist, no Prometheus NAR in the build. The pattern that ships instead is a fifth `HandleHttp` leg on the class flow serving Prometheus exposition format on `:9936`, via `ExecuteStreamCommand` running a base64-wrapped `sh` script (`ExecuteStreamCommand` mangles inline quoted `sh -c`; the base64 wrapper is mandatory). Live today on NvidiaNano, WindowsDesktop and StarlinkAI (`efm-observability.md`). **As built on `spark-dd06` 2026-08-28:** the NvidiaNano `/proc/loadavg`+`/proc/meminfo` script was reused verbatim (it is already Linux-generic); `GET :9936/metrics` → 200 with real values (`minifi_java_host_mem_total_kb 127600524` ≈ 128 GB, load averages). The cluster-side scrape (`ServiceMonitor` + selector-less `Endpoints` at `192.168.1.203:9936` + `fallbackScrapeProtocol`) is the remaining observability step.
 
 On this box the script has more to say than `/proc/loadavg` and `/proc/meminfo`. Two GB10 facts shape it: `nvidia-smi` reports `Memory-Usage: Not Supported` because an integrated GPU has no dedicated framebuffer, and `cudaMemGetInfo` ignores memory recoverable from swap under unified memory so allocatable memory reads low — NVIDIA's own guidance is to read `/proc/meminfo` instead ([known-issues.html](https://docs.nvidia.com/dgx/dgx-spark/known-issues.html)). Our box shows exactly that (`CLAUDE-CHECKIN.md`). So **every memory gauge on this device comes from `/proc/meminfo`, never from an NVML memory call.**
 
@@ -234,14 +267,15 @@ Each card carries the standard fields — name, purpose, agent, shape, files, ve
 
 ## Definition of done
 
-- `NvidiaSpark-1` enrolled via `generateCommand` with a server-minted `agentIdentifier`, heartbeating to `http://192.168.1.121:10090/efm/api`, visible as an online agent in EFM.
-- `c2.full.heartbeat=false` applied and confirmed the right way — a *new* `agentManifestId` series with small beats, not a falling number on the old series.
-- The class flow published with four `HandleHttp` legs, `GET .../validate` clean before publish, and one `curl` per door returning a real body from another LAN device.
-- All four `InvokeHTTP` processors carry non-default timeouts, `penaltyDuration: 0 sec`, and `Retry` routed to the terminal error response.
-- The `:9936` leg scraped: `up{job="nvidiaspark1-minifi-metrics"}=1` with real values, `fallbackScrapeProtocol` set, and a `NvidiaSpark-1` row on the fleet board.
-- `dgx-spark-prometheus` on `:9835` scraped as a second target on the same host, with every memory gauge sourced from `/proc/meminfo`.
-- At least one use case from §3 running end-to-end from a device that is not the DGX Spark — use case 1 or 2 is the cheapest proof.
-- The class's flow definition exported and checked in under `files/` before anything republishes it.
+- [x] `NvidiaSpark-1` enrolled via `generateCommand` with a server-minted `agentIdentifier`, heartbeating to `http://192.168.1.121:10090/efm/api`, visible as an online agent in EFM. *(2026-08-27, §1)*
+- [x] `c2.full.heartbeat=false` applied and confirmed the right way — a *new* `agentManifestId` series with small beats, not a falling number on the old series. *(2026-08-27, §1)*
+- [~] The class flow published with `HandleHttp` legs, `GET .../validate` clean before publish, and one `curl` per door returning a real body from another LAN device. *(2026-08-28 — 3/4 doors return real bodies over the LAN; `/transcribe` pending the multipart pipeline)*
+- [x] All `InvokeHTTP` processors carry non-default timeouts, `penaltyDuration: 0 sec`, and `Retry` routed to the terminal error response. *(confirmed persisted; malformed `/reason` → 400 in 0.078 s)*
+- [~] The `:9936` leg: `GET :9936/metrics` → 200 with real `/proc` values *(2026-08-28)*. Cluster scrape (`up{job=…}=1`, `fallbackScrapeProtocol`, fleet-board row) still to wire.
+- [ ] `dgx-spark-prometheus` on `:9835` scraped as a second target on the same host, with every memory gauge sourced from `/proc/meminfo`.
+- [ ] At least one use case from §3 running end-to-end from a device that is not the DGX Spark — use case 1 or 2 is the cheapest proof.
+- [x] The class's flow definition exported and checked in under `files/` before anything republishes it. *(`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`)*
+- [ ] `/transcribe` multipart reconstruction pipeline (whisper `/inference`) — next build under #239.
 
 ## When this ships
 
