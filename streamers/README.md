@@ -148,29 +148,88 @@ The one hard rule: OpenClaw's `/bash` needs a `bash -c "..."` wrapper for anythi
 single bare command — `&&` chains, `source`, and backgrounding (`&`) don't reliably run
 without it; the bot may just chat back instead of executing.
 
-**Agent commands.** All scripts live under `DesktopShare/files/`, and every command is the
-same shape:
+**Agent commands.** All scripts live under `DesktopShare/files/`. Each command below is a
+complete, standalone block — copy the whole line and paste it to the bot as-is. They are
+kept one-per-block on purpose: they're what you actually copy and send, not a template to
+fill in.
 
+post now (that streamer's queued clip)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-PostNow.sh xqc"
 ```
-/bash bash -c "source .env && bash ./DesktopShare/files/<script> <args>"
+
+start fetch clips
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-fetchClips.sh start"
 ```
 
-| Command | What it does |
-|---|---|
-| `agent-PostNow.sh <streamer>` | Post that streamer's queued clip now |
-| `agent-fetchClips.sh start\|stop` | Toggle the `FetchClips` PG on or off |
-| `agent-approvePosts.sh` | Approve queued posts |
-| `agent-watchList.sh show\|rotate\|add t:<name>\|add k:<name>\|<set-list>` | Show, rotate, add to, or replace the watch list (`t:` = Twitch, `k:` = Kick) |
-| `agent-publishFlow.sh PublishClipPeakTimeCron start\|stop` | Toggle the peak-time publisher |
-| `agent-trigger.sh LiveStreamerAlert\|FetchClips\|PublishClip\|PostWatchList` | One-shot on-demand run of that flow |
+stop fetch clips
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-fetchClips.sh stop"
+```
 
-Start/stop toggles a PG's continuous/cron operation. `agent-trigger.sh` fires one flowfile
+approve posts
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-approvePosts.sh"
+```
+
+show watch list
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh show"
+```
+
+rotate watch list
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh rotate"
+```
+
+add to watch list without replacing it (`t:` = Twitch, `k:` = Kick)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add t:jasontheween"
+```
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh add k:n3on"
+```
+
+replace the whole watch list
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-watchList.sh t:extremely k:deenthegreat"
+```
+
+start PublishClipPeakTimeCron
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-publishFlow.sh PublishClipPeakTimeCron start"
+```
+
+stop PublishClipPeakTimeCron
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-publishFlow.sh PublishClipPeakTimeCron stop"
+```
+
+trigger LiveStreamerAlert (one on-demand run)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh LiveStreamerAlert"
+```
+
+trigger FetchClips (one fetch, without touching the FetchClips PG's start/stop state)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh FetchClips"
+```
+
+trigger PublishClip (routes to `PublishClipPeakTimeCron`'s `TriggerInput`, not the disabled `PublishClip` PG)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh PublishClip"
+```
+
+trigger PostWatchList (posts the current watch list to X — bot-confirmed 2026-07-26)
+```bash
+/bash bash -c "source .env && bash ./DesktopShare/files/agent-trigger.sh PostWatchList"
+```
+
+`start`/`stop` toggles a PG's continuous/cron operation. `agent-trigger.sh` fires one flowfile
 through `StreamersApp`'s shared `Trigger` (`ListenHTTP` → `RouteOnAttribute`) into the target
 flow's `TriggerInput` port — it never touches schedulers or PG run state. The backend's
-`TRIGGER_REQUESTS` allow-list is the single source of truth for valid names; the name
-`PublishClip` routes to `PublishClipPeakTimeCron`'s `TriggerInput`. `PostWatchList` was
-bot-confirmed 2026-07-26; the full bot round-trip for `agent-trigger.sh` itself is still
-unverified.
+`TRIGGER_REQUESTS` allow-list is the single source of truth for valid names.
 
 **API.** `/api/streamers/*` — clips (`fetch-clips`, `process-clip`, `queue`, `clip/{id}`,
 `approve`, `skip`, `publish`, `publish-next`, `pending`, `pending/{id}/cancel`,
