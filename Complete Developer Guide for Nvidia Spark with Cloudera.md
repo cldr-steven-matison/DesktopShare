@@ -112,4 +112,4 @@ Promotion flow is the EFM guide's: source doc at the DesktopShare root (in progr
 | Field/build validation | 4 of 22 partial (Ch1/4/6/7 — serving tier built + benchmarked on `spark-dd06` 2026-08-28, #232); other chapters await further Phase-3/4/5 bring-up | ~18 % partial |
 | Chapter stubs staged | 22 of 22 | 100 % |
 | Source docs authored | 5 of 9 at full depth (E–I, 2026-08-26); A (`-landscape.md`) expanded 2026-08-28 (#232); B/C are first-package drafts | see `nvidia-dgx-spark-plan.md` §4 for per-doc state |
-| Issue mailbox | EPIC #226 + children A–K: A serving work done (#232, committed `67cb1da`, status flip pending); B/C/E–J in review, D/K open | — |
+| Issue mailbox | EPIC #226 + children A–K: A **done + closed** (#232, `67cb1da`/`e50e471`); B/C/E–J in review, D/K open | — |
