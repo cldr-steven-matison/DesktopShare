@@ -289,9 +289,22 @@ NiFi, Kafka and every operator ran). `kubectl top node` → **25 157 Mi across a
 The budget was conservative by roughly 3× on the streaming tier: the whole Kubernetes side fits in
 ~25 GB, not the ~43 GB those rows implied. The vLLM side is what actually spends the box — the host
 container's resident set sits around 9 GB of *host* RAM with the weights and KV cache in the unified
-pool, and the balance of the 74 GB used is that pool. TEI, Whisper and Qdrant are not deployed yet,
-so their four rows remain estimates. The one line that was *under*-budgeted is the operators row —
-`strimzi-cluster-operator` needs 1 Gi, not the chart's 384 Mi default.
+pool, and the balance of the 74 GB used is that pool. The one line that was *under*-budgeted is the
+operators row — `strimzi-cluster-operator` needs 1 Gi, not the chart's 384 Mi default.
+
+**Serving tier measured, 2026-08-28** (#232 — the embed/rerank/STT set standing up alongside the
+lead). The four budget rows above for the embedding/Whisper tier are now partly as-built, and they
+co-host with the lead as §5 predicted — lead + both TEI endpoints sit at ~93 GB used / ~28 GB
+available:
+
+| Endpoint | Budgeted | Measured (unified-pool delta) | Port |
+|---|---|---|---|
+| Embeddings — `BAAI/bge-m3` (TEI, 1024-d) | 4 GB (nomic tier) | **~7 GB** [box] | `:8001` |
+| Rerank — `BAAI/bge-reranker-v2-m3` (TEI `/rerank`) | not in original budget | **~5 GB** [box] | `:8002` |
+| Whisper — whisper.cpp `large-v3` (CUDA) | 6 GB | **~4 GB** [box] (3.1 GB model + CUDA ctx); RTF ~0.04 | `:8003` |
+
+The nomic KB embedder (`tei-kb`, 768-d) and Qdrant (`qdrant-kb`) are separate resident containers for
+the local KB (#240), not this RAG-parity tier. Model choices and the full landscape: `nvidia-dgx-spark-landscape.md` §6.
 
 Three rules that come with the budget. Give **every** pod a memory request — the one without a request is the one the kernel kills, and on prod that is NiFi. Do not run Schema Registry, Surveyor, SSB or a monitoring stack resident; they are demo-time only. And the vLLM playbook's UMA gotcha applies to the host, not the cluster: [NVIDIA's own vLLM playbook](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/nvidia/vllm/README.md) documents `sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'` as the manual cache flush when unified memory looks full but is not.
 
