@@ -16,7 +16,7 @@
 | Streamer       | X Username              | Clip | GIF |
 |----------------|-------------------------|------|-----|
 | Clavicular     | @Clavicular0            | Y    | N   |
-| Roshtein       | @roshtein               | Y    | N   |
+| Roshtein       | @roshteins              | Y    | N   |
 | Ac7ionMan      | @Ac7ionMann             | Y    | N   |
 | AdinRoss       | @adinross               | Y    | N   |
 | N3on           | @N3on                   | Y    | N   |
