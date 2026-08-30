@@ -43,6 +43,26 @@ Three facts that shape the plan. The caption path makes **zero retrieval calls**
 
 Templates to copy, not rewrite: `files/issue-226/kb/ingest.py` (chunk → TEI → Qdrant `PUT /points`, uuid ids) and `files/issue-226/kb/kb_mcp.py` (query embed + search). **No vision model is in the #232 model lock** (`nvidia-dgx-spark-landscape.md` §6) — vision is an open item to settle on the box, not a given.
 
+And NiFi: `mynifi-0` (NiFi 2.6.0, CFM operator) is `Running` in `cfm-streaming` on this box's k3s (`KUBECONFIG=/etc/rancher/k3s/k3s.yaml`), on `:8443` behind host-network ingress-nginx, reachable from WindowsDesktop over the tailnet at `100.104.155.57` with the `nifi-admin` client cert and the SNI rule in `CLAUDE-CHECKIN.md`. The `SparkLlmBridge` PG already runs on it (`files/issue-226/flows/SparkLlmBridge.json`) — the precedent for the vLLM leg, including its `max_tokens` gotcha. Only the Strimzi and Flink *operators* are up in `cld-streaming`; no Kafka broker pods.
+
+## Where it runs — two NiFis, one seam
+
+I don't want to move the demo to the Spark, and I don't have to. Everything that owns state stays on WindowsDesktop: the `/clips` PVC and every `.json` queue on it, `FetchClips` / `ProcessClips` / the two publishers, the review UI, Kafka `new_clips` / `processed_clips`, the X / Twitch / Kick credentials, the 13 PGs and their Parameter Contexts. The Spark contributes stateless inference, and it contributes it the way this demo does everything — as a NiFi Process Group, not a standalone service.
+
+**`StreamerBrain` — a new PG on the Spark's `mynifi`.** Input → retrieval (`InvokeHTTP` `:8001` embed → `:6333` search on `streamer-kb`) → identity lookup (`LookupRecord` / `ExecuteSQL` against WindowsDesktop's Postgres, per [#276](https://github.com/cldr-steven-matison/DesktopShare/issues/276)) → optional frames → `InvokeHTTP` `:8000` (the B1 JSON contract, thinking off, `max_tokens` sized like `SparkLlmBridge`) → self-check routing (`pronouns_ok` / `grounded` false → the quoted-fallback branch) → output. New logic in its own new PG, `Retry` self-looped with an expiry, failures to one log sink — the skill's rules.
+
+**The seam between the two NiFis.** Three transports; the first two are the plan.
+
+| Transport | Shape | Verdict |
+|---|---|---|
+| **HTTP door** | `ProcessClips` `InvokeHTTP POST` → Spark `HandleHttpRequest /caption` → brain → `HandleHttpResponse` | **First.** Synchronous, which is what `ProcessClips` expects today; the same pattern as the `:8190` MiNiFi router |
+| **Site-to-site** | `ProcessClips` → Remote Process Group → Spark input port → brain → output port → back | **The upgrade** once the door works. The proper NiFi-to-NiFi answer and the better demo; the S2S pattern is already in the repo (`agent/known-patterns.tsv`). Async, so `ProcessClips` needs a small rework |
+| Fleet Kafka | Spark NiFi consumes `new_clips` off the WindowsDesktop bus, publishes `processed_clips` | Not first. Couples the Spark to the live topics — `agent/live-queues.md` territory, and no broker runs on the Spark today |
+
+**What crosses the wire** is per-clip data, never storage: `{clip_id, streamer, source, title, description, transcript | audio}` in, `{caption, topic, confidence, grounded, quote_verbatim, pronouns_ok, used_title}` out. For vision the request carries the MP4 (a few MB on the LAN) or sampled frames. Whether the request carries the transcript (WindowsDesktop keeps Whisper) or the audio (the brain PG calls `:8003`) is a flag on the request — both branches live in the one PG, so the Whisper question is decided per clip, not as a service move.
+
+**Validation is shadow mode, not a harness on copied clips.** `ProcessClips` keeps captioning with the 3B exactly as today *and* fires the same clip at the Spark door. The Spark caption lands beside the 3B one as a `brain_caption` field on the processed clip and shows in the review UI; nothing auto-posts from it. Real live clips, real side-by-side, zero queue changes. The WindowsDesktop half — one `InvokeHTTP`, one field, one UI column — is [#277](https://github.com/cldr-steven-matison/DesktopShare/issues/277). The `streamer-kb` seed — a one-time pull of `.gif_index.json` / `.published_history.json` metadata off the PVC — is [#278](https://github.com/cldr-steven-matison/DesktopShare/issues/278). No MP4 moves, no PVC moves.
+
 ## #272 — New Streamers Brain: next steps
 
 **B0. Coordination first — it unblocks gendering.** A `device:WindowsDesktop` issue asking for the Postgres streamers DB interface: a connection reachable from `spark-dd06` (192.168.1.203), the streamer key (bare Twitch login vs `kick:` prefix, as `_parse_watch_entry` does it), and the columns for canonical name, aliases, X handle, and gender/pronouns. Shared with #271.
@@ -53,13 +73,13 @@ Templates to copy, not rewrite: `files/issue-226/kb/ingest.py` (chunk → TEI �
 - Output, JSON: `{caption, topic, confidence, grounded, quote_verbatim, pronouns_ok, used_title}`. The model self-checks what the regex guards check today. The guards stay as one thin last line, the 4-retry scaffold goes. Quoted fallback and "never drop the clip" stay. `_build_tweet` is unchanged.
 - Measure on the box before choosing: thinking on vs off for this task (latency vs caption quality), `max_tokens`, whether the frequency/presence penalties still earn their place on a 35B.
 
-**B2. Validation harness on the Spark box — no prod, no queues, no X.** A standalone runner: real clip files → local `:8003` whisper → the B1 brain on local `:8000` → caption + self-check JSON printed next to what the current 3B produced for the same clip. It reuses the app's functions and lives under `files/issue-226/streamers/` in DesktopShare, not in the prod app path. Acceptance: ≥10 clips; 0 pronoun violations on known-gender streamers; 0 fabricated quotes; `used_title` true only on meaningful titles.
+**B2. The `StreamerBrain` PG on the Spark's `mynifi`, validated in shadow mode.** Build the PG (shape above) fronted by an HTTP door, `HandleHttpRequest /caption`. Prove it first with `curl` and a handful of transcripts from the PVC metadata, then switch on shadow mode from WindowsDesktop (#277): every live clip gets a 3B caption as today plus a `brain_caption` from the Spark, side by side in the review UI, nothing auto-posted from the brain. Export the PG to `files/issue-226/flows/StreamerBrain.json` the same session it's built. Acceptance: ≥10 live clips through shadow; 0 pronoun violations on known-gender streamers; 0 fabricated quotes; `used_title` true only on meaningful titles.
 
 **B3. Vision — verify, then choose.** First check whether the locked Qwen3.6 accepts image content on this vLLM build (`/v1/models`, then a request with an `image_url` part). If it does not, pick a VLM that fits beside the lead in the memory budget, serve it, and record it in `nvidia-dgx-spark-landscape.md` §6. Input: a few frames sampled around the cut point — the gif branch already finds `cut_start` by peak audio, reuse that — plus the facecam box from `.face_layout.json`. Gate: the visual description measurably changes captions on thin-transcript clips, which is exactly where the 20–30 % pronoun-violation rate lives today.
 
 **B4. Title and description as a used signal.** Extend `_fetch_twitch_clips` and `_fetch_kick_clips` to carry `description` where the API provides one — Twitch Helix clips have no description field; verify Kick. Feed title/description into B1 as one input among several. Fix `_generate_title` to log its failures instead of swallowing them.
 
-**B5. Repoint the demo's caption model.** Phase A repoints only the validation harness. Flipping the running demo — `VLLM_URL`/`VLLM_MODEL` in `backend/config.py:7-9` and `k8s/configmap.yaml:6-7`, then `MODULES=streamers bash scripts/deploy.sh` after reading the running pod's `MODULES` — is a later step with its own fresh confirmation, and the rollback is those two values. WindowsDesktop's pod has to reach `192.168.1.203:8000`. Per the issue, #272 closes when this flip is done.
+**B5. Promote the brain.** With shadow mode running, the flip is small: `ProcessClips` / `process_clip` uses `brain_caption` as `caption` and the 3B path becomes the fallback when the door is unreachable. A later step with its own fresh confirmation; rollback is un-promoting the field — the 3B never stopped. Then the S2S upgrade replaces the HTTP door. Per the issue, #272 closes when the demo's captions come from the Spark-hosted model.
 
 ## #271 — Streamer KB: next steps
 
@@ -77,22 +97,25 @@ Templates to copy, not rewrite: `files/issue-226/kb/ingest.py` (chunk → TEI �
 
 | Step | Depends on | Gate |
 |---|---|---|
-| B0/K0 issue to WindowsDesktop | — | schema received |
-| B1 contract + B2 harness | — | 3B-vs-35B comparison on ≥10 clips |
+| B0/K0 #276 to WindowsDesktop | — | schema received |
+| B1 contract + B2 `StreamerBrain` PG, HTTP door | — | `curl /caption` returns the contract |
+| #278 KB seed pull (WindowsDesktop) → K2/K3 retrieval | — | `streamer-kb` green at 1024-d; context visible in the assembled prompt |
+| #277 shadow mode (WindowsDesktop) | B2 door up | ≥10 live clips with `brain_caption` beside the 3B caption in review |
 | B4 title/description + `_generate_title` fix | — | `used_title` only on meaningful titles |
-| K2/K3 retrieval KB | — | `streamer-kb` green at 1024-d; context visible in the assembled prompt |
 | B3 vision | model capability check | measurable change on thin-transcript clips |
-| K1 gender join | **B0 schema** | 0 violations; correct pronouns for known streamers; name-only for unknown |
-| B5 demo model flip | all of the above, fresh confirm | #272 closes |
+| K1 gender join | **#276 schema** | 0 violations; correct pronouns for known streamers; name-only for unknown |
+| B5 promote the brain | all of the above, fresh confirm | #272 closes |
+| S2S upgrade | B5 | the demo-grade seam |
 | K4 accretion | K2 | Phase B |
 
 ## What NOT to do
 
-- Do not change `config.py` / `configmap.yaml` on the running demo as part of Phase A. The harness repoints; production waits for its own ask.
+- Do not move the `/clips` PVC, the queues, Kafka topics, or credentials to the Spark. Per-clip data crosses the wire; storage never does.
+- Do not promote `brain_caption` to `caption` as part of shadow mode. Shadow is side-by-side only; the promotion is B5 with its own ask.
 - Do not infer a streamer's gender from a name, a transcript, or a frame. Confirmed Postgres value or name-only — nothing in between.
 - Do not index the streamer KB into `my-rag-collection` or `desktopshare-kb`. Fresh collection, its own dimension.
 - Do not frame the model repoint as the §9 cutover ladder or edit the guide for it. Different work stream.
-- Do not run the harness against the live `/clips` queues, Kafka topics, or X. `agent/live-queues.md` applies the moment anything touches the PVC.
+- Do not let the Spark NiFi consume the live `new_clips` / `processed_clips` topics as the seam. HTTP door, then S2S. `agent/live-queues.md` applies the moment anything touches the queues.
 
 ## When this ships
 
