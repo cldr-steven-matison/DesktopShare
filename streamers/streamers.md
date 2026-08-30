@@ -43,8 +43,8 @@ fresh database (inserted once, never overwriting) and the **fallback** if the
 database is unreachable — editing them no longer changes a running roster.
 
 To add a streamer: the mod-only chat command `🐟🐟🐟➕ <streamer>` (#273; `k:`
-for Kick) once its listener is deployed, or a direct `INSERT`/`UPDATE` on the
-table. Keep the roster table above in sync by hand. A row added from chat gets
+for Kick — live since listener 0.0.27, 2026-08-30), or a direct `INSERT`/`UPDATE`
+on the table. Keep the roster table above in sync by hand. A row added from chat gets
 its X handle only from a source the streamer controls (Kick profile socials, a
 Twitch-bio x.com link, an X profile linking back); otherwise it's stored as the
 login with `needs_review` — check `SELECT login, x_handle FROM streamer WHERE
@@ -53,7 +53,7 @@ x_handle_status = 'needs_review'` and fix it with `UPDATE`. `bam` →
 
 ## In-channel chat bot
 
-`TwitchChatListenerProcessor` (NiFi Python processor, currently `0.0.26`, source
+`TwitchChatListenerProcessor` (NiFi Python processor, currently `0.0.27` — deployed 2026-08-30, source
 in `cso-operator-app/nifi-processors/`) holds a persistent Twitch IRC connection
 to the channel and turns chat into actions. It reads each message's mod/broadcaster
 badges (IRCv3 `twitch.tv/tags`), so it can gate the mod-only forms. It never calls
@@ -61,7 +61,7 @@ the backend inline — a fired trigger only enqueues one `chat_trigger` FlowFile
 returns, because blocking the IRC reader thread through a 30–90s clip job would
 blow past Twitch's PING tolerance and force a reconnect (which burns a refresh
 token). NiFi's `ChatTriggers` PG routes those FlowFiles to the backend
-(`/api/streamers/chat-trigger/{clip,gif}`) and posts the reply back to chat.
+(`/api/streamers/chat-trigger/{clip,gif,roster}`) and posts the reply back to chat.
 
 ### On join
 Announces itself once per (re)connect, split across two PRIVMSGs (a single message
@@ -97,11 +97,16 @@ targets whoever was last `!load`ed in this process.
 | `tuna tuna tuna [streamer]` or `🐟🐟🐟 [streamer]` | Everyone | **Watchlist vote** — adds the streamer once it lands `Trigger Vote Count` (3) times inside `Trigger Vote Window Seconds` (120). Every occurrence counts (including one person repeating); the tally is per (trigger, target). Posts one progress reply when it's exactly one vote short. |
 | `🐟🐟🐟🎬 [streamer]` or `tuna tuna tuna clip` | **Mods/broadcaster** | Pulls a **clip** and posts it — one use, no vote. |
 | `🐟🐟🐟🖼️ [streamer]` or `tuna tuna tuna gif` | **Mods/broadcaster** | Cuts a **reaction GIF** and posts it — one use, no vote. |
+| `🐟🐟🐟➕ <streamer>` | **Mods/broadcaster** | **Adds the streamer to the roster** (#273, listener 0.0.27) — the catalog above, not the watch list. The name is required (no on-screen fallback). The backend checks the channel exists, then researches the X handle: confirmed only from a source the streamer controls (Kick profile socials, a Twitch-bio x.com link, an X profile linking back to the channel); otherwise stored as `@login` + `needs_review` and the reply says to verify it. |
+| `🐟🐟🐟➖ <streamer>` | **Mods/broadcaster** | **Removes the streamer from the roster** (soft-delete — the row and its curated handle are kept; a later ➕ restores it as it was). |
 
-A non-mod using the clip/gif trigger is ignored silently. Both name a streamer on
-either platform — `🐟🐟🐟🖼️ k:<login>` pulls from Kick. The manual pull does **not**
-require the target to be live or on the watch list (there just has to be a clip to
-grab); the watch list only governs who the pipeline polls on its own.
+A non-mod using the clip/gif/➕/➖ triggers is ignored silently. All of them name a
+streamer on either platform — `🐟🐟🐟🖼️ k:<login>` pulls from Kick, `🐟🐟🐟➕ k:<login>`
+adds a Kick streamer. The manual pull does **not** require the target to be live or
+on the watch list (there just has to be a clip to grab); the watch list only governs
+who the pipeline polls on its own. The chat trigger for clip/gif has a one-shot
+retry on a transient X failure (429 / timeout / 5xx — #274); permanent rejections
+(duplicate, too long, credentials) are reported straight back.
 
 ### Enable switches & rate limits (NiFi processor properties)
 - **`Clip Trigger Enabled` / `Gif Trigger Enabled`** — both default **false**: the
