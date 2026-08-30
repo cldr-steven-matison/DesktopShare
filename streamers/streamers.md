@@ -24,6 +24,7 @@
 | whiz           | @crashoverride          | Y    | N   |
 | trainwreckstv  | @trainwreckstv          | Y    | N   |
 | rampagejackson | @rampagejackson         | Y    | N   |
+| bam            | @BAM__MARGERA           | Y    | N   |
 
 Clip = caption the clip and post the MP4 to X (the original path). GIF = cut a
 reaction GIF from the clip and post that instead (the automated #173 giphy
