@@ -348,6 +348,7 @@ Raw working docs, kept as-is. This README is the summary; these are the detail.
 |---|---|---|
 | [`cso-operator-app-streamers.md`](cso-operator-app-streamers.md) | The anchor doc — pipeline, deploy, endpoints, gotchas, and a 22-session history tail | Reference + log; schedules and PG names lag live |
 | [`streamers.md`](streamers.md) | The roster: Twitch + Kick streamers, X handles, Clip/GIF path per streamer | Live reference, mirrors `_STREAMER_PATH_OVERRIDES` |
+| [`streamers-new-brain-plan.md`](streamers-new-brain-plan.md) | The DGX Spark caption brain (#272) and per-streamer KB (#271): brain contract, Spark-box harness, vision, retrieval KB, Postgres identity join, order and gates | Plan only (2026-08-30); nothing built |
 | [`streamers-twitch-bot.md`](streamers-twitch-bot.md) | Chat bot architecture, credentials, `WatchlistChatJoiner` | Live; its screen-mapping sections are superseded |
 | [`streamers-twitch-bot-mpv-plan.md`](streamers-twitch-bot-mpv-plan.md) | The mpv + yt-dlp migration; **authoritative for screen loading** | Built and live on all four screens |
 | [`streamer-kick-bot.md`](streamer-kick-bot.md) | Kick chat read path (Pusher, no auth) and the Inspector page; §4 is a posting-bot plan | §1–3 live, §4 plan only |
