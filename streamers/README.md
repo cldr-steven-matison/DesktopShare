@@ -172,6 +172,7 @@ approve posts
 ```bash
 /bash bash -c "source .env && bash ./DesktopShare/files/agent-approvePosts.sh"
 ```
+All the `agent-*.sh` commands here share `files/agent-lib.sh`: each posts its own ping (the "✅ [device] …" message) and keeps stdout silent, so the bot's own `⚙️ bash … Exit: 0` echo stays a 3-line receipt instead of repeating the reply. Progress lines go to `/tmp/agent-<name>.log`; the echo only carries the log/message when a script fails before its ping reached the chat, or Telegram rejected the send.
 
 show watch list
 ```bash

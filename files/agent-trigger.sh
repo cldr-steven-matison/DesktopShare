@@ -23,20 +23,22 @@ if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
     exit 1
 fi
 
+# Shared log()/agent_send()/exit-trap — stdout stays silent so the bot's own
+# /bash echo doesn't repeat the ping (see agent-lib.sh).
+. "$(dirname "$0")/agent-lib.sh"
+
 APP_URL="${APP_URL:-http://127.0.0.1:8090}"
 
 NAME="$1"
 if [ -z "$NAME" ]; then
     FINAL_MSG="❌ Trigger: expects one arg, the flow name (e.g. LiveStreamerAlert, FetchClips, PublishClip) — got none."
-    echo "$FINAL_MSG"
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-         -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+    agent_send "$FINAL_MSG"
     exit 1
 fi
 
-echo "🚀 Trigger: firing '${NAME}'..."
+log "🚀 Trigger: firing '${NAME}'..."
 
-RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/flows/trigger/${NAME}")
+RESPONSE=$(curl -s -m 60 -X POST "$APP_URL/api/streamers/flows/trigger/${NAME}")
 
 OK=$(echo "$RESPONSE" | jq -r '.ok // empty')
 
@@ -47,8 +49,4 @@ else
     FINAL_MSG="❌ Trigger ${NAME} failed: ${DETAIL:-$RESPONSE}"
 fi
 
-echo "$FINAL_MSG"
-
-curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-     -d "chat_id=$CHAT_ID" \
-     -d "text=${FINAL_MSG}" > /dev/null
+agent_send "$FINAL_MSG"

@@ -12,6 +12,10 @@ fi
 
 APP_URL="${APP_URL:-http://127.0.0.1:8090}"
 
+# Shared log()/agent_send()/exit-trap — stdout stays silent so the bot's own
+# /bash echo doesn't repeat the ping (see agent-lib.sh).
+. "$(dirname "$0")/agent-lib.sh"
+
 # Every Telegram ping leads with the sending device's roster name — all devices
 # share one chat and an unattributed ping sends Steven to the wrong machine
 # (agent/device-comms.md "Session comms", 2026-08-20 #192). Same lookup as
@@ -37,9 +41,11 @@ platform_label() {
     esac
 }
 
-echo "🚀 Approve: checking review queue..."
+log "🚀 Approve: checking review queue..."
 
-QUEUE=$(curl -s "$APP_URL/api/streamers/queue")
+# -m: on WSL2 a dead loopback port hangs instead of refusing, and an untimed
+# curl here would sit forever with nothing reaching the chat.
+QUEUE=$(curl -s -m 15 "$APP_URL/api/streamers/queue")
 TOTAL=$(echo "$QUEUE" | jq 'length')
 
 if [ "$TOTAL" -eq 0 ]; then
@@ -83,7 +89,7 @@ else
             DURATION=0
         fi
 
-        echo "=== Approving clip: $CLIP_ID ==="
+        log "=== Approving clip: $CLIP_ID ==="
         BODY=$(jq -n \
             --arg clip_path "$CLIP_PATH" --arg tweet_text "$TWEET_TEXT" --arg clip_id "$CLIP_ID" \
             --arg title "$TITLE" --arg source "$SOURCE" --arg streamer "$STREAMER" \
@@ -133,7 +139,7 @@ else
             FAILED=$((FAILED + 1))
             FAILED_IDS+=("$CLIP_ID")
             FAILED_DETAIL="${FAILED_DETAIL}• ${NAME} · ${PLATFORM} · ${CLIP_ID}"$'\n'
-            echo "  failed: $RESPONSE"
+            log "  failed: $RESPONSE"
         fi
     done < <(echo "$QUEUE" | jq -c '.[]')
 
@@ -149,16 +155,4 @@ else
     fi
 fi
 
-echo "$FINAL_MSG"
-
-# Belt and braces: Telegram rejects anything over 4096 chars outright, and a
-# rejected send is a silent no-notification. Trim before it can happen.
-if [ "${#FINAL_MSG}" -gt 4000 ]; then
-    FINAL_MSG="${FINAL_MSG:0:3960}"$'\n'"… (truncated)"
-fi
-
-# --data-urlencode, not -d: the per-clip breakdown is multi-line and titles carry
-# &, =, + and other characters that a raw -d form body would mangle or drop.
-curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-     -d "chat_id=$CHAT_ID" \
-     --data-urlencode "text=${FINAL_MSG}" > /dev/null
+agent_send "$FINAL_MSG"

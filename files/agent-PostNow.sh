@@ -16,6 +16,10 @@ if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
     exit 1
 fi
 
+# Shared log()/agent_send()/exit-trap — stdout stays silent so the bot's own
+# /bash echo doesn't repeat the ping (see agent-lib.sh).
+. "$(dirname "$0")/agent-lib.sh"
+
 APP_URL="${APP_URL:-http://127.0.0.1:8090}"
 USERTAG="${1#@}"
 NOT_FOUND_PREFIX=""
@@ -78,9 +82,9 @@ lookup_published() {
 # would mangle or silently drop.
 
 if [ -n "$USERTAG" ]; then
-    echo "🚀 Post Now: looking for a pending clip from '${USERTAG}'..."
+    log "🚀 Post Now: looking for a pending clip from '${USERTAG}'..."
     TAG_LOWER=$(echo "$USERTAG" | tr '[:upper:]' '[:lower:]')
-    MATCH=$(curl -s "$APP_URL/api/streamers/pending" | jq -c --arg tag "$TAG_LOWER" \
+    MATCH=$(curl -s -m 15 "$APP_URL/api/streamers/pending" | jq -c --arg tag "$TAG_LOWER" \
         '[.pending[] | select((.streamer // "" | ascii_downcase) == $tag or (.x_handle // "" | ascii_downcase) == $tag)][0] // empty')
 
     if [ -n "$MATCH" ]; then
@@ -92,7 +96,7 @@ if [ -n "$USERTAG" ]; then
         M_TITLE=$(echo "$MATCH" | jq -r '.title // ""')
         DESC=$(describe_clip "$M_STREAMER" "$M_SOURCE" "$M_TITLE")
 
-        echo "=== Found pending clip from ${USERTAG}: ${CLIP_ID} ==="
+        log "=== Found pending clip from ${USERTAG}: ${CLIP_ID} ==="
         RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/pending/${CLIP_ID}/publish-now")
 
         if echo "$RESPONSE" | jq -e '.ok == true' > /dev/null 2>&1; then
@@ -102,19 +106,17 @@ if [ -n "$USERTAG" ]; then
             FINAL_MSG="❌ [$DEV] Post Now failed for ${DESC}"$'\n'"${RESPONSE}"
         fi
 
-        echo "$FINAL_MSG"
-        curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-             -d "chat_id=$CHAT_ID" --data-urlencode "text=${FINAL_MSG}" > /dev/null
+        agent_send "$FINAL_MSG"
         exit 0
     fi
 
-    echo "No pending clip found for '${USERTAG}' — falling back to next in queue."
+    log "No pending clip found for '${USERTAG}' — falling back to next in queue."
     # Plain text, no emoji: every message that consumes this leads with its own
     # emoji + [device] stamp, and the stamp has to come first in the line.
     NOT_FOUND_PREFIX="no pending clip from '${USERTAG}' — "
 fi
 
-echo "🚀 Post Now: popping next pending (approved) clip..."
+log "🚀 Post Now: popping next pending (approved) clip..."
 
 RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/publish-next")
 
@@ -147,8 +149,4 @@ else
     FINAL_MSG="❌ [$DEV] ${NOT_FOUND_PREFIX}Post Now failed: ${RESPONSE}"
 fi
 
-echo "$FINAL_MSG"
-
-curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-     -d "chat_id=$CHAT_ID" \
-     --data-urlencode "text=${FINAL_MSG}" > /dev/null
+agent_send "$FINAL_MSG"

@@ -24,33 +24,33 @@ if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
     exit 1
 fi
 
+# Shared log()/agent_send()/exit-trap — stdout stays silent so the bot's own
+# /bash echo doesn't repeat the ping (see agent-lib.sh).
+. "$(dirname "$0")/agent-lib.sh"
+
 APP_URL="${APP_URL:-http://127.0.0.1:8090}"
 
 if [ "$#" -eq 1 ] && [ "$1" = "show" ]; then
-    RESPONSE=$(curl -s "$APP_URL/api/streamers/watchlist")
+    RESPONSE=$(curl -s -m 15 "$APP_URL/api/streamers/watchlist")
     if echo "$RESPONSE" | jq -e '.logins' > /dev/null 2>&1; then
         CUR_LIST=$(echo "$RESPONSE" | jq -r '.logins | join(", ")')
         FINAL_MSG="📋 Watch List: ${CUR_LIST}"
     else
         FINAL_MSG="❌ Watch List fetch failed: ${RESPONSE}"
     fi
-    echo "$FINAL_MSG"
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-         -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+    agent_send "$FINAL_MSG"
     exit 0
 fi
 
 if [ "$#" -eq 1 ] && [ "$1" = "rotate" ]; then
-    RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/watchlist/rotate")
+    RESPONSE=$(curl -s -m 60 -X POST "$APP_URL/api/streamers/watchlist/rotate")
     if echo "$RESPONSE" | jq -e '.logins' > /dev/null 2>&1; then
         NEW_LIST=$(echo "$RESPONSE" | jq -r '.logins | join(", ")')
         FINAL_MSG="🔄 Watch List rotated: ${NEW_LIST}"
     else
         FINAL_MSG="❌ Watch List rotate failed: ${RESPONSE}"
     fi
-    echo "$FINAL_MSG"
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-         -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+    agent_send "$FINAL_MSG"
     exit 0
 fi
 
@@ -66,15 +66,13 @@ if [ "$#" -eq 2 ] && [ "$1" = "add" ]; then
             ;;
         *)
             FINAL_MSG="❌ Watch List add: bad arg '${2}' — use 't:username' or 'k:username'."
-            echo "$FINAL_MSG"
-            curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-                 -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+            agent_send "$FINAL_MSG"
             exit 1
             ;;
     esac
 
     BODY=$(jq -n --arg login "$LOGIN" --arg platform "$PLATFORM" '{login: $login, platform: $platform}')
-    RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/watchlist/add" \
+    RESPONSE=$(curl -s -m 60 -X POST "$APP_URL/api/streamers/watchlist/add" \
         -H "Content-Type: application/json" \
         -d "$BODY")
 
@@ -84,21 +82,17 @@ if [ "$#" -eq 2 ] && [ "$1" = "add" ]; then
     else
         FINAL_MSG="❌ Watch List add failed: ${RESPONSE}"
     fi
-    echo "$FINAL_MSG"
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-         -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+    agent_send "$FINAL_MSG"
     exit 0
 fi
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 4 ]; then
     FINAL_MSG="❌ Watch List: expects 1 to 4 args like 't:username' or 'k:username', got $#."
-    echo "$FINAL_MSG"
-    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-         -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+    agent_send "$FINAL_MSG"
     exit 1
 fi
 
-echo "🚀 Watch List: parsing $# arg(s)..."
+log "🚀 Watch List: parsing $# arg(s)..."
 
 LOGINS=()
 for ARG in "$@"; do
@@ -111,9 +105,7 @@ for ARG in "$@"; do
             ;;
         *)
             FINAL_MSG="❌ Watch List: bad arg '${ARG}' — use 't:username' or 'k:username'."
-            echo "$FINAL_MSG"
-            curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-                 -d "chat_id=$CHAT_ID" -d "text=${FINAL_MSG}" > /dev/null
+            agent_send "$FINAL_MSG"
             exit 1
             ;;
     esac
@@ -121,7 +113,7 @@ done
 
 BODY=$(printf '%s\n' "${LOGINS[@]}" | jq -R . | jq -s '{logins: .}')
 
-RESPONSE=$(curl -s -X POST "$APP_URL/api/streamers/watchlist" \
+RESPONSE=$(curl -s -m 60 -X POST "$APP_URL/api/streamers/watchlist" \
     -H "Content-Type: application/json" \
     -d "$BODY")
 
@@ -132,8 +124,4 @@ else
     FINAL_MSG="❌ Watch List update failed: ${RESPONSE}"
 fi
 
-echo "$FINAL_MSG"
-
-curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-     -d "chat_id=$CHAT_ID" \
-     -d "text=${FINAL_MSG}" > /dev/null
+agent_send "$FINAL_MSG"
