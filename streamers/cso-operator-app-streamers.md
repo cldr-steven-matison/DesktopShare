@@ -958,6 +958,15 @@ morning with a `streamers` database + role `streamers` on `ssb-postgresql` (cld-
 | **#279** Watchlist grid | `roster_store.list_all/update/hard_delete`; `GET /roster/rows` (all rows + the feed watch list), `POST /roster/add` (the chat ➕ guards, now the shared `_roster_add`), `PATCH /roster/{platform}/{login}` (whitelisted columns; bad `*_status` → 400), `DELETE …?hard=` (soft by default). Frontend: **Watchlist** pill → `RosterGrid` (every column, inline Edit/Save, Confirm on a `needs_review` handle and on pronouns, Deactivate/Reactivate, hard Delete behind `confirm()`, Pin/Unpin via `/watchlist/add|remove`, amber `needs_review` rows, show-inactive toggle). Named `RosterGrid` in code because `WatchList` (the 4-entry feed pin list) already exists. | app `7e5ef92` `fe10a8f` |
 | **#277** shadow mode | `BRAIN_DOOR_URL` (empty = off) + `BRAIN_DOOR_TIMEOUT` in `config.py`; `_shadow_brain_caption` POSTs `{clip_id, streamer, source, title, description, transcript}` **inside** `process_clip`'s `httpx` block after the 3B caption is final; every failure → `brain.error`, never a raise, `caption`/`error` untouched; adds `brain_caption` + `brain` to the processed clip (Kafka `processed_clips` → `GET /queue`). `ClipCard` shows it as the right-hand column beside the caption textarea. Exercised off-pod against a local handler: ok / 404 / bad JSON / timeout all return cleanly with the exact payload shape. **Deployed disabled; waits on the door URL from NvidiaSpark-1; the ≥10-clip gate is not met.** | app `ed087cf` `fe10a8f` |
 
+**#280 (same day, second redeploy, fresh ask):** the "duplicate extraemily entries" in Pending Publish
+were the `clip=Y gif_post=Y` fan-out (`{clip_id}` + `{clip_id}-gif`, same tweet text) rendered
+identically. Frontend-only fix, app `c359de6`: a `-gif` / `.gif` pending entry renders
+`/api/streamers/gif/{base_clip_id}` with a `GIF` badge (others get `CLIP`); buttons say **Post Clip** /
+**Post GIF** (Pending, Clip Review, GIFs tab — `Post GIF again` after a post); Clip Review shows the
+streamer's `Clip · GIF · GIF→X` pills from the processed clip's `paths` (roster-derived) and the Approve
+button reads `Approve (Clip + GIF)` / `(GIF only)` / `(Clip)` — mirroring `approve_clip`'s fan-out
+(`clip` → MP4, `gif_post` → GIF). No backend change.
+
 **Redeploy (one, fresh ask):** ProcessClips 0 queued / 0 active, one pod Running, `MODULES`
 re-read from the pod (`rag,streamers,efm`), `bash scripts/deploy.sh` → new pod Running, the 16
 deployment env names identical before/after, `/roster/rows` 17 rows with the new columns, the
