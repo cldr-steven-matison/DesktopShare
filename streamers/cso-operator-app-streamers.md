@@ -943,6 +943,31 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 
 ## Session History
 
+### Session 25 (2026-08-30) — #276 / #277 / #278 / #279, one redeploy
+
+The four WindowsDesktop issues NvidiaSpark-1 filed off `streamers-new-brain-plan.md`. Facts first,
+including the #275 deploy that was never written down: the roster store went live on prod this
+morning with a `streamers` database + role `streamers` on `ssb-postgresql` (cld-streaming) and
+`STREAMERS_DB_USER` / `STREAMERS_DB_PASSWORD` injected via `kubectl set env` (host/port/db are the
+`config.py` defaults). That makes twelve injected keys, not ten.
+
+| Issue | What shipped | Where |
+|---|---|---|
+| **#278** seed | `.gif_index.json` (150) + `.published_history.json` (500) read out of the pod, plus a full-scan dump of `processed_clips` (149 msgs / 3 partitions → 144 with a transcript) from a one-off in-pod `AIOKafkaConsumer` (no group, no commit). PVC untouched, `.pending_publish.json` never read. | DesktopShare `020e0aa`, `files/issue-226/streamers/seed/` |
+| **#276** Postgres interface | Five additive columns on `streamer` (`display_name`, `aliases text[]`, `pronouns`, `pronouns_status`, `notes`) and the view **`streamer_brain`** (`streamer_key` = `login` / `kick:login`; `pronouns` NULL unless `confirmed`), both as idempotent `_MIGRATIONS` in `roster_store.py` re-run at every startup, applied live by psql first. Role `streamer_brain` = SELECT on the view only (table SELECT/INSERT proven denied). Paired forwards `ssb-postgresql-121:5432` / `-126:5432` added to the running zellij session with `agent-kube-forward.sh`. Password written to `~/.env` on spark-dd06 over ssh. **Verified from the Spark with asyncpg over the tailnet: 17 rows, table denied. LAN path blocked until the Windows firewall rule for 5432 exists.** | app `19b9a5c` `c173ec8`; DesktopShare `8ac553c` (`files/issue-226/streamers/streamer_brain_role.sql`) |
+| **#279** Watchlist grid | `roster_store.list_all/update/hard_delete`; `GET /roster/rows` (all rows + the feed watch list), `POST /roster/add` (the chat ➕ guards, now the shared `_roster_add`), `PATCH /roster/{platform}/{login}` (whitelisted columns; bad `*_status` → 400), `DELETE …?hard=` (soft by default). Frontend: **Watchlist** pill → `RosterGrid` (every column, inline Edit/Save, Confirm on a `needs_review` handle and on pronouns, Deactivate/Reactivate, hard Delete behind `confirm()`, Pin/Unpin via `/watchlist/add|remove`, amber `needs_review` rows, show-inactive toggle). Named `RosterGrid` in code because `WatchList` (the 4-entry feed pin list) already exists. | app `7e5ef92` `fe10a8f` |
+| **#277** shadow mode | `BRAIN_DOOR_URL` (empty = off) + `BRAIN_DOOR_TIMEOUT` in `config.py`; `_shadow_brain_caption` POSTs `{clip_id, streamer, source, title, description, transcript}` **inside** `process_clip`'s `httpx` block after the 3B caption is final; every failure → `brain.error`, never a raise, `caption`/`error` untouched; adds `brain_caption` + `brain` to the processed clip (Kafka `processed_clips` → `GET /queue`). `ClipCard` shows it as the right-hand column beside the caption textarea. Exercised off-pod against a local handler: ok / 404 / bad JSON / timeout all return cleanly with the exact payload shape. **Deployed disabled; waits on the door URL from NvidiaSpark-1; the ≥10-clip gate is not met.** | app `ed087cf` `fe10a8f` |
+
+**Redeploy (one, fresh ask):** ProcessClips 0 queued / 0 active, one pod Running, `MODULES`
+re-read from the pod (`rag,streamers,efm`), `bash scripts/deploy.sh` → new pod Running, the 16
+deployment env names identical before/after, `/roster/rows` 17 rows with the new columns, the
+served bundle carries the Watchlist pill and the brain column. Grid round-trip on `kick/bam`
+(PATCH display/aliases/pronouns/notes → view masks pronouns until Confirm → soft-delete drops it
+from `/roster` → reactivate → full revert; all cross-checked in psql).
+
+Not done, on purpose: no NiFi flow edit, no queue file touched, `StreamersApp.json` still stale
+(README "What's next"), no promotion of `brain_caption` (B5).
+
 ### Session 24 (2026-08-27)
 
 Steven reported streamers + fetching on but only 1 clip after a while. Fetching was fine (the host had rebooted at 16:33 local and FetchClips was only restarted at 17:28); the real fault was **vLLM, which had never served the app on cso-prod-1**. Every `processed_clips` record since the cutover (08-26 21:23 → 08-27 21:55, ~30 clips) was `quoted / topic unclear` or `disqualified: no title` — zero generated captions — and nothing in the UI or logs said so (`_generate_title` swallows exceptions; the caption path falls back to quoted mode).

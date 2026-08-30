@@ -74,6 +74,8 @@ FetchClips        GenerateFlowFile → InvokeHTTP POST /api/streamers/fetch-clip
       ▼
 ProcessClips      ConsumeKafka new_clips → InvokeHTTP POST /api/streamers/process-clip
                   backend: whisper-service:8001/transcribe → vllm-service:8000/v1/chat/completions
+                           → (shadow, #277: POST $BRAIN_DOOR_URL on the DGX Spark → brain_caption
+                              beside caption, never posted; off while BRAIN_DOOR_URL is unset)
                            → PublishKafka processed_clips
       ▼
 Review UI         watch · edit caption · Approve → .pending_publish.json
@@ -135,11 +137,13 @@ cd ~/cso-operator-app && make deploy MODULES=rag,streamers,efm
 registration. `rag` and `efm` only toggle frontend tabs. `MODULES=all` shows the Streamers tab
 but 404s every `/api/streamers/*` call, because the backend checks for the literal string.
 
-**Credentials.** Ten keys, injected with `kubectl set env deploy/cso-operator-app` after any
+**Credentials.** Twelve keys, injected with `kubectl set env deploy/cso-operator-app` after any
 deploy that resets the pod, never in `deployment.yaml` or `configmap.yaml`:
 `NIFI_USERNAME`, `NIFI_PASSWORD`, `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`,
 `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET`, `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`,
-`X_ACCESS_TOKEN_SECRET`. A `deployment.apps/... unchanged` result means they survived — check
+`X_ACCESS_TOKEN_SECRET`, plus `STREAMERS_DB_USER` / `STREAMERS_DB_PASSWORD` for the Postgres
+roster (#275). Optional, same mechanism: `BRAIN_DOOR_URL` (the DGX Spark caption door, #277 —
+unset = shadow mode off). A `deployment.apps/... unchanged` result means they survived — check
 that, not just rollout status. NiFi's own X credentials are separate: they live in the
 `streamers-x-creds` Parameter Context bound to `StreamersApp`.
 
@@ -339,6 +343,11 @@ ones specific to this system.
 - **DST changeover in November** — see the UTC note above.
 - **`StreamersApp.json` snapshot is stale.** The committed export in `cso-operator-app` predates
   the current PG set, including the `PublishClipOffPeakDay` rename. Re-export it.
+- **Promote the Spark brain (B5 in [`streamers-new-brain-plan.md`](streamers-new-brain-plan.md)).**
+  Shadow mode (#277) is built and deployed disabled; it switches on with
+  `kubectl set env deploy/cso-operator-app BRAIN_DOOR_URL=<door>` once NvidiaSpark-1 posts the
+  door. After ≥10 live clips show both captions in review, `brain_caption` → `caption` is its
+  own confirmed step; the 3B path stays as the fallback.
 
 ## The docs in this folder
 

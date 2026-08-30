@@ -43,13 +43,26 @@ fresh database (inserted once, never overwriting) and the **fallback** if the
 database is unreachable — editing them no longer changes a running roster.
 
 To add a streamer: the mod-only chat command `🐟🐟🐟➕ <streamer>` (#273; `k:`
-for Kick — live since listener 0.0.27, 2026-08-30), or a direct `INSERT`/`UPDATE`
-on the table. Keep the roster table above in sync by hand. A row added from chat gets
-its X handle only from a source the streamer controls (Kick profile socials, a
-Twitch-bio x.com link, an X profile linking back); otherwise it's stored as the
-login with `needs_review` — check `SELECT login, x_handle FROM streamer WHERE
-x_handle_status = 'needs_review'` and fix it with `UPDATE`. `bam` →
-`@BAM__MARGERA` was the last hand-added seed example (#174).
+for Kick — live since listener 0.0.27, 2026-08-30), the **Watchlist sub-tab** in the
+Streamers App (#279, 2026-08-30 — the whole table as a grid: inline edit, Deactivate =
+the chat ➖ soft-delete, a separate hard Delete for test rows, Add with the chat path's
+guards, Pin/Unpin to the feed list), or a direct `INSERT`/`UPDATE` on the table. Keep
+the roster table above in sync by hand. A row added from chat or the grid gets its X
+handle only from a source the streamer controls (Kick profile socials, a Twitch-bio
+x.com link, an X profile linking back); otherwise it's stored as the login with
+`needs_review` — the grid highlights those rows amber, and typing the real handle (or
+pressing Confirm) flips them to `confirmed`. `bam` → `@BAM__MARGERA` was the last
+hand-added seed example (#174).
+
+**Identity columns for the DGX Spark caption brain (#276, 2026-08-30):** `display_name`,
+`aliases text[]`, `pronouns` + `pronouns_status` (`confirmed`/`needs_review`) and `notes`
+(tone / caption guidance) on the same table, all hand-entered in the grid — **nothing infers
+pronouns**; typing them stores `needs_review`, an explicit Confirm makes them `confirmed`.
+The Spark reads the **view `streamer_brain`** (`streamer_key` = `login` / `kick:login`,
+`display_name`, `aliases`, `x_handle`, `x_handle_confirmed`, `pronouns` — NULL unless
+confirmed — `pronouns_confirmed`, `notes`, `active`) as role `streamer_brain`, which can
+SELECT that view only, over the `ssb-postgresql-126:5432` / `-121:5432` zellij forwards
+(see `CLAUDE-CHECKIN.md`). Role SQL: `files/issue-226/streamers/streamer_brain_role.sql`.
 
 ## In-channel chat bot
 
