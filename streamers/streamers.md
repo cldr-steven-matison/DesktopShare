@@ -29,13 +29,27 @@
 Clip = caption the clip and post the MP4 to X (the original path). GIF = cut a
 reaction GIF from the clip and post that instead (the automated #173 giphy
 clipping action). A streamer can have both (ExtraEmily) — one approval queues
-both posts. Code mirror: `_STREAMER_PATH_OVERRIDES` in
-`cso-operator-app/backend/services/streamers.py` — keep the two in sync.
+both posts.
 
-To add a streamer: append to `_TWITCH_LOGINS` / `_KICK_LOGINS` (a Kick login is
-carried everywhere as `kick:<login>`), give them an X handle in
-`_STREAMER_CATALOG` (bare login → handle, no `@`), and add the roster row above.
-`bam` → `@BAM__MARGERA` is the worked example (#174).
+**Source of truth since 2026-08-30 (#275): the `streamer` table in the
+`streamers` Postgres database on `ssb-postgresql` (`cld-streaming`)** — one row
+per (platform, login) with the X handle, `x_handle_status`
+(`confirmed`/`needs_review`), the clip/gif/gif_post flags and `active`
+(soft-delete). The app (`backend/services/roster_store.py`) loads it into an
+in-process cache at startup and after every write. The old constants in
+`backend/services/streamers.py` (`_TWITCH_LOGINS`/`_KICK_LOGINS`,
+`_STREAMER_CATALOG`, `_STREAMER_PATH_OVERRIDES`) are now only the **seed** for a
+fresh database (inserted once, never overwriting) and the **fallback** if the
+database is unreachable — editing them no longer changes a running roster.
+
+To add a streamer: the mod-only chat command `🐟🐟🐟➕ <streamer>` (#273; `k:`
+for Kick) once its listener is deployed, or a direct `INSERT`/`UPDATE` on the
+table. Keep the roster table above in sync by hand. A row added from chat gets
+its X handle only from a source the streamer controls (Kick profile socials, a
+Twitch-bio x.com link, an X profile linking back); otherwise it's stored as the
+login with `needs_review` — check `SELECT login, x_handle FROM streamer WHERE
+x_handle_status = 'needs_review'` and fix it with `UPDATE`. `bam` →
+`@BAM__MARGERA` was the last hand-added seed example (#174).
 
 ## In-channel chat bot
 
