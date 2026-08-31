@@ -63,6 +63,8 @@ The Spark reads the **view `streamer_brain`** (`streamer_key` = `login` / `kick:
 confirmed — `pronouns_confirmed`, `notes`, `active`) as role `streamer_brain`, which can
 SELECT that view only, over the `ssb-postgresql-126:5432` / `-121:5432` zellij forwards
 (see `CLAUDE-CHECKIN.md`). Role SQL: `files/issue-226/streamers/streamer_brain_role.sql`.
+Pronouns were populated 2026-08-31 for all 18 rows via the roster PATCH API, all
+`confirmed`: `she/her` for bbjess and ExtraEmily, `he/him` for everyone else.
 
 ## In-channel chat bot
 

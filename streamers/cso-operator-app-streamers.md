@@ -943,6 +943,14 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 
 ## Session History
 
+### Session 26 (2026-08-31) — roster pronouns populated
+
+Filled the #276 identity columns for the whole roster: 18 `PATCH /api/streamers/roster/{platform}/{login}`
+calls (the app path, so the in-process cache reloaded — no direct SQL), setting `pronouns_status=confirmed`
+on every row per Steven's explicit values — `she/her` for `kick/bbjess` and `twitch/extraemily`, `he/him`
+for the other 16. Verified in psql: `streamer_brain` now exposes pronouns on all 18 `streamer_key`s
+(confirmed-only masking passed). No code change, no deploy.
+
 ### Session 25 (2026-08-30) — #276 / #277 / #278 / #279, one redeploy
 
 The four WindowsDesktop issues NvidiaSpark-1 filed off `streamers-new-brain-plan.md`. Facts first,
