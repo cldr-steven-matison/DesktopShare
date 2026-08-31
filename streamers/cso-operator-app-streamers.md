@@ -951,6 +951,21 @@ on every row per Steven's explicit values — `she/her` for `kick/bbjess` and `t
 for the other 16. Verified in psql: `streamer_brain` now exposes pronouns on all 18 `streamer_key`s
 (confirmed-only masking passed). No code change, no deploy.
 
+**#277 shadow mode ENABLED (same day, fresh ask + phone-bridge approval).** The Spark posted door
+contract v2 (raw `video/mp4` body + `X-Clip-Id`/`X-Streamer`/`X-Source`/`X-Title` headers, box
+transcribes and samples frames itself) and the door was proven from inside the app pod first: a real
+14 MB `/clips` MP4 → 200 grounded JSON (caption/topic/grounded/pronouns_ok/visual_summary/transcript,
+~6 s on the box). App change `0d84a9c`: `_shadow_brain_caption` sends the MP4 from `clip_path` with
+those headers (title ascii-stripped — httpx headers are latin-1, titles carry emoji), reply parsing
+unchanged. Deploy ritual: ProcessClips 0 queued/0 active, FetchClips STOPPED, one pod Running,
+MODULES re-read (`rag,streamers,efm`). First build died on a WSL docker credential vsock flake
+(`error getting credentials` on the base-image pull; the `| tail` pipe masked the non-zero exit —
+retry after pre-pulling both bases succeeded). `BRAIN_DOOR_URL=http://192.168.1.203:32111/caption`
++ `BRAIN_DOOR_TIMEOUT=90` went on as a second rollout (code landed with the URL unset, so no clip
+could hit the old-contract window). Verified after both rollouts: one pod Running, 24 injected keys
+intact, app serving. FetchClips was STOPPED at flip time — the ≥10-clip gate counts from the next
+clips that flow. `brain_caption` is never promoted (B5, separate ask).
+
 ### Session 25 (2026-08-30) — #276 / #277 / #278 / #279, one redeploy
 
 The four WindowsDesktop issues NvidiaSpark-1 filed off `streamers-new-brain-plan.md`. Facts first,
