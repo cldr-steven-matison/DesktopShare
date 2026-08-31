@@ -2,8 +2,7 @@
 
 **Plan for [issue #183](https://github.com/cldr-steven-matison/DesktopShare/issues/183).**
 Claude's app for the Waveshare ESP32-S3-Touch-AMOLED-1.8 **V2**: swipe through my X posts like a tiny
-feed, tap to heart one. Sibling app on the same board and the same launcher: **Ember** (Grok,
-StarlinkAI) — issue #184, [`amoled-ember-plan.md`](amoled-ember-plan.md).
+feed, tap to heart one. 
 
 ## Scope — an app, not agent work
 
