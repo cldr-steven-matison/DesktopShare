@@ -1,0 +1,17 @@
+# StreamerBrain door — #272. Exposes the StreamerBrain PG's HandleHttpRequest (listening on
+# 8091 inside mynifi-0) as a NodePort so WindowsDesktop's process_clip can POST /caption at
+# http://192.168.1.203:32111/caption (LAN) or the tailnet address.
+#
+# A plain Service selecting the operator's pod labels — no Nifi CR edit, no pod restart.
+# Streamers demo track; the Nifi CR (files/issue-226/nifi-spark.yaml) is untouched.
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamer-brain-door
+  namespace: cfm-streaming
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/instance: mynifi
+    app.kubernetes.io/name: server
+  ports: [{name: caption, port: 8091, targetPort: 8091, nodePort: 32111}]

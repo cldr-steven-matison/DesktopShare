@@ -1,0 +1,64 @@
+# clip-prep — #282. The StreamerBrain PG's MP4 → 16 kHz wav + sampled frames step, on spark-dd06's k3s.
+# Streamers demo track (not part of the DGX guide's serving tier). No GPU.
+#
+# Image is built with Docker on the box and imported into k3s's own containerd — hence
+# imagePullPolicy: Never (same as files/issue-226/flink-agents/flinkdeployment.yaml):
+#   sg docker -c "docker build -t clip-prep:0.1 files/streamers/clip-prep"
+#   sudo bash -c 'docker save clip-prep:0.1 | k3s ctr images import -'
+#   kubectl apply -f files/streamers/clip-prep.yaml
+# In-cluster address for the PG on mynifi (cfm-streaming): http://clip-prep.streamers.svc.cluster.local:8090
+# It calls whisper itself and hosts the sampled frames (GET /frames/<id>/<n>.jpg) so the
+# NiFi flow carries only small JSON; vLLM pulls the frames by URL.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: streamers
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clip-prep
+  namespace: streamers
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: clip-prep}
+  template:
+    metadata:
+      labels: {app: clip-prep}
+    spec:
+      containers:
+        - name: clip-prep
+          image: clip-prep:0.1
+          imagePullPolicy: Never
+          ports: [{containerPort: 8090}]
+          env:
+            - {name: PORT, value: "8090"}
+            - {name: MAX_BODY_MB, value: "200"}
+            # whisper.cpp on the box's docker tier — LAN-published, reachable from pods
+            - {name: WHISPER_URL, value: "http://192.168.1.203:8003/inference"}
+            # frame_urls are fetched by vLLM (a docker container) → must be the NodePort address
+            - {name: PUBLIC_BASE, value: "http://192.168.1.203:32110"}
+            - {name: FRAME_TTL_S, value: "3600"}
+          resources:
+            requests: {cpu: "500m", memory: "512Mi"}
+            limits: {cpu: "4", memory: "2Gi"}
+          readinessProbe:
+            httpGet: {path: /health, port: 8090}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 8090}
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clip-prep
+  namespace: streamers
+spec:
+  # NodePort so the vLLM docker container can fetch frame_urls at 192.168.1.203:32110
+  # (k3s NodePorts are host ports on this box — no tunnel). In-cluster callers use the
+  # ClusterIP name clip-prep.streamers.svc.cluster.local:8090.
+  type: NodePort
+  selector: {app: clip-prep}
+  ports: [{port: 8090, targetPort: 8090, nodePort: 32110}]
