@@ -1,0 +1,2077 @@
+openapi: 3.1.0
+info:
+  title: Anywhere Cloud Auth API
+  description: |
+    AWC Authentication Service - Policy Administration Point (PAP).
+
+    Provides REST APIs for managing:
+    - SSO configurations (SAML and LDAP providers)
+    - Machine users for machine-to-machine authentication
+    - Roles and role membership for access control
+  version: 0.1.0
+  contact:
+    name: AWC Team
+
+servers:
+  - url: http://localhost:8082
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Service health and version endpoints
+  - name: Session
+    description: Current user session information
+  - name: IDP
+    description: Identity provider discovery
+  - name: SSO Configurations
+    description: Manage SSO provider configurations
+  - name: Machine Users
+    description: Manage machine users for programmatic API access
+  - name: Roles
+    description: Manage roles and role membership
+  - name: Access Keys
+    description: Access key credential provisioning and token exchange
+  - name: Engine Roles
+    description: Engine-scoped role provisioning and lifecycle management
+
+paths:
+  /api/v0/auth/me:
+    get:
+      summary: Get current user
+      operationId: getCurrentUser
+      description: |
+        Returns the authenticated user's identity and assigned roles.
+        Requires the x-awc-username header to be injected by the Knox proxy.
+      tags:
+        - Session
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          description: Unauthenticated — x-awc-username header missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v0/auth/idp/default:
+    get:
+      summary: Get default identity provider
+      operationId: getDefaultIDP
+      description: |
+        Returns the active default identity provider configuration.
+        Always returns 200. When no default has been configured, `configured` is false and all other fields are absent.
+        For SAML providers, includes the SP metadata XML for IdP registration.
+      tags:
+        - IDP
+      responses:
+        '200':
+          description: Default identity provider configuration. `configured` is false when no default has been set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultIDPResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/auth/sso-configurations/test-ldap:
+    post:
+      summary: Test LDAP connection
+      operationId: testLdapConnection
+      description: |
+        Validates an LDAP server connection by dialing the server and performing a bind.
+        Returns a structured error with a reason field on failure.
+      tags:
+        - SSO Configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestLDAPConnectionRequest'
+      responses:
+        '200':
+          description: LDAP connection test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestLDAPConnectionResponse'
+        '400':
+          description: |
+            Connection test failed. The reason field indicates the specific failure:
+            - connection_refused: could not dial the LDAP server
+            - tls_handshake_failed: TLS handshake failed (e.g. invalid CA cert)
+            - bind_failed: bind credentials were rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LDAPTestErrorResponse'
+
+  /api/v0/auth/sso-configurations/test-saml:
+    post:
+      summary: Test SAML connection
+      operationId: testSamlConnection
+      description: |
+        Validates SAML IdP metadata by fetching a URL or parsing supplied XML.
+        Checks that the certificate is valid and uses a strong signature algorithm.
+        Exactly one of idp_metadata_url or idp_metadata_xml must be provided.
+      tags:
+        - SSO Configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestSAMLConnectionRequest'
+      responses:
+        '200':
+          description: SAML connection test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestSAMLConnectionResponse'
+        '400':
+          description: |
+            Validation failed. The reason field indicates the specific failure:
+            - metadata_unreachable: could not fetch the metadata URL
+            - invalid_xml: metadata XML could not be parsed
+            - certificate_expired: IdP certificate is expired
+            - weak_signature_algorithm: IdP certificate uses MD5 or SHA1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SAMLTestErrorResponse'
+
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      description: Simple health check to verify the service process is running
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check
+      operationId: getReady
+      description: Detailed check to verify the service can handle requests
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready to handle requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Service is not available (dependencies unhealthy)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+
+  /version:
+    get:
+      summary: API version
+      operationId: getVersion
+      description: Returns service and API version information
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /api/v0/auth/sso-configurations:
+    get:
+      summary: List all SSO configurations
+      operationId: listSsoConfigurations
+      description: Returns all configured SSO providers
+      tags:
+        - SSO Configurations
+      responses:
+        '200':
+          description: List of SSO configurations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SSOConfiguration'
+    post:
+      summary: Create or replace SSO configuration
+      operationId: createSsoConfiguration
+      description: >
+        Create or replace an SSO provider configuration. At most one configuration
+        per provider_type is allowed. If a configuration with the same provider_type
+        already exists, it is replaced atomically. Returns 201 on fresh create,
+        200 on replace.
+      tags:
+        - SSO Configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSSOConfigRequest'
+      responses:
+        '200':
+          description: Existing SSO configuration replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSOConfiguration'
+        '201':
+          description: SSO configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSOConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v0/auth/sso-configurations/{ssoConfigId}:
+    get:
+      summary: Get SSO configuration
+      operationId: getSsoConfiguration
+      description: Get details of a specific SSO configuration
+      tags:
+        - SSO Configurations
+      parameters:
+        - $ref: '#/components/parameters/SSOConfigId'
+      responses:
+        '200':
+          description: SSO configuration details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSOConfiguration'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update SSO configuration
+      operationId: updateSsoConfiguration
+      description: Update an existing SSO configuration
+      tags:
+        - SSO Configurations
+      parameters:
+        - $ref: '#/components/parameters/SSOConfigId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSSOConfigRequest'
+      responses:
+        '200':
+          description: SSO configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SSOConfiguration'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      summary: Delete SSO configuration
+      operationId: deleteSsoConfiguration
+      description: Remove an SSO configuration
+      tags:
+        - SSO Configurations
+      parameters:
+        - $ref: '#/components/parameters/SSOConfigId'
+      responses:
+        '204':
+          description: SSO configuration deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/auth/machine-users:
+    get:
+      summary: List all machine users
+      operationId: listMachineUsers
+      description: Returns all machine users
+      tags:
+        - Machine Users
+      responses:
+        '200':
+          description: List of machine users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MachineUser'
+    post:
+      summary: Create machine user
+      operationId: createMachineUser
+      description: Create a new machine user for machine-to-machine authentication
+      tags:
+        - Machine Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMachineUserRequest'
+      responses:
+        '201':
+          description: Machine user created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v0/auth/machine-users/{machineUserId}:
+    get:
+      summary: Get machine user
+      operationId: getMachineUser
+      description: Get details of a specific machine user
+      tags:
+        - Machine Users
+      parameters:
+        - $ref: '#/components/parameters/MachineUserId'
+      responses:
+        '200':
+          description: Machine user details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineUser'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update machine user
+      operationId: updateMachineUser
+      description: Update an existing machine user
+      tags:
+        - Machine Users
+      parameters:
+        - $ref: '#/components/parameters/MachineUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMachineUserRequest'
+      responses:
+        '200':
+          description: Machine user updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineUser'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      summary: Delete machine user
+      operationId: deleteMachineUser
+      description: Remove a machine user
+      tags:
+        - Machine Users
+      parameters:
+        - $ref: '#/components/parameters/MachineUserId'
+      responses:
+        '204':
+          description: Machine user deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/auth/roles:
+    get:
+      summary: List all roles
+      operationId: listRoles
+      description: >
+        Returns all roles. Without filters, members are not included (performance).
+        When `name` is provided, returns a single-element array with members populated.
+      tags:
+        - Roles
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Exact role name to filter by. Returns 404 if not found.
+          example: awc-admin
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 63
+          description: |
+            Filter roles by exact scope value. Returns only roles matching this scope.
+            Max 63 characters (Kubernetes namespace name / DNS label limit).
+          example: cai-team-alpha
+      responses:
+        '200':
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      summary: Create role
+      operationId: createRole
+      description: Create a new role for access control
+      tags:
+        - Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v0/auth/roles/lookup:
+    post:
+      summary: Lookup roles for a user
+      operationId: lookupRoles
+      description: |
+        Returns all roles mapped to the given user (directly or via group membership).
+        Called by Knox on every authenticated request to populate the x-awc-roles header.
+        Excluded from ext-authz via notPaths to avoid circular dependency.
+      tags:
+        - Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LookupRolesRequest'
+      responses:
+        '200':
+          description: Roles found (may be empty array if no mappings exist)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LookupRolesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/auth/roles/{roleId}:
+    get:
+      summary: Get role
+      operationId: getRole
+      description: Get details of a specific role including its members
+      tags:
+        - Roles
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Role details with members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update role
+      operationId: updateRole
+      description: Update an existing role
+      tags:
+        - Roles
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      summary: Delete role
+      operationId: deleteRole
+      description: Remove a role (also removes all member associations)
+      tags:
+        - Roles
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '204':
+          description: Role deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/auth/roles/{roleId}/members:
+    post:
+      summary: Add role member
+      operationId: addRoleMember
+      description: >
+        Add a user or group to a role. Idempotent: if the member already belongs
+        to the role, the request succeeds and the existing membership is returned.
+        Role membership is a set — duplicate adds have the same postcondition as
+        a fresh insert and do not produce an error.
+      tags:
+        - Roles
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRoleMemberRequest'
+      responses:
+        '201':
+          description: Member added to role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/auth/roles/{roleId}/members/{memberId}:
+    delete:
+      summary: Remove role member
+      operationId: removeRoleMember
+      description: Remove a user or group from a role
+      tags:
+        - Roles
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+        - $ref: '#/components/parameters/MemberId'
+      responses:
+        '204':
+          description: Member removed from role
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/auth/engine-roles:
+    post:
+      summary: Provision engine-scoped roles
+      operationId: provisionEngineRoles
+      x-internal: true
+      description: |
+        Internal endpoint used by ace-hub during EngineDeployment reconciliation.
+        Not intended for external use.
+
+        Bulk-provision roles for an engine instance. Idempotent — re-calling with
+        the same scope and definitions is a no-op for existing roles.
+      tags:
+        - Engine Roles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionEngineRolesRequest'
+      responses:
+        '200':
+          description: Roles provisioned (or already exist)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisionEngineRolesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Scope ownership conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete all roles for a scope
+      operationId: deleteEngineRoles
+      x-internal: true
+      description: |
+        Internal endpoint used by ace-hub during EngineDeployment teardown.
+        Not intended for external use.
+
+        Deletes all roles (deploy-time and runtime) for the given scope.
+        Cascade-deletes role_members. Idempotent — 204 even if no roles existed.
+      tags:
+        - Engine Roles
+      parameters:
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 63
+          description: |
+            Engine scope to delete roles for.
+            Max 63 characters (Kubernetes namespace name / DNS label limit).
+          example: cai-team-alpha
+      responses:
+        '204':
+          description: Roles deleted (or none existed)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/auth/access-keys/credentials:
+    post:
+      summary: Provision access key credentials
+      operationId: provisionAccessKey
+      description: |
+        Provisions a new client_id/client_secret pair bound to the requesting user's identity.
+        The client_secret is returned once and is not stored by the service.
+      tags:
+        - Access Keys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionAccessKeyRequest'
+      responses:
+        '201':
+          description: Credentials provisioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Request is not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: unauthorized
+        '403':
+          description: Insufficient permissions to provision credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: access denied
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v0/auth/access-keys/token:
+    post:
+      summary: Exchange access key credentials for a session token (OAuth2 client_credentials)
+      operationId: exchangeAccessKeyToken
+      description: |
+        RFC 6749 client_credentials grant. Exchanges a client_id/client_secret pair for a
+        short-lived session token. Credentials can be provided via HTTP Basic authentication
+        (recommended) or as form-encoded body parameters.
+      tags:
+        - Access Keys
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - grant_type
+              properties:
+                grant_type:
+                  type: string
+                  enum:
+                    - client_credentials
+                  description: Must be "client_credentials"
+                  example: client_credentials
+                client_id:
+                  type: string
+                  description: OAuth client ID (alternative to Basic auth header)
+                  example: awc-sa-ci-pipeline-bot
+                client_secret:
+                  type: string
+                  description: OAuth client secret (alternative to Basic auth header)
+                  example: s3cr3t-v4lu3
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessKeyTokenResponse'
+        '400':
+          description: Invalid grant type or request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2TokenErrorResponse'
+              example:
+                error: unsupported_grant_type
+                error_description: "grant_type must be client_credentials"
+        '401':
+          description: Invalid credentials
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+                example: Basic
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2TokenErrorResponse'
+              example:
+                error: invalid_client
+                error_description: Client authentication failed
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2TokenErrorResponse'
+              example:
+                error: invalid_client
+                error_description: "Access denied"
+        '503':
+          description: Authorization server unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2TokenErrorResponse'
+              example:
+                error: server_error
+                error_description: Authorization server unavailable
+
+components:
+  parameters:
+    SSOConfigId:
+      name: ssoConfigId
+      in: path
+      required: true
+      description: UUID of the SSO configuration
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+
+    MachineUserId:
+      name: machineUserId
+      in: path
+      required: true
+      description: UUID of the machine user
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440001
+
+    RoleId:
+      name: roleId
+      in: path
+      required: true
+      description: UUID or name of the role
+      schema:
+        type: string
+        example: awc-admin
+
+    MemberId:
+      name: memberId
+      in: path
+      required: true
+      description: UUID of the role member
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440003
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Resource not found
+
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Invalid request body
+
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Resource with this name already exists
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Internal server error
+
+    ServiceUnavailable:
+      description: Upstream service unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Knox service unavailable
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "SSO configuration not found"
+        message:
+          type: string
+          description: Detailed error message
+          example: "No configuration with ID: 550e8400-e29b-41d4-a716-446655440000"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+          description: Always returns "healthy" if service is running
+          example: healthy
+
+    ReadyResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ready, unavailable]
+          description: Service readiness status
+          example: ready
+        checks:
+          type: array
+          description: Individual dependency check results
+          items:
+            $ref: '#/components/schemas/DependencyCheck'
+
+    DependencyCheck:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          description: Name of the dependency
+          example: postgres
+        status:
+          type: string
+          enum: [up, down]
+          description: Dependency status
+          example: up
+        message:
+          type: string
+          description: Error message when status is down
+          example: unable to connect to database
+
+    VersionResponse:
+      type: object
+      required:
+        - service_version
+        - api_version
+      properties:
+        service_version:
+          type: string
+          description: Service build version
+          example: 1.0.0
+        api_version:
+          type: string
+          description: API version
+          example: v1
+
+    SSOConfiguration:
+      type: object
+      required:
+        - id
+        - name
+        - provider_type
+        - enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the SSO configuration
+          example: 550e8400-e29b-41d4-a716-446655440000
+        name:
+          type: string
+          maxLength: 100
+          description: Human-readable name for this SSO configuration
+          example: Corporate SAML
+        provider_type:
+          type: string
+          enum: [saml, ldap]
+          description: Type of SSO provider
+          example: saml
+        enabled:
+          type: boolean
+          description: Whether this SSO configuration is active
+          example: true
+        is_default:
+          type: boolean
+          description: Whether this is the default SSO configuration used for login
+          example: false
+        saml_config:
+          $ref: '#/components/schemas/SAMLConfig'
+          description: SAML-specific configuration (only present for SAML provider type)
+        ldap_config:
+          $ref: '#/components/schemas/LDAPConfig'
+          description: LDAP-specific configuration (only present for LDAP provider type)
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the configuration was created
+          example: "2026-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the configuration was last updated
+          example: "2026-01-15T10:30:00Z"
+
+    CreateSSOConfigRequest:
+      type: object
+      required:
+        - name
+        - provider_type
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: Human-readable name for this SSO configuration
+          example: Corporate SAML
+        provider_type:
+          type: string
+          enum: [saml, ldap]
+          description: Type of SSO provider
+          example: saml
+        enabled:
+          type: boolean
+          default: false
+          description: Whether this SSO configuration should be active
+          example: true
+        is_default:
+          type: boolean
+          default: true
+          description: Whether this should be the default SSO configuration used for login
+          example: true
+        saml_config:
+          $ref: '#/components/schemas/CreateSAMLConfigRequest'
+          description: SAML-specific configuration (required when provider_type is saml)
+        ldap_config:
+          $ref: '#/components/schemas/CreateLDAPConfigRequest'
+          description: Always required. Configures the LDAP user directory used by engines and (when provider_type is ldap) as the authentication provider.
+
+    UpdateSSOConfigRequest:
+      type: object
+      description: At least one field must be provided
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: New name for the SSO configuration
+          example: Updated SAML Name
+        enabled:
+          type: boolean
+          description: Enable or disable the SSO configuration
+          example: false
+        is_default:
+          type: boolean
+          description: Set this SSO configuration as the default for login
+          example: true
+        saml_config:
+          $ref: '#/components/schemas/UpdateSAMLConfigRequest'
+          description: Update SAML-specific configuration (only valid for SAML provider type)
+        ldap_config:
+          $ref: '#/components/schemas/UpdateLDAPConfigRequest'
+          description: Update LDAP-specific configuration.
+
+    SAMLConfig:
+      type: object
+      required:
+        - sp_entity_id
+        - callback_url
+        - name_id_format
+        - authn_requests_signed
+        - want_assertions_signed
+        - max_auth_lifetime
+        - username_attribute
+        - created_at
+        - updated_at
+      properties:
+        idp_metadata_url:
+          type: string
+          format: uri
+          readOnly: true
+          description: URL to IdP metadata XML. Present when config was created with a URL; absent for XML-upload configs.
+          example: https://idp.example.com/metadata
+        idp_metadata_xml:
+          type: string
+          readOnly: true
+          description: Raw SAML IdP metadata XML. Present when config was created via XML upload; absent for URL-based configs.
+          example: "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+        sp_entity_id:
+          type: string
+          maxLength: 500
+          description: >-
+            Service Provider entity identifier registered in the IdP as the Audience URI.
+            Auto-generated from the gateway_url host if not provided at creation time.
+          example: https://knox.awc.example/gateway/awc-saml/api/v1/websso
+        callback_url:
+          type: string
+          format: uri
+          readOnly: true
+          description: ACS (Assertion Consumer Service) URL — derived from gateway_url and stored internally
+          example: https://knox.awc.example/gateway/knoxsso/api/v1/websso?pac4jCallback=true&client_name=SAML2Client
+        name_id_format:
+          type: string
+          maxLength: 200
+          description: SAML NameID format URN
+          example: urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        authn_requests_signed:
+          type: boolean
+          description: Whether to sign authentication requests
+          example: false
+        want_assertions_signed:
+          type: boolean
+          description: Whether to require signed assertions from IdP
+          example: true
+        max_auth_lifetime:
+          type: integer
+          minimum: 1
+          description: Maximum authentication session lifetime in seconds
+          example: 3600
+        username_attribute:
+          type: string
+          maxLength: 200
+          description: SAML attribute to use for username
+          example: NameID
+        groups_attribute:
+          type: string
+          maxLength: 200
+          description: SAML attribute to use for groups (optional)
+          example: memberOf
+        sp_metadata:
+          type: string
+          readOnly: true
+          description: >-
+            Generated SAML SP metadata XML for registering this service provider with the IdP.
+            Derived from sp_entity_id and callback_url at response time; never stored.
+          example: "<?xml version=\"1.0\"?><EntityDescriptor ...>"
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the configuration was created
+          example: "2026-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the configuration was last updated
+          example: "2026-01-15T10:30:00Z"
+
+    CreateSAMLConfigRequest:
+      type: object
+      required:
+        - gateway_url
+      description: Exactly one of idp_metadata_url or idp_metadata_xml must be provided.
+      properties:
+        idp_metadata_url:
+          type: string
+          format: uri
+          description: URL to IdP metadata XML. Required when idp_metadata_xml is not provided. Mutually exclusive with idp_metadata_xml.
+          example: https://idp.example.com/metadata
+        idp_metadata_xml:
+          type: string
+          description: Raw SAML IdP metadata XML. Required when idp_metadata_url is not provided. Mutually exclusive with idp_metadata_url. Use for on-prem or air-gapped IdPs that do not expose a public metadata URL.
+          example: "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+        sp_entity_id:
+          type: string
+          maxLength: 500
+          description: >-
+            Service Provider entity identifier to register in the IdP as the Audience URI.
+            Auto-generated from the gateway_url host if not provided.
+            Generated value follows the pattern: https://knox.{cluster-domain}/gateway/awc-saml/api/v1/websso
+          example: https://knox.awc.example/gateway/awc-saml/api/v1/websso
+        gateway_url:
+          type: string
+          format: uri
+          description: >-
+            Cluster gateway URL (e.g. https://awc.example). The Knox external URL
+            is derived as https://knox.{cluster-domain}. The ACS callback URL and sp_entity_id
+            are both generated from this value — callers do not need to construct them manually.
+          example: https://awc.example
+        name_id_format:
+          type: string
+          maxLength: 200
+          description: SAML NameID format URN
+          default: urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+          example: urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        authn_requests_signed:
+          type: boolean
+          default: false
+          description: Whether to sign authentication requests
+          example: false
+        want_assertions_signed:
+          type: boolean
+          default: true
+          description: Whether to require signed assertions from IdP
+          example: true
+        max_auth_lifetime:
+          type: integer
+          minimum: 1
+          default: 3600
+          description: Maximum authentication session lifetime in seconds
+          example: 3600
+        username_attribute:
+          type: string
+          maxLength: 200
+          default: NameID
+          description: SAML attribute to use for username
+          example: NameID
+        groups_attribute:
+          type: string
+          maxLength: 200
+          description: SAML attribute to use for groups (optional)
+          example: memberOf
+
+    UpdateSAMLConfigRequest:
+      type: object
+      description: At least one field must be provided. idp_metadata_url and idp_metadata_xml are mutually exclusive.
+      minProperties: 1
+      properties:
+        idp_metadata_url:
+          type: string
+          format: uri
+          description: URL to IdP metadata XML. Mutually exclusive with idp_metadata_xml. Setting this clears any stored idp_metadata_xml.
+          example: https://idp.example.com/new-metadata
+        idp_metadata_xml:
+          type: string
+          description: Raw SAML IdP metadata XML. Mutually exclusive with idp_metadata_url. Setting this clears any stored idp_metadata_url.
+          example: "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+        sp_entity_id:
+          type: string
+          maxLength: 500
+          description: >-
+            Service Provider entity identifier. This is auto-generated at creation time
+            and is stable — most callers do not need to set this.
+          example: https://knox.awc.example/gateway/awc-saml/api/v1/websso
+        gateway_url:
+          type: string
+          format: uri
+          description: >-
+            Cluster gateway URL. Provide to update the Knox external hostname used for the ACS
+            callback URL and (if auto-generated) the sp_entity_id.
+          example: https://awc.example
+        name_id_format:
+          type: string
+          maxLength: 200
+          description: SAML NameID format URN
+          example: urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
+        authn_requests_signed:
+          type: boolean
+          description: Whether to sign authentication requests
+          example: false
+        want_assertions_signed:
+          type: boolean
+          description: Whether to require signed assertions from IdP
+          example: true
+        max_auth_lifetime:
+          type: integer
+          minimum: 1
+          description: Maximum authentication session lifetime in seconds
+          example: 3600
+        username_attribute:
+          type: string
+          maxLength: 200
+          description: SAML attribute to use for username
+          example: NameID
+        groups_attribute:
+          type: string
+          maxLength: 200
+          description: SAML attribute to use for groups (optional)
+          example: memberOf
+
+    UpdateLDAPConfigRequest:
+      type: object
+      description: >-
+        Partial update for LDAP configuration. At least one field must be provided.
+      minProperties: 1
+      properties:
+        ldap_url:
+          type: string
+          description: LDAP server URL (ldap:// or ldaps://)
+          example: "ldaps://corp-ad.example.com:636"
+        ca_cert:
+          type: string
+          description: PEM-encoded CA certificate for TLS verification
+          example: "-----BEGIN CERTIFICATE-----\nMIID..."
+        ldap_bind_dn:
+          type: string
+          description: Distinguished name for LDAP bind
+          example: "CN=svc-bind,OU=ServiceAccounts,DC=corp,DC=example,DC=com"
+        ldap_bind_password:
+          type: string
+          description: Password for LDAP bind (write-only, never returned in responses)
+          example: "s3cret"
+        user_search_base:
+          type: string
+          description: Base DN for user searches
+          example: "OU=Users,DC=corp,DC=example,DC=com"
+        user_search_filter:
+          type: string
+          description: LDAP search filter for users
+          example: "(&(objectClass=person)(sAMAccountName={0}))"
+        group_search_base:
+          type: string
+          description: Base DN for group searches
+          example: "OU=Groups,DC=corp,DC=example,DC=com"
+        group_search_filter:
+          type: string
+          description: LDAP search filter for groups
+          example: "(&(objectClass=group)(member={0}))"
+        email_attribute:
+          type: string
+          description: LDAP attribute for user email
+          example: "mail"
+
+    MachineUser:
+      type: object
+      required:
+        - id
+        - name
+        - enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the machine user
+          example: 550e8400-e29b-41d4-a716-446655440001
+        name:
+          type: string
+          maxLength: 100
+          description: Human-readable name for this machine user
+          example: ci-pipeline-bot
+        description:
+          type: string
+          maxLength: 500
+          description: Description of what this machine user is used for
+          example: CI/CD pipeline automation account
+        client_id:
+          type: string
+          maxLength: 100
+          readOnly: true
+          description: OAuth client ID (populated when Knox integration is enabled)
+          example: awc-sa-ci-pipeline-bot
+        enabled:
+          type: boolean
+          description: Whether this machine user is active
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the machine user was created
+          example: "2026-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the machine user was last updated
+          example: "2026-01-15T10:30:00Z"
+
+    CreateMachineUserRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: Human-readable name for this machine user
+          example: ci-pipeline-bot
+        description:
+          type: string
+          maxLength: 500
+          description: Description of what this machine user is used for
+          example: CI/CD pipeline automation account
+
+    UpdateMachineUserRequest:
+      type: object
+      description: At least one field must be provided
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          description: New name for the machine user
+          example: updated-bot-name
+        description:
+          type: string
+          maxLength: 500
+          description: Updated description
+          example: Updated description
+        enabled:
+          type: boolean
+          description: Enable or disable the machine user
+          example: false
+
+    Role:
+      type: object
+      required:
+        - id
+        - name
+        - scope
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the role
+          example: 550e8400-e29b-41d4-a716-446655440002
+        name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Role name. Must be a valid RFC 1123 label: lowercase alphanumeric or '-',
+            must not start or end with '-', max 63 characters.
+          example: cluster-admin
+        description:
+          type: string
+          maxLength: 500
+          description: Description of what this role grants access to
+          example: Full administrative access to all clusters
+        scope:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Scope identifier for the role. Must be a valid RFC 1123 label: lowercase
+            alphanumeric or '-', must not start or end with '-', max 63 characters.
+            Examples: platform, ml-workspace-abc123, spark-cluster-1
+          example: platform
+        members:
+          type: array
+          readOnly: true
+          description: Users and groups assigned to this role (only included in GET by ID)
+          items:
+            $ref: '#/components/schemas/RoleMember'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the role was created
+          example: "2026-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the role was last updated
+          example: "2026-01-15T10:30:00Z"
+
+    RoleMember:
+      type: object
+      required:
+        - id
+        - member_type
+        - member_id
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for this role membership
+          example: 550e8400-e29b-41d4-a716-446655440003
+        member_type:
+          type: string
+          enum: [user, group]
+          description: Type of member (user or group from IdP)
+          example: user
+        member_id:
+          type: string
+          maxLength: 255
+          description: Username or group name from the identity provider
+          example: john.doe@example.com
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the member was added to the role
+          example: "2026-01-15T10:30:00Z"
+
+    CreateRoleRequest:
+      type: object
+      required:
+        - name
+        - scope
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Role name. Must be a valid RFC 1123 label: lowercase alphanumeric or '-',
+            must not start or end with '-', max 63 characters.
+          example: cluster-admin
+        description:
+          type: string
+          maxLength: 500
+          description: Description of what this role grants access to
+          example: Full administrative access to all clusters
+        scope:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Scope identifier for the role. Must be a valid RFC 1123 label: lowercase
+            alphanumeric or '-', must not start or end with '-', max 63 characters.
+            Examples: platform, ml-workspace-abc123, spark-cluster-1
+          example: platform
+
+    UpdateRoleRequest:
+      type: object
+      description: At least one field must be provided
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            New role name. Must be a valid RFC 1123 label: lowercase alphanumeric or '-',
+            must not start or end with '-', max 63 characters.
+          example: updated-role-name
+        description:
+          type: string
+          maxLength: 500
+          description: Updated description
+          example: Updated role description
+        scope:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Scope identifier for the role. Must be a valid RFC 1123 label: lowercase
+            alphanumeric or '-', must not start or end with '-', max 63 characters.
+            Examples: platform, ml-workspace-abc123, spark-cluster-1
+          example: platform
+
+    AddRoleMemberRequest:
+      type: object
+      required:
+        - member_type
+        - member_id
+      properties:
+        member_type:
+          type: string
+          enum: [user, group]
+          description: Type of member to add
+          example: user
+        member_id:
+          type: string
+          maxLength: 255
+          description: Username or group name from the identity provider
+          example: john.doe@example.com
+
+    LookupRolesRequest:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          maxLength: 255
+          description: Authenticated user's identifier from the IdP assertion
+          example: alice
+        groups:
+          type: array
+          maxItems: 5000
+          description: User's groups resolved by Knox from customer's LDAP. Omit or empty if no groups.
+          items:
+            type: string
+            maxLength: 255
+          example: ["platform-admins", "ml-team", "engineering"]
+
+    LookupRolesResponse:
+      type: object
+      required:
+        - user_id
+        - roles
+      properties:
+        user_id:
+          type: string
+          description: Echo of the requested user ID
+          example: alice
+        roles:
+          type: array
+          description: Deduplicated set of roles mapped to this user (direct + group-based)
+          items:
+            $ref: '#/components/schemas/RoleAssignment'
+
+    RoleAssignment:
+      type: object
+      required:
+        - scope
+        - name
+      properties:
+        scope:
+          type: string
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: Scope of the role (RFC 1123 label)
+          example: platform
+        name:
+          type: string
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: Name of the role (RFC 1123 label)
+          example: awc-admin
+
+    CurrentUserResponse:
+      type: object
+      required:
+        - username
+        - roles
+      properties:
+        username:
+          type: string
+          description: The authenticated user's username as injected by the Knox proxy
+          example: john.doe@example.com
+        roles:
+          type: array
+          description: All roles assigned to the user. Each entry is in "scope:name" format.
+          items:
+            type: string
+          example: ["platform:awc-admin", "ws-1:viewer"]
+
+    DefaultIDPResponse:
+      type: object
+      required:
+        - configured
+      properties:
+        configured:
+          type: boolean
+          description: Whether a default identity provider has been configured. When false, all other fields are absent.
+          example: true
+        name:
+          type: string
+          description: Display name of the default SSO configuration. Present only when configured is true.
+          example: Corporate SAML
+        provider_type:
+          type: string
+          enum: [saml, ldap]
+          description: Type of the default identity provider. Present only when configured is true.
+          example: saml
+        saml_config:
+          $ref: '#/components/schemas/SAMLConfig'
+          description: Full SAML configuration including generated sp_metadata (present when provider_type is saml)
+        ldap_config:
+          $ref: '#/components/schemas/LDAPConfig'
+          description: LDAP configuration (present when provider_type is ldap; bind password is never returned)
+
+    TestSAMLConnectionRequest:
+      type: object
+      description: Exactly one of idp_metadata_url or idp_metadata_xml must be provided.
+      properties:
+        idp_metadata_url:
+          type: string
+          format: uri
+          description: URL to the IdP SAML metadata XML. Mutually exclusive with idp_metadata_xml.
+          example: https://idp.example.com/metadata
+        idp_metadata_xml:
+          type: string
+          description: Raw SAML IdP metadata XML to validate directly without a network fetch. Mutually exclusive with idp_metadata_url.
+          example: "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+
+    TestSAMLConnectionResponse:
+      type: object
+      required:
+        - success
+        - idp_entity_id
+      properties:
+        success:
+          type: boolean
+          description: Whether the connection test succeeded
+          example: true
+        idp_entity_id:
+          type: string
+          description: Entity ID parsed from the IdP metadata
+          example: https://idp.example.com
+        certificate_expires_at:
+          type: string
+          format: date-time
+          description: Expiry timestamp of the IdP signing certificate
+          example: "2027-01-15T10:30:00Z"
+
+    SAMLTestErrorResponse:
+      type: object
+      required:
+        - error
+        - reason
+      properties:
+        error:
+          type: string
+          description: Human-readable error description
+          example: metadata fetch failed
+        reason:
+          type: string
+          enum: [metadata_unreachable, invalid_xml, certificate_expired, weak_signature_algorithm]
+          description: Machine-readable failure reason
+          example: metadata_unreachable
+
+    LDAPConfig:
+      type: object
+      required:
+        - id
+        - ldap_url
+        - ldap_bind_dn
+        - user_search_base
+        - user_search_filter
+        - group_search_base
+        - group_search_filter
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the LDAP configuration
+          example: 550e8400-e29b-41d4-a716-446655440010
+        ldap_url:
+          type: string
+          description: LDAP server URL (ldap:// or ldaps://)
+          example: ldap://ldap.example.com:389
+        ca_cert:
+          type: string
+          description: PEM-encoded CA certificate for LDAPS (optional)
+          example: "-----BEGIN CERTIFICATE-----\n..."
+        ldap_bind_dn:
+          type: string
+          description: Distinguished name used to bind to the LDAP server
+          example: cn=admin,dc=example,dc=com
+        user_search_base:
+          type: string
+          description: Base DN for user searches
+          example: ou=users,dc=example,dc=com
+        user_search_filter:
+          type: string
+          description: LDAP filter for user lookup ({0} is replaced with the username)
+          example: "(uid={0})"
+        group_search_base:
+          type: string
+          description: Base DN for group searches
+          example: ou=groups,dc=example,dc=com
+        group_search_filter:
+          type: string
+          description: LDAP filter for group membership ({0} is replaced with the user DN)
+          example: "(member={0})"
+        email_attribute:
+          type: string
+          description: LDAP attribute for user email (optional)
+          example: mail
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the configuration was created
+          example: "2026-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the configuration was last updated
+          example: "2026-01-15T10:30:00Z"
+
+    CreateLDAPConfigRequest:
+      type: object
+      required:
+        - ldap_url
+        - ldap_bind_dn
+        - ldap_bind_password
+        - user_search_base
+        - user_search_filter
+        - group_search_base
+        - group_search_filter
+      properties:
+        ldap_url:
+          type: string
+          description: LDAP server URL (ldap:// or ldaps://)
+          example: ldap://ldap.example.com:389
+        ca_cert:
+          type: string
+          description: PEM-encoded CA certificate for LDAPS (optional)
+          example: "-----BEGIN CERTIFICATE-----\n..."
+        ldap_bind_dn:
+          type: string
+          description: Distinguished name used to bind to the LDAP server
+          example: cn=admin,dc=example,dc=com
+        ldap_bind_password:
+          type: string
+          format: password
+          description: Password for the bind DN (write-only; never returned in responses)
+          example: s3cr3t
+        user_search_base:
+          type: string
+          description: Base DN for user searches
+          example: ou=users,dc=example,dc=com
+        user_search_filter:
+          type: string
+          description: LDAP filter for user lookup ({0} is replaced with the username)
+          example: "(uid={0})"
+        group_search_base:
+          type: string
+          description: Base DN for group searches
+          example: ou=groups,dc=example,dc=com
+        group_search_filter:
+          type: string
+          description: LDAP filter for group membership ({0} is replaced with the user DN)
+          example: "(member={0})"
+        email_attribute:
+          type: string
+          description: LDAP attribute for user email (optional)
+          example: mail
+
+    TestLDAPConnectionRequest:
+      type: object
+      required:
+        - ldap_url
+        - ldap_bind_dn
+        - ldap_bind_password
+      properties:
+        ldap_url:
+          type: string
+          description: LDAP server URL to test
+          example: ldap://ldap.example.com:389
+        ca_cert:
+          type: string
+          description: PEM-encoded CA certificate for LDAPS (optional)
+          example: "-----BEGIN CERTIFICATE-----\n..."
+        ldap_bind_dn:
+          type: string
+          description: Distinguished name to bind with
+          example: cn=admin,dc=example,dc=com
+        ldap_bind_password:
+          type: string
+          format: password
+          description: Password for the bind DN
+          example: s3cr3t
+
+    TestLDAPConnectionResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Whether the LDAP connection test succeeded
+          example: true
+
+    LDAPTestErrorResponse:
+      type: object
+      required:
+        - error
+        - reason
+      properties:
+        error:
+          type: string
+          description: Human-readable error description
+          example: connection refused
+        reason:
+          type: string
+          enum: [connection_refused, tls_handshake_failed, bind_failed]
+          description: Machine-readable failure reason
+          example: connection_refused
+
+    ProvisionAccessKeyRequest:
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 255
+          description: Human-readable label for the credential set (stored in Knox)
+          example: ci-pipeline credentials
+
+    AccessKeyResponse:
+      type: object
+      required:
+        - client_id
+        - client_secret
+        - principal
+        - issued_at
+      properties:
+        client_id:
+          type: string
+          readOnly: true
+          description: OAuth client ID provisioned by Knox
+          example: awc-sa-ci-pipeline-bot
+        client_secret:
+          type: string
+          readOnly: true
+          description: >-
+            OAuth client secret provisioned by Knox.
+            Returned once at issuance. Not stored by the service.
+          example: s3cr3t-v4lu3
+        principal:
+          type: string
+          readOnly: true
+          description: Username of the user these credentials are bound to
+          example: bob
+        issued_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the credentials were issued
+          example: "2026-03-18T10:30:00Z"
+
+    OAuth2TokenErrorResponse:
+      type: object
+      required:
+        - error
+        - error_description
+      properties:
+        error:
+          type: string
+          description: RFC 6749 error code
+          enum:
+            - invalid_client
+            - unsupported_grant_type
+            - invalid_request
+            - server_error
+          example: invalid_client
+        error_description:
+          type: string
+          description: Human-readable error description
+          example: Client authentication failed
+
+    AccessKeyTokenResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+      properties:
+        access_token:
+          type: string
+          readOnly: true
+          description: Short-lived access token for authenticating downstream requests
+          example: eyJhbGciOiJSUzI1NiJ9...
+        token_type:
+          type: string
+          readOnly: true
+          description: Token type; always Bearer
+          example: Bearer
+        expires_in:
+          type: integer
+          readOnly: true
+          description: Token lifetime in seconds
+          example: 3600
+
+    ProvisionEngineRolesRequest:
+      type: object
+      required:
+        - scope
+        - engine_type
+        - role_definitions
+      properties:
+        scope:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Engine scope identifier. Must be a valid RFC 1123 label: lowercase
+            alphanumeric or '-', start and end with alphanumeric, max 63 chars.
+          example: cai-team-alpha
+        engine_type:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Engine type identifier (e.g., cloudera-ai, cloudera-data-flow)
+          example: cloudera-ai
+        role_definitions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: Role definitions to provision for this scope
+          items:
+            $ref: '#/components/schemas/EngineRoleDefinition'
+        deployer_id:
+          type: string
+          description: User ID of the deployer (for auto-assigning default roles)
+          example: alice@cloudera.com
+        default_for_deployer:
+          type: array
+          description: Role names from role_definitions to auto-assign to deployer_id
+          items:
+            type: string
+          example: ["ml-admin"]
+
+    EngineRoleDefinition:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          description: |
+            Role name. Must be a valid RFC 1123 label: lowercase alphanumeric
+            or '-', start and end with alphanumeric, max 63 chars. Unique within scope.
+          example: ml-admin
+        description:
+          type: string
+          maxLength: 500
+          description: Human-readable description shown in AWC console role assignment UI
+          example: Full administrative access to ML workspace
+
+    ProvisionEngineRolesResponse:
+      type: object
+      required:
+        - scope
+        - roles
+      properties:
+        scope:
+          type: string
+          description: Engine scope the roles were provisioned under
+          example: cai-team-alpha
+        roles:
+          type: array
+          description: Provisioned role results
+          items:
+            $ref: '#/components/schemas/ProvisionedRole'
+
+    ProvisionedRole:
+      type: object
+      required:
+        - id
+        - name
+        - state
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: UUID of the provisioned role
+          example: 550e8400-e29b-41d4-a716-446655440010
+        name:
+          type: string
+          description: Role name
+          example: ml-admin
+        state:
+          type: string
+          enum: [created, already_exists]
+          description: Whether the role was newly created or already existed
+          example: created
+
+  securitySchemes:
+    JwtAuthentication:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HTTP Authorization Bearer header using a JWT
+    basicAuth:
+      type: http
+      scheme: basic
+      description: OAuth2 client credentials via HTTP Basic authentication (client_id:client_secret)
+
+security:
+  - JwtAuthentication: []

@@ -1,0 +1,2861 @@
+openapi: 3.1.0
+info:
+  title: Anywhere Cloud Console API
+  description: |
+    AWC Console REST API for managing clusters, applications, and deployments.
+
+    This API provides:
+    - Cluster creation and management
+    - Application catalog and deployment
+    - Real-time status updates via Server-Sent Events (SSE)
+    - Integration with Taikun API for cluster provisioning
+    - PostgreSQL database for persistent storage
+
+    ## SSE Support
+
+    The following endpoints provide Server-Sent Events (SSE) for real-time updates:
+    - `GET /api/v0/console/blueprint-deployments/events` - SSE stream for blueprint deployment updates
+    - `GET /api/v0/console/clusters/events` - SSE stream for cluster updates
+    - `GET /api/v0/console/engine-deployments/events` - SSE stream for engine deployment updates
+    - `GET /api/v0/console/experiences/events` - SSE stream for experience updates (deprecated)
+
+    **SSE Behavior:**
+    - Initial data sent immediately upon connection
+    - Updates sent only when data changes (efficient, not every N seconds)
+    - Keepalive comments (`: keepalive`) sent every 30 seconds if no data updates
+    - Change detection using SHA-256 hash of JSON payload
+    - Supports same query parameters as non-SSE endpoints (e.g., `?status=ready`)
+
+  version: 0.7.0
+  contact:
+    name: AWC Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://awc-console.example.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Service health and readiness checks
+  - name: Marketplace
+    description: Marketplace engines and blueprints (flattened across catalogs)
+  - name: Infrastructure
+    description: Compute infrastructure information (Taikun API)
+  - name: Flavors
+    description: VM flavor/instance type management (Taikun API)
+  - name: Clusters
+    description: Kubernetes cluster management
+  - name: Deployments
+    description: Application deployment management (Experiences)
+  - name: Upgrade
+    description: Anywhere Cloud control plane upgrade management
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      description: Simple health check to verify the service process is running
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+
+  /ready:
+    get:
+      summary: Readiness check
+      operationId: getReady
+      description: |
+        Detailed check to verify the service can handle requests.
+        Checks PostgreSQL database and Taikun API connectivity.
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready to handle requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+              example:
+                status: ready
+                checks:
+                  - name: postgres
+                    status: up
+                  - name: taikun
+                    status: up
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+              example:
+                status: unavailable
+                checks:
+                  - name: postgres
+                    status: down
+                    message: Database connection failed
+                  - name: taikun
+                    status: down
+                    message: Taikun API connection failed
+
+  /version:
+    get:
+      summary: API version information
+      operationId: getVersion
+      tags:
+        - Health
+      responses:
+        '200':
+          description: API version information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+              example:
+                service_version: "0.7.0"
+                api_version: "v0"
+
+  /api/v0/console/engines:
+    get:
+      summary: List engines across catalogs
+      operationId: listEngines
+      description: |
+        Returns engine parent tiles flattened across all catalogs, each with its
+        version drill-down. The catalog (OCI registry prefix) is an internal sync
+        detail; pass `?catalogId=` to scope to a single catalog. The list view
+        omits per-version `configSchema` — fetch a single engine via
+        `GET /engines/{engineId}` to get it.
+      tags:
+        - Marketplace
+      parameters:
+        - $ref: '#/components/parameters/CatalogIdFilter'
+      responses:
+        '200':
+          description: List of engines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Engine'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/console/engines/{engineId}:
+    get:
+      summary: Get a single engine with per-version config schemas
+      operationId: getEngineDetail
+      description: |
+        Returns one engine parent with every version's `configSchema`. The
+        per-instance config form at configure time is built from the engine
+        version the user selects. `engineId` is globally unique.
+      tags:
+        - Marketplace
+      parameters:
+        - $ref: '#/components/parameters/EngineId'
+      responses:
+        '200':
+          description: Engine detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Engine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/console/blueprints:
+    get:
+      summary: List blueprints across catalogs
+      operationId: listBlueprints
+      description: |
+        Returns blueprint parent tiles flattened across all catalogs, each with
+        its registry-present version drill-down. Pass `?catalogId=` to scope to a
+        single catalog. The version `appId` is the deploy entry point passed to
+        deployApp.
+      tags:
+        - Marketplace
+      parameters:
+        - $ref: '#/components/parameters/CatalogIdFilter'
+      responses:
+        '200':
+          description: List of blueprints
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Blueprint'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/console/blueprints/{blueprintId}:
+    get:
+      summary: Get lightweight blueprint detail with versions
+      operationId: getBlueprintDetail
+      description: |
+        Returns lightweight blueprint detail with version dropdown data and an
+        explicit latest version identifier. Use
+        `GET /blueprints/{blueprintId}/versions/{blueprintVersionId}` for selected
+        version detail (UI metadata, hardware tiers, engines).
+      tags:
+        - Marketplace
+      parameters:
+        - $ref: '#/components/parameters/BlueprintId'
+      responses:
+        '200':
+          description: Blueprint detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlueprintDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/console/blueprints/{blueprintId}/versions/{blueprintVersionId}:
+    get:
+      summary: Get selected blueprint version detail
+      operationId: getBlueprintVersionDetail
+      description: |
+        Returns selected blueprint version detail for the detail/deploy UX:
+        optional UI metadata (`about`, `aboutUrl`, `tierInfo`), full hardware
+        tiers (including node groups), and engines with compatible versions.
+        Config schema is intentionally excluded and should be fetched on demand
+        per selected engine version.
+      tags:
+        - Marketplace
+      parameters:
+        - $ref: '#/components/parameters/BlueprintId'
+        - $ref: '#/components/parameters/BlueprintVersionId'
+      responses:
+        '200':
+          description: Blueprint version detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlueprintVersionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/console/engine-versions/{engineVersionId}/config-schema:
+    get:
+      summary: Get config schema for one engine version
+      operationId: getEngineVersionConfigSchema
+      description: |
+        Returns the UI config schema for a single engine version. Use this
+        endpoint for dynamic form generation when selected engine versions
+        change in the deploy flow.
+      tags:
+        - Marketplace
+      parameters:
+        - $ref: '#/components/parameters/EngineVersionId'
+      responses:
+        '200':
+          description: Engine version config schema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EngineVersionConfigSchemaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/console/infrastructure:
+    get:
+      summary: List cloud credentials / compute infrastructure
+      operationId: listComputeInfrastructure
+      description: |
+        Returns all cloud credentials visible to the current Taikun user, each with
+        its associated provider and region. Data is fetched from the Taikun API.
+
+        Use the optional `cloudCredentialId` query parameter to filter the list to a
+        single credential (useful when the caller only needs one entry).
+      tags:
+        - Infrastructure
+      parameters:
+        - name: cloudCredentialId
+          in: query
+          description: |
+            When provided, the response is filtered to the single credential with this ID.
+            Returns 404 if the credential is not found.
+          schema:
+            type: integer
+          example: 42
+      responses:
+        '200':
+          description: List of cloud credentials with infrastructure details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CloudCredential'
+              example:
+                - cloudCredentialId: 392
+                  cloudCredentialName: osc1-sjc
+                  provider: OPENSTACK
+                  region: default
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v0/console/flavors:
+    get:
+      summary: List available VM flavors
+      operationId: listFlavors
+      description: |
+        Returns a flat list of available VM flavors (instance types) for the current
+        compute infrastructure. Data is fetched from Taikun API.
+
+        **Without `appId`:** returns all flavors, optionally filtered by `minCPU` / `minRAM`.
+
+        **With `appId` only:** returns flavors satisfying the highest resource bar across
+        all node groups in the blueprint. `minCPU` and `minRAM` are ignored.
+
+        **With `appId` + `nodeGroupId`:** returns flavors that exactly match the
+        requirements of that specific node group — `minCPU`, `minRAM`, and GPU requirement.
+        If the node group has `hasGPU: true`, only GPU-enabled flavors are returned;
+        if `hasGPU: false` (or not set), only non-GPU flavors are returned.
+
+        The response format is always a flat array — same shape in all modes.
+        Each flavor now includes a `hasGPU` field.
+      tags:
+        - Flavors
+      parameters:
+        - name: appId
+          in: query
+          description: |
+            Filter flavors to meet the blueprint's node group resource requirements.
+            When combined with `nodeGroupId`, filters for that specific group's CPU,
+            RAM, and GPU requirements. When used alone, applies the maximum requirements
+            across all node groups. `minCPU` and `minRAM` are ignored when `appId` is set.
+          schema:
+            type: integer
+          example: 21
+        - name: nodeGroupId
+          in: query
+          description: |
+            ID of a specific node group within the blueprint (e.g. `cai-gpu-nodes`).
+            Requires `appId`. When provided, flavors are filtered to exactly match
+            that node group's `minCPU`, `minRAM`, and GPU requirement (`hasGPU`).
+            GPU node groups return only GPU-enabled flavors; CPU-only groups return
+            only non-GPU flavors.
+          schema:
+            type: string
+          example: cai-gpu-nodes
+        - name: hardwareTierId
+          in: query
+          description: |
+            Hardware tier name within the blueprint (e.g. `default`). Defaults to
+            `default` when omitted. Required with `appId` + `nodeGroupId` to locate
+            the node group within the correct tier.
+          schema:
+            type: string
+            default: default
+          example: default
+        - name: minCPU
+          in: query
+          description: Filter flavors with at least this many CPUs (ignored when appId is set)
+          schema:
+            type: integer
+            minimum: 1
+          example: 8
+        - name: minRAM
+          in: query
+          description: Filter flavors with at least this much RAM in GB (ignored when appId is set)
+          schema:
+            type: integer
+            minimum: 1
+          example: 16
+        - name: cloudCredentialName
+          in: query
+          description: |
+            Cloud credential name (as returned by `GET /api/v0/console/infrastructure`).
+            When provided, fetches flavors from that specific cloud credential instead of
+            the project-default one. Returns 404 if the name is not found.
+          schema:
+            type: string
+          example: osc1-sjc
+      responses:
+        '200':
+          description: List of available flavors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Flavor'
+              examples:
+                unfiltered:
+                  summary: All flavors (no params)
+                  value:
+                    - name: c04m04
+                      cpu: 4
+                      ram: 4
+                      hasGPU: false
+                    - name: c08m16
+                      cpu: 8
+                      ram: 16
+                      hasGPU: false
+                    - name: c64m64
+                      cpu: 64
+                      ram: 64
+                      hasGPU: false
+                byApp:
+                  summary: Filtered by appId (meets highest blueprint minimums, no GPU filter)
+                  value:
+                    - name: c08m16
+                      cpu: 8
+                      ram: 16
+                      hasGPU: false
+                    - name: c16m32
+                      cpu: 16
+                      ram: 32
+                      hasGPU: false
+                    - name: c32m64
+                      cpu: 32
+                      ram: 64
+                      hasGPU: false
+                byNodeGroupGPU:
+                  summary: Filtered by appId + nodeGroupId for a GPU node group
+                  value:
+                    - name: g08m32gpu1
+                      cpu: 8
+                      ram: 32
+                      hasGPU: true
+                    - name: g16m64gpu2
+                      cpu: 16
+                      ram: 64
+                      hasGPU: true
+                byNodeGroupCPU:
+                  summary: Filtered by appId + nodeGroupId for a CPU-only node group
+                  value:
+                    - name: c08m16
+                      cpu: 8
+                      ram: 16
+                      hasGPU: false
+                    - name: c16m32
+                      cpu: 16
+                      ram: 32
+                      hasGPU: false
+                filtered:
+                  summary: Filtered by minCPU=8, minRAM=16
+                  value:
+                    - name: c08m16
+                      cpu: 8
+                      ram: 16
+                      hasGPU: false
+                    - name: c16m32
+                      cpu: 16
+                      ram: 32
+                      hasGPU: false
+
+  /api/v0/console/clusters:
+    get:
+      summary: List all deployed clusters (JSON snapshot)
+      operationId: listDeployedClusters
+      description: |
+        Returns a JSON snapshot of all Kubernetes clusters that have been deployed.
+        Data is sourced from the PostgreSQL database.
+
+        **For real-time updates, use:** `GET /api/v0/console/clusters/events` (SSE)
+
+        **Filtering:**
+        - By status: `?status=ready`, `?status=failed`, `?status=pending`
+
+        **Note:** Status filter is case-insensitive.
+      tags:
+        - Clusters
+      parameters:
+        - name: status
+          in: query
+          description: Filter by cluster status (case-insensitive)
+          schema:
+            type: string
+            enum: [pending, cluster_creating, installing_core_services, ready, failed, deleting, delete_failed]
+          example: ready
+      responses:
+        '200':
+          description: List of deployed clusters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeployedCluster'
+              examples:
+                ready:
+                  summary: Cluster ready (no statusReason)
+                  value:
+                    - clusterId: cluster-034
+                      name: final-api-test-cluster
+                      status: ready
+                      diagnosticDownloadUrl: "https://diagnostics.default.awc.example/api/v1/diagnostics/download"
+                      infrastructure: osc1-sjc
+                      kubernetesVersion: v1.33.5
+                      nodes: 4
+                      createdOn: "2026-02-12T20:10:14Z"
+                failed:
+                  summary: Cluster failed (with statusReason)
+                  value:
+                    - clusterId: cluster-035
+                      name: broken-cluster
+                      status: failed
+                      statusReason: "Taikun project creation failed: quota exceeded"
+                      infrastructure: osc1-sjc
+                      kubernetesVersion: v1.33.5
+                      nodes: 4
+                      createdOn: "2026-02-13T10:00:00Z"
+
+  /api/v0/console/clusters/{id}:
+    delete:
+      summary: Delete a cluster
+      operationId: deleteCluster
+      description: |
+        Initiates deletion of a cluster and all its associated experiences.
+
+        The operation returns `202 Accepted` immediately. The actual deletion runs
+        asynchronously in the background:
+        1. Cluster and all its experiences are immediately marked `deleting`.
+        2. The backing Taikun project is deleted (force delete, nodes torn down).
+        3. Taikun is polled every 15 seconds until the project is confirmed gone (max 10 minutes).
+        4. The cluster row is removed from the database; experiences are cascade-deleted.
+
+        Clients should subscribe to `GET /api/v0/console/clusters/events` (SSE) to track progress.
+        On success the cluster and experiences disappear from the stream. On failure the cluster
+        status is set to `delete_failed` with a reason — the client can retry the DELETE.
+      tags:
+        - Clusters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Cluster ID (e.g. `cluster-025` or `25`)
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Cluster deletion initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: cluster deletion initiated
+        "400":
+          description: Invalid cluster ID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Cluster is already being deleted or in delete_failed state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  status:
+                    type: string
+
+  /api/v0/console/clusters/events:
+    get:
+      summary: Stream deployed clusters (SSE)
+      operationId: listDeployedClustersEvents
+      description: |
+        Server-Sent Events (SSE) stream for real-time cluster updates.
+
+        **Behavior:**
+        - Initial data sent immediately upon connection
+        - Updates sent **only when data changes** (efficient!)
+        - Keepalive comments (`: keepalive`) sent every 30 seconds if no updates
+        - Uses SHA-256 hash to detect data changes
+
+        **Filtering:**
+        - Same as JSON endpoint: `?status=ready`
+
+        **Client Requirements:**
+        - Must handle SSE protocol (EventSource API in browsers)
+        - Should reconnect on connection loss
+      tags:
+        - Clusters
+      parameters:
+        - name: status
+          in: query
+          description: Filter by cluster status (case-insensitive)
+          schema:
+            type: string
+            enum: [pending, cluster_creating, installing_core_services, ready, failed, deleting, delete_failed]
+          example: ready
+      responses:
+        '200':
+          description: SSE stream of cluster updates
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Server-Sent Events stream. Each `data:` event contains a JSON array
+                  of clusters. Updates sent only when data changes.
+                  Keepalive comments sent every 30 seconds.
+              example: |
+                data: [{"clusterId":"cluster-034","name":"final-api-test-cluster","status":"cluster_creating","diagnosticDownloadUrl":"https://diagnostics.default.awc.example/api/v1/diagnostics/download",...}]
+
+                : keepalive
+
+                data: [{"clusterId":"cluster-034","name":"final-api-test-cluster","status":"ready","diagnosticDownloadUrl":"https://diagnostics.default.awc.example/api/v1/diagnostics/download",...}]
+
+  /api/v0/console/experiences:
+    get:
+      summary: List all experiences (JSON snapshot)
+      operationId: listExperiences
+      deprecated: true
+      description: |
+        **DEPRECATED.** Use `GET /api/v0/console/blueprint-deployments` and
+        `GET /api/v0/console/engine-deployments` (and their `/events`
+        counterparts) instead. This endpoint will be removed once deprecation
+        logs confirm no external callers.
+
+        Returns a JSON snapshot of all experience instances (deployed applications) across
+        all clusters. Data is sourced from the PostgreSQL database.
+
+        **For real-time updates, use:** `GET /api/v0/console/experiences/events` (SSE)
+
+        **Filtering:**
+        - By status: `?status=running`
+        - By cluster ID (numeric): `?clusterId=30`
+        - Combined: `?status=running&clusterId=30`
+      tags:
+        - Deployments
+      parameters:
+        - name: status
+          in: query
+          description: Filter by experience status
+          schema:
+            type: string
+            enum: [pending, cluster_creating, installing_core_services, deploying_experience, deployed, degraded, failed, running, cluster_deleting, cluster_delete_failed]
+          example: running
+        - name: clusterId
+          in: query
+          description: Filter by cluster ID (numeric, not formatted string)
+          schema:
+            type: integer
+          example: 30
+      responses:
+        '200':
+          description: List of experiences
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Experience'
+              examples:
+                running:
+                  summary: Experience running (with version and landingPageUrl)
+                  value:
+                    - id: deploy-034
+                      name: final-api-test-exp
+                      appName: kuberay-operator
+                      clusterId: cluster-034
+                      clusterName: final-api-test-cluster
+                      status: running
+                      version: "1.56.0"
+                      landingPageUrl: "https://cai.cluster.example.com"
+                      createdOn: "2026-02-11T20:26:43Z"
+                failed:
+                  summary: Experience failed (with statusReason, no landingPageUrl)
+                  value:
+                    - id: deploy-035
+                      name: broken-exp
+                      appName: kuberay-operator
+                      clusterId: cluster-034
+                      clusterName: final-api-test-cluster
+                      status: failed
+                      version: "1.56.0"
+                      statusReason: "Helm install failed: timed out waiting for the condition"
+                      createdOn: "2026-02-13T10:00:00Z"
+
+  /api/v0/console/blueprint-deployments:
+    get:
+      summary: List all blueprint deployments (JSON snapshot)
+      operationId: listBlueprintDeployments
+      description: |
+        Returns a JSON snapshot of all blueprint deployment instances across all clusters.
+        Data is sourced from the PostgreSQL database.
+
+        **For real-time updates, use:** `GET /api/v0/console/blueprint-deployments/events` (SSE)
+      tags:
+        - Deployments
+      responses:
+        '200':
+          description: List of blueprint deployments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlueprintDeployment'
+              examples:
+                deployed:
+                  summary: Blueprint deployment deployed
+                  value:
+                    - id: 42
+                      serviceName: etl-insta-dev
+                      blueprintName: cai
+                      blueprintVersion: "1.2.0"
+                      status: deployed
+                      createdAt: "2026-07-20T10:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/console/blueprint-deployments/events:
+    get:
+      summary: Stream blueprint deployments (SSE)
+      operationId: listBlueprintDeploymentEvents
+      description: |
+        Server-Sent Events (SSE) stream for real-time blueprint deployment updates.
+
+        **Behavior:**
+        - Initial data sent immediately upon connection
+        - Updates sent **only when data changes** (efficient!)
+        - Keepalive comments (`: keepalive`) sent every 30 seconds if no updates
+        - Uses SHA-256 hash to detect data changes
+      tags:
+        - Deployments
+      responses:
+        '200':
+          description: SSE stream of blueprint deployment updates
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Server-Sent Events stream. Each `data:` event contains a JSON array
+                  of blueprint deployments. Updates sent only when data changes.
+                  Keepalive comments sent every 30 seconds.
+              example: |
+                data: [{"id":42,"serviceName":"etl-insta-dev","blueprintName":"cai","blueprintVersion":"1.2.0","status":"deploying","createdAt":"2026-07-20T10:00:00Z"}]
+
+                : keepalive
+
+                data: [{"id":42,"serviceName":"etl-insta-dev","blueprintName":"cai","blueprintVersion":"1.2.0","status":"deployed","createdAt":"2026-07-20T10:00:00Z"}]
+
+  /api/v0/console/engine-deployments:
+    get:
+      summary: List all engine deployments (JSON snapshot)
+      operationId: listEngineDeployments
+      description: |
+        Returns a JSON snapshot of all engine deployment instances across all clusters.
+        Data is sourced from the PostgreSQL database.
+
+        **For real-time updates, use:** `GET /api/v0/console/engine-deployments/events` (SSE)
+      tags:
+        - Deployments
+      responses:
+        '200':
+          description: List of engine deployments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EngineDeployment'
+              examples:
+                deployed:
+                  summary: Engine deployment deployed
+                  value:
+                    - id: 101
+                      blueprintDeploymentId: 42
+                      serviceName: etl-insta-dev
+                      instanceName: etl-insta-dev-airflow
+                      engineName: Apache Airflow
+                      clusterId: 7
+                      clusterName: prod-cluster
+                      status: deployed
+                      engineVersion: "2.9.1"
+                      landingPageUrl: "https://airflow.cluster.example.com"
+                      cloudCredentialProvider: "OPENSTACK"
+                      createdAt: "2026-07-20T10:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v0/console/engine-deployments/events:
+    get:
+      summary: Stream engine deployments (SSE)
+      operationId: listEngineDeploymentEvents
+      description: |
+        Server-Sent Events (SSE) stream for real-time engine deployment updates.
+
+        **Behavior:**
+        - Initial data sent immediately upon connection
+        - Updates sent **only when data changes** (efficient!)
+        - Keepalive comments (`: keepalive`) sent every 30 seconds if no updates
+        - Uses SHA-256 hash to detect data changes
+      tags:
+        - Deployments
+      responses:
+        '200':
+          description: SSE stream of engine deployment updates
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Server-Sent Events stream. Each `data:` event contains a JSON array
+                  of engine deployments. Updates sent only when data changes.
+                  Keepalive comments sent every 30 seconds.
+              example: |
+                data: [{"id":101,"blueprintDeploymentId":42,"serviceName":"etl-insta-dev","instanceName":"etl-insta-dev-airflow","engineName":"Apache Airflow","clusterId":7,"clusterName":"prod-cluster","status":"deploying","engineVersion":"2.9.1","createdAt":"2026-07-20T10:00:00Z"}]
+
+                : keepalive
+
+                data: [{"id":101,"blueprintDeploymentId":42,"serviceName":"etl-insta-dev","instanceName":"etl-insta-dev-airflow","engineName":"Apache Airflow","clusterId":7,"clusterName":"prod-cluster","status":"deployed","engineVersion":"2.9.1","landingPageUrl":"https://airflow.cluster.example.com","createdAt":"2026-07-20T10:00:00Z"}]
+
+  /api/v0/console/validateDeployment:
+    post:
+      summary: Validate a deployment before submitting
+      operationId: validateDeployment
+      description: |
+        Runs pre-flight checks against the given cluster configuration without
+        creating any cloud resources. Call this before `POST /api/v0/deployApp`
+        to surface quota or configuration errors immediately in the UI.
+
+        **Checks performed:**
+        - OpenStack instance quota (bastion + masters + workers vs available quota)
+
+        If the quota API is unavailable the response will contain a warning but
+        `valid` will be `false` to avoid silent over-provisioning.
+      tags:
+        - Deployments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateDeploymentRequest'
+            example:
+              cloudCredentialName: "OPENSTACK : osc1-sjc"
+              clusterConfig:
+                kubernetesVersion: v1.33.5
+                bastionNode:
+                  flavor: c02m04
+                  diskSize: 50
+                masterNodeGroups:
+                  - name: master
+                    flavor: c04m08
+                    count: 1
+                    diskSize: 50
+                workerNodeGroups:
+                  - name: cai-cpu-nodes
+                    flavor: c16m32
+                    count: 3
+                    diskSize: 200
+      responses:
+        '200':
+          description: Validation result (always 200 — check `valid` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateDeploymentResponse'
+              examples:
+                valid:
+                  summary: Quota sufficient
+                  value:
+                    valid: true
+                invalid:
+                  summary: Quota exceeded
+                  value:
+                    valid: false
+                    errors:
+                      - "Insufficient OpenStack quota: need 5 instances but only 2 available (limit 20, used 18)"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v0/console/experiences/events:
+    get:
+      summary: Stream experiences (SSE)
+      operationId: listExperiencesEvents
+      deprecated: true
+      description: |
+        **DEPRECATED.** Use `GET /api/v0/console/blueprint-deployments/events` or
+        `GET /api/v0/console/engine-deployments/events` instead. This endpoint will
+        be removed once deprecation logs confirm no external callers.
+
+        Server-Sent Events (SSE) stream for real-time experience updates.
+
+        **Behavior:**
+        - Initial data sent immediately upon connection
+        - Updates sent **only when data changes** (efficient!)
+        - Keepalive comments (`: keepalive`) sent every 30 seconds if no updates
+        - Uses SHA-256 hash to detect data changes
+
+        **Filtering:**
+        - Same as JSON endpoint: `?status=deployed&clusterId=30`
+
+        **Client Requirements:**
+        - Must handle SSE protocol (EventSource API in browsers)
+        - Should reconnect on connection loss
+      tags:
+        - Deployments
+      parameters:
+        - name: status
+          in: query
+          description: Filter by experience status
+          schema:
+            type: string
+            enum: [pending, cluster_creating, installing_core_services, deploying_experience, deployed, degraded, failed, running, cluster_deleting, cluster_delete_failed]
+          example: deployed
+        - name: clusterId
+          in: query
+          description: Filter by cluster ID (numeric)
+          schema:
+            type: integer
+          example: 30
+      responses:
+        '200':
+          description: SSE stream of experience updates
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Server-Sent Events stream. Each `data:` event contains a JSON array
+                  of experiences. Updates sent only when data changes.
+                  Keepalive comments sent every 30 seconds.
+              example: |
+                data: [{"id":"deploy-034","name":"final-api-test-exp","status":"deploying_experience",...}]
+
+                : keepalive
+
+                data: [{"id":"deploy-034","name":"final-api-test-exp","status":"deployed",...}]
+
+  /api/v0/console/deployApp:
+    post:
+      summary: Deploy an application
+      operationId: deployApp
+      description: |
+        Initiates an asynchronous deployment of an application by:
+        1. Creating a new Kubernetes cluster via Taikun API
+        2. Storing cluster and experience metadata in PostgreSQL database
+        3. Launching a Kubernetes Job to:
+           - Wait for cluster to be ready
+           - Install the application via Helm
+
+        The operation returns immediately with `202 Accepted`.
+        Use `listExperiences` and `listDeployedClusters` to monitor progress.
+
+        **Status Flow:**
+        - Cluster: pending → cluster_creating → installing_core_services → ready (or failed)
+        - Experience: cluster_creating → installing_core_services → deploying_experience → deployed (or failed)
+      tags:
+        - Deployments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployAppRequest'
+            example:
+              clusterName: my-cai-cluster
+              appId: 7
+              experienceName: my-cai-exp
+              cloudCredentialName: "AWS : awc-aws-2"
+              clusterConfig:
+                kubernetesVersion: v1.33.5
+                bastionNode:
+                  flavor: t3.small
+                  diskSize: 50
+                masterNodeGroups:
+                  - name: master
+                    flavor: m6a.xlarge
+                    count: 1
+                    diskSize: 50
+                workerNodeGroups:
+                  - name: cai-cpu-nodes
+                    flavor: m6a.4xlarge
+                    count: 3
+                    diskSize: 200
+                  - name: cai-gpu-nodes
+                    flavor: g4dn.xlarge
+                    count: 1
+                    diskSize: 200
+      responses:
+        '202':
+          description: Deployment initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeployAppResponse'
+              example:
+                clusterId: cluster-035
+                deployments:
+                  - instanceName: cai
+                    deploymentId: deploy-035
+                status: Pending
+                message: Deployment initiated successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v0/console/upgrade/versions:
+    get:
+      summary: List available Anywhere Cloud upgrade versions
+      operationId: listUpgradeVersions
+      description: |
+        Returns the current Anywhere Cloud version and a list of versions available for upgrade.
+        Version ordering follows the catalog source today; release-date ordering will be added
+        once release metadata is available. Each version may include its release
+        date and the highest CVE severity fixed in that release relative to its immediate
+        predecessor when that metadata is present.
+      tags:
+        - Upgrade
+      responses:
+        '200':
+          description: Available upgrade versions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpgradeVersionsResponse'
+              example:
+                currentVersion: "2.3.0"
+                versions:
+                  - version: "2.5.0"
+                    releaseDate: "2026-05-20"
+                    fixedCveSeverity: null
+                  - version: "2.4.0"
+                    releaseDate: "2026-03-10"
+                    fixedCveSeverity: Critical
+        '503':
+          description: Unable to fetch available versions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Unable to fetch available versions
+
+  /api/v0/console/upgrade:
+    post:
+      summary: Initiate Anywhere Cloud upgrade
+      operationId: upgradeConsole
+      description: |
+        Triggers an upgrade of Anywhere Cloud to the specified version. This does not upgrade
+        workload clusters.
+
+        This endpoint is idempotent:
+        - Calling it while an upgrade is already in progress returns 202 with no side effects.
+          When the requested `targetVersion` differs from the in-flight upgrade, the response
+          includes both versions so callers can see the request was not applied.
+        - Calling it with the same `targetVersion` as a failed upgrade re-triggers the Taikun
+          sync without re-running catalog version edit (sync-only retry).
+        - Versions must appear in `GET /api/v0/console/upgrade/versions`; the current version,
+          older versions, and unknown versions are rejected with 400.
+
+        Use `GET /api/v0/console/upgrade/status` to poll for progress.
+      tags:
+        - Upgrade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiateUpgradeRequest'
+            example:
+              targetVersion: "2.5.0"
+      responses:
+        '202':
+          description: Upgrade initiated or retried
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                properties:
+                  message:
+                    type: string
+                  inProgressVersion:
+                    type: string
+                    description: Target version of the upgrade currently running
+                  requestedVersion:
+                    type: string
+                    description: targetVersion from the request body (present when already in progress)
+              examples:
+                initiated:
+                  value:
+                    message: Upgrade initiated
+                retried:
+                  value:
+                    message: Upgrade retry initiated
+                in_progress:
+                  value:
+                    message: Upgrade already in progress
+                in_progress_different_target:
+                  value:
+                    message: Upgrade to 2.5.0 already in progress; requested version 2.6.0 was not applied
+                    inProgressVersion: "2.5.0"
+                    requestedVersion: "2.6.0"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '503':
+          description: Upgrade service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Upgrade service unavailable
+
+  /api/v0/console/upgrade/status:
+    get:
+      summary: Get current upgrade status
+      operationId: getUpgradeStatus
+      description: |
+        Returns the current state of the Anywhere Cloud upgrade process, including
+        ordered steps and substeps with their individual statuses.
+
+        This endpoint is read-only. Terminal status transitions are driven by a
+        background reconciler and may lag the live Taikun deployment by up to
+        ~15 seconds when the async workflow goroutine is not running.
+
+        **Polling behavior:**
+        - Call once on page load to determine if an upgrade is active.
+        - If `status` is `in_progress`, poll every ~5 seconds.
+        - Stop polling when `status` is `not_started`, `completed`, or `failed`.
+        - After calling `POST /api/v0/console/upgrade`, begin polling.
+
+        **Status semantics:**
+        - `completed` requires both the Taikun umbrella deployment and all changed
+          platform component releases to be healthy. Completion may lag umbrella
+          readiness while components finish rolling out.
+        - After umbrella readiness, the Rolling Upgrade step may gain additional
+          dynamic substeps (one per upgraded component). Substep names vary by
+          release and are not fixed across versions.
+        - `completed` reflects the most recent upgrade attempt and persists until a new upgrade is started.
+        - Failure detail is carried on step and substep `statusReason` fields.
+        - The rollout workflow times out after 15 minutes; if Taikun completes later,
+          call `POST /api/v0/console/upgrade` again with the same `targetVersion`.
+
+        **Note:** During the upgrade, Anywhere Cloud may experience brief downtime.
+        The client should handle connection failures gracefully and retry.
+      tags:
+        - Upgrade
+      responses:
+        '200':
+          description: Current upgrade status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpgradeStatusResponse'
+              examples:
+                not_started:
+                  summary: No upgrade in progress
+                  value:
+                    status: not_started
+                    targetVersion: null
+                    steps: []
+                in_progress:
+                  summary: Upgrade in progress
+                  value:
+                    status: in_progress
+                    targetVersion: "2.5.0"
+                    steps:
+                      - name: Pre-flight health checks
+                        description: Check upgradability of Anywhere Cloud
+                        status: completed
+                        statusReason: null
+                        substeps:
+                          - name: Anywhere Cloud app discovered
+                            status: completed
+                            statusReason: null
+                          - name: Deployment reachable
+                            status: completed
+                            statusReason: null
+                      - name: Rolling Upgrade
+                        description: Update the catalog version and roll out the new release
+                        status: in_progress
+                        statusReason: null
+                        substeps:
+                          - name: Catalog version updated
+                            status: completed
+                            statusReason: null
+                          - name: Rollout sync triggered
+                            status: completed
+                            statusReason: null
+                          - name: Deployment ready at target version
+                            status: completed
+                            statusReason: null
+                          - name: awc-auth
+                            status: in_progress
+                            statusReason: null
+                          - name: awc-console
+                            status: not_started
+                            statusReason: null
+                      - name: Post-upgrade validation
+                        description: Confirm Anywhere Cloud is running the target version
+                        status: not_started
+                        statusReason: null
+                        substeps: []
+                completed:
+                  summary: Upgrade finished successfully
+                  value:
+                    status: completed
+                    targetVersion: "2.5.0"
+                    steps:
+                      - name: Pre-flight health checks
+                        description: Check upgradability of Anywhere Cloud
+                        status: completed
+                        statusReason: null
+                        substeps:
+                          - name: Anywhere Cloud app discovered
+                            status: completed
+                            statusReason: null
+                          - name: Deployment reachable
+                            status: completed
+                            statusReason: null
+                      - name: Rolling Upgrade
+                        description: Update the catalog version and roll out the new release
+                        status: completed
+                        statusReason: null
+                        substeps:
+                          - name: Catalog version updated
+                            status: completed
+                            statusReason: null
+                          - name: Rollout sync triggered
+                            status: completed
+                            statusReason: null
+                          - name: Deployment ready at target version
+                            status: completed
+                            statusReason: null
+                      - name: Post-upgrade validation
+                        description: Confirm Anywhere Cloud is running the target version
+                        status: completed
+                        statusReason: null
+                        substeps: []
+                failed:
+                  summary: Upgrade failed
+                  value:
+                    status: failed
+                    targetVersion: "2.5.0"
+                    steps:
+                      - name: Pre-flight health checks
+                        description: Check upgradability of Anywhere Cloud
+                        status: completed
+                        statusReason: null
+                        substeps:
+                          - name: Anywhere Cloud app discovered
+                            status: completed
+                            statusReason: null
+                          - name: Deployment reachable
+                            status: completed
+                            statusReason: null
+                      - name: Rolling Upgrade
+                        description: Update the catalog version and roll out the new release
+                        status: failed
+                        statusReason: "rollout sync failed: deployment orchestrator error"
+                        substeps:
+                          - name: Catalog version updated
+                            status: completed
+                            statusReason: null
+                          - name: Rollout sync triggered
+                            status: failed
+                            statusReason: "rollout sync failed: deployment orchestrator error"
+                          - name: Deployment ready at target version
+                            status: not_started
+                            statusReason: null
+        '503':
+          description: Upgrade status service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Upgrade status service unavailable
+
+components:
+  parameters:
+    CatalogIdFilter:
+      name: catalogId
+      in: query
+      required: false
+      description: |
+        Optional filter scoping the list to a single catalog
+        (marketplace_catalogs.id). Omit to list across all catalogs.
+      schema:
+        type: integer
+      example: 1
+    EngineId:
+      name: engineId
+      in: path
+      required: true
+      description: Engine identifier (marketplace_engines.id), globally unique
+      schema:
+        type: integer
+      example: 5
+    BlueprintId:
+      name: blueprintId
+      in: path
+      required: true
+      description: Blueprint identifier (marketplace_blueprints.id), globally unique
+      schema:
+        type: integer
+      example: 8
+    BlueprintVersionId:
+      name: blueprintVersionId
+      in: path
+      required: true
+      description: Blueprint version identifier (marketplace_blueprint_versions.id)
+      schema:
+        type: integer
+      example: 10
+    EngineVersionId:
+      name: engineVersionId
+      in: path
+      required: true
+      description: Engine version identifier (marketplace_engine_versions.id)
+      schema:
+        type: integer
+      example: 50
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Engine not found
+
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Invalid request body
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Cluster name already exists
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Failed to retrieve engines
+
+  schemas:
+    Engine:
+      type: object
+      description: An engine parent tile with its version drill-down. Marketing fields are denormalized on the parent from its latest version (I8).
+      required:
+        - engineId
+        - name
+        - displayName
+        - versions
+      properties:
+        engineId:
+          type: integer
+          description: Engine ID (marketplace_engines.id)
+          readOnly: true
+          example: 5
+        name:
+          type: string
+          description: Stable machine name of the engine
+          example: cai-plugin
+        displayName:
+          type: string
+          description: Human-readable engine name shown in the catalog tile
+          example: Cloudera AI Plugin
+        description:
+          type: string
+          description: Short marketing description of the engine
+          example: Runtime plugin for CAI workloads
+        operator:
+          type: string
+          description: Operator that reconciles this engine
+          readOnly: true
+          example: cai-operator
+        latestVersion:
+          type: string
+          description: Highest-semver version string (joined from latest_version_id)
+          readOnly: true
+          example: "1.56.0"
+        versions:
+          type: array
+          description: All versions of this engine, newest first
+          items:
+            $ref: '#/components/schemas/EngineVersion'
+
+    EngineVersion:
+      type: object
+      required:
+        - versionId
+        - version
+        - requiresEmbeddedRegistry
+      properties:
+        versionId:
+          type: integer
+          description: Engine version ID (marketplace_engine_versions.id)
+          readOnly: true
+          example: 50
+        version:
+          type: string
+          description: Semver version string of this engine version
+          example: "1.56.0"
+        displayName:
+          type: string
+          description: Human-readable name for this engine version
+          example: Cloudera AI Plugin
+        description:
+          type: string
+          description: Short description of this engine version
+          example: Runtime plugin for CAI workloads
+        configSchema:
+          description: |
+            UI config form (inputFields) derived from the engine's
+            spec.configSchema. Returned only by the single-engine detail
+            endpoint (GET /engines/{engineId}); omitted in the engine list. This
+            is the source of the per-instance config form at configure time.
+          readOnly: true
+          $ref: '#/components/schemas/ConfigSchemaEngine'
+        requiresEmbeddedRegistry:
+          type: boolean
+          description: When true, deployment requires Taikun OS-level registry trust setup
+          example: false
+
+    Blueprint:
+      type: object
+      description: A blueprint parent tile with its version drill-down.
+      required:
+        - blueprintId
+        - name
+        - displayName
+        - versions
+      properties:
+        blueprintId:
+          type: integer
+          description: Blueprint ID (marketplace_blueprints.id)
+          readOnly: true
+          example: 8
+        name:
+          type: string
+          description: Stable machine name of the blueprint
+          example: cai
+        displayName:
+          type: string
+          description: Human-readable blueprint name shown in the catalog tile
+          example: Cloudera AI
+        description:
+          type: string
+          description: Short marketing description of the blueprint
+          example: End-to-end Cloudera AI platform blueprint
+        owner:
+          type: string
+          description: Organization that publishes the blueprint
+          example: Cloudera
+        latestVersion:
+          type: string
+          description: Highest-semver version string (joined from latest_version_id)
+          readOnly: true
+          example: "1.56.0"
+        versions:
+          type: array
+          description: All registry-present versions of this blueprint, newest first
+          items:
+            $ref: '#/components/schemas/BlueprintVersion'
+
+    BlueprintDetail:
+      type: object
+      description: Lightweight blueprint detail with default-selected version metadata.
+      required:
+        - blueprintId
+        - name
+        - displayName
+        - versions
+      properties:
+        blueprintId:
+          type: integer
+          description: Blueprint ID (marketplace_blueprints.id)
+          readOnly: true
+          example: 8
+        name:
+          type: string
+          description: Stable machine name of the blueprint
+          example: cai
+        displayName:
+          type: string
+          description: Human-readable blueprint name shown in the catalog tile
+          example: Cloudera AI
+        description:
+          type: string
+          description: Short marketing description of the blueprint
+          example: End-to-end Cloudera AI platform blueprint
+        owner:
+          type: string
+          description: Organization that publishes the blueprint
+          example: Cloudera
+        latestBlueprintVersionId:
+          type: integer
+          nullable: true
+          description: |
+            Default selected blueprint version ID for UI flows. The backend
+            first uses the parent row's `latest_version_id` when valid; if it
+            is null/unmatched while versions are present, it falls back to the
+            first version in `versions` (semver newest-first ordering). Null
+            only when `versions` is empty.
+          readOnly: true
+          example: 10
+        versions:
+          type: array
+          description: Lightweight blueprint version options for selection UIs, semver newest first.
+          items:
+            $ref: '#/components/schemas/BlueprintVersionRef'
+
+    BlueprintVersionRef:
+      type: object
+      required:
+        - blueprintVersionId
+        - version
+      properties:
+        blueprintVersionId:
+          type: integer
+          description: Blueprint version ID (marketplace_blueprint_versions.id)
+          readOnly: true
+          example: 10
+        version:
+          type: string
+          description: Semver version string of this blueprint version
+          example: "1.56.0"
+
+    BlueprintVersion:
+      type: object
+      required:
+        - appId
+        - version
+      properties:
+        appId:
+          type: integer
+          description: Blueprint version ID (marketplace_blueprint_versions.id); the deploy entry point
+          readOnly: true
+          example: 10
+        version:
+          type: string
+          description: Semver version string of this blueprint version
+          example: "1.56.0"
+        displayName:
+          type: string
+          description: Human-readable name for this blueprint version
+          example: Cloudera AI
+        description:
+          type: string
+          description: Short description of this blueprint version
+          example: End-to-end Cloudera AI platform blueprint
+        engines:
+          type: array
+          description: |
+            The blueprint's engine instances, each resolved to the exact engine
+            version declared by this blueprint version (pinned via minimumVersion).
+            Returned only by the single-blueprint detail endpoint
+            (GET /blueprints/{blueprintId}); omitted in the blueprint list.
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/BlueprintEngine'
+        hardwareTiers:
+          type: array
+          description: |
+            Full hardware tiers array from the blueprint spec. Contains tier name,
+            cluster topology (kubernetesVersion, nodeGroups with resource requirements),
+            and per-tier configuration. Returned only by the single-blueprint detail
+            endpoint; omitted in the list. The UI reads this blob directly for
+            rendering tier options and node group forms.
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/HardwareTier'
+
+    BlueprintVersionDetail:
+      type: object
+      description: |
+        Selected blueprint version detail for the blueprint detail and deploy pages.
+      required:
+        - blueprintId
+        - blueprintVersionId
+        - version
+        - hardwareTiers
+        - engines
+      properties:
+        blueprintId:
+          type: integer
+          description: Blueprint ID (marketplace_blueprints.id)
+          readOnly: true
+          example: 8
+        blueprintVersionId:
+          type: integer
+          description: Blueprint version ID (marketplace_blueprint_versions.id)
+          readOnly: true
+          example: 10
+        version:
+          type: string
+          description: Semver version string of this blueprint version
+          readOnly: true
+          example: "1.56.0"
+        ui:
+          $ref: '#/components/schemas/BlueprintVersionUi'
+        hardwareTiers:
+          type: array
+          description: |
+            Full hardware tiers array from the blueprint version spec, including
+            node group requirements.
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/HardwareTier'
+        engines:
+          type: array
+          description: |
+            Engine instances declared by this blueprint version, each with the
+            compatible engine versions for user selection. One entry is returned
+            per blueprint instance. If an instance engine is missing from the
+            catalog, `engineId` is null and `compatibleVersions` is empty.
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/BlueprintVersionEngine'
+
+    BlueprintVersionUi:
+      type: object
+      description: UI metadata for blueprint version rendering.
+      properties:
+        about:
+          type: string
+          description: Optional informational text shown on detail/deploy pages.
+        aboutUrl:
+          type: string
+          format: uri
+          description: Optional documentation URL shown on detail/deploy pages.
+        tierInfo:
+          type: object
+          description: |
+            Optional display metadata for hardware tier cards, keyed by hardware
+            tier name (for example: default, medium, high).
+          additionalProperties:
+            $ref: '#/components/schemas/BlueprintTierInfo'
+      additionalProperties: true
+
+    BlueprintTierInfo:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Optional user-facing tier label.
+          example: Standard
+        description:
+          type: string
+          description: Optional user-facing tier description.
+          example: Balanced for standard workloads.
+
+    BlueprintVersionEngine:
+      type: object
+      required:
+        - instanceName
+        - name
+        - compatibleVersions
+      properties:
+        instanceName:
+          type: string
+          description: Blueprint instance name (blueprint.yaml spec.instances[].name)
+          readOnly: true
+          example: spark
+        engineId:
+          type: integer
+          nullable: true
+          description: Engine ID (marketplace_engines.id)
+          readOnly: true
+          example: 5
+        name:
+          type: string
+          description: Stable machine name of the engine
+          readOnly: true
+          example: spark
+        displayName:
+          type: string
+          description: Human-readable engine name
+          readOnly: true
+          example: Apache Spark
+        description:
+          type: string
+          description: Short description of the engine
+          readOnly: true
+          example: Spark runtime service
+        compatibleVersions:
+          type: array
+          description: Compatible engine versions (same major, >= minimumVersion), newest first.
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/EngineVersionRef'
+
+    EngineVersionRef:
+      type: object
+      required:
+        - engineVersionId
+        - version
+      properties:
+        engineVersionId:
+          type: integer
+          description: Engine version ID (marketplace_engine_versions.id)
+          readOnly: true
+          example: 9021
+        version:
+          type: string
+          description: Semver version string of this engine version
+          readOnly: true
+          example: "3.5.2"
+
+    BlueprintEngine:
+      type: object
+      description: |
+        One engine instance of a blueprint version, resolved to the engine's
+        latest version and its UI config form. Inlined on the blueprint detail
+        response so the configure screen can render from a single call.
+      required:
+        - instanceName
+        - engineId
+        - name
+        - version
+        - versionId
+        - requiresEmbeddedRegistry
+      properties:
+        instanceName:
+          type: string
+          description: Blueprint instance name (blueprint.yaml spec.instances[].name)
+          example: kafka
+        engineId:
+          type: integer
+          description: Engine ID (marketplace_engines.id)
+          readOnly: true
+          example: 5
+        name:
+          type: string
+          description: Stable machine name of the engine
+          example: cai-plugin
+        displayName:
+          type: string
+          description: Human-readable engine name (from the pinned latest version)
+          example: Cloudera AI Plugin
+        description:
+          type: string
+          description: Short description of the engine (from the pinned latest version)
+          example: Runtime plugin for CAI workloads
+        version:
+          type: string
+          description: Pinned engine version string (the engine's latest, I8)
+          readOnly: true
+          example: "1.56.0"
+        versionId:
+          type: integer
+          description: Engine version ID (marketplace_engine_versions.id)
+          readOnly: true
+          example: 50
+        configSchema:
+          description: |
+            UI config form (inputFields) derived from the pinned engine
+            version's spec.configSchema. Omitted when the engine version
+            declares no config.
+          readOnly: true
+          $ref: '#/components/schemas/ConfigSchemaEngine'
+        requiresEmbeddedRegistry:
+          type: boolean
+          description: When true, deployment requires Taikun OS-level registry trust setup
+          example: false
+
+    BlueprintNodeGroup:
+      type: object
+      description: |
+        One node group requirement from the blueprint cluster spec
+        (spec.cluster.nodeGroups), passed through verbatim. Field names are
+        camelCase as defined by the ACE blueprint schema.
+      properties:
+        id:
+          type: string
+          example: worker
+        displayName:
+          type: string
+          example: Worker
+        description:
+          type: string
+        category:
+          type: string
+          enum: [worker, master]
+        optional:
+          type: boolean
+          default: false
+          description: When true, this node group may be skipped during provisioning (e.g. GPU node pools)
+        nodeCount:
+          type: object
+          properties:
+            minimum:
+              type: integer
+            default:
+              type: integer
+            hint:
+              type: string
+        resources:
+          type: object
+          properties:
+            minimum:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                  example: "8"
+                memory:
+                  type: string
+                  example: 32Gi
+                hasGPU:
+                  type: boolean
+            recommended:
+              type: object
+            hint:
+              type: string
+        storage:
+          type: object
+          properties:
+            disk:
+              type: object
+              properties:
+                minimum:
+                  type: string
+                default:
+                  type: string
+                hint:
+                  type: string
+
+    HardwareTierClusterConfig:
+      type: object
+      description: |
+        Cluster configuration template for one hardware tier from
+        blueprint spec.hardwareTiers[].cluster.
+      properties:
+        kubernetesVersion:
+          type: string
+          description: Kubernetes version associated with this tier
+          example: "v1.33.5"
+        nodeGroups:
+          type: array
+          description: Node group requirements for this tier
+          items:
+            $ref: '#/components/schemas/BlueprintNodeGroup'
+
+    HardwareTier:
+      type: object
+      description: One hardware tier from blueprint spec.hardwareTiers.
+      required:
+        - name
+        - cluster
+      properties:
+        name:
+          type: string
+          description: Tier identifier used by DeployAppRequest.hardwareTier
+          example: default
+        cluster:
+          $ref: '#/components/schemas/HardwareTierClusterConfig'
+
+    EngineVersionConfigSchemaResponse:
+      type: object
+      required:
+        - engineVersionId
+      properties:
+        engineVersionId:
+          type: integer
+          description: Engine version ID (marketplace_engine_versions.id)
+          readOnly: true
+          example: 9021
+        configSchema:
+          description: |
+            UI config form (inputFields) derived from the selected engine
+            version's spec.configSchema. Null when the version declares no
+            config.
+          nullable: true
+          readOnly: true
+          $ref: '#/components/schemas/ConfigSchemaEngine'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        message:
+          type: string
+          description: Detailed error message
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+
+    ReadyResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [ready, unavailable]
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/HealthCheck'
+
+    HealthCheck:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          example: postgres
+        status:
+          type: string
+          enum: [up, down]
+        message:
+          type: string
+
+    VersionResponse:
+      type: object
+      properties:
+        service_version:
+          type: string
+          description: Build version of the service binary
+          example: "0.7.0"
+        api_version:
+          type: string
+          description: API specification version
+          example: "v0"
+
+    ConfigSchemaEngine:
+      type: object
+      required:
+        - id
+        - title
+        - inputFields
+      properties:
+        id:
+          type: string
+          description: Unique engine identifier.
+          example: demo-plugin
+        title:
+          type: string
+          description: Human-readable engine name.
+          example: Demo App (UI Testing)
+        description:
+          type: string
+          description: Optional engine description shown in UI cards.
+        inputFields:
+          type: array
+          description: Dynamic form fields rendered when configuring this engine.
+          items:
+            $ref: '#/components/schemas/ConfigSchemaInputField'
+
+    ConfigSchemaInputFieldBase:
+      type: object
+      required:
+        - name
+        - type
+        - title
+      properties:
+        name:
+          type: string
+          description: Field key used in aceInstanceInfo payload.
+          example: deploymentName
+        type:
+          type: string
+          description: Discriminator for field renderer and validation behavior.
+        title:
+          type: string
+          description: Label displayed for the field.
+        description:
+          type: string
+          description: Optional helper text shown below the field.
+        required:
+          type: boolean
+          description: Whether the field is required.
+          default: false
+
+    ConfigSchemaStringInputField:
+      allOf:
+        - $ref: '#/components/schemas/ConfigSchemaInputFieldBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [string]
+            default:
+              type: string
+            example:
+              type: string
+              description: Sample value shown as placeholder text in the input field when it is empty.
+              example: my-deployment
+            pattern:
+              type: string
+            minLength:
+              type: integer
+              minimum: 0
+            maxLength:
+              type: integer
+              minimum: 0
+            sensitive:
+              type: boolean
+              description: Marks a string field as sensitive; UI should render masked input.
+              default: false
+
+    ConfigSchemaIntegerInputField:
+      allOf:
+        - $ref: '#/components/schemas/ConfigSchemaInputFieldBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [integer]
+            default:
+              type: integer
+            example:
+              type: integer
+              description: Sample value shown as placeholder text in the input field when it is empty.
+              example: 8443
+            minimum:
+              type: integer
+            maximum:
+              type: integer
+
+    ConfigSchemaOption:
+      type: object
+      required:
+        - label
+        - value
+      properties:
+        label:
+          type: string
+          description: Human-readable text displayed to the user.
+          example: Development
+        value:
+          type: string
+          description: Machine-readable value submitted in aceInstanceInfo payload.
+          example: development
+
+    ConfigSchemaSelectInputField:
+      allOf:
+        - $ref: '#/components/schemas/ConfigSchemaInputFieldBase'
+        - type: object
+          required:
+            - options
+          properties:
+            type:
+              type: string
+              enum: [select]
+            default:
+              type: string
+            options:
+              type: array
+              items:
+                $ref: '#/components/schemas/ConfigSchemaOption'
+
+    ConfigSchemaRadioInputField:
+      allOf:
+        - $ref: '#/components/schemas/ConfigSchemaInputFieldBase'
+        - type: object
+          required:
+            - options
+          properties:
+            type:
+              type: string
+              enum: [radio]
+            default:
+              type: string
+            options:
+              type: array
+              description: List of mutually exclusive options rendered as radio buttons.
+              items:
+                $ref: '#/components/schemas/ConfigSchemaOption'
+
+    ConfigSchemaBooleanInputField:
+      allOf:
+        - $ref: '#/components/schemas/ConfigSchemaInputFieldBase'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [boolean]
+            default:
+              type: boolean
+
+    ConfigSchemaInputField:
+      oneOf:
+        - $ref: '#/components/schemas/ConfigSchemaStringInputField'
+        - $ref: '#/components/schemas/ConfigSchemaIntegerInputField'
+        - $ref: '#/components/schemas/ConfigSchemaSelectInputField'
+        - $ref: '#/components/schemas/ConfigSchemaRadioInputField'
+        - $ref: '#/components/schemas/ConfigSchemaBooleanInputField'
+      discriminator:
+        propertyName: type
+        mapping:
+          string: '#/components/schemas/ConfigSchemaStringInputField'
+          integer: '#/components/schemas/ConfigSchemaIntegerInputField'
+          select: '#/components/schemas/ConfigSchemaSelectInputField'
+          radio: '#/components/schemas/ConfigSchemaRadioInputField'
+          boolean: '#/components/schemas/ConfigSchemaBooleanInputField'
+
+    CloudCredential:
+      type: object
+      required:
+        - cloudCredentialId
+        - cloudCredentialName
+        - provider
+        - region
+      properties:
+        cloudCredentialId:
+          type: integer
+          description: Taikun cloud credential ID
+          example: 392
+        cloudCredentialName:
+          type: string
+          description: Human-readable cloud credential name from Taikun
+          example: osc1-sjc
+        provider:
+          type: string
+          description: Cloud provider type (e.g. OPENSTACK, AWS, AZURE)
+          example: OPENSTACK
+        region:
+          type: string
+          description: Region or datacenter
+          example: default
+
+    Flavor:
+      type: object
+      required:
+        - name
+        - cpu
+        - ram
+        - hasGPU
+      properties:
+        name:
+          type: string
+          description: Flavor identifier from Taikun
+          example: c16m32
+        cpu:
+          type: integer
+          minimum: 1
+          description: Number of vCPUs
+          example: 16
+        ram:
+          type: integer
+          minimum: 1
+          description: RAM in GB
+          example: 32
+        hasGPU:
+          type: boolean
+          description: |
+            Whether this flavor has GPU support, as reported by the cloud provider
+            (OpenStack `ccf:gpu` custom property via Taikun). Use this field to
+            distinguish GPU-capable flavors when populating node group flavor dropdowns.
+          example: false
+      description: |
+        Data fetched from Taikun API. Description field is not available
+        in Taikun API response.
+
+    DeployedCluster:
+      type: object
+      required:
+        - clusterId
+        - name
+        - status
+        - infrastructure
+        - kubernetesVersion
+        - nodes
+        - createdOn
+        - experiences
+      properties:
+        clusterId:
+          type: string
+          description: Formatted cluster ID
+          example: cluster-034
+        name:
+          type: string
+          description: Cluster name
+          example: my-spark-cluster
+        status:
+          type: string
+          enum: [pending, cluster_creating, installing_core_services, ready, failed, deleting, delete_failed]
+          description: |
+            Current cluster status. Possible values:
+            - pending: Cluster row created, provisioning not yet started
+            - cluster_creating: Taikun is provisioning VMs
+            - installing_core_services: Core services (cert-manager, istio, knox, ace-operator) are being installed
+            - ready: Cluster is provisioned and ready to accept engine deployments
+            - failed: Cluster provisioning failed
+            - deleting: Cluster deletion in progress
+            - delete_failed: Cluster deletion failed
+        experiences:
+          type: array
+          items:
+            type: string
+          description: Names of experiences deployed on this cluster
+          example: ["kafka-exp-kafka", "kafka-exp-surveyor"]
+        statusReason:
+          type: [string, "null"]
+          description: |
+            Human-readable explanation of the current status. Always present when
+            status is `failed`. Omitted (null) for other statuses unless there is
+            something to report.
+          example: "Taikun project creation failed: quota exceeded"
+        diagnosticDownloadUrl:
+          type: [string, "null"]
+          description: |
+            Fully-qualified URL used to download diagnostics bundles for the cluster.
+            Present when diagnostics endpoint information is available.
+          example: "https://diagnostics.default.awc.example/api/v1/diagnostics/download"
+        infrastructure:
+          type: string
+          description: Infrastructure name where cluster is deployed
+          example: osc1-sjc
+        kubernetesVersion:
+          type: string
+          description: Kubernetes version
+          example: v1.33.5
+        nodes:
+          type: integer
+          minimum: 1
+          description: Total number of nodes (bastion + masters + workers)
+          example: 4
+        cloudCredentialName:
+          type: string
+          description: |
+            Cloud credential name used to provision this cluster.
+            Omitted for clusters created before this field was introduced.
+          example: "osc1-sjc"
+        cloudCredentialProvider:
+          type: string
+          description: |
+            Cloud provider type (e.g. OPENSTACK, AWS, AZURE) for the credential used
+            to provision this cluster. Omitted for clusters created before this field
+            was introduced.
+          example: "OPENSTACK"
+        createdOn:
+          type: string
+          format: date-time
+          description: Cluster creation timestamp (ISO 8601)
+          example: "2026-02-12T20:10:14Z"
+
+    Experience:
+      type: object
+      required:
+        - id
+        - name
+        - appName
+        - clusterId
+        - clusterName
+        - status
+        - createdOn
+      properties:
+        id:
+          type: string
+          description: Formatted deployment/experience ID
+          example: deploy-034
+        name:
+          type: string
+          description: Experience instance name
+          example: my-spark-exp
+        appName:
+          type: string
+          description: Application/chart name
+          example: kuberay-operator
+        clusterId:
+          type: string
+          description: Formatted cluster ID where app is deployed
+          example: cluster-034
+        clusterName:
+          type: string
+          description: Cluster name where app is deployed
+          example: my-spark-cluster
+        status:
+          type: string
+          enum: [pending, cluster_creating, installing_core_services, deploying_experience, deployed, degraded, failed, running, cluster_deleting, cluster_delete_failed]
+          description: |
+            Current experience status. Possible values:
+            - pending: Initial state
+            - cluster_creating: Cluster is being provisioned
+            - installing_core_services: Core services (cert-manager, istio, knox, ace-operator) are being installed
+            - deploying_experience: Application is being installed
+            - deployed: Application successfully deployed
+            - degraded: Application was running but is now in a degraded state
+            - failed: Deployment failed
+            - running: Application is running (legacy status)
+            - cluster_deleting: Parent cluster is being deleted
+            - cluster_delete_failed: Parent cluster deletion failed (can retry DELETE /clusters/:id)
+        statusReason:
+          type: [string, "null"]
+          description: |
+            Human-readable explanation of the current status. Always present when
+            status is `failed`. Omitted (null) for other statuses unless there is
+            something to report.
+          example: "Helm install failed: timed out waiting for the condition"
+        version:
+          type: string
+          description: Deployed application version (chart version). Omitted when not set.
+          example: "1.56.0"
+        landingPageUrl:
+          type: string
+          nullable: true
+          description: |
+            URL to the deployed application's landing page. Set by the backend after
+            successful deployment. Omitted (null) until the app reports its URL.
+          example: "https://cai.cluster.example.com"
+        cloudCredentialName:
+          type: string
+          description: |
+            Cloud credential name used to provision the cluster this experience runs on.
+            Omitted for experiences on clusters created before this field was introduced.
+          example: "osc1-sjc"
+        cloudCredentialProvider:
+          type: string
+          description: |
+            Cloud provider type (e.g. OPENSTACK, AWS, AZURE) for the credential used
+            to provision the cluster this experience runs on. Omitted for experiences
+            on clusters created before this field was introduced.
+          example: "OPENSTACK"
+        createdOn:
+          type: string
+          format: date-time
+          description: Experience creation timestamp (ISO 8601), empty if not yet created
+          example: "2026-02-11T20:26:43Z"
+
+    BlueprintDeployment:
+      type: object
+      description: A blueprint deployment instance returned by GET /blueprint-deployments.
+      required:
+        - id
+        - serviceName
+        - blueprintName
+        - blueprintVersion
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+          description: Blueprint deployment ID
+          example: 42
+        serviceName:
+          type: string
+          description: Unique service name for this blueprint deployment instance
+          example: etl-insta-dev
+        blueprintName:
+          type: string
+          description: Name of the blueprint (from the marketplace catalog)
+          example: cai
+        blueprintVersion:
+          type: string
+          description: Deployed blueprint version string
+          example: "1.2.0"
+        status:
+          type: string
+          enum: [not_started, deploying, deployed, failed]
+          description: |
+            Rollup status of the blueprint deployment (aggregated from engine
+            deployments). Possible values:
+            - not_started: No engine deployment has started yet
+            - deploying: One or more engines are provisioning
+            - deployed: All engines reached the deployed state
+            - failed: One or more engines failed
+          example: deployed
+        statusReason:
+          type: [string, "null"]
+          description: Human-readable explanation of the current status. Omitted when not set.
+          example: "Engine deployment failed: helm install timed out"
+        createdAt:
+          type: string
+          format: date-time
+          description: Blueprint deployment creation timestamp (ISO 8601)
+          example: "2026-07-20T10:00:00Z"
+
+    EngineDeployment:
+      type: object
+      description: An engine deployment instance returned by GET /engine-deployments.
+      required:
+        - id
+        - blueprintDeploymentId
+        - serviceName
+        - instanceName
+        - engineName
+        - clusterId
+        - clusterName
+        - status
+        - engineVersion
+        - createdAt
+      properties:
+        id:
+          type: integer
+          description: Engine deployment ID
+          example: 101
+        blueprintDeploymentId:
+          type: integer
+          description: ID of the parent blueprint deployment
+          example: 42
+        serviceName:
+          type: string
+          description: Unique service name for the parent blueprint deployment instance
+          example: etl-insta-dev
+        instanceName:
+          type: string
+          description: Engine instance name.
+          example: etl-insta-dev-airflow
+        engineName:
+          type: string
+          description: Human-readable name of the engine
+          example: Apache Airflow
+        clusterId:
+          type: integer
+          description: Numeric cluster ID where this engine is deployed
+          example: 7
+        clusterName:
+          type: string
+          description: Cluster name where this engine is deployed
+          example: prod-cluster
+        status:
+          type: string
+          enum: [not_started, deploying, deployed, failed]
+          description: |
+            Current engine deployment status. Possible values:
+            - not_started: Deployment queued, waiting for the cluster to be ready
+            - deploying: Helm install is running
+            - deployed: Engine successfully deployed
+            - failed: Deployment failed (see statusReason)
+          example: deployed
+        statusReason:
+          type: [string, "null"]
+          description: Human-readable explanation of the current status. Omitted when not set.
+          example: "Helm install failed: timed out waiting for the condition"
+        engineVersion:
+          type: string
+          description: Deployed engine version string
+          example: "2.9.1"
+        landingPageUrl:
+          type: [string, "null"]
+          description: |
+            URL to the deployed engine's landing page. Set after successful deployment.
+            Omitted until the engine reports its URL.
+          example: "https://airflow.cluster.example.com"
+        cloudCredentialProvider:
+          type: [string, "null"]
+          description: |
+            Cloud provider type (e.g. OPENSTACK, AWS, AZURE) for the credential used
+            to provision the cluster. Omitted for deployments on clusters created before
+            this field was introduced.
+          example: "OPENSTACK"
+        createdAt:
+          type: string
+          format: date-time
+          description: Engine deployment creation timestamp (ISO 8601)
+          example: "2026-07-20T10:00:00Z"
+        deployedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Timestamp when the engine deployment completed successfully. Omitted until deployed.
+          example: "2026-07-20T10:15:00Z"
+
+    NodeConfig:
+      type: object
+      required:
+        - flavor
+        - diskSize
+      properties:
+        flavor:
+          type: string
+          description: VM flavor/instance type
+          example: c04m04
+        diskSize:
+          type: integer
+          minimum: 30
+          description: Disk size in GB (converted to bytes internally by backend)
+          example: 100
+
+    NodeGroup:
+      type: object
+      required:
+        - name
+        - flavor
+        - count
+        - diskSize
+      properties:
+        name:
+          type: string
+          description: Node group identifier
+          example: master-primary
+        flavor:
+          type: string
+          description: VM flavor/instance type
+          example: c16m32
+        count:
+          type: integer
+          minimum: 1
+          description: Number of nodes in this group
+          example: 2
+        diskSize:
+          type: integer
+          minimum: 30
+          description: Disk size in GB (converted to bytes internally by backend)
+          example: 300
+
+    ClusterConfig:
+      type: object
+      required:
+        - bastionNode
+        - masterNodeGroups
+        - workerNodeGroups
+      properties:
+        kubernetesVersion:
+          type: string
+          readOnly: true
+          description: |
+            Ignored on deploy requests. The backend resolves the concrete
+            Kubernetes version from the hardware tier's semver filter and
+            Taikun-supported versions before provisioning.
+          example: "v1.33.5"
+        bastionNode:
+          $ref: '#/components/schemas/NodeConfig'
+        masterNodeGroups:
+          type: array
+          minItems: 1
+          description: One or more master node groups
+          items:
+            $ref: '#/components/schemas/NodeGroup'
+        workerNodeGroups:
+          type: array
+          minItems: 1
+          description: One or more worker node groups
+          items:
+            $ref: '#/components/schemas/NodeGroup'
+
+    DeployAppRequest:
+      type: object
+      required:
+        - clusterName
+        - appId
+        - experienceName
+        - cloudCredentialName
+        - hardwareTier
+        - clusterConfig
+      properties:
+        computeInfrastructure:
+          type: string
+          description: |
+            Target infrastructure display name. Optional — when omitted the backend
+            derives it from `cloudCredentialName` automatically.
+          example: osc1-sjc
+        clusterName:
+          type: string
+          description: Desired cluster name (must be unique, DNS-1123 compliant)
+          example: spark-cluster
+        appId:
+          type: integer
+          description: Blueprint version ID to deploy (marketplace_blueprint_versions.id); a version `appId` from the blueprints catalog drill-down (`GET /blueprints/{blueprintId}`)
+          example: 10
+        experienceName:
+          type: string
+          description: Desired experience instance name (must be unique, DNS-1123 compliant)
+          example: my-cai
+        cidr:
+          type: string
+          pattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$'
+          description: CIDR block for cluster network (optional, backend uses Taikun default when omitted)
+          example: 10.0.0.0/16
+        cloudCredentialName:
+          type: string
+          description: |
+            Cloud credential name to use for provisioning the cluster.
+            Obtain the available names from `GET /api/v0/console/infrastructure`.
+          example: osc1-sjc
+        hardwareTier:
+          type: string
+          description: Hardware tier name from the blueprint's hardwareTiers array. The backend resolves the Kubernetes version from this tier when kubernetesVersion is not provided.
+          example: default
+        engineVersions:
+          type: object
+          description: |
+            Optional engine version overrides. Keys are engine instance names; values are version
+            strings. When provided, the backend validates and uses these exact versions. When
+            omitted, the backend resolves the highest compatible version for each engine.
+          additionalProperties:
+            type: string
+          example:
+            cai: "1.57.0"
+        clusterConfig:
+          $ref: '#/components/schemas/ClusterConfig'
+        aceInstanceInfo:
+          type: object
+          description: User-provided configuration for ACE engine instances. Keys are engine IDs; each value is an object of dynamic field inputs for that engine. Merged with the blueprint's configTemplate at deploy time.
+          additionalProperties:
+            type: object
+            additionalProperties: true
+          example:
+            demo-monitoring-plugin:
+              metricsEnabled: false
+              retentionDays: 14
+
+    DeploymentInfo:
+      type: object
+      properties:
+        instanceName:
+          type: string
+          description: Blueprint instance name (empty for single-instance blueprints)
+          example: cai
+        deploymentId:
+          type: string
+          description: Formatted deployment/experience ID
+          example: deploy-035
+
+    DeployAppResponse:
+      type: object
+      required:
+        - clusterId
+        - deployments
+        - status
+        - message
+      properties:
+        clusterId:
+          type: string
+          description: Formatted cluster ID that was created
+          example: cluster-035
+        deployments:
+          type: array
+          description: List of deployment/experience IDs created (one per blueprint instance)
+          items:
+            $ref: '#/components/schemas/DeploymentInfo'
+          example:
+            - instanceName: cai
+              deploymentId: deploy-035
+        status:
+          type: string
+          enum: [Pending]
+          description: Initial deployment status
+        message:
+          type: string
+          description: Human-readable message
+          example: Deployment initiated successfully
+
+    ValidateDeploymentRequest:
+      type: object
+      required:
+        - cloudCredentialName
+        - clusterConfig
+      properties:
+        cloudCredentialName:
+          type: string
+          description: |
+            Cloud credential name to validate the deployment against.
+            Obtain the available names from `GET /api/v0/console/infrastructure`.
+          example: osc1-sjc
+        clusterConfig:
+          $ref: '#/components/schemas/ClusterConfig'
+
+    ValidateDeploymentResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+          description: True if all pre-flight checks passed
+          example: true
+        errors:
+          type: array
+          description: List of validation errors (empty when valid is true)
+          items:
+            type: string
+          example:
+            - "Insufficient OpenStack quota: need 891 instances but only 889 available (limit 1000, used 111)"
+
+    UpgradeVersionsResponse:
+      type: object
+      required:
+        - currentVersion
+        - versions
+      properties:
+        currentVersion:
+          type: string
+          description: Currently running Anywhere Cloud version
+          example: "2.3.0"
+        versions:
+          type: array
+          description: Available versions for upgrade. Ordering follows the catalog source until release-date sorting is available.
+          items:
+            $ref: '#/components/schemas/UpgradeVersion'
+
+    UpgradeVersion:
+      type: object
+      required:
+        - version
+        - releaseDate
+      properties:
+        version:
+          type: string
+          description: Version identifier
+          example: "2.5.0"
+        releaseDate:
+          type: string
+          format: date
+          description: Release date (ISO 8601 date)
+          example: "2026-05-20"
+        fixedCveSeverity:
+          type: [string, "null"]
+          enum: [Critical, High, Low, null]
+          description: |
+            Highest CVE severity fixed in this release relative to its immediate
+            predecessor. Null when the release contains no CVE fixes.
+          example: Critical
+
+    InitiateUpgradeRequest:
+      type: object
+      required:
+        - targetVersion
+      properties:
+        targetVersion:
+          type: string
+          description: Version to upgrade Anywhere Cloud to (must be from the available versions list)
+          example: "2.5.0"
+
+    UpgradeStatusResponse:
+      type: object
+      required:
+        - status
+        - targetVersion
+        - steps
+      properties:
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, failed]
+          description: |
+            Overall upgrade status:
+            - not_started: No upgrade in progress
+            - in_progress: Upgrade is actively running
+            - completed: Upgrade finished successfully
+            - failed: Upgrade encountered an error (can retry via POST /api/v0/console/upgrade)
+        targetVersion:
+          type: [string, "null"]
+          description: Version being upgraded to. Null when status is idle.
+          example: "2.5.0"
+        steps:
+          type: array
+          description: |
+            Ordered list of upgrade steps. Array position determines execution order.
+            Empty when status is idle.
+          items:
+            $ref: '#/components/schemas/UpgradeStep'
+
+    UpgradeStep:
+      type: object
+      required:
+        - name
+        - description
+        - status
+        - substeps
+      properties:
+        name:
+          type: string
+          description: Step title displayed in the UI
+          example: Pre-flight health checks
+        description:
+          type: string
+          description: Human-readable description of what this step does
+          example: Check upgradability of Anywhere Cloud
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, failed]
+          description: Current status of this step
+        statusReason:
+          type: [string, "null"]
+          description: |
+            Error message when status is failed, propagated from the failed substep.
+            Null for non-failed statuses.
+        substeps:
+          type: array
+          description: |
+            Ordered list of substeps within this step. Array position determines
+            execution order. Rolling Upgrade adds dynamic component substeps after
+            the three fixed rollout substeps.
+          items:
+            $ref: '#/components/schemas/UpgradeSubstep'
+
+    UpgradeSubstep:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          description: Substep label displayed in the UI
+          example: Deployment reachable
+        status:
+          type: string
+          enum: [not_started, in_progress, completed, failed]
+          description: Current status of this substep
+        statusReason:
+          type: [string, "null"]
+          description: |
+            Error message when status is failed. This is the original error source
+            that gets propagated to the parent step's statusReason.
+          example: "rollout sync failed: deployment orchestrator error"
+
+  securitySchemes:
+    JwtAuthentication:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HTTP Authorization Bearer header using a JWT
+
+security:
+  - JwtAuthentication: []
