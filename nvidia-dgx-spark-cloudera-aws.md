@@ -1,6 +1,6 @@
 # The DGX Spark and Cloudera on AWS
 
-> **Status (2026-08-26):** work-stream **I** of the DGX Spark readiness EPIC — [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241). The box landed 2026-08-26 as `spark-dd06` at `192.168.1.203` and runs its own session; on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)) is the next execution step, and nothing in this doc has been run yet. **Decided:** both AWS shapes stay in scope, the DGX Spark is a *client* of them and never a cluster node, and the parity payload is the OpenAI-compatible API on both sides. **Expected, not decided:** which of the two live AWS footprints hosts the first integration, whether a GPU node group gets added to a Base cluster at all, and the Phase-0 model lock — every model named below is a lead-model *candidate* with its citation, not a lock. Feeds `files/nvidia-spark-guide/` chapters ch05, ch18, ch19 and ch20.
+> **Status (2026-08-26):** work-stream **I** of the DGX Spark readiness EPIC — [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241). The box landed 2026-08-26 as `spark-dd06` at `192.168.1.203` and runs its own session; on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)) is the next execution step, and nothing in this doc has been run yet. **Decided:** both AWS shapes stay in scope, the DGX Spark is a *client* of them and never a cluster node, and the parity payload is the OpenAI-compatible API on both sides. **Expected, not decided:** which of the two live AWS footprints hosts the first integration, whether a GPU node group gets added to a Base cluster at all, and the Phase-0 model lock — every model named below is a lead-model *candidate* with its citation, not a lock. Feeds `files/nvidia-spark-guide/` chapters ch05, ch18, ch19 and ch21 (the same-code arc; ch20 is the AWC form factor, in `nvidia-dgx-spark-cloudera-awc.md`).
 
 ## 1. The two shapes, side by side
 
@@ -20,7 +20,9 @@ Cloudera on AWS is two different products that share a name and almost nothing e
 | What the DGX Spark is to it | An **external inference and edge node** reached through a tunnel; the CE cluster is the data platform | An **external client** of DataFlow / Kafka / Iceberg, and the *local* half of the same-code-two-backends demo against AI Inference |
 | Cost control | pause.yml / resume.yml / infrastructure-teardown.yml, ~$2/hr ~$45/day (`blog/cloudera-ce-cm-evaluation.md`) | Weekly reaper + redeploy.sh; the 60-day Cloudera on Cloud trial is the entry ([cdp-tf-quickstarts](https://raw.githubusercontent.com/cloudera-labs/cdp-tf-quickstarts/main/README.md)) |
 
-The thing both columns have in common: **the DGX Spark never joins either cluster.** It is a 20-core aarch64 box with one GPU and 121 GB usable of unified memory (`CLAUDE-CHECKIN.md`), sitting on a home LAN with no public IP. It is a peer of WindowsDesktop, not of an EC2 fleet. Every integration below is edge-to-platform, and the local half of each one is built by the two sibling work-streams: the on-box cluster in `nvidia-dgx-spark-k3s-cso.md` and the agent class in `nvidia-dgx-spark-efm-agent.md`.
+There is a **third shape** — **AWC (Cloudera Anywhere)**, the `goes01` environment on AWS EKS: a containerized Cloudera platform whose Cloudera AI, Lakehouse Engine (Trino) and Object Store (Ozone) experiences the DGX Spark also targets. It has its own peer doc, `nvidia-dgx-spark-cloudera-awc.md` (#283), and feeds guide chapter ch20; this doc stays scoped to the two AWS shapes above.
+
+The thing all three shapes have in common: **the DGX Spark never joins any of them.** It is a 20-core aarch64 box with one GPU and 121 GB usable of unified memory (`CLAUDE-CHECKIN.md`), sitting on a home LAN with no public IP. It is a peer of WindowsDesktop, not of an EC2 fleet. Every integration below is edge-to-platform, and the local half of each one is built by the two sibling work-streams: the on-box cluster in `nvidia-dgx-spark-k3s-cso.md` and the agent class in `nvidia-dgx-spark-efm-agent.md`.
 
 ## 2. CDP Base / Community Edition on AWS
 
@@ -150,7 +152,7 @@ Per the [authentication doc](https://docs.cloudera.com/machine-learning/cloud/ai
 | Model name | raw HF/NGC id, e.g. `meta/llama-3.1-8b-instruct` | the AI-Registry-assigned name |
 | Protocol | OpenAI-compatible | OpenAI-compatible (LLMs) or Open Inference Protocol (predictive models) |
 
-Three lines differ. That table is the whole thesis of ch20.
+Three lines differ. That table is the whole thesis of ch21.
 
 ## 4. NIM on the DGX Spark, for parity
 
@@ -237,7 +239,7 @@ vllm_server_descriptor = ResourceDescriptor(
 VLLM_MODEL = os.environ["MODEL"]           # was Qwen/Qwen2.5-7B-Instruct-AWQ
 ```
 
-Two operational notes carry over from that run and belong in ch20. The agent class must live in **its own importable module** shipped with `flink run -pyfs`, not defined in the submitted `__main__` script, or pemja fails on the TaskManager with `module '__main__' has no attribute ...`. And the model has to be able to hold a "reply with bare JSON" contract — the 3B that job started on managed 2–5 parseable replies out of 15, the AWQ 4-bit 7B did it reliably. On a 121 GB box that constraint mostly evaporates, which is itself the demo point.
+Two operational notes carry over from that run and belong in ch21. The agent class must live in **its own importable module** shipped with `flink run -pyfs`, not defined in the submitted `__main__` script, or pemja fails on the TaskManager with `module '__main__' has no attribute ...`. And the model has to be able to hold a "reply with bare JSON" contract — the 3B that job started on managed 2–5 parseable replies out of 15, the AWQ 4-bit 7B did it reliably. On a 121 GB box that constraint mostly evaporates, which is itself the demo point.
 
 ## 6. Out-of-box integration catalogue
 
@@ -249,8 +251,8 @@ Every row is a pattern we already run on at least one side. "Spark side" means w
 | 2 | NiFi `QueryIceberg` + `RESTCatalogService` | Same catalog, `poc_uc2.flights` | Iceberg-native predicate and projection pushdown | Metadata-layer partition pruning — 11 of 12 manifests skipped | ch19 |
 | 3 | NiFi posting out over HTTPS | CDF Inbound Connection → ReadyFlow → Kafka | mTLS to an auto-provisioned public hostname | Edge-to-cloud ingest with no broker exposed | ch18, ch19 |
 | 4 | Kafka producer on the box | Data Hub Kafka, port 9093 | `SASL_SSL`/`PLAIN` + FreeIPA cert in the truststore | Direct-broker fallback when CDF is not in play | ch19 |
-| 5 | NIM on `:8000` (Llama 3.1 8B) | AI Inference endpoint, same model class | One client, two base URLs | The SE money shot: identical output, three lines changed | ch05, ch20 |
-| 6 | Flink Agents job on the local cluster | AI Inference as the chat-model resource | `OPENAI_COMPLETIONS_CONNECTION` swap | An agentic Flink job that runs desk-local or cloud-scale | ch11, ch20 |
+| 5 | NIM on `:8000` (Llama 3.1 8B) | AI Inference endpoint, same model class | One client, two base URLs | The SE money shot: identical output, three lines changed | ch05, ch21 |
+| 6 | Flink Agents job on the local cluster | AI Inference as the chat-model resource | `OPENAI_COMPLETIONS_CONNECTION` swap | An agentic Flink job that runs desk-local or cloud-scale | ch11, ch21 |
 | 7 | Whisper + embeddings tier on GB10 | Workbench project consuming the transcripts | Batch push into the Data Lake bucket | Private speech-to-text feeding a governed project | ch07, ch19 |
 | 8 | Reverse SSH tunnel from the box | CE on AWS, NiFi topology | CE-side `InvokeHTTP` → tunnelled `:8000` | On-prem-shaped cluster calling a private desk model | ch18 |
 | 9 | cuDF/cuML notebooks on GB10 | Apache Spark + RAPIDS on a Cloudera cluster | Same libraries, two scales | Explains the RAPIDS story without over-claiming GB10 | ch18 |
@@ -330,7 +332,7 @@ Setup friction worth pre-empting, all from `blog/cloudera-ce-cm-evaluation.md`: 
 ## When this ships
 
 - `nvidia-dgx-spark-plan.md` §4 flips work-stream I from "doc not yet written" to drafted, and the Phase-5 gate — the AWS demos running against a real environment — becomes executable.
-- Chapters ch05, ch18, ch19 and ch20 under `files/nvidia-spark-guide/` are unblocked and take their content from §2–§6 here; the tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md` records the state change.
+- Chapters ch05, ch18, ch19 and ch21 under `files/nvidia-spark-guide/` are unblocked and take their content from §2–§6 here; the tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md` records the state change.
 - The first executed integration turns every "# expected — verify on the box" block in §2.3, §4 and §5 into an as-built block the same day, and the measured numbers replace the estimates.
 - If the NiFi legs change shape, the result is recorded back into `skills/nifi-and-ai/references/patterns.md` and `cloudera-iceberg-rest-catalog-cso-plan.md` rather than only here — and a skill change always gets its own commit.
 - Anything customer-facing gets a clean blog per `agent/writing-style.md`, with the issue numbers stripped.

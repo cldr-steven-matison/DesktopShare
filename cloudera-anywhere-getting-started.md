@@ -154,3 +154,4 @@ So on AWC, "Iceberg REST Catalog + Trino" collapses into one path: register an I
 - `hadoop-jwt` = one credential for all services — `Bearer` header for Console API and Trino, `Cookie` for the UI/SPA hosts; CDF additionally needs `XSRF-TOKEN`.
 - Trino takes the `hadoop-jwt` as `Bearer`, but `X-Trino-User` must equal the token's own user — no impersonation.
 - Everything is private-network; the `csm` subnet and the Ozone S3 gateway need on-network access this laptop session lacked.
+- This doc is the AWC **setup / getting-started** reference. How the DGX Spark *uses* AWC (Cloudera AI on AWC as an inference backend, NiFi/Flink against the Lakehouse Engine, the same-code base-URL swap) is the **using** side, in `nvidia-dgx-spark-cloudera-awc.md` and guide chapter `files/nvidia-spark-guide/ch20-cloudera-ai-on-awc.md` (#283).

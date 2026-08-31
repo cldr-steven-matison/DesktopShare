@@ -52,24 +52,25 @@ Keeping Claude Code's execution, retrieval, and validation on the desk: a local 
 
 ### Part VI — Cloudera on AWS
 
-The two Cloudera-on-AWS shapes — CDP Base / Community Edition on EC2 and CDP Public Cloud — as integration targets for a local DGX Spark, ending in the same-code-two-backends arc.
+The three Cloudera-on-AWS shapes — CDP Base / Community Edition on EC2, CDP Public Cloud, and AWC (Cloudera Anywhere) — as integration targets for a local DGX Spark, ending in the same-code-three-backends arc.
 
 - **Ch18** — [CDP Base on AWS + the DGX Spark](ch18-cdp-base-on-aws-and-the-spark.md)
 - **Ch19** — [CDP Public Cloud on AWS: Cloudera AI Inference, NIM, AI Registry, Agent Studio, DataFlow](ch19-cdp-public-cloud-on-aws-cloudera-ai.md)
-- **Ch20** — [Same code, two backends — the arc](ch20-same-code-two-backends.md)
+- **Ch20** — [Cloudera AI on AWC — the DGX Spark and Cloudera Anywhere, together](ch20-cloudera-ai-on-awc.md)
+- **Ch21** — [Same code, three backends — the arc](ch21-same-code-three-backends.md)
 
 ### Part VII — Demos
 
 The field-validated demo catalogue: each demo names the chapter it exercises and the exact artifact it reuses.
 
-- **Ch21** — [Demo catalogue](ch21-demo-catalogue.md)
+- **Ch22** — [Demo catalogue](ch22-demo-catalogue.md)
 
 ### Part VIII — Scale-out
 
 When one box isn't enough: two, three, and four Sparks over ConnectX-7.
 
-- **Ch22** — [Two, three, four Sparks: ConnectX-7, NCCL, 1M context](ch22-multi-spark-scale-out.md)
+- **Ch23** — [Two, three, four Sparks: ConnectX-7, NCCL, 1M context](ch23-multi-spark-scale-out.md)
 
 ## What you have here
 
-Twenty-two chapters in eight parts. Parts I–II are the box on its own; III–IV put it inside the Cloudera edge and streaming stack; V is the developer-workflow payoff; VI–VII take the same artifacts to Cloudera on AWS and into demos; VIII is scale-out. `files/` will hold flow exports, manifests and scripts; `images/` the figures — both at this directory's root, siblings of the chapters, the same layout as the EFM guide.
+Twenty-three chapters in eight parts. Parts I–II are the box on its own; III–IV put it inside the Cloudera edge and streaming stack; V is the developer-workflow payoff; VI–VII take the same artifacts to the three Cloudera-on-AWS shapes and into demos; VIII is scale-out. `files/` will hold flow exports, manifests and scripts; `images/` the figures — both at this directory's root, siblings of the chapters, the same layout as the EFM guide.

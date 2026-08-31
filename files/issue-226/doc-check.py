@@ -177,11 +177,11 @@ def check(doc, repo, research_dir, status_date, corpus_urls, known_urls):
         elif n not in nums:
             errors.append(f"{m.group(1)} §{n} does not exist in {SHORT[m.group(1)]} (it has ## {sorted(nums)})")
     for m in re.finditer(r'\bch(\d{2})\b', text):
-        if not 1 <= int(m.group(1)) <= 22:
-            errors.append(f"chapter ref ch{m.group(1)} outside ch01–ch22")
+        if not 1 <= int(m.group(1)) <= 23:
+            errors.append(f"chapter ref ch{m.group(1)} outside ch01–ch23")
     for m in re.finditer(r'\bCh(\d{1,2})\b', text):
-        if not 1 <= int(m.group(1)) <= 22:
-            warnings.append(f"chapter ref Ch{m.group(1)} outside 1–22 (EFM-guide chapter? say so)")
+        if not 1 <= int(m.group(1)) <= 23:
+            warnings.append(f"chapter ref Ch{m.group(1)} outside 1–23 (EFM-guide chapter? say so)")
 
     # 8. naming rule — bare "Spark" in a Cloudera sentence
     bare = re.compile(r'(?<!DGX )(?<!Apache )(?<!Apache-)(?<!Nvidia )(?<!NVIDIA )(?<!Py)\bSpark\b(?! box)(?!-hosted)(?!-side)(?!-to-)(?!s\b)')

@@ -559,7 +559,7 @@ The Spark box is a development and demo platform and an inference target, not a 
 - `CLAUDE-CHECKIN.md`'s NvidiaSpark-1 block gets the real k3s/kubectl/helm versions, the static IP reservation, the cluster's NodePort block, and its endpoint map; `CONTEXT.md` gets any new namespace or endpoint name.
 - The Flink GPU image finally gets a checked-in Dockerfile under `files/`, which `completed/gpu-minikube-grok-flink-image.md` and `completed/flink-minikube-gpu-working.md` never had.
 - `agent/known-patterns.tsv` gets a row for k3s-on-GB10 so the next session does not re-derive §3, and any canonical flow shape from §6 goes back into the `nifi-and-ai` skill.
-- #243 closes on the box; #238 flips to review; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) unblocks once the cluster exists, and the ch21 demo catalogue can start pulling from a working stack.
+- #243 closes on the box; #238 flips to review; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) unblocks once the cluster exists, and the ch22 demo catalogue can start pulling from a working stack.
 - Blog drafts follow `agent/writing-style.md` — the k3s-on-GB10 write-up is genuinely first-of-its-kind: a [forum search for NiFi and DGX Spark](https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark) returns nothing, and [NVIDIA's playbook library](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md) has no Kafka, NiFi or Flink playbook at all.
 
 ## Resources

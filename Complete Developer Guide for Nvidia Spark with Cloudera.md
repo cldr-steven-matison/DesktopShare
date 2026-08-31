@@ -2,6 +2,8 @@
 
 *by Steven Matison*
 
+> **Status (2026-08-31):** **AWC (Cloudera Anywhere) added as the third Cloudera-on-AWS form factor** ([#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283)). A new **Ch20 — Cloudera AI on AWC** is inserted into Part VI (the *using* chapter: DGX Spark + Cloudera Anywhere together), pushing the same-code arc to **Ch21 — Same code, three backends**, Demo catalogue to Ch22, and Scale-out to Ch23 — the guide is now **23 chapters**. New peer source doc `nvidia-dgx-spark-cloudera-awc.md` (the DGX↔AWC using runbook, peer to `nvidia-dgx-spark-cloudera-aws.md`); AWC setup/API/auth stays in `cloudera-anywhere-getting-started.md` (#284). All AWC-runtime claims are `[TO-VERIFY]` — no live `goes01` calls this issue; the box's reachability to the private `goes01` network is the gating open question.
+>
 > **Status (2026-08-28):** the full serving tier is **built and benchmarked on `spark-dd06`** ([#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232)) — lead Qwen3.6-35B-A3B-NVFP4 (`:8000`, 80–87 tok/s), embed bge-m3 (TEI `:8001`, 1024-d), rerank bge-reranker-v2-m3 (TEI `:8002`), STT whisper.cpp large-v3 CUDA (`:8003`, RTF ~0.04), and stretch Nemotron-3-Super-120B-A12B-NVFP4 (`:8000` swap-in, 15.5 tok/s single / 41.5 @4-way; thermal soak peak 69 °C GPU / ~114–115 °F case, no throttling). The model lock (Phase-gate) is **closed**, and the A source doc `nvidia-dgx-spark-landscape.md` is now expanded (MoE-vs-dense, engine table, co-host budget, 3 candidates per slot). This gives **Ch1/4/6/7 field-validated serving substance** — chapter prose extraction still pending. Serve scripts: `files/issue-226/{vllm-serve,tei-embed-serve,tei-rerank-serve,whisper-serve,vllm-stretch-serve}.sh`.
 >
 > **Status (2026-08-26):** the box landed as `spark-dd06` and the five source docs E–I (`nvidia-dgx-spark-research.md`, `-k3s-cso.md`, `-efm-agent.md`, `-local-kb.md`, `-cloudera-aws.md`) were written on it the same day — rows below say so per chapter. Every chapter is still a stub: field validation starts with on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). A/B/C source docs are still the first-package drafts.
@@ -45,9 +47,10 @@ The DGX Spark is documented as a personal AI supercomputer and as nothing else. 
 | **17** 🔲 | No | What moves off cloud tokens — cost control, measured | `nvidia-dgx-spark-local-kb.md` · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) | Source doc `nvidia-dgx-spark-local-kb.md` written 2026-08-26 on NvidiaSpark-1 (#240, `59801a6`), in review. Chapter still a stub; field validation waits on on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
 | **18** 🔲 | No | CDP Base on AWS + the DGX Spark | `nvidia-dgx-spark-cloudera-aws.md` · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) | Source doc `nvidia-dgx-spark-cloudera-aws.md` written 2026-08-26 on NvidiaSpark-1 (#241, `b348aca`), in review. Chapter still a stub; field validation waits on on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
 | **19** 🔲 | No | CDP Public Cloud on AWS: Cloudera AI Inference, NIM, AI Registry, Agent Studio, DataFlow | `nvidia-dgx-spark-cloudera-aws.md` · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) | Source doc `nvidia-dgx-spark-cloudera-aws.md` written 2026-08-26 on NvidiaSpark-1 (#241, `b348aca`), in review. Chapter still a stub; field validation waits on on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
-| **20** 🔲 | No | Same code, two backends — the arc | `nvidia-dgx-spark-cloudera-aws.md` · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) | Source doc `nvidia-dgx-spark-cloudera-aws.md` written 2026-08-26 on NvidiaSpark-1 (#241, `b348aca`), in review. Chapter still a stub; field validation waits on on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
-| **21** 🔲 | No | Demo catalogue | `nvidia-dgx-spark-cloudera-demos.md` · [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234) | Stub filed 2026-08-24. Gated on hardware ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
-| **22** 🔲 | No | Two, three, four Sparks: ConnectX-7, NCCL, 1M context | `nvidia-dgx-spark-landscape.md` · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) | Stub filed 2026-08-24. Gated on hardware ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
+| **20** 🔲 | No | Cloudera AI on AWC — the DGX Spark and Cloudera Anywhere, together | `nvidia-dgx-spark-cloudera-awc.md` · [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) | New form-factor chapter added 2026-08-31 (#283). The *using* chapter — DGX Spark + AWC (`goes01`) together; setup lives in `cloudera-anywhere-getting-started.md` (#284). Source doc authored at full scope; every AWC-runtime claim `[TO-VERIFY]` (no live goes01 calls this issue). Gating open item: box reachability to private `goes01` (`10.80.x`, VPN-only). |
+| **21** 🔲 | No | Same code, three backends — the arc | `nvidia-dgx-spark-cloudera-aws.md` + `nvidia-dgx-spark-cloudera-awc.md` · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) / [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) | Widened 2026-08-31 (#283) from two backends to three: desk endpoint + CDP Public Cloud Cloudera AI + Cloudera AI on AWC. Chapter still a stub; field validation waits on on-box bring-up ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
+| **22** 🔲 | No | Demo catalogue | `nvidia-dgx-spark-cloudera-demos.md` · [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234) | Stub filed 2026-08-24. Gated on hardware ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
+| **23** 🔲 | No | Two, three, four Sparks: ConnectX-7, NCCL, 1M context | `nvidia-dgx-spark-landscape.md` · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) | Stub filed 2026-08-24. Gated on hardware ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)). |
 
 ## Parts
 
@@ -58,9 +61,9 @@ The DGX Spark is documented as a personal AI supercomputer and as nothing else. 
 | III — Kubernetes on the DGX Spark | 8, 9, 10, 11 | k3s with a real GPU, then Cloudera Streaming Operators — NiFi, Kafka, Flink — running on Arm, with the box's own models as an inference target. |
 | IV — EFM at the desk | 12, 13, 14 | The Spark as an EFM-managed MiNiFi agent: the same class/flow/enrollment model the Jetson and the ESP32s use, one tier up in capability. |
 | V — Local AI for development | 15, 16, 17 | Keeping Claude Code's execution, retrieval, and validation on the desk: a local knowledge base over our own docs, a local reviewer loop, and the measured cost that moves off cloud tokens. |
-| VI — Cloudera on AWS | 18, 19, 20 | The two Cloudera-on-AWS shapes — CDP Base / Community Edition on EC2 and CDP Public Cloud — as integration targets for a local DGX Spark, ending in the same-code-two-backends arc. |
-| VII — Demos | 21 | The field-validated demo catalogue: each demo names the chapter it exercises and the exact artifact it reuses. |
-| VIII — Scale-out | 22 | When one box isn't enough: two, three, and four Sparks over ConnectX-7. |
+| VI — Cloudera on AWS | 18, 19, 20, 21 | The three Cloudera-on-AWS shapes — CDP Base / Community Edition on EC2, CDP Public Cloud, and AWC (Cloudera Anywhere) — as integration targets for a local DGX Spark, ending in the same-code-three-backends arc. |
+| VII — Demos | 22 | The field-validated demo catalogue: each demo names the chapter it exercises and the exact artifact it reuses. |
+| VIII — Scale-out | 23 | When one box isn't enough: two, three, and four Sparks over ConnectX-7. |
 
 ## Phase gates before any chapter can validate
 
@@ -76,13 +79,14 @@ The DGX Spark is documented as a personal AI supercomputer and as nothing else. 
 
 - `nvidia-dgx-spark-plan.md` — EPIC spine; phases, work-streams, decision log, risk register
 - `nvidia-dgx-spark-research.md` — the sourced corpus every chapter cites (E, [#237](https://github.com/cldr-steven-matison/DesktopShare/issues/237))
-- `nvidia-dgx-spark-landscape.md` — Ch1, Ch4, Ch6, Ch22 (A, [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232))
+- `nvidia-dgx-spark-landscape.md` — Ch1, Ch4, Ch6, Ch23 (A, [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232))
 - `nvidia-dgx-spark-runbook.md` — Ch2, Ch3 (B, [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233))
 - `nvidia-dgx-spark-k3s-cso.md` — Ch7, Ch8, Ch9, Ch10, Ch11 (F, [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238))
 - `nvidia-dgx-spark-efm-agent.md` — Ch12, Ch13, Ch14 (G, [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239))
 - `nvidia-dgx-spark-local-kb.md` — Ch15, Ch16, Ch17 (H, [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240))
-- `nvidia-dgx-spark-cloudera-aws.md` — Ch5, Ch18, Ch19, Ch20 (I, [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241))
-- `nvidia-dgx-spark-cloudera-demos.md` — Ch21 (C, [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234))
+- `nvidia-dgx-spark-cloudera-aws.md` — Ch5, Ch18, Ch19, Ch21 (I, [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241))
+- `nvidia-dgx-spark-cloudera-awc.md` — Ch20 (I-AWC, [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283)); AWC setup ref is `cloudera-anywhere-getting-started.md` (#284)
+- `nvidia-dgx-spark-cloudera-demos.md` — Ch22 (C, [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234))
 - EFM guide chapters this one leans on (numbered in the EdgeFlowManager repo, not this guide): EFM guide Ch19 (`ch19-efm-and-nvidia-jetson.md`, the ladder's lower rung), EFM guide Ch21 (`ch21-metrics-and-observability.md`, fleet board), EFM guide Ch14 (`ch14-nifi-and-ai-skill-efm-portion.md`) and Ch16 (`ch16-how-to-ai-with-minifi.md`) for the `nifi-and-ai` skill.
 
 ## Repos, paths, promotion flow
@@ -109,7 +113,7 @@ Promotion flow is the EFM guide's: source doc at the DesktopShare root (in progr
 
 | Axis | State | % |
 |---|---|---|
-| Field/build validation | 4 of 22 partial (Ch1/4/6/7 — serving tier built + benchmarked on `spark-dd06` 2026-08-28, #232); other chapters await further Phase-3/4/5 bring-up | ~18 % partial |
-| Chapter stubs staged | 22 of 22 | 100 % |
-| Source docs authored | 5 of 9 at full depth (E–I, 2026-08-26); A (`-landscape.md`) expanded 2026-08-28 (#232); B/C are first-package drafts | see `nvidia-dgx-spark-plan.md` §4 for per-doc state |
+| Field/build validation | 4 of 23 partial (Ch1/4/6/7 — serving tier built + benchmarked on `spark-dd06` 2026-08-28, #232); other chapters await further Phase-3/4/5 bring-up | ~17 % partial |
+| Chapter stubs staged | 23 of 23 (Ch20 AWC added 2026-08-31, #283) | 100 % |
+| Source docs authored | 6 of 10 at full depth (E–I, 2026-08-26; AWC peer doc `-cloudera-awc.md` 2026-08-31, #283 — [TO-VERIFY] pending live goes01); A (`-landscape.md`) expanded 2026-08-28 (#232); B/C are first-package drafts | see `nvidia-dgx-spark-plan.md` §4 for per-doc state |
 | Issue mailbox | EPIC #226 + children A–K: A **done + closed** (#232, `67cb1da`/`e50e471`); B/C/E–J in review, D/K open | — |

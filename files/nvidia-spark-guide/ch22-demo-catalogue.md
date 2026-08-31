@@ -1,4 +1,4 @@
-# Chapter 21: Demo catalogue
+# Chapter 22: Demo catalogue
 
 > **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-cloudera-demos.md` (DesktopShare root) · driving issue: [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
