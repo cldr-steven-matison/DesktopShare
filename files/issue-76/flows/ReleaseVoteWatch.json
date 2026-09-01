@@ -4195,7 +4195,7 @@
         "name": "LogFailures",
         "comments": "",
         "position": {
-          "x": -1500.0,
+          "x": 1360.0,
           "y": 5400.0
         },
         "type": "org.apache.nifi.processors.standard.LogAttribute",
