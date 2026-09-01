@@ -1,0 +1,10 @@
+2026-09-01 15:08:50,844 INFO [NAR Auto-Loader] o.a.n.n.StandardExtensionDiscoveringManager Loaded extensions for com.example:nifi-sparkplug-nar:1.0.0-SNAPSHOT in 2 millis
+2026-09-01 15:10:17,829 INFO [main] o.a.n.n.StandardExtensionDiscoveringManager Loaded extensions for com.example:nifi-sparkplug-nar:1.0.0-SNAPSHOT in 1 millis
+	com.example.processors.sparkplug.PublishSparkplug
+		com.example:nifi-sparkplug-nar:1.0.0-SNAPSHOT || ./work/nar/extensions/nifi-sparkplug-nar-1.0.0-SNAPSHOT.nar-unpacked
+2026-09-01 15:10:19,454 WARN [main] org.apache.nifi.nar.StandardNarLoader Found existing bundle with coordinate com.example:nifi-sparkplug-nar:1.0.0-SNAPSHOT, will not load /minifi-2.24.08.0-19/./extensions/nifi-sparkplug-nar-1.0.0-SNAPSHOT.nar
+2026-09-01 15:29:35,530 INFO [pool-15-thread-1] o.a.nifi.groups.StandardProcessGroup PublishSparkplug[id=02c75a68-6914-4bd0-9cb8-683c0f380600] added to StandardProcessGroup[identifier=e8f8edc3-fc04-4600-897a-534089440738,name=root]
+2026-09-01 15:29:35,539 INFO [pool-15-thread-1] o.a.n.f.s.StandardVersionedComponentSynchronizer Added PublishSparkplug[id=02c75a68-6914-4bd0-9cb8-683c0f380600] to StandardProcessGroup[identifier=e8f8edc3-fc04-4600-897a-534089440738,name=root]
+2026-09-01 15:29:35,621 INFO [pool-15-thread-1] o.a.n.c.s.StandardProcessScheduler Starting PublishSparkplug[id=02c75a68-6914-4bd0-9cb8-683c0f380600]
+2026-09-01 15:29:35,628 INFO [Timer-Driven Process Thread-1] o.a.n.c.s.TimerDrivenSchedulingAgent Scheduled PublishSparkplug[id=02c75a68-6914-4bd0-9cb8-683c0f380600] to run with 1 threads
+2026-09-01 15:29:36,136 INFO [Timer-Driven Process Thread-1] c.e.p.sparkplug.PublishSparkplug PublishSparkplug[id=02c75a68-6914-4bd0-9cb8-683c0f380600] Published NBIRTH to spBv1.0/SparkplugLab/NBIRTH/MiNiFi-Java-1 (bdSeq=0, metrics=3)

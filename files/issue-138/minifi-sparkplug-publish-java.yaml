@@ -1,0 +1,45 @@
+# Issue #138 / #248 — MiNiFi Java agent for the PublishSparkplug NAR field-verify.
+# Class SparkplugJavaLab. agentIdentifier is a FRESH server-minted UUID from
+# EFM /agent-deployer/generateCommand (2026-09-01) — never reused.
+# NAR side-load happens post-start via kubectl cp into extensions/ (hot-load).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: minifi-sparkplug-publish-java
+  namespace: default
+  labels:
+    app: minifi-sparkplug-publish-java
+spec:
+  containers:
+  - name: minifi
+    image: ubuntu:22.04
+    resources:
+      requests:
+        memory: "768Mi"
+        cpu: "250m"
+      limits:
+        memory: "1200Mi"
+        cpu: "1"
+    command: ["/bin/bash", "-c"]
+    args:
+    - |
+      apt-get update && apt-get install -y curl tar openjdk-21-jre-headless ca-certificates sudo
+      # health-poll EFM before the deployer curl (cold-start race)
+      for i in $(seq 1 60); do
+        curl -sf http://efm.cld-streaming.svc:10090/efm/actuator/health && break
+        sleep 5
+      done
+      curl -L \
+       -d agentClass=SparkplugJavaLab \
+       -d agentIdentifier=d54035a8-14bc-41fe-b4a5-54cd46588c10 \
+       -d agentType=java \
+       -d agentVersion=2.24.08.0-19 \
+       -d autoConfigureSecurity=false \
+       -d baseUrl=http%3A%2F%2Fefm.cld-streaming.svc%3A10090%2Fefm%2Fapi \
+       -d hbPeriod=5000 \
+       -d osArch=linux \
+       -d serviceName=minifi \
+       -d serviceUser=root \
+       -d trustSelfSignedCertificates=false \
+       http://efm.cld-streaming.svc:10090/efm/api/agent-deployer/script | bash -
+      tail -f /dev/null
