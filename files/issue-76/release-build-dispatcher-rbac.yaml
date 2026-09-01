@@ -1,0 +1,49 @@
+# Issue #76 — the identity NiFi's ReleaseVoteWatch flow uses to create and poll
+# build Jobs via the k3s API (https://kubernetes.default.svc). Least-privilege:
+# scoped to the release-builds namespace only — jobs + pods + pod logs.
+# The long-lived token from the Secret goes into the flow's Parameter Context
+# as the sensitive "k8s Dispatcher Token" param (never committed anywhere).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: release-build-dispatcher
+  namespace: release-builds
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: release-build-dispatcher
+  namespace: release-builds
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: release-build-dispatcher
+  namespace: release-builds
+subjects:
+  - kind: ServiceAccount
+    name: release-build-dispatcher
+    namespace: release-builds
+roleRef:
+  kind: Role
+  name: release-build-dispatcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: release-build-dispatcher-token
+  namespace: release-builds
+  annotations:
+    kubernetes.io/service-account.name: release-build-dispatcher
+type: kubernetes.io/service-account-token

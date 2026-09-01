@@ -1,0 +1,37 @@
+{
+  "_comment": "Issue #76 — Maven-leg Job template (NiFi core / API / NAR Maven Plugin). DEFERRED: the flow routes these legs to LogDeferredLeg until each repo's build goal is proven in its own dry-run. Stock maven image + the maven-build-entrypoint ConfigMap; GIT_REPO comes from the flow's ${gitRepo} attribute. Core NiFi is multi-hour — the 4h poll-loop expiration in the flow is sized for it.",
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "${k8s.job.name}",
+    "namespace": "release-builds",
+    "labels": {"leg": "${leg}", "system": "${system}", "source": "releasevotewatch"}
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "ttlSecondsAfterFinished": 86400,
+    "template": {
+      "spec": {
+        "restartPolicy": "Never",
+        "containers": [{
+          "name": "build",
+          "image": "docker.io/library/maven:3.9-eclipse-temurin-21",
+          "command": ["bash", "/entry/entrypoint.sh"],
+          "env": [
+            {"name": "TAG", "value": "${rc.git.tag:escapeJson()}"},
+            {"name": "ARTIFACT_URL", "value": "${rc.staging.url:escapeJson()}"},
+            {"name": "SHA512", "value": "${rc.sha512:escapeJson()}"},
+            {"name": "KEYS_URL", "value": "${rc.keys.url:escapeJson()}"},
+            {"name": "GIT_REPO", "value": "${gitRepo}"}
+          ],
+          "volumeMounts": [{"name": "entry", "mountPath": "/entry"}],
+          "resources": {
+            "requests": {"cpu": "4", "memory": "8Gi"},
+            "limits": {"cpu": "8", "memory": "24Gi"}
+          }
+        }],
+        "volumes": [{"name": "entry", "configMap": {"name": "maven-build-entrypoint"}}]
+      }
+    }
+  }
+}

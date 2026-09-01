@@ -1,6 +1,6 @@
 # NiFi / MiNiFi Release Voting and Build Automation
 
-**Status: 🟡 in-progress — scoped 2026-07-31; Pony Mail API live-probed 2026-08-14 (subject taxonomy + body-parse shape pinned); reconciled 2026-09-01 onto a single host. The entire workload now targets NvidiaSpark-1 (spark-dd06). Tracking issue [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76), device:NvidiaSpark-1. Human-in-the-loop (NiFi recommends, a human casts the vote); IMAP ingestion via steven@sceneserver.net; full source builds as dedicated k8s Jobs.**
+**Status: 🟡 in-progress — scoped 2026-07-31; Pony Mail API live-probed 2026-08-14 (subject taxonomy + body-parse shape pinned); reconciled 2026-09-01 onto a single host; BUILT on the box 2026-09-01 (see "As built" below): infra + C++ build leg + the full ReleaseVoteWatch flow on `mynifi`, stopped pending the IMAP credential. Tracking issue [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76), device:NvidiaSpark-1. Human-in-the-loop (NiFi recommends, a human casts the vote); IMAP ingestion via steven@sceneserver.net; full source builds as dedicated k8s Jobs.**
 
 Apache NiFi and MiNiFi releases go through a mailing-list vote: a release manager posts a `[VOTE]` thread pointing at a staged release candidate, and committers verify signatures, checksums, and a build, then reply `+1`/`0`/`-1`. I want NiFi itself to do the legwork — watch the list, catch the RC threads, verify the artifacts, build from the tagged source, run a release smoke test, and hand me a signed-off recommendation so *casting* the vote is a one-line human decision instead of an afternoon of manual verification. NiFi and MiNiFi are separate systems with separate build trees (and MiNiFi itself splits into C++ and Java), so this is really two build legs sharing one pipeline shape.
 
@@ -99,6 +99,16 @@ Defined per system, run as the Job's final step so verify+build+smoke are one un
 
 Assemble a verdict FlowFile — `{ verifyOk, buildOk, smokeOk, notes }` — render a human recommendation (a `+1`/`0`/`-1` *suggestion* with the evidence), and deliver it via a NiFi **bulletin**, a `PublishKafka` to `release_vote_recommendations` on `my-cluster`, and optionally an outbound notification. **No `[VOTE]` reply is ever sent by NiFi** — the human reads the brief and casts the vote from steven@sceneserver.net.
 
+## As built (2026-09-01, on the box — issue #76)
+
+Everything not gated on the human steps was built and verified live in one session; artifacts under [`files/issue-76/`](files/issue-76/):
+
+- **Infra:** `release-builds` namespace + ResourceQuota (`release-builds-ns.yaml` — the quota ceiling equals one Job's 8 CPU / 24Gi limits, so a second concurrent build goes Pending instead of starving the CSO pods); SA `release-build-dispatcher` + Role/RoleBinding/long-lived token (`release-build-dispatcher-rbac.yaml`, verified `can-i`: create jobs in `release-builds` only); KafkaTopic `release_vote_recommendations` (`release_vote_topic.yaml`, Ready=True).
+- **C++ build leg:** image `release-build-cpp:0.1` (`cpp-build/Dockerfile` + `entrypoint.sh` — the ch05 toolchain recipe with the tag as a *runtime* env var; sha512 + gpg verification gates the build; last log line is a `{"verifyOk",…}` verdict JSON). Imported into k3s containerd; dry-run against the real `nifi-minifi-cpp` 1.0.0 source release notes in `test/real_tag_dry_run.md`.
+- **The `ReleaseVoteWatch` PG on `mynifi`** (root-level, isolated; generator `flows/build_release_vote_watch.py` → export `flows/ReleaseVoteWatch.json`): 38 processors — `ConsumeIMAP` (2-min poll, **Mark-as-Read = primary dedup**) → header extract → subject normalize (**strips a leading `Fwd:`** so forwarded test samples route like live list mail) → taxonomy filter + product-leg route → stateful dedup guard → cpp leg: labeled-line `ExtractText` parse → Job manifest → dispatch/poll against `https://kubernetes.default.svc` → pod-log verdict scrape → recommendation JSON → bulletin-leveled logs + `PublishKafka_2_6`. Stopped; the only INVALID component is `ConsumeIMAP`'s empty password (by design until the credential lands).
+- **Design decisions locked in the build:** no `DetectDuplicate`/DistributedMapCache (mark-as-read is the mechanism; a stateful `UpdateAttribute` guard catches re-delivered copies); the k3s API token rides as a **sensitive dynamic property** on `InvokeHTTP` (`supportsSensitiveDynamicProperties` confirmed on this build — a plain header property cannot reference a sensitive parameter); TLS to the k3s API pins the cluster CA via `PEMEncodedSSLContextProvider` (`flows/k8s-ca.pem`, CA valid to 2036) — no trust-all; the poll loop-back connection carries a **4-hour FlowFile Expiration — a deliberate exception** to the 10-min default because source builds legitimately run hours (do not "fix" it back); **Maven legs (core/API/NAR plugin) are routed but deferred** to `LogDeferredLeg` until each gets its own dry-run (`maven-build/`, `jobs/maven-job-template.json` are the stubs); the optional vLLM thread-brief is not yet wired.
+- **Test plan:** Steven forwards real `[VOTE]` samples from steven.matison@gmail.com to the mailbox (the `Fwd:` strip covers the subject; forwarded bodies keep the labeled lines). Exclusion samples (`Re:`, `[CANCEL]`, `[RESULT]`) should land in `LogRejected`/`LogRetired`; a duplicate forward proves the guard; the Pony Mail API below stays the read-only cross-check.
+
 ## Open questions / blockers
 
 1. ~~**Pony Mail response shape**~~ — ✅ resolved 2026-08-14; and now moot for ingestion (IMAP is the live feed). Findings retained as the parse reference below.
@@ -107,7 +117,7 @@ Assemble a verdict FlowFile — `{ verifyOk, buildOk, smokeOk, notes }` — rend
 4. ~~**Build-host contention**~~ — ✅ resolved: dedicated `release-builds` namespace with per-Job limits + a `ResourceQuota`; off-peak gating if needed.
 5. ~~**KEYS/checksum URL conventions**~~ — ✅ resolved (labeled-line body; see appendix); note API/NAR-plugin build from *separate* GitHub repos.
 6. ~~**Where the dispatch listener runs**~~ — ✅ resolved: no listener — NiFi creates a k8s Job via the k3s API.
-7. **IMAP specifics (new)** — steven@sceneserver.net IMAP host/port/TLS, folder to watch, and whether a server-side filter should pre-sort `dev@` mail into a folder `ConsumeIMAP` targets. Confirm on the box.
+7. ~~**IMAP specifics**~~ — ✅ resolved 2026-09-01, probed live from the box: `sceneserver.net` is its own MX (cPanel shared host `cp2.clearlayer.com`), **Dovecot IMAPS on 993** (143/587/465 also open), AUTH=PLAIN/LOGIN with the full address as username. Folder = `INBOX` (a server-side pre-sort filter stays optional — the `IMAP Folder` parameter switches it without a flow edit). Remaining human steps: the `dev-subscribe@` handshake and the mailbox password into `~/.env` (`SCENESERVER_IMAP_PASSWORD`).
 
 ## Traps to watch
 
@@ -121,11 +131,11 @@ Assemble a verdict FlowFile — `{ verifyOk, buildOk, smokeOk, notes }` — rend
 ## When this ships
 
 All steps are **NvidiaSpark-1 session** work (this reconciliation was authored on the Mac):
-1. Subscribe steven@sceneserver.net to `dev@nifi.apache.org` and confirm; stash IMAP creds in a `mynifi` Parameter Context.
-2. Build **Stage 1** on `mynifi` (`ConsumeIMAP` → taxonomy route → dedupe); confirm it surfaces a real `[VOTE]` thread; export the flow to `files/`.
-3. Stand up the `release-builds` namespace (+ quota) and the k3s-API dispatch; iterate Stages 2–5 one build leg at a time — **start with MiNiFi C++ CMake** (the ch05 recipe already exists).
-4. Add the `release_vote_recommendations` topic; wire Stage 5 bulletin + Kafka + on-box vLLM brief.
-5. Move to `completed/`, write a blog draft to `blog/` following `agent/writing-style.md`.
+1. Subscribe steven@sceneserver.net to `dev@nifi.apache.org` and confirm; stash IMAP creds in a `mynifi` Parameter Context. — **🟡 the remaining human gate**: the subscribe handshake + the password into `~/.env` `SCENESERVER_IMAP_PASSWORD` (the Parameter Context and its `IMAP Password` slot already exist; the k8s dispatcher token is already set).
+2. ~~Build **Stage 1** on `mynifi`~~ — ✅ 2026-09-01, and Stages 2–5 with it (see "As built"); flow exported to `files/issue-76/flows/`. Surfacing a real `[VOTE]` thread waits on step 1.
+3. ~~Stand up the `release-builds` namespace (+ quota) and the k3s-API dispatch~~ — ✅ 2026-09-01; **MiNiFi C++ CMake leg dry-run against the real 1.0.0 source release**: verify gates green (sha512 + gpg), build in progress — run log in `test/real_tag_dry_run.md`. Maven legs still owed their dry-runs.
+4. ~~Add the `release_vote_recommendations` topic; wire Stage 5 bulletin + Kafka~~ — ✅ 2026-09-01; the on-box vLLM brief is still to wire (optional, non-blocking).
+5. Move to `completed/`, write a blog draft to `blog/` following `agent/writing-style.md` — after a real `[VOTE]` thread has been caught live end-to-end.
 6. Comment on [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76) with the doc path + commit sha at each milestone; keep the issue open (long-running).
 
 ---
@@ -148,7 +158,7 @@ Retained as the ground-truth **subject taxonomy + body-parse reference**. The AP
 
 - **Supersession:** `[CANCEL][VOTE] … (RC1)` kills a previously-surfaced candidate and an `(RC2)` follows. RCs churn fast (2.7.0 went to RC4). Dedup state keys on the *full subject incl. RC number*, and a `[CANCEL]`/`[RESULT]` for a tracked RC retires it.
 
-**Body parse targets (labeled-line, robust for regex).** Real fields from *[VOTE] Release Apache NiFi API 2.9.0 (RC1)*:
+**Body parse targets (labeled-line, robust for regex).** Two live corrections (2026-09-01, from a real forwarded MiNiFi C++ RC2 vote): **(1) mail bodies are quoted-printable** — `ConsumeIMAP` hands the raw RFC822 MIME to the flow, so soft `=\r\n` breaks and `=3D` escapes must be undone before any regex (the flow's `UnwrapQpBreaks`/`DecodeQpEquals` pair); **(2) the MiNiFi C++ vote body uses prose phrasing** — `The Git tag is minifi-cpp-1.0.0-RC2` / `The Git commit ID is <sha>` — not the NiFi API's `Git Tag:` labels, so the regexes accept both (`Git [Tt]ag(?::| is)`), and its subject styles the RC as `…1.0.0, RC2` (comma), not `(RC2)`. Real fields from *[VOTE] Release Apache NiFi API 2.9.0 (RC1)*:
 - Staging dir: `https://dist.apache.org/repos/dist/dev/nifi/nifi-api-2.9.0`
 - `Git Tag: nifi-api-2.9.0-RC1`  ·  `Git Commit ID: af5e64f3…`  ·  GitHub commit link
 - `SHA512: <hash>` for the named `…-source-release.zip`

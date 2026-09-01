@@ -1,0 +1,12 @@
+# Issue #76 — wraps maven-build/entrypoint.sh for the Maven build Jobs (stock
+# maven:3.9-eclipse-temurin-21 image + this script mounted at /entry — no custom
+# image to rebuild while the leg iterates). Apply after editing entrypoint.sh:
+#   kubectl create configmap maven-build-entrypoint -n release-builds \
+#     --from-file=entrypoint.sh=files/issue-76/maven-build/entrypoint.sh \
+#     --dry-run=client -o yaml | kubectl apply -f -
+# (Committed here as the record; the create-from-file command is the sync path.)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maven-build-entrypoint
+  namespace: release-builds

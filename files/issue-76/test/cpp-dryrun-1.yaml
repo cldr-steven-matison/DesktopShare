@@ -1,0 +1,39 @@
+# Issue #76 Phase 3 — one-off dry-run of the C++ build leg against a REAL
+# released source artifact (not a live vote): proves verify→build→smoke end to
+# end inside the release-builds quota before NiFi dispatch is wired to it.
+# Target: nifi-minifi-cpp 1.0.0 GA source release (downloads.apache.org),
+# published sha512 passed inline exactly as a vote email would carry it.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cpp-dryrun-1
+  namespace: release-builds
+  labels:
+    leg: cpp
+    system: minifi
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: build
+          image: docker.io/library/release-build-cpp:0.1
+          imagePullPolicy: Never
+          env:
+            - name: TAG
+              value: "rel/minifi-cpp-1.0.0"
+            - name: ARTIFACT_URL
+              value: "https://downloads.apache.org/nifi/nifi-minifi-cpp/1.0.0/nifi-minifi-cpp-1.0.0-source.tar.gz"
+            - name: SHA512
+              value: "7b0ed76420aa2695a7507534bebe480204969aa50264f1dc3ce634b8cb8bcda003ccad58d48b3241b87222454b88486863bf846073a128b9018388cbb2ba1c09"
+            - name: KEYS_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/KEYS"
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+            limits:
+              cpu: "8"
+              memory: 24Gi

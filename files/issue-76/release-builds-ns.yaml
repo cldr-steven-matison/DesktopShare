@@ -1,0 +1,22 @@
+# Issue #76 — release-vote automation: dedicated build namespace + quota.
+# The quota ceiling equals ONE build Job's limits (8 CPU / 24Gi), so a second
+# concurrent build goes Pending instead of competing with the live CSO pods
+# sharing the box (cfm-streaming / cld-streaming). pods: 2 allows the active
+# Job's pod plus a completed-but-not-yet-GC'd one during rollover.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: release-builds
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: release-builds-quota
+  namespace: release-builds
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "8"
+    limits.memory: 24Gi
+    pods: "2"

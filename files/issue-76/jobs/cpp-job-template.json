@@ -1,0 +1,34 @@
+{
+  "_comment": "Issue #76 — documentation copy of the Job JSON the ReleaseVoteWatch flow's BuildJobManifest (ReplaceText) renders and DispatchJob POSTs to /apis/batch/v1/namespaces/release-builds/jobs. ${...} are NiFi Expression Language placeholders filled from the parsed [VOTE] mail; #{Build Image Cpp} is a Parameter Context reference. The authoritative copy lives inside flows/build_release_vote_watch.py — keep the two in sync.",
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "${k8s.job.name}",
+    "namespace": "release-builds",
+    "labels": {"leg": "${leg}", "system": "${system}", "source": "releasevotewatch"}
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "ttlSecondsAfterFinished": 86400,
+    "template": {
+      "spec": {
+        "restartPolicy": "Never",
+        "containers": [{
+          "name": "build",
+          "image": "#{Build Image Cpp}",
+          "imagePullPolicy": "Never",
+          "env": [
+            {"name": "TAG", "value": "${rc.git.tag:escapeJson()}"},
+            {"name": "ARTIFACT_URL", "value": "${rc.staging.url:escapeJson()}"},
+            {"name": "SHA512", "value": "${rc.sha512:escapeJson()}"},
+            {"name": "KEYS_URL", "value": "${rc.keys.url:isEmpty():ifElse('https://dist.apache.org/repos/dist/release/nifi/KEYS', ${rc.keys.url}):escapeJson()}"}
+          ],
+          "resources": {
+            "requests": {"cpu": "4", "memory": "8Gi"},
+            "limits": {"cpu": "8", "memory": "24Gi"}
+          }
+        }]
+      }
+    }
+  }
+}
