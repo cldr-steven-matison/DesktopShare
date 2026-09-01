@@ -28,6 +28,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | AMOLED app/device ships from its per-app leader repo (app + backend) | `device-comms.md` §"Closing an issue" + `amoled-app-store-plan.md` Part C | guard 13 |
 | Canvas layout pitch / pre-flight before a processor create | skill `references/layout.md` | guard 5, known-patterns |
 | Docs get updated when a plan lands | `workflow.md` §"Docs get updated when a plan lands" | — |
+| Don't guess an unread source; never mutate on a guess | §"Fixes and claims" | — |
 
 ## Sub-agent prompting
 
@@ -64,6 +65,7 @@ A sub-agent does **not** inherit this file or a skill the parent loaded — it r
 - **Do exactly what's asked. No more, no less.** Don't bundle an unrequested "obvious improvement" into a fix. A rename ≠ a rewire ≠ a retype. If the improvement is obviously worth doing, mention it and ask — don't ship it silently.
 - **Don't call something "fixed" until the fix's mechanism actually explains the reported symptom.** Adding logging isn't a fix; it's visibility. If the symptom is "silent drops" and your change adds log lines, say "added logging so we can see the next occurrence," not "fixed the drops."
 - **State plainly what happened.** When something broke, one sentence: what happened, what's being done. No justification padding, no explanatory framing before the answer.
+- **Don't substitute a guess for a source you haven't read — and never take a mutating action on the guess.** When a referenced source (a screenshot, a comment, a file) can't be found, search the obvious adjacent locations (the issue you were just on, a `grep` for the exact name) or ask for the link — do not infer plausible content and act on it. Saying "I couldn't find it, working from your description" in prose does not make acting on the guess okay. (2026-08-28, #270/#239: pointed at the wrong issue for a screenshot's feedback, couldn't find it, inferred wrong content, and rewrote a live GitHub issue on the guess — the real feedback was entirely different, so the edit had to be redone. "Guessing and moving on is not going to cut it around here.")
 
 ## Credentials
 
