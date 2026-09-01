@@ -155,14 +155,25 @@ Package with the standard `nifi-nar-maven-plugin`, producing `nifi-sparkplug-nar
 This is more work than A1 but gives you declared properties in the EFM Designer, real validation,
 and one artifact to ship — worth it once the flow leaves prototype.
 
-> **Built, testable implementation:** the skeleton above is fleshed out into a complete, buildable
-> NAR bundle — `PublishSparkplug` with the full NBIRTH/NDATA/NDEATH + `bdSeq`/`seq` state machine,
-> Tahu encoding, Paho transport behind a testable seam, and a JUnit/TestRunner suite — in the
+> **Built AND field-verified live (2026-09-01):** the skeleton above is fleshed out into a complete,
+> buildable NAR bundle — `PublishSparkplug` with the full NBIRTH/NDATA/NDEATH + `bdSeq`/`seq` state
+> machine, Tahu encoding, Paho transport behind a testable seam, and a JUnit/TestRunner suite — in the
 > **[`nifi-sparkplug-bundle`](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/tree/main/nifi-sparkplug-bundle)**
 > bundle of the NiFi2-Processor-Playground repo (alongside the worked `nifi-iceberg-read-bundle`).
 > `mvn clean install` builds the self-contained NAR; side-load it into a MiNiFi Java agent's
 > `extensions/` exactly as described under Deploy (Java). Build/deploy specifics live in that
 > bundle's README.
+>
+> The end-to-end verify below has now been **run for real** on an EFM-managed MiNiFi Java
+> `2.24.08.0-19` agent (k8s pod, class `SparkplugJavaLab`): NAR side-loaded and hot-loaded, a
+> two-node `GenerateFlowFile → PublishSparkplug` Designer flow published, spec-correct
+> NBIRTH (seq=0) → NDATA on the wire, and the live NiFi `ConsumeMQTTIIoT` decoded it all via
+> `Message` (zero `parse.failure`) into Kafka. Evidence:
+> [`files/issue-138/`](https://github.com/cldr-steven-matison/DesktopShare/tree/main/files/issue-138).
+> Two field gotchas for repeat runs: (1) the NAR **hot-load does not refresh the agent's C2
+> manifest** — restart the agent before expecting `PublishSparkplug` in the EFM Designer palette;
+> (2) building outside the Mac needs Maven ≥ 3.9.11 and `-Denforcer.skip=true` (the NiFi parent
+> pom's enforcer rejects the SNAPSHOT version and older Maven).
 
 ### Deploy (Java)
 

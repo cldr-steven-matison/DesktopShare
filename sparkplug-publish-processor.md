@@ -70,5 +70,17 @@ kubectl cp -c <container> nifi-sparkplug-nar/target/nifi-sparkplug-nar-1.0.0-SNA
   <ns>/<agent-pod>:/opt/minifi/minifi-current/extensions/
 ```
 
-The NAR hot-loads (no restart); bump the bundle version for every redeploy. Full build/deploy
+The NAR hot-loads (no restart needed for the *extension* itself); bump the bundle version for
+every redeploy. **On an EFM-managed MiNiFi Java agent, hot-load is not enough for the Designer**:
+the C2 manifest is built at agent startup, so restart the agent before expecting the processor in
+the EFM palette (then pin the refreshed manifest with
+`POST /efm/api/agent-class-manifest-config`, field `agentClassName`). Full build/deploy
 and end-to-end verify steps are in the [bundle README](https://github.com/cldr-steven-matison/NiFi2-Processor-Playground/blob/main/nifi-sparkplug-bundle/README.md).
+
+## Field status
+
+**Live-verified end-to-end 2026-09-01** on an EFM-managed MiNiFi Java `2.24.08.0-19` agent
+(class `SparkplugJavaLab`, cso-prod-1): FlowFile JSON → NBIRTH/NDATA on the wire → decoded by the
+live `ConsumeMQTTIIoT` (`Message`, zero `parse.failure`) → Kafka `sparkplug_telemetry`.
+Wire capture, agent log, flow export, and pod spec:
+[DesktopShare `files/issue-138/`](https://github.com/cldr-steven-matison/DesktopShare/tree/main/files/issue-138).
