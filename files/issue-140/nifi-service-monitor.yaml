@@ -1,0 +1,36 @@
+# issue-140 — NiFi (CFM) ServiceMonitor on cso-prod-1, the §3 mTLS-cert-borrow pattern from
+# efm-windowsdesktop-prometheus-grafana.md. Zero NiFi config change, zero restart: the CFM
+# operator's own client cert is an identity NiFi already accepts on /nifi-api/flow/metrics/prometheus.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nifi-service-monitor
+  namespace: cfm-streaming
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: server
+      app.kubernetes.io/instance: mynifi
+  namespaceSelector:
+    matchNames:
+      - cfm-streaming
+  endpoints:
+  - port: https
+    path: /nifi-api/flow/metrics/prometheus
+    interval: 30s
+    scheme: https
+    tlsConfig:
+      insecureSkipVerify: true
+      serverName: mynifi-web.cfm-streaming.svc.cluster.local
+      cert:
+        secret:
+          name: mynifi-cfm-operator-user-cert
+          key: tls.crt
+      keySecret:
+        name: mynifi-cfm-operator-user-cert
+        key: tls.key
+    relabelings:
+      - targetLabel: __address__
+        replacement: mynifi-web.cfm-streaming.svc.cluster.local:8443

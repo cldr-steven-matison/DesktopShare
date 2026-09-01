@@ -1,15 +1,39 @@
 # EFM Observability — the working record
 
-**Status: Layers 1 and 2-Java live on Grafana 2026-08-15 ([#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166)).** This doc is the single working record for how edge-fleet metrics actually flow into the CSO Prometheus/Grafana stack on WindowsDesktop — what shipped, the exact wiring, every gotcha that cost a debug cycle, and what's still open. The published guide narrative lives in EdgeFlowManager [Ch19](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/ch19-efm-and-nvidia-jetson.md) (Jetson slice) and [Ch21](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/ch21-metrics-and-observability.md) (full three-layer story); this is the internal ops-grade version.
+**Status: re-stood on `cso-prod-1` 2026-09-01 ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) — all five fleet targets `up=1` again.** The 2026-08-26 prod cutover left the cluster with **no Prometheus/Grafana at all** (helm release gone; the monitoring CRDs and this doc's ServiceMonitor CRs survived, and every agent-side exporter kept serving the whole time). The re-stand is recorded below. This doc is the single working record for how edge-fleet metrics actually flow into the CSO Prometheus/Grafana stack on WindowsDesktop — what shipped, the exact wiring, every gotcha that cost a debug cycle, and what's still open. The published guide narrative lives in EdgeFlowManager [Ch19](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/ch19-efm-and-nvidia-jetson.md) (Jetson slice) and [Ch21](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/ch21-metrics-and-observability.md) (full three-layer story); this is the internal ops-grade version.
 
 ## The layers, as actually built
 
 | Layer | What | Status |
 |---|---|---|
-| 1 — EFM server | Prometheus scrapes EFM's actuator; per-`agentClass` heartbeat series for the whole fleet | ✅ live (`up{job="efm"}=1`) |
+| 1 — EFM server | Prometheus scrapes EFM's actuator; per-`agentClass` heartbeat series for the whole fleet | ✅ live (`up{job="efm"}=1`, re-confirmed post-re-stand 2026-09-01) |
 | 2 — C++ agent | Native `PrometheusMetricsPublisher` on `:9936` | Historical — validated at Jetson C++ bring-up, agent retired |
-| 2 — Java agent | **Flow-level exporter**: the agent's own flow serves `/metrics` | ✅ live on NvidiaNano (`up{job="nvidianano-minifi-metrics"}=1`) |
-| 3 — MicroFi/ESP32 | Storage/health counters inside the C2 heartbeat, surfaced via Layer 1 | Design confirmed, panel unbuilt ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) |
+| 2 — Java agent | **Flow-level exporter**: the agent's own flow serves `/metrics` | ✅ live on all three hosts — NvidiaNano, WindowsDesktop, StarlinkAI-over-Tailscale (`up=1` each, re-confirmed 2026-09-01) |
+| 3 — MicroFi/ESP32 | Storage/health counters inside the C2 heartbeat, surfaced via Layer 1 | **Verdict 2026-08-15: not buildable via EFM.** The firmware sends `status.microfi.littleFs*` counters, but EFM deserializes unknown heartbeat fields away (`GET /efm/api/agents/{id}` has no `microfi` block) and the actuator re-exports nothing from the heartbeat body — the counters exist only on the wire. What stands as Layer 3: the fleet board's per-MicroFi heartbeat-transport rows. Storage counters need device egress (MQTT→NiFi→Prometheus), parked with the MicroFi capstone. Full probe record: [`files/issue-140/README.md`](files/issue-140/README.md). |
+
+## The 2026-08-26 cutover took the stack down — the 2026-09-01 re-stand
+
+Post-cutover state found on `cso-prod-1`: zero `prometheus`/`grafana` pods anywhere, the zellij
+`:3000` and `:1883` forward panes retry-looping for days, Mosquitto's `mqtt` namespace empty —
+while EFM, Kafka, NiFi, and **every agent-side exporter** ran on untouched (in-cluster curl tests
+against all three `:9936` targets returned live metrics before any re-install). The monitoring
+CRDs *and* the ServiceMonitor/Service/Endpoints CRs survived the stack's removal, so the re-stand
+was exactly two moves:
+
+1. The verbatim `helm install` from
+   [`efm-windowsdesktop-prometheus-grafana.md`](efm-windowsdesktop-prometheus-grafana.md) §1
+   (namespace `cld-streaming`, ServiceMonitor selectors opened).
+2. `kubectl apply` of the consolidated wiring —
+   [`files/issue-140/observability-restand-cso-prod-1.yaml`](files/issue-140/observability-restand-cso-prod-1.yaml)
+   (EFM + WindowsDesktop + NvidiaNano monitors),
+   [`files/issue-140/nifi-service-monitor.yaml`](files/issue-140/nifi-service-monitor.yaml)
+   (mTLS cert-borrow, zero NiFi restart), and the existing
+   [`files/issue-169/starlinkai-minifi-metrics.yaml`](files/issue-169/starlinkai-minifi-metrics.yaml) —
+   plus the two dashboard ConfigMaps re-created from the EdgeFlowManager JSON sources.
+
+Verified ~2 min later, from an in-cluster pod against the Prometheus API: `efm`, `mynifi-web`,
+`nvidianano-minifi-metrics`, `starlinkai-minifi-metrics`, `windowsdesktopcpp-minifi-metrics` all
+`up=1`.
 
 ## Layer 2 Java — the flow-level Prometheus exporter (the pattern that shipped)
 
@@ -93,6 +117,8 @@ Gotchas:
 - **Dashboards deploy as sidecar ConfigMaps**, not manual imports: any ConfigMap in any namespace labeled `grafana_dashboard=1` auto-loads (and hot-reloads on `kubectl apply`). The JSON stays versioned in EdgeFlowManager `files/` as source of truth.
 - **⚠️ The datasource UID trap.** This Grafana's provisioned Prometheus datasource UID is **`PBFA97CFB590B2093`** (kube-prometheus-stack's deterministic hash of "Prometheus"), *not* `prometheus`. A dashboard JSON hardcoding the wrong UID renders every panel "No data" while Prometheus is fine — and API-side sanity checks pass because they query Prometheus directly, not through Grafana. Verify the way panels actually query: `GET /api/datasources` for the real UID, then run a panel expr through `/api/datasources/proxy/uid/<uid>/api/v1/query`.
 - Three more importable dashboards sit in `ClouderaStreamingOperators/`: `csa-flink-dashboard.json` (imported once before, per `flink-plan.md`), `csm-kafka-dashboard.json`, `cso-fraud-dashboard.json` — check each for the UID trap before ConfigMap-loading.
+- **Anonymous Viewer is enabled on this install (2026-09-01)** — `grafana.ini [auth.anonymous] enabled=true, org_role=Viewer` via helm values — so headless/scripted screenshot capture works without a login flow. Admin auth unchanged. Gotcha from the re-stand: setting nested `grafana.ini` keys with helm `--set` mangles the section (`anonymous = map[...]`); use a values file.
+- The datasource-UID question re-checked on the fresh install: the same helm values reproduce `PBFA97CFB590B2093`, so the committed dashboards' hardcoded UID still resolves (verified via the `/api/datasources/proxy/uid/.../query` convention above).
 
 ## Dashboards inventory (live now)
 
@@ -102,6 +128,12 @@ Gotchas:
 | EFM Fleet - All Devices | `efm-fleet` | `efm-fleet-dashboard` | EdgeFlowManager [`files/efm-fleet-dashboard.json`](https://github.com/cldr-steven-matison/EdgeFlowManager/blob/main/files/efm-fleet-dashboard.json) |
 
 The Fleet board: six per-device seconds-since-heartbeat tiles (green <120s / yellow <600s / red beyond) · the all-device sawtooth graph (a healthy device saws between 0 and its heartbeat interval; a dying one just climbs) · Layer-2 host rows for the Jetson, WindowsDesktop, and StarlinkAI (scrape stat, CPU, memory) · a Layer-1 row per remaining device (sawtooth, heartbeats/min, avg heartbeat size).
+
+As re-stood and live on `cso-prod-1`, 2026-09-01 — all six tiles green (MicroFi-1/2/3 + AMOLED-era classes heartbeating, three Layer-2 host rows UP):
+
+![EFM Fleet - All Devices dashboard, all six device tiles green, sawtooth alive, three Layer-2 host rows UP — cso-prod-1 re-stand 2026-09-01](images/efm-fleet-dashboard-cso-prod-1-restand.png)
+
+![MiNiFi Java - NvidiaNano dashboard: scrape UP, host load and memory from the flow-level exporter](images/nvidianano-minifi-java-dashboard-restand.png)
 
 ## EFM registry cleanup (done 2026-08-15 for the retired Jetson C++ agent)
 
@@ -120,5 +152,6 @@ The `bulk_operation` rollup is what the "N agents failed to update" dashboard wi
 
 - ~~#169 StarlinkAI flow-level exporter~~ — **DONE 2026-08-15**: agent-side leg live since flow v7 (fourth leg `:9936 /metrics`, `-EncodedCommand` CIM script — details in the [#169](https://github.com/cldr-steven-matison/DesktopShare/issues/169) thread); cluster side completed from WindowsDesktop. **The scrape goes over Tailscale**: from an in-cluster pod the Beelink's LAN `192.168.1.245:9936` times out while `100.110.253.66:9936` answers — so the selector-less Service/Endpoints target the Tailscale IP (`files/issue-169/starlinkai-minifi-metrics.yaml`, with `fallbackScrapeProtocol: PrometheusText0.0.4`). First scrape hit the #170 CRLF trap live (`invalid metric type "gauge\r"` — v7 predated that lesson by 7 minutes); fixed by publishing v8 with the proven `[Console]::Out.Write` LF-join script. Verified `up{job="starlinkai-minifi-metrics"}=1` with real values (cpu 14%, 62.6 GB total), production listeners alive post-restart, StarlinkAI Layer-2 row (scrape stat / CPU % / memory) live on the fleet board. Exports current: `files/issue-169/` (v8) + EdgeFlowManager `files/efm/StarlinkAI.json`.
 - ~~#170 WindowsDesktop-agent flow-level exporter~~ — **DONE 2026-08-15**: fourth leg live on the `WindowsDesktop` Java class (`:9936`, `powershell.exe -EncodedCommand` host metrics — `cpu_percent`/`mem_total_kb`/`mem_free_kb`), scraped `up=1` through the carried-over `windowsdesktopcpp-minifi-metrics` wiring + `fallbackScrapeProtocol`, WD host row on the fleet board. Windows lessons (now also in Ch21): PowerShell CRLF breaks the Prometheus parser — `[Console]::Out.Write` LF-joined text; the Defender inbound rule (`netsh ... localport=9936`) was mandatory; a WSL curl to the host's own LAN IP is not a valid reachability test in mirrored mode (loopback + Prometheus target status are).
-- **Layer 3 MicroFi heartbeat-storage panel** — [#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)'s only remaining scope (the StarlinkAI-over-Tailscale scrape closed with #169), observability-last ordering.
+- ~~**Layer 3 MicroFi heartbeat-storage panel**~~ — **closed by verdict 2026-08-15, not by a panel**: EFM drops the firmware's `status.microfi.littleFs*` heartbeat fields at deserialization and re-exports nothing from the heartbeat body, so no EFM-polling intermediary can recover them (three-probe record: [`files/issue-140/README.md`](files/issue-140/README.md); also written into Ch21's Layer-3 section and `efm-metrics.md`). The fleet board's MicroFi heartbeat-transport rows stand as the real Layer 3; storage counters would need device egress (MQTT → NiFi → Prometheus), which rides with future MicroFi firmware/flow work, not this stream.
 - MicroFi devices stay Layer-1-only by design: no `HandleHttpRequest/Response` pair exists in the ESP32 palette (ListenHTTP is fire-and-forget), so their story is richer heartbeats, not a scrape endpoint.
+- **Never design a metric to ride C2-heartbeat custom fields** (the Layer-3 lesson, now also a Ch21 What-NOT-to-Do): the C2 protocol's parsed schema is the contract, not the wire payload — anything the server doesn't model is silently gone.

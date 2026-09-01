@@ -55,24 +55,24 @@ flow that actually ran on real hardware.
 | **18** ✅ | Yes | Sample gallery of MiNiFi flows | **Complete 2026-09-01 ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)).** Twelve field-validated cards, pending list empty. Entries 11 (`PublishSparkplug` on MiNiFi Java, [#248](https://github.com/cldr-steven-matison/DesktopShare/issues/248)) and 12 (LED actuation round-trip) added from the 2026-09-01 field runs; Entry 10 (SparkPlug two-leg, [#167](https://github.com/cldr-steven-matison/DesktopShare/issues/167) ✓) and the Ch11 S2S cards earlier. |
 | **19** 🟡 | Yes | EFM + NVIDIA Jetson use case | Java metrics path CONFIRMED 2026-08-14 ([#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166) ✓): flow-level `:9936` Prometheus exporter live, `up=1`, Grafana panel rendering; the #139 firewall/scrape question resolved empirically in the same pass. Round-trip verification **closed on review 2026-08-17** ([#165](https://github.com/cldr-steven-matison/DesktopShare/issues/165) ✓): EFM has **no provenance view** — chapter section rewritten to Monitoring-Active per-processor counters + status-API byte reconciliation, figure captured, stale `:8090` port refs trued to live `:8080`. **All Ch19 issues closed (#139/#166/#165) — stream fully delivered; chapter prose pending Steven's read-through feedback.** |
 | **20** ✅ | Yes | SparkPlug Demo — Xiao · Nano · NiFi | **Complete 2026-09-01 ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)).** Post-cutover re-validation section added (Mosquitto redeploy, all three MicroFi units live at once, export diffed clean); S2S leg **descoped-with-reason as final** (2026-08-05 pivot recorded; enablement recipe kept); actuation round-trip **re-fielded on MicroFi-1** driven from the new central-NiFi `MicroFiLedActuation` PG; MicroFi/MicroFi-1/2/3 class-naming reconciled with Ch18 Entry 10 ("one flow type per unit"). |
-| **21** 🟡 | Yes | Metrics & Observability | Layer 2 complete across all three exporter hosts 2026-08-15: NvidiaNano ([#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166) ✓), WindowsDesktop ([#170](https://github.com/cldr-steven-matison/DesktopShare/issues/170) ✓), StarlinkAI over Tailscale ([#169](https://github.com/cldr-steven-matison/DesktopShare/issues/169) ✓) — host rows live on the EFM Fleet board; fleet-dashboard + heartbeat-semantics prose folded into Ch21. Layer 3 verdict delivered 2026-08-15 ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)): EFM drops the MicroFi heartbeat's `status.microfi.littleFs*` fields and re-exports nothing from the heartbeat body — the storage-metrics panel is **not buildable via EFM**; finding documented in Ch21 + `efm-metrics.md`, MicroFi fleet rows (heartbeat-transport series) stand as the Layer-3 slice; storage counters need device egress. **#140 REOPENED (status:todo, device:WindowsDesktop) with fresh feedback:** `efm-observability.md` is out of sync with WindowsDesktop work and screenshots must be added to the MD. |
+| **21** ✅ | Yes | Metrics & Observability | **Delivered 2026-09-01, status:review ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)).** Post-cutover re-stand on `cso-prod-1`: kube-prometheus-stack reinstalled, all five fleet targets `up=1` (EFM, NiFi mTLS-borrow, NvidiaNano, StarlinkAI-Tailscale, WindowsDesktop), both dashboards live via sidecar ConfigMaps. `efm-observability.md` synced (Layer-3 verdict, re-stand record, anonymous-Viewer + UID notes) **with screenshots in the MD**; Ch21 gains the fleet + per-agent dashboard figures and the rebuildable-in-two-moves Layer-0 note. Layer-3 verdict stands (heartbeat-transport rows = the MicroFi slice). |
 
 ## Close plan — v2 ([EPIC #137](https://github.com/cldr-steven-matison/DesktopShare/issues/137))
 
 The v1 close plan (#59, written 2026-07-31) is done and closed — stale by the time it closed, since everything in it shipped. **[EPIC #137](https://github.com/cldr-steven-matison/DesktopShare/issues/137)** is the active plan: demos-first — finish the demos, wire the live flows through to observability, complete the `nifi-and-ai` skill, land the Nvidia Nano and Sparkplug B demos. Each 🟡 WIP chapter and its gating work-stream:
 
-Status as of **2026-09-01** (evening session). **[#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138) (A) CLOSED** — all four field items ran live (legs re-confirmed post-cutover, LED actuation re-fielded on MicroFi-1, rebirth NCMD fielded with the firmware gap documented, #248 `PublishSparkplug` NAR live-verified E2E) and the Ch13/Ch18/Ch20 folds landed. **[#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178) (F) CLOSED** the same session — Ch12 capstone folded (fleet, registry, AMOLED senses, round-trip, screenshots). **One child issue remains open: [#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140) (C — observability).**
+Status as of **2026-09-01** (evening session). **[#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138) (A) delivered — status:review** (per Steven: children stay open for a human read; close on sign-off). All four field items ran live (legs re-confirmed post-cutover, LED actuation re-fielded on MicroFi-1, rebirth NCMD fielded with the firmware gap documented, #248 `PublishSparkplug` NAR live-verified E2E) and the Ch13/Ch18/Ch20 folds landed. **[#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178) (F) delivered — status:review** the same session — Ch12 capstone folded (fleet, registry, AMOLED senses, round-trip, screenshots). **[#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140) (C) delivered — status:review** (obs stack re-stood on cso-prod-1, five targets up=1, docs synced + screenshots). All three children + the EPIC stay open in review for Steven's read.
 
 | WIP Ch | Gating work-stream (child issue) |
 |---|---|
-| 12 EFM and MicroFi | F ✓ **closed 2026-09-01** ([#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178)) — capstone collected: fleet + registry + AMOLED senses + round-trip + screenshots. Chapter ✅. |
-| 13 EFM and SparkPlug MQTT | A ✓ **closed 2026-09-01** ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) — legs re-confirmed, rebirth fielded (firmware gap documented), #248 publish side folded + live-verified. Chapter ✅. |
+| 12 EFM and MicroFi | F **delivered 2026-09-01, status:review** ([#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178)) — capstone collected: fleet + registry + AMOLED senses + round-trip + screenshots. Chapter ✅. |
+| 13 EFM and SparkPlug MQTT | A **delivered 2026-09-01, status:review** ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) — legs re-confirmed, rebirth fielded (firmware gap documented), #248 publish side folded + live-verified. Chapter ✅. |
 | 14 NiFi and AI Skill | D · **closed on review** 2026-08-15 ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141) ✓) — skill at public parity, Ch14 trued. Prose pending Steven's read-through. |
 | 16 How to AI with MiNiFi | D · **closed on review** 2026-08-15 ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141) ✓) — HOW-to shape verified, public clone link added. Prose pending Steven's read-through. |
-| 18 Sample gallery | ✓ **closed 2026-09-01** with [#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138) — Entries 11 (PublishSparkplug) + 12 (LED actuation) added; twelve cards, pending list empty. Chapter ✅. |
+| 18 Sample gallery | **delivered 2026-09-01, status:review** with [#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138) — Entries 11 (PublishSparkplug) + 12 (LED actuation) added; twelve cards, pending list empty. Chapter ✅. |
 | 19 EFM + NVIDIA Jetson | B ✓ ([#139](https://github.com/cldr-steven-matison/DesktopShare/issues/139)); metrics ✓ ([#166](https://github.com/cldr-steven-matison/DesktopShare/issues/166)); round-trip verification ✓ ([#165](https://github.com/cldr-steven-matison/DesktopShare/issues/165)) — **all issues closed, stream fully delivered.** Prose pending Steven's read-through. |
-| 20 SparkPlug Demo | A ✓ **closed 2026-09-01** ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) — post-cutover re-validation section, actuation re-fielded on MicroFi-1 from central NiFi, S2S descope recorded final. Chapter ✅. |
-| 21 Metrics & Observability | C · observability completeness ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140) — **REOPENED, OPEN**). Layer-2 (3 hosts) + Layer-3 verdict delivered; fresh feedback = `efm-observability.md` out of sync with WindowsDesktop + screenshots into the MD. |
+| 20 SparkPlug Demo | A **delivered 2026-09-01, status:review** ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) — post-cutover re-validation section, actuation re-fielded on MicroFi-1 from central NiFi, S2S descope recorded final. Chapter ✅. |
+| 21 Metrics & Observability | C **delivered 2026-09-01, status:review** ([#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140)) — obs stack re-stood, doc synced + screenshots embedded, Ch21 figures in. Chapter ✅. |
 
 Work-stream **E** ([#142](https://github.com/cldr-steven-matison/DesktopShare/issues/142)) is **verified end-to-end 2026-08-14**: the `TwitchChatBot` → StarlinkAI `:8096` repoint (all four `InvokeStarlink*` legs incl. matrix, #136) was found already live, and a real Twitch matrix command drove the screen with the processor's counters confirming the `:8096` path. Housekeeping done 2026-08-10: #123 (Java S2S metrics) and #126 (real-hardware Sparkplug B) closed — both were complete but still open.
 
@@ -114,13 +114,13 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 
 # EFM Guide — Completion Summary
 
-## Overall: ~95% complete
+## Overall: ~97% complete
 
 | Axis | State | % |
 |---|---|---|
 | **Field/build validation** | 21 of 21 "Yes" (Ch13/Ch18/Ch20 flipped 2026-09-01) | 100% |
 | **Published prose** | 21 of 21 chapters folded into EdgeFlowManager | 100% |
-| **Blended, status-weighted** | ~20.5 / 21 | ~97% |
+| **Blended, status-weighted** | ~20.7 / 21 | ~98% |
 | **Issue mailbox** | 151 of 164 closed (2026-08-17; #165 Ch19 round-trip closed on review since the 08-15 sweep) | ~92% |
 
 ## Metric counts
@@ -128,7 +128,7 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 | Metric | Count |
 |---|---|
 | Chapters (9 parts) | 21 |
-| ✅ done / 🟡 in-progress / 🔲 not started | 17 / 4 / 0 |
+| ✅ done / 🟡 in-progress / 🔲 not started | 18 / 3 / 0 |
 | Folded chapters (EdgeFlowManager) | 21 files, ~51,400 words |
 | Figures | 37 |
 | Flow exports (`files/**/*.json`) | 25 |

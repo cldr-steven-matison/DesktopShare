@@ -1,0 +1,114 @@
+# issue-140 — observability re-stand on cso-prod-1 (2026-09-01).
+# Post-cutover, the cluster had no Prometheus/Grafana at all. kube-prometheus-stack was
+# reinstalled per efm-windowsdesktop-prometheus-grafana.md (verbatim helm command); this file
+# is every ServiceMonitor/Service/Endpoints applied on top, in one place.
+# Patterns: efm-windowsdesktop-prometheus-grafana.md §2/§5/§6, files/issue-169 (Tailscale target).
+---
+# Layer 1 — EFM actuator (efm-ui:10090, /efm/actuator/prometheus; metrics/9092 serves nothing)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: efm
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: efm
+  endpoints:
+  - port: efm-ui
+    path: /efm/actuator/prometheus
+    interval: 15s
+---
+# Layer 2 Java — WindowsDesktop native agent flow-level exporter (external target, LAN)
+apiVersion: v1
+kind: Service
+metadata:
+  name: windowsdesktopcpp-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: windowsdesktopcpp-minifi-metrics
+spec:
+  ports:
+    - name: prometheus
+      port: 9936
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: windowsdesktopcpp-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: windowsdesktopcpp-minifi-metrics
+subsets:
+  - addresses:
+      - ip: 192.168.1.121
+    ports:
+      - name: prometheus
+        port: 9936
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: windowsdesktopcpp-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+  fallbackScrapeProtocol: PrometheusText0.0.4
+  selector:
+    matchLabels:
+      app: windowsdesktopcpp-minifi-metrics
+---
+# Layer 2 Java — NvidiaNano flow-level exporter (external target, LAN)
+apiVersion: v1
+kind: Service
+metadata:
+  name: nvidianano-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidianano-minifi-metrics
+spec:
+  ports:
+    - name: prometheus
+      port: 9936
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nvidianano-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidianano-minifi-metrics
+subsets:
+  - addresses:
+      - ip: 192.168.1.197
+    ports:
+      - name: prometheus
+        port: 9936
+        protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidianano-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+  fallbackScrapeProtocol: PrometheusText0.0.4
+  selector:
+    matchLabels:
+      app: nvidianano-minifi-metrics
