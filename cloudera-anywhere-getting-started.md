@@ -47,7 +47,7 @@ awc_api /experiences | jq -r '.[] | "\(.appName)\t\(.status)\t\(.landingPageUrl)
 
 Other read endpoints: `/clusters`, `/engines` (the installed engine types — this is how you tell what a product is built on), `/blueprints`, `/flavors`, `/infrastructure`, plus SSE streams at `/experiences/events` and `/clusters/events`. `POST /deployApp` / `/validateDeployment` provision new experiences. The specs are served at `/docs/#awc-console` — `awc-console.yaml`, `awc-auth.yaml`, `diagnostics.yaml`; copies are checked in under `files/`.
 
-goes01 runs **15 experiences** (all `deployed`, product version `1.6.0`), backed by AWS EKS (`goes01-aws-se-goes-taikun`). It's not just streaming — the full inventory includes the analytics stack (Lakehouse Engine, Object Store, Data Explorer), Cloudera AI, Data Visualization, Data Engineering with Unified Data Fabric (×4), and Workflow Orchestrator. The ones this doc drives:
+goes01 runs a couple dozen experiences (all `deployed`, product version `1.6.0`; the exact count drifts as demos come and go — `GET /experiences | jq length` was 25 at last check), backed by AWS EKS (`goes01-aws-se-goes-taikun`). It's not just streaming — the full inventory includes the analytics stack (Lakehouse Engine, Object Store, Data Explorer), Cloudera AI, Data Visualization, Data Engineering with Unified Data Fabric (×4), and Workflow Orchestrator. The ones this doc drives:
 
 | Service | Experience | Host |
 |---|---|---|
@@ -136,7 +136,15 @@ The Basic engine is up and queryable, but `SHOW CATALOGS` returns only the built
 trino_q "SHOW CATALOGS"   # => ["system"]
 ```
 
-So Trino runs, but there's nothing to query beyond `system.*` until a data catalog is attached. Running the Iceberg demo (the `poc_uc2.airlines` / `poc_uc2.flights` tables from the CDP/AWS build) means registering an Iceberg catalog against the Hive Metastore (`hive-metastore-plugin`) with table data in the Object Store (Ozone) — done through the Lakehouse Engine admin UI or the governed engine, not over this REST path. That's the open next step. **[TO-VERIFY: the catalog-add mechanism on CLE Basic — admin UI vs. `trino-engine-governed`.]**
+So Trino runs, but there's nothing to query beyond `system.*` until a data catalog is attached — and on the Basic engine, **the catalog store is static: it can't be added over the tenant API.** Every route is closed:
+
+- **Trino SQL.** `CREATE CATALOG … USING iceberg` returns `NOT_SUPPORTED: CREATE CATALOG is not supported by the static catalog store`. Dynamic catalog management is off.
+- **Console API.** `/engine-deployments` is read-only; the only writes the Console exposes are `validateDeployment`, `deployApp` (stands up a *new* cluster, not a catalog on an existing engine), and `upgrade`. There is no catalog- or engine-config endpoint.
+- **Admin host.** `…-cle-t-…-admin.…` is a static SPA — `/` and every unknown path return the app-shell HTML, `/api/v1/catalogs` returns a bare `404`. Its runtime `config.json` reports `"features": { "enableFederationConnectors": false }` and a sidebar with only *Overview* — this deployment exposes **no data-source / catalog-management surface at all**, so there is no backend to call.
+
+On CLE Basic, then, catalogs are provisioned platform-side. This deployment ships with federation connectors **disabled**, so attaching the Iceberg demo catalog (HMS + Ozone) requires an environment admin to re-provision / reconfigure the engine with `enableFederationConnectors` on — it is not reachable from the tenant REST surface this doc drives, nor from the shipped UI.
+
+The **Integrated (governed)** engine — a separate experience (`goes01-cle-int-*`: Trino + HMS + Ozone + Ranger + Atlas) — is the other option, but its coordinator enforces Ranger and denied access even for the token's own user (`Access Denied: Principal … cannot become user …`), so it needs a Ranger policy grant before it will run a statement. That grant isn't self-serviceable over the API with a normal session token: the Ranger admin API (`ranger.goes01-cle-i-…/service/public/v2/api/…`) rejects the `hadoop-jwt` as a `Bearer` (302 → SSO) and, as a `Cookie`, authenticates but returns `403 User is not allowed to access the API` — the token carries no Ranger-admin role. Its `goes01-cle-int-cluster` host also isn't covered by the imported goes01 chain (needs `-k`).
 
 ## Iceberg on AWC — Object Store + Hive Metastore
 
