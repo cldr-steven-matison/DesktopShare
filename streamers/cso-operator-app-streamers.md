@@ -966,6 +966,20 @@ could hit the old-contract window). Verified after both rollouts: one pod Runnin
 intact, app serving. FetchClips was STOPPED at flip time — the ≥10-clip gate counts from the next
 clips that flow. `brain_caption` is never promoted (B5, separate ask).
 
+### Session 27 (2026-09-01) — B5: the brain writes the posted caption; clip_queue stability
+
+Three deploys, all Steven-asked, FetchClips left STOPPED per his instruction at the end.
+
+| Change | Detail | Commit |
+|---|---|---|
+| X-Title header fix | ascii-strip must run BEFORE whitespace-normalize — emoji titles left trailing spaces and h11 rejected the header (the jynxzi clip's `brain.error`) | app `29c82f5` |
+| **B5 promotion** | `process_clip` is brain-first: a good door answer short-circuits the whole 3B path (comprehension gate, 600-char cut, 4-retry loop, pronoun regex, emoji cap, degenerate check, junk-title/no-transcript disqualifications) — that scaffold existed because the 3B was weak and survives only as the fallback when the door fails or the brain's self-check rejects. `_promote_brain_caption` is the thin last line: self-check gate (`grounded`/`quote_verbatim`/`pronouns_ok` false → fallback), URL + @mention strip (X-mechanical), Steven's emoji rule (≥1, moved to front when the caption opens lowercase, 🔥 prepended when absent), then the unchanged `_build_tweet` attribution suffix. `caption_mode="brain"`; review UI labels are mode-aware. Proven offline against the 19 real brain captions in review (19/19 promoted, all ≤280); live proof pending — FetchClips is deliberately stopped. | app `c7f12a9` |
+| **clip_queue stability** | Steven: clips "appeared out of thin air" after clearing review. Diagnosis: (1) the `clips[-20:]` cap hid older unhandled records until newer ones were cleared; (2) the silent `except: pass` turned any Kafka hiccup into a fake-empty review; (3) short multi-partition drains dropped records that later "appeared"; (4) the uncached-`{0}` partition fallback was a hide-2-of-3-partitions landmine. Broker side verified healthy (3 partitions, RF 3, full ISR, min.insync 2). Fix: rolling `(partition, offset)` record cache pruned to the seek window, served (freshly filtered) on any poll failure; loud `[clip_queue]` logging on every degraded path; fallback never cached; cap removed — review returns the whole filtered window. Verified live: stable across polls while Steven actively reviewed (drops matched his skips into `.skipped.json`). | app `82697c1` |
+
+Also explained: extraemily's gun-range clips missed the `recent` fetch mode's 6-hour window
+(2/streamer cap + roster rotation took at most a couple while fresh); a top/week fetch-mode
+round-trip would pull them — offered, not run.
+
 ### Session 25 (2026-08-30) — #276 / #277 / #278 / #279, one redeploy
 
 The four WindowsDesktop issues NvidiaSpark-1 filed off `streamers-new-brain-plan.md`. Facts first,
