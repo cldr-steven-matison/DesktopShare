@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# PreToolUse guard. Enforces repo rules that prose alone has failed to enforce
-# (see agent/incident-rules.md, agent/workflow.md, agent/device-comms.md).
+# PreToolUse guard. Enforces repo rules that prose alone has failed to enforce.
+# Each rule's CANONICAL statement + incident lives in agent/incident-rules.md
+# §"Rule canon" (also workflow.md, device-comms.md); the comments below are the
+# code-site rule map, not a second source of truth — if a rule changes, edit the canon.
 # Matcher is Bash|Edit|Write|MultiEdit|NotebookEdit (see .claude/settings.json) so
 # the claim backstop (rule B) can see file mutations, not just Bash.
 #
@@ -55,9 +57,16 @@
 #      The lookup ladder in CLAUDE.md was prose and four sessions on 2026-08-25 built
 #      site-to-site without opening a single site-to-site doc (#247). Runs LAST so it
 #      never swallows a deny/ask above it.
-#   A. [AUTO] Engaging a still-todo issue for this device auto-claims it
-#      (status:in-progress) and tells the model. Fires on a MUTATING engagement
-#      (gh issue comment), not a read-only view.
+#  12. [DENY] An EFM agent-deployer/generateCommand call carrying an agentIdentifier —
+#      reusing a retired agent's identifier / hand-building the command broke the
+#      KubernetesPod class migration (2026-08-06, #127). Drop the identifier and re-run.
+#  13. [CTX] An AMOLED app/device issue flipped to review/done — remind that the app's
+#      backend/ ships only from the per-app leader repo TunaStreetTest/amoled-<app>,
+#      which the local trees don't track (2026-08-27, #236/#222 stranded local-only).
+#   A. [AUTO] The MAIN SESSION engaging a still-todo issue for this device auto-claims
+#      it (status:in-progress) and tells the model. Fires on a `gh issue view N` or a
+#      `gh issue comment N`; a SUB-AGENT's view (agent_id present) records only, never
+#      claims (the #192 carve-out, now drawn by agent_id — #247 Class 1).
 #   B. [CTX] Edit/Write while the claim marker is non-empty: claim it yourself.
 # Issue-number extraction goes through ds_issue_numbers (lib-device.sh).
 # Non-matching calls pass through. Fails open (exit 0) so a missing jq/gh never
@@ -79,6 +88,14 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // ""' 2>/dev/null)"
 # (waveshare-devices, EdgeFlowManager) in EARLIER Bash calls, so git checks that
 # only ever look at $proj miss the repo the ritual is actually happening in.
 hookcwd="$(printf '%s' "$payload" | jq -r '.cwd // ""' 2>/dev/null)"
+# agent_id is present in the payload ONLY when this PreToolUse fires inside a
+# sub-agent (Claude Code hooks reference: "Present only when the hook fires inside a
+# subagent call. Use this to distinguish subagent hook calls from main-thread calls").
+# Empty => the MAIN session. Rule A uses it so a main-session `gh issue view` claims
+# the issue (restoring the #51 behaviour) while a read-only exploration sub-agent's
+# view never does — the 2026-08-21 #192 narrowing that reopened the claim-skip gap
+# (#247 Class 1, the single most-recurring failure: 9 instances, 6 after #247 opened).
+agentid="$(printf '%s' "$payload" | jq -r '.agent_id // ""' 2>/dev/null)"
 
 proj="${CLAUDE_PROJECT_DIR:-.}"
 # shellcheck disable=SC1091
@@ -416,6 +433,19 @@ if printf '%s' "$cmd" | grep -Eq '/nifi-api/|/efm/api/|flow\.json\.gz|kubectl[[:
   fi
 fi
 
+# 12. [DENY] EFM agent enrollment must let EFM mint the identifier — use the Deploy Agent
+# CLI screen or POST /efm/api/agent-deployer/generateCommand with agentIdentifier OMITTED.
+# Hand-building the deployer command and REUSING a retired agent's agentIdentifier broke
+# the KubernetesPod class migration: C2 UPDATE went state:FAILED twice, the Agents table
+# showed errors (2026-08-06, #127). Fires on the precise bad shape — an agentIdentifier
+# carried in an agent-deployer/generateCommand call. DENY: the fix is to drop the
+# identifier and re-run, which the model does itself (nobody in the loop). The broader
+# "never hand-build" stays as the efm-agent-deploy known-pattern (rule 11) + the skill.
+if printf '%s' "$cmd" | grep -Eq 'agent-deployer|generateCommand' \
+   && printf '%s' "$cmd" | grep -Eiq 'agentIdentifier'; then
+  emit_deny "BLOCKED: this EFM agent-deployer / generateCommand call carries an agentIdentifier. Enrollment must let EFM mint a fresh identifier — reusing a retired agent's identifier (or hand-building the command) is exactly what broke the KubernetesPod class migration on 2026-08-06 (#127): the C2 UPDATE failed twice. Re-run WITHOUT agentIdentifier (POST /efm/api/agent-deployer/generateCommand omitting it, or take the command from EFM's Deploy Agent CLI screen) — skills/nifi-and-ai/references/minifi-efm.md §4, agent/incident-rules.md 'EFM agent deployment'. This is an instruction to you, not a decision for Steven; the retry is yours."
+fi
+
 # 1. Live-service redeploy / restart hazards (break in-flight NiFi InvokeHTTP).
 if printf '%s' "$cmd" | grep -Eq 'deploy\.sh|rollout restart|kubectl +delete +pod'; then
   emit_ask "Live-service redeploy/restart detected. Per agent/incident-rules.md (Live service restarts): a redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls into kills the in-flight request (unexpected end of stream) — this has bitten 3x. Before approving: dump the live NiFi flow and confirm no processor is running/mid-fetch, let in-flight ones drain, and confirm exactly one pod Running. This approval covers ONLY this one command." "guard rule 1 — live-service redeploy/restart"
@@ -595,6 +625,25 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+' \
   fi
 fi
 
+# 13. [CTX] AMOLED app/device issue flipped to review/done. Each app's real source of
+# truth includes its backend/, which lives ONLY in the per-app leader repo
+# TunaStreetTest/amoled-<app> — waveshare-devices and DesktopShare do NOT track the
+# backends at all, so a clean local tree is not proof the app shipped (2026-08-27:
+# xviewer #236 and tminus #222 backends sat local-only in standalone clones while the
+# issues were already closed). Fires on a review/done flip for a device:AMOLED issue.
+# CTX not deny: the guard can't reach the remote leader, but the model can check it
+# (gh api). Placed AFTER rules 4/6/7 so their deny/finish-order checks keep precedence.
+if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
+   && printf '%s' "$cmd" | grep -Eq -- '--add-label[= ]+status:(review|done)' \
+   && command -v gh >/dev/null 2>&1; then
+  for n in $(ds_issue_numbers "$cmd" edit); do
+    albls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
+    if printf '%s' "$albls" | grep -q 'device:AMOLED'; then
+      emit_ctx "AMOLED issue #$n -> review/done: before this counts as shipped, confirm the per-app LEADER repo TunaStreetTest/amoled-<app> 'main' carries BOTH the on-device app package AND the backend/ change (the :8091-:8094 services). waveshare-devices / DesktopShare do NOT track the backends, so a clean local tree here proves nothing — check the leader directly (gh api repos/TunaStreetTest/amoled-<app>/commits, or its main). Two AMOLED backends were stranded local-only this way on 2026-08-27 (#236/#222); background in amoled-app-store-plan.md Part C. Allowed rather than asked: this is a check you run yourself."
+    fi
+  done
+fi
+
 # 5. Processor create/update carrying a position — the layout self-check gate.
 # layout.md is the canonical spacing reference, cross-linked from minifi-efm.md §8
 # and flow-api.md, yet two fresh EFM builds still landed cramped at the NiFi pitch
@@ -610,17 +659,31 @@ if printf '%s' "$cmd" | grep -Eq '/processors\b' \
   emit_ctx "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. State out loud, before this lands: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If the numbers are already right, or this is a read (GET), carry on. Allowed rather than asked on purpose: reading layout.md and checking your own numbers is your job, not a question for Steven."
 fi
 
-# A. Auto-claim on ENGAGEMENT, not on sight (narrowed 2026-08-21, #192 audit: a
-# read-only `gh issue view 199` by an exploration sub-agent auto-claimed an issue
-# nobody was working). A view now only RECORDS the issue for Telegram-ping
-# context; the claim fires on the first MUTATING engagement — `gh issue comment N`
-# (the edit/close transitions are already owned by rules 4 and 6). Loops ALL
-# issue numbers in the command. The gh lookups only run on this rare match (never
-# on `gh issue list`), so the common Bash path pays nothing. Fails open.
+# A. Auto-claim on ENGAGEMENT. The claim fires when THE MAIN SESSION engages a
+# still-todo issue this device owns — a `gh issue view N` (the session was pointed at
+# the issue and is reading it) OR a mutating `gh issue comment N`. It does NOT fire
+# when the caller is a sub-agent (agent_id present): the 2026-08-21 #192 narrowing to
+# comment-only existed solely to stop a read-only exploration sub-agent's
+# `gh issue view 199` from claiming — agent_id now draws that line precisely, so a
+# main-session view can claim again (restoring #51) without reopening #192. This is
+# the fix for #247 Class 1, the most-recurring failure (9 instances, 6 of them after
+# #247 was filed): every recurrence was a main session that started research/planning/
+# diffing after being pointed at an issue, and never commented, so comment-only
+# auto-claim had no trigger. A view still fires in plan mode (permission_mode="plan"),
+# which is exactly the 2026-08-30 report ("in planning mode, the tasks are not set in
+# progress"). Loops ALL issue numbers; edit/close transitions stay owned by rules 4/6.
+# The gh lookups only run on this rare match, so the common Bash path pays nothing.
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +(view|comment) +[0-9]+' && command -v gh >/dev/null 2>&1 \
    && ! printf '%s' "$cmd" | grep -Eq -- '(-R|--repo)[= ]'; then
   do_claim=""
+  # A mutating comment always claims. A bare view claims too, but ONLY from the main
+  # session (agent_id empty) — a sub-agent's view records the issue for ping context
+  # (below) yet never claims, which is the whole point of the agent_id gate.
   printf '%s' "$cmd" | grep -Eq 'gh +issue +comment +[0-9]+' && do_claim=1
+  if [ -z "$do_claim" ] && [ -z "$agentid" ] \
+     && printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+'; then
+    do_claim=1
+  fi
   claimed=""; failed=""
   for n in $(ds_issue_numbers "$cmd" '(view|comment)'); do
     lbls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
@@ -630,7 +693,7 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +(view|comment) +[0-9]+' && command 
     for l in $(ds_device_labels 2>/dev/null); do
       [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && ds_note_session_issue "$n" 2>/dev/null
     done
-    [ -n "$do_claim" ] || continue                            # a bare view never claims
+    [ -n "$do_claim" ] || continue                            # sub-agent view records only
     printf '%s' "$lbls" | grep -q 'status:todo' || continue   # only unclaimed issues
     mine=""
     for l in $(ds_device_labels 2>/dev/null); do
