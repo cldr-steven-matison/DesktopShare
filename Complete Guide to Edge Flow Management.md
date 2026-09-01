@@ -46,7 +46,7 @@ flow that actually ran on real hardware.
 | **9** ✅ | Yes | Introduce EFM into the Playground | Done. |
 | **10** ✅ | Yes | MiNiFi C++ & Java as K8s pods | Done. |
 | **11** ✅ | Yes | Site-to-Site — MiNiFi to NiFi on K8s | Done |
-| **12** 🟡 | Yes | EFM and MicroFi | Prose cleaned (bug count corrected to three). Agent-liveness LED strobe live on all three units 2026-08-15 ([#171](https://github.com/cldr-steven-matison/DesktopShare/issues/171) ✓ — red LED confirmed charger-IC hardware, GPIO21 the only drivable LED). MicroFi-1/2/3 R&D plan ([#134](https://github.com/cldr-steven-matison/DesktopShare/issues/134) ✓) closed 2026-08-12. Capstone structural content (final flows, custom processors, custom Python) still WIP — now re-anchored on fresh child [#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178) (device:WindowsDesktop). New related edge work: [#176](https://github.com/cldr-steven-matison/DesktopShare/issues/176) (MicroFi-1 `!m`/`!l` → screen4). |
+| **12** ✅ | Yes | EFM and MicroFi | **Complete 2026-09-01 ([#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178)).** Capstone folded: MicroFi-1/2/3 fleet (one flow type per unit, live exports in EdgeFlowManager `files/microfi/`), full 9-processor registry table, no-custom-Python verdict, engine-bug final disposition (3 closed + `kMaxFlowNodes=4` open with designed fix), fleet-class EFM mechanics (explicit c2-ack, teardown fix, client-id rule), and the **AMOLED senses section** — 11-processor manifest, 5 senses as-built ([#191](https://github.com/cldr-steven-matison/DesktopShare/issues/191) ✓), shake→Kafka→NiFi→glass round-trip ([#227](https://github.com/cldr-steven-matison/DesktopShare/issues/227) ✓), 3 live screenshots. |
 | **13** ✅ | Yes | EFM and SparkPlug MQTT | **Complete 2026-09-01 ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)).** Both consume legs live re-confirmed post-cutover; **rebirth-request fielded live** (consumer NCMD verified, MicroFi firmware doesn't subscribe NCMD — documented gap + new What-NOT-to-Do); C++ edge decode recorded moot-with-reason (Java native decode is production path, [#163](https://github.com/cldr-steven-matison/DesktopShare/issues/163) ✓); **publish side folded + field-verified** — new "Publishing Sparkplug B from MiNiFi" section, native Java `PublishSparkplug` NAR live E2E ([#248](https://github.com/cldr-steven-matison/DesktopShare/issues/248) fold). Evidence: `files/issue-138/`. |
 | **14** 🟡 | Yes | NiFi and AI Skill — EFM Portion | Delivered & **closed on review 2026-08-15** ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141) ✓): skill verified at exact parity with public [NiFiandAi](https://github.com/cldr-steven-matison/NiFiandAi) (diff clean, no internal terms, sync-skills clean); chapter's closer + reference table trued to the published skill, public clone link in place. Demo/field work done; **chapter prose pending Steven's read-through feedback.** |
 | **15** ✅📝 | Yes | How to AI with NiFi and Python | Done. Blog published. |
@@ -61,11 +61,11 @@ flow that actually ran on real hardware.
 
 The v1 close plan (#59, written 2026-07-31) is done and closed — stale by the time it closed, since everything in it shipped. **[EPIC #137](https://github.com/cldr-steven-matison/DesktopShare/issues/137)** is the active plan: demos-first — finish the demos, wire the live flows through to observability, complete the `nifi-and-ai` skill, land the Nvidia Nano and Sparkplug B demos. Each 🟡 WIP chapter and its gating work-stream:
 
-Status as of **2026-09-01** (evening session). **[#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138) (A) CLOSED** — all four field items ran live (legs re-confirmed post-cutover, LED actuation re-fielded on MicroFi-1, rebirth NCMD fielded with the firmware gap documented, #248 `PublishSparkplug` NAR live-verified E2E) and the Ch13/Ch18/Ch20 folds landed. **Two child issues remain open** (#140 C, #178 F — both `device:WindowsDesktop`).
+Status as of **2026-09-01** (evening session). **[#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138) (A) CLOSED** — all four field items ran live (legs re-confirmed post-cutover, LED actuation re-fielded on MicroFi-1, rebirth NCMD fielded with the firmware gap documented, #248 `PublishSparkplug` NAR live-verified E2E) and the Ch13/Ch18/Ch20 folds landed. **[#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178) (F) CLOSED** the same session — Ch12 capstone folded (fleet, registry, AMOLED senses, round-trip, screenshots). **One child issue remains open: [#140](https://github.com/cldr-steven-matison/DesktopShare/issues/140) (C — observability).**
 
 | WIP Ch | Gating work-stream (child issue) |
 |---|---|
-| 12 EFM and MicroFi | F · MicroFi-1/2/3 R&D plan ([#134](https://github.com/cldr-steven-matison/DesktopShare/issues/134) ✓ closed 2026-08-12). Capstone structural content (final flows/processors/Python) re-anchored on **[#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178) — OPEN**, device:WindowsDesktop. Related edge work: [#176](https://github.com/cldr-steven-matison/DesktopShare/issues/176); AMOLED senses as MicroFi processors — GetIMU [#191](https://github.com/cldr-steven-matison/DesktopShare/issues/191), IMU→Kafka + shake trigger + DisplayMessage round-trip [#227](https://github.com/cldr-steven-matison/DesktopShare/issues/227) ✓ closed 2026-08-24 (chapter mapping pinned to Ch12 on #227, 2026-08-24). |
+| 12 EFM and MicroFi | F ✓ **closed 2026-09-01** ([#178](https://github.com/cldr-steven-matison/DesktopShare/issues/178)) — capstone collected: fleet + registry + AMOLED senses + round-trip + screenshots. Chapter ✅. |
 | 13 EFM and SparkPlug MQTT | A ✓ **closed 2026-09-01** ([#138](https://github.com/cldr-steven-matison/DesktopShare/issues/138)) — legs re-confirmed, rebirth fielded (firmware gap documented), #248 publish side folded + live-verified. Chapter ✅. |
 | 14 NiFi and AI Skill | D · **closed on review** 2026-08-15 ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141) ✓) — skill at public parity, Ch14 trued. Prose pending Steven's read-through. |
 | 16 How to AI with MiNiFi | D · **closed on review** 2026-08-15 ([#141](https://github.com/cldr-steven-matison/DesktopShare/issues/141) ✓) — HOW-to shape verified, public clone link added. Prose pending Steven's read-through. |
@@ -114,13 +114,13 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 
 # EFM Guide — Completion Summary
 
-## Overall: ~93% complete
+## Overall: ~95% complete
 
 | Axis | State | % |
 |---|---|---|
 | **Field/build validation** | 21 of 21 "Yes" (Ch13/Ch18/Ch20 flipped 2026-09-01) | 100% |
 | **Published prose** | 21 of 21 chapters folded into EdgeFlowManager | 100% |
-| **Blended, status-weighted** | ~20 / 21 | ~95% |
+| **Blended, status-weighted** | ~20.5 / 21 | ~97% |
 | **Issue mailbox** | 151 of 164 closed (2026-08-17; #165 Ch19 round-trip closed on review since the 08-15 sweep) | ~92% |
 
 ## Metric counts
@@ -128,7 +128,7 @@ The part/chapter layout is defined once, in **[EdgeFlowManager's `README.md`](ht
 | Metric | Count |
 |---|---|
 | Chapters (9 parts) | 21 |
-| ✅ done / 🟡 in-progress / 🔲 not started | 16 / 5 / 0 |
+| ✅ done / 🟡 in-progress / 🔲 not started | 17 / 4 / 0 |
 | Folded chapters (EdgeFlowManager) | 21 files, ~51,400 words |
 | Figures | 37 |
 | Flow exports (`files/**/*.json`) | 25 |
