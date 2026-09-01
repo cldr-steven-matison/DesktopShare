@@ -90,24 +90,31 @@ seen by subagents — `SessionStart` doesn't fire for subagents, and the Windows
 skip happened inside a `/plan` that farmed issue-reading out. The guard now does three
 things, the first of which needs **no model cooperation at all**:
 
-   - **Rule A — auto-claim on engagement.** The first **mutating** engagement with a
-     still-`todo` issue for this device — `gh issue comment <n>` — makes the hook run
-     `gh issue edit … status:in-progress` **itself** and inject an `additionalContext` line
-     telling the model it was claimed. A bare `gh issue view` only records the issue for
-     Telegram-ping context (narrowed 2026-08-21, #192: a read-only view by an exploration
-     sub-agent had claimed an issue nobody was working). No prompt, no model decision. It
-     fires in plan mode and in subagents (both fire `PreToolUse`) and loops **every** issue
-     number in the command (the old `head -1` only saw the first — the #51 root cause). If
-     the `gh edit` fails (offline/perms) it records `<n>` in the `.claude/.claim-pending`
-     marker — Rule B then backstops it.
+   - **Rule A — auto-claim on engagement (main session).** The **main session** engaging a
+     still-`todo` issue for this device — a `gh issue view <n>` **or** a `gh issue comment
+     <n>` — makes the hook run `gh issue edit … status:in-progress` **itself** and inject an
+     `additionalContext` line telling the model it was claimed. A **sub-agent's** view
+     (its `PreToolUse` payload carries `agent_id`) only records the issue for Telegram-ping
+     context, never claims — that is the whole point of the 2026-08-21 #192 narrowing (a
+     read-only exploration sub-agent's `gh issue view 199` had claimed an issue nobody was
+     working), now drawn precisely by `agent_id` instead of by forbidding *all* view-claims.
+     Restoring the main-session view-claim closed #247 Class 1 — the most-recurring failure
+     (9 instances, 6 after #247 opened): every recurrence was a main session pointed at an
+     issue that started research/planning/diffing and never commented, so comment-only
+     auto-claim had no trigger. No prompt, no model decision. It fires in plan mode
+     (`permission_mode: "plan"`) — the 2026-08-30 report was exactly a plan-mode session not
+     getting claimed — and loops **every** issue number in the command (the old `head -1`
+     only saw the first — the #51 root cause). If the `gh edit` fails (offline/perms) it
+     records `<n>` in the `.claude/.claim-pending` marker — Rule B then backstops it.
    - **Rule B — edit-while-pending backstop.** An `Edit`/`Write` while that marker is
      non-empty (i.e. auto-claim couldn't reach `gh`) prompts to claim manually.
      `checkin.sh` clears stale markers at session start.
    - **Review-skip backstop:** marking an issue `status:review`/`status:done` while it
      still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
      can land.
-   Residual gap: a session that starts work **without ever commenting on the issue** gives
-   Rule A no trigger — the claim-first norm in "Working an issue" below still applies there.
+   Residual gap (much smaller now): a session that starts editing files **without ever
+   viewing or commenting the issue** gives Rule A no trigger — the claim-first norm in
+   "Working an issue" below still applies there.
 
 Two more hooks landed 2026-08-25 (#247), same "no model cooperation needed" shape:
 
@@ -221,14 +228,14 @@ Telegram is only the doorbell.
 
 ## Working an issue
 
-1. **Claim when you pick up the issue — auto-claim fires on engagement, not on sight.**
-   A bare `gh issue view <n>` no longer claims (narrowed 2026-08-21, #192 audit: a
-   read-only view by an exploration sub-agent claimed an issue nobody was working); a view
-   only records the issue for Telegram-ping context. The guard auto-claims a
-   still-`status:todo` issue for this device on the first **mutating** engagement — a
-   `gh issue comment <n>` — and confirms via an `additionalContext` line. The label is how
-   the fleet sees which issues are actively being worked, so when you start work without
-   commenting first, run the claim yourself. Never jump
+1. **Claim when you pick up the issue — the guard auto-claims on your first engagement.**
+   When the **main session** runs `gh issue view <n>` (you were pointed at the issue and
+   are reading it) or `gh issue comment <n>` on a still-`status:todo` issue for this device,
+   the guard flips it to `status:in-progress` **itself** and confirms via an
+   `additionalContext` line — so being pointed at an issue is enough, in plan mode too. A
+   **sub-agent's** view never claims (its payload carries `agent_id`) — that is the
+   #192 carve-out. The one case with no trigger: starting to edit files without ever
+   viewing or commenting the issue — there, run the claim yourself. Never jump
    `status:todo` → `status:review` — the progression is `todo → in-progress → review`, and
    `in-progress` must be set even for a task you finish in one sitting (a guard backstop
    blocks that jump). The claim command:
