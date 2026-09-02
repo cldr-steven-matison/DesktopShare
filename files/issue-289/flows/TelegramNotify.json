@@ -1,112 +1,68 @@
 {
-  "flowEncodingVersion": "1.0",
-  "latest": false,
-  "externalControllerServices": {},
-  "parameterProviders": {},
-  "parameterContexts": {
-    "TelegramNotify": {
-      "componentType": "PARAMETER_CONTEXT",
-      "name": "TelegramNotify",
-      "description": "The shared Telegram bot credentials and device prefix the TelegramNotify PG uses (#289).",
-      "inheritedParameterContexts": [],
-      "parameters": [
-        {
-          "name": "Telegram Bot Token",
-          "value": null,
-          "description": "Sensitive \u2014 the shared fleet bot token; set via the API after upload from ~/.env TOKEN (delivered by WindowsDesktop #293). Never inline, never committed.",
-          "sensitive": true,
-          "provided": false
-        },
-        {
-          "name": "Telegram Chat Id",
-          "value": null,
-          "description": "Set via the API after upload from ~/.env CHAT_ID; the shared fleet chat.",
-          "sensitive": false,
-          "provided": false
-        },
-        {
-          "name": "Device Name",
-          "value": "NvidiaSpark-1",
-          "description": "Roster name prefixed to every message so no caller can drop the fleet attribution (agent/device-comms.md).",
-          "sensitive": false,
-          "provided": false
-        },
-        {
-          "name": "Telegram Dry Run",
-          "value": "true",
-          "description": "SendTelegram logs the intended send instead of posting while this is 'true'. Flip to 'false' once the token + chat id are set (after #293).",
-          "sensitive": false,
-          "provided": false
-        }
-      ]
-    }
-  },
   "flowContents": {
-    "identifier": "ce34907d-d86b-5194-8704-702b5452f051",
+    "identifier": "1f845a2f-e6e9-303a-974d-849450aa68b1",
+    "instanceIdentifier": "6366c8cf-01a0-1000-ffff-ffffdca3ce5e",
     "name": "TelegramNotify",
-    "componentType": "PROCESS_GROUP",
     "comments": "Reusable Telegram notifier (#289): any PG feeds the notify-in input port with the message text as the FlowFile body; SendTelegram owns the token, the [Device] prefix, the 4096 cap, and the send. Delivers a NOTIFICATION only \u2014 never a vote.",
     "position": {
-      "x": 0.0,
+      "x": 2400.0,
       "y": 0.0
     },
-    "parameterContextName": "TelegramNotify",
+    "processGroups": [],
+    "remoteProcessGroups": [],
     "processors": [
       {
         "identifier": "d0e7722c-d296-52b0-b04f-87bcd9f936bf",
+        "instanceIdentifier": "642bb600-9906-3e4f-a9f8-a5152db3c30a",
         "name": "SendTelegram",
-        "type": "SendTelegram",
-        "bundle": {
-          "group": "python",
-          "artifact": "send-telegram",
-          "version": "0.0.1"
-        },
-        "componentType": "PROCESSOR",
-        "groupIdentifier": "ce34907d-d86b-5194-8704-702b5452f051",
         "comments": "",
         "position": {
           "x": 0.0,
           "y": 200.0
         },
+        "type": "SendTelegram",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "python-extensions",
+          "version": "0.0.1"
+        },
         "properties": {
-          "Bot Token": "#{Telegram Bot Token}",
           "Chat Id": "#{Telegram Chat Id}",
+          "Bot Token": "#{Telegram Bot Token}",
           "Device Name": "#{Device Name}",
           "Dry Run": "#{Telegram Dry Run}"
         },
         "propertyDescriptors": {
-          "Bot Token": {
-            "name": "Bot Token",
-            "displayName": "Bot Token",
-            "dynamic": false,
-            "identifiesControllerService": false,
-            "sensitive": true
-          },
           "Chat Id": {
             "name": "Chat Id",
             "displayName": "Chat Id",
-            "dynamic": false,
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Bot Token": {
+            "name": "Bot Token",
+            "displayName": "Bot Token",
+            "identifiesControllerService": false,
+            "sensitive": true,
+            "dynamic": false
           },
           "Device Name": {
             "name": "Device Name",
             "displayName": "Device Name",
-            "dynamic": false,
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
           },
           "Dry Run": {
             "name": "Dry Run",
             "displayName": "Dry Run",
-            "dynamic": false,
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
           }
         },
-        "autoTerminatedRelationships": [
-          "success"
-        ],
+        "style": {},
         "schedulingPeriod": "0 sec",
         "schedulingStrategy": "TIMER_DRIVEN",
         "executionNode": "ALL",
@@ -115,84 +71,117 @@
         "bulletinLevel": "WARN",
         "runDurationMillis": 0,
         "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
         "scheduledState": "ENABLED",
         "retryCount": 10,
         "retriedRelationships": [],
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
-        "style": {}
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "1f845a2f-e6e9-303a-974d-849450aa68b1"
       },
       {
         "identifier": "5554492f-72a7-5089-ace6-9efd2f2f7c1a",
+        "instanceIdentifier": "08f8eb80-a054-3397-9a3d-d43c1a29be21",
         "name": "LogNotifyFailure",
+        "comments": "",
+        "position": {
+          "x": 600.0,
+          "y": 400.0
+        },
         "type": "org.apache.nifi.processors.standard.LogAttribute",
         "bundle": {
           "group": "org.apache.nifi",
           "artifact": "nifi-standard-nar",
           "version": "2.6.0.4.3.4.0-234"
         },
-        "componentType": "PROCESSOR",
-        "groupIdentifier": "ce34907d-d86b-5194-8704-702b5452f051",
-        "comments": "",
-        "position": {
-          "x": 600.0,
-          "y": 400.0
-        },
         "properties": {
-          "Log Level": "warn",
-          "Log Payload": "true",
+          "Log prefix": null,
+          "character-set": "UTF-8",
           "Log FlowFile Properties": "true",
-          "Output Format": "Line per Attribute",
+          "Log Level": "warn",
+          "attributes-to-ignore-regex": null,
+          "Attributes to Ignore": null,
+          "Attributes to Log": null,
           "attributes-to-log-regex": "telegram\\..*",
-          "character-set": "UTF-8"
+          "Output Format": "Line per Attribute",
+          "Log Payload": "true"
         },
         "propertyDescriptors": {
-          "Log Level": {
-            "name": "Log Level",
-            "displayName": "Log Level",
-            "dynamic": false,
+          "Log prefix": {
+            "name": "Log prefix",
+            "displayName": "Log prefix",
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
           },
-          "Log Payload": {
-            "name": "Log Payload",
-            "displayName": "Log Payload",
-            "dynamic": false,
+          "character-set": {
+            "name": "character-set",
+            "displayName": "Character Set",
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
           },
           "Log FlowFile Properties": {
             "name": "Log FlowFile Properties",
             "displayName": "Log FlowFile Properties",
-            "dynamic": false,
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Log Level": {
+            "name": "Log Level",
+            "displayName": "Log Level",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "attributes-to-ignore-regex": {
+            "name": "attributes-to-ignore-regex",
+            "displayName": "Attributes to Ignore by Regular Expression",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Attributes to Ignore": {
+            "name": "Attributes to Ignore",
+            "displayName": "Attributes to Ignore",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Attributes to Log": {
+            "name": "Attributes to Log",
+            "displayName": "Attributes to Log",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "attributes-to-log-regex": {
+            "name": "attributes-to-log-regex",
+            "displayName": "Attributes to Log by Regular Expression",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
           },
           "Output Format": {
             "name": "Output Format",
             "displayName": "Output Format",
-            "dynamic": false,
             "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
           },
-          "attributes-to-log-regex": {
-            "name": "attributes-to-log-regex",
-            "displayName": "attributes-to-log-regex",
-            "dynamic": false,
+          "Log Payload": {
+            "name": "Log Payload",
+            "displayName": "Log Payload",
             "identifiesControllerService": false,
-            "sensitive": false
-          },
-          "character-set": {
-            "name": "character-set",
-            "displayName": "character-set",
-            "dynamic": false,
-            "identifiesControllerService": false,
-            "sensitive": false
+            "sensitive": false,
+            "dynamic": false
           }
         },
-        "autoTerminatedRelationships": [
-          "success"
-        ],
+        "style": {},
         "schedulingPeriod": "0 sec",
         "schedulingStrategy": "TIMER_DRIVEN",
         "executionNode": "ALL",
@@ -201,88 +190,22 @@
         "bulletinLevel": "WARN",
         "runDurationMillis": 0,
         "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success"
+        ],
         "scheduledState": "ENABLED",
         "retryCount": 10,
         "retriedRelationships": [],
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
-        "style": {}
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "1f845a2f-e6e9-303a-974d-849450aa68b1"
       }
     ],
-    "connections": [
-      {
-        "identifier": "59198bfd-817a-59b3-992a-e695b6b29a60",
-        "name": "",
-        "componentType": "CONNECTION",
-        "groupIdentifier": "ce34907d-d86b-5194-8704-702b5452f051",
-        "source": {
-          "id": "95904232-ab43-5e15-ad25-6035d2119591",
-          "type": "INPUT_PORT",
-          "groupId": "ce34907d-d86b-5194-8704-702b5452f051",
-          "name": "notify-in",
-          "comments": ""
-        },
-        "destination": {
-          "id": "d0e7722c-d296-52b0-b04f-87bcd9f936bf",
-          "type": "PROCESSOR",
-          "groupId": "ce34907d-d86b-5194-8704-702b5452f051",
-          "name": "SendTelegram",
-          "comments": ""
-        },
-        "selectedRelationships": [
-          ""
-        ],
-        "labelIndex": 1,
-        "zIndex": 0,
-        "bends": [],
-        "backPressureObjectThreshold": 1000,
-        "backPressureDataSizeThreshold": "1 GB",
-        "flowFileExpiration": "0 sec",
-        "prioritizers": [],
-        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
-        "loadBalanceCompression": "DO_NOT_COMPRESS"
-      },
-      {
-        "identifier": "e46367ab-4924-5cfa-ba91-aa23a0ee2de9",
-        "name": "",
-        "componentType": "CONNECTION",
-        "groupIdentifier": "ce34907d-d86b-5194-8704-702b5452f051",
-        "source": {
-          "id": "d0e7722c-d296-52b0-b04f-87bcd9f936bf",
-          "type": "PROCESSOR",
-          "groupId": "ce34907d-d86b-5194-8704-702b5452f051",
-          "name": "SendTelegram",
-          "comments": ""
-        },
-        "destination": {
-          "id": "5554492f-72a7-5089-ace6-9efd2f2f7c1a",
-          "type": "PROCESSOR",
-          "groupId": "ce34907d-d86b-5194-8704-702b5452f051",
-          "name": "LogNotifyFailure",
-          "comments": ""
-        },
-        "selectedRelationships": [
-          "failure"
-        ],
-        "labelIndex": 1,
-        "zIndex": 0,
-        "bends": [],
-        "backPressureObjectThreshold": 1000,
-        "backPressureDataSizeThreshold": "1 GB",
-        "flowFileExpiration": "0 sec",
-        "prioritizers": [],
-        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
-        "loadBalanceCompression": "DO_NOT_COMPRESS"
-      }
-    ],
-    "controllerServices": [],
-    "funnels": [],
-    "labels": [],
-    "processGroups": [],
-    "remoteProcessGroups": [],
     "inputPorts": [
       {
         "identifier": "95904232-ab43-5e15-ad25-6035d2119591",
+        "instanceIdentifier": "ce2cc8f1-0fb5-3541-aada-a7623b5440ea",
         "name": "notify-in",
         "comments": "The only entrance \u2014 callers connect their output port here at the root.",
         "position": {
@@ -290,23 +213,140 @@
           "y": 0.0
         },
         "type": "INPUT_PORT",
-        "componentType": "INPUT_PORT",
-        "groupIdentifier": "ce34907d-d86b-5194-8704-702b5452f051",
         "concurrentlySchedulableTaskCount": 1,
         "scheduledState": "ENABLED",
         "allowRemoteAccess": false,
-        "portFunction": "STANDARD"
+        "portFunction": "STANDARD",
+        "componentType": "INPUT_PORT",
+        "groupIdentifier": "1f845a2f-e6e9-303a-974d-849450aa68b1"
       }
     ],
     "outputPorts": [],
-    "scheduledState": "ENABLED",
+    "connections": [
+      {
+        "identifier": "59198bfd-817a-59b3-992a-e695b6b29a60",
+        "instanceIdentifier": "abb9eef6-6754-35f9-8fb9-cdc328323b9b",
+        "name": "",
+        "source": {
+          "id": "95904232-ab43-5e15-ad25-6035d2119591",
+          "type": "INPUT_PORT",
+          "groupId": "1f845a2f-e6e9-303a-974d-849450aa68b1",
+          "name": "notify-in",
+          "comments": "The only entrance \u2014 callers connect their output port here at the root.",
+          "instanceIdentifier": "ce2cc8f1-0fb5-3541-aada-a7623b5440ea"
+        },
+        "destination": {
+          "id": "d0e7722c-d296-52b0-b04f-87bcd9f936bf",
+          "type": "PROCESSOR",
+          "groupId": "1f845a2f-e6e9-303a-974d-849450aa68b1",
+          "name": "SendTelegram",
+          "comments": "",
+          "instanceIdentifier": "642bb600-9906-3e4f-a9f8-a5152db3c30a"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          ""
+        ],
+        "backPressureObjectThreshold": 1000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "1f845a2f-e6e9-303a-974d-849450aa68b1"
+      },
+      {
+        "identifier": "e46367ab-4924-5cfa-ba91-aa23a0ee2de9",
+        "instanceIdentifier": "6c1d25fa-cad6-3ab9-9f27-d66b620aed71",
+        "name": "",
+        "source": {
+          "id": "d0e7722c-d296-52b0-b04f-87bcd9f936bf",
+          "type": "PROCESSOR",
+          "groupId": "1f845a2f-e6e9-303a-974d-849450aa68b1",
+          "name": "SendTelegram",
+          "comments": "",
+          "instanceIdentifier": "642bb600-9906-3e4f-a9f8-a5152db3c30a"
+        },
+        "destination": {
+          "id": "5554492f-72a7-5089-ace6-9efd2f2f7c1a",
+          "type": "PROCESSOR",
+          "groupId": "1f845a2f-e6e9-303a-974d-849450aa68b1",
+          "name": "LogNotifyFailure",
+          "comments": "",
+          "instanceIdentifier": "08f8eb80-a054-3397-9a3d-d43c1a29be21"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "failure"
+        ],
+        "backPressureObjectThreshold": 1000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "1f845a2f-e6e9-303a-974d-849450aa68b1"
+      }
+    ],
+    "labels": [],
+    "funnels": [],
+    "controllerServices": [],
+    "parameterContextName": "TelegramNotify",
     "defaultFlowFileExpiration": "0 sec",
     "defaultBackPressureObjectThreshold": 10000,
     "defaultBackPressureDataSizeThreshold": "1 GB",
+    "scheduledState": "ENABLED",
     "executionEngine": "INHERITED",
-    "flowFileConcurrency": "UNBOUNDED",
-    "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
     "maxConcurrentTasks": 1,
-    "statelessFlowTimeout": "1 min"
-  }
+    "statelessFlowTimeout": "1 min",
+    "componentType": "PROCESS_GROUP",
+    "flowFileConcurrency": "UNBOUNDED",
+    "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE"
+  },
+  "externalControllerServices": {},
+  "parameterContexts": {
+    "TelegramNotify": {
+      "name": "TelegramNotify",
+      "parameters": [
+        {
+          "name": "Telegram Chat Id",
+          "description": "Set via the API after upload from ~/.env CHAT_ID; the shared fleet chat.",
+          "sensitive": false,
+          "provided": false
+        },
+        {
+          "name": "Telegram Dry Run",
+          "description": "SendTelegram logs the intended send instead of posting while this is 'true'. Flip to 'false' once the token + chat id are set (after #293).",
+          "sensitive": false,
+          "provided": false,
+          "value": "true"
+        },
+        {
+          "name": "Telegram Bot Token",
+          "description": "Sensitive \u2014 the shared fleet bot token; set via the API after upload from ~/.env TOKEN (delivered by WindowsDesktop #293). Never inline, never committed.",
+          "sensitive": true,
+          "provided": false
+        },
+        {
+          "name": "Device Name",
+          "description": "Roster name prefixed to every message so no caller can drop the fleet attribution (agent/device-comms.md).",
+          "sensitive": false,
+          "provided": false,
+          "value": "NvidiaSpark-1"
+        }
+      ],
+      "inheritedParameterContexts": [],
+      "description": "The shared Telegram bot credentials and device prefix the TelegramNotify PG uses (#289).",
+      "componentType": "PARAMETER_CONTEXT"
+    }
+  },
+  "flowEncodingVersion": "1.0",
+  "parameterProviders": {},
+  "latest": false
 }

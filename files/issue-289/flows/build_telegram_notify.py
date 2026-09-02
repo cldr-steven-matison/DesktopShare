@@ -37,7 +37,9 @@ NS = uuid.UUID("2b8f7e10-1c3d-4a9e-9f77-289289289289")   # distinct namespace fr
 
 # --- custom SendTelegram processor coordinates — CONFIRM LIVE (see header) -----
 SEND_TELEGRAM_TYPE = "SendTelegram"
-SEND_TELEGRAM_BUNDLE = {"group": "python", "artifact": "send-telegram", "version": "0.0.1"}
+# Confirmed live from GET /flow/processor-types (2026-09-02): NiFi assigns a loaded Python
+# processor bundle group org.apache.nifi / artifact python-extensions / version = ProcessorDetails.version.
+SEND_TELEGRAM_BUNDLE = {"group": "org.apache.nifi", "artifact": "python-extensions", "version": "0.0.1"}
 
 STD = {"group": "org.apache.nifi", "artifact": "nifi-standard-nar", "version": VER}
 

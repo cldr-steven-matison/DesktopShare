@@ -3,10 +3,10 @@
     "identifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
     "instanceIdentifier": "628d3415-01a0-1000-ffff-ffffdb5811cf",
     "name": "ReleaseVoteWatch",
-    "comments": "Release-vote automation (#76): watch dev@nifi.apache.org over IMAP, verify+build+smoke an RC as a capped k8s Job in release-builds, publish a recommendation. This flow NEVER casts a vote — the human replies from steven@sceneserver.net.",
+    "comments": "Release-vote automation (#76): watch dev@nifi.apache.org over IMAP, verify+build+smoke an RC as a capped k8s Job in release-builds, publish a recommendation. This flow NEVER casts a vote \u2014 the human replies from steven@sceneserver.net.",
     "position": {
-      "x": 1200.0,
-      "y": 0.0
+      "x": 1056.0,
+      "y": 16.0
     },
     "processGroups": [],
     "remoteProcessGroups": [],
@@ -2236,6 +2236,115 @@
         "properties": {
           "Regular Expression": "(?s)(^.*$)",
           "Replacement Value": "{\"apiVersion\":\"batch/v1\",\"kind\":\"Job\",\"metadata\":{\"name\":\"${k8s.job.name}\",\"namespace\":\"release-builds\",\"labels\":{\"leg\":\"${leg}\",\"system\":\"${system}\",\"source\":\"releasevotewatch\"}},\"spec\":{\"backoffLimit\":0,\"ttlSecondsAfterFinished\":86400,\"template\":{\"spec\":{\"restartPolicy\":\"Never\",\"containers\":[{\"name\":\"build\",\"image\":\"#{Build Image Maven}\",\"imagePullPolicy\":\"IfNotPresent\",\"command\":[\"bash\",\"/entry/entrypoint.sh\"],\"env\":[{\"name\":\"TAG\",\"value\":\"${rc.git.tag:escapeJson()}\"},{\"name\":\"ARTIFACT_URL\",\"value\":\"${rc.staging.url:escapeJson()}\"},{\"name\":\"SHA512\",\"value\":\"${rc.sha512:escapeJson()}\"},{\"name\":\"KEYS_URL\",\"value\":\"${rc.keys.url:isEmpty():ifElse('https://dist.apache.org/repos/dist/release/nifi/KEYS', ${rc.keys.url}):escapeJson()}\"},{\"name\":\"GIT_REPO\",\"value\":\"${gitRepo}\"},{\"name\":\"MAVEN_ARGS\",\"value\":\"#{Core Maven Args}\"},{\"name\":\"MAVEN_OPTS\",\"value\":\"#{Core Maven Opts}\"}],\"volumeMounts\":[{\"name\":\"entry\",\"mountPath\":\"/entry\"}],\"resources\":{\"requests\":{\"cpu\":\"8\",\"memory\":\"16Gi\"},\"limits\":{\"cpu\":\"8\",\"memory\":\"24Gi\"}}}],\"volumes\":[{\"name\":\"entry\",\"configMap\":{\"name\":\"maven-build-entrypoint\"}}]}}}}",
+          "Evaluation Mode": "Entire text",
+          "Text to Prepend": null,
+          "Line-by-Line Evaluation Mode": "All",
+          "Character Set": "UTF-8",
+          "Maximum Buffer Size": "10 MB",
+          "Replacement Strategy": "Always Replace",
+          "Text to Append": null
+        },
+        "propertyDescriptors": {
+          "Regular Expression": {
+            "name": "Regular Expression",
+            "displayName": "Search Value",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Replacement Value": {
+            "name": "Replacement Value",
+            "displayName": "Replacement Value",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Evaluation Mode": {
+            "name": "Evaluation Mode",
+            "displayName": "Evaluation Mode",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Text to Prepend": {
+            "name": "Text to Prepend",
+            "displayName": "Text to Prepend",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Line-by-Line Evaluation Mode": {
+            "name": "Line-by-Line Evaluation Mode",
+            "displayName": "Line-by-Line Evaluation Mode",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Character Set": {
+            "name": "Character Set",
+            "displayName": "Character Set",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Maximum Buffer Size": {
+            "name": "Maximum Buffer Size",
+            "displayName": "Maximum Buffer Size",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Replacement Strategy": {
+            "name": "Replacement Strategy",
+            "displayName": "Replacement Strategy",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          },
+          "Text to Append": {
+            "name": "Text to Append",
+            "displayName": "Text to Append",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": false
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 25,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043"
+      },
+      {
+        "identifier": "b7e478dc-f2e0-3e90-9124-685f3a33b28d",
+        "instanceIdentifier": "6366c9d2-01a0-1000-0000-00006b6f9200",
+        "name": "ComposeTelegramText",
+        "comments": "",
+        "position": {
+          "x": 900.0,
+          "y": 5000.0
+        },
+        "type": "org.apache.nifi.processors.standard.ReplaceText",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.6.0.4.3.4.0-234"
+        },
+        "properties": {
+          "Regular Expression": "(?s)(^.*$)",
+          "Replacement Value": "Release vote recommendation\n${vote.subject}\nLeg: ${leg} (${gitRepo})\nTag: ${rc.git.tag}  Commit: ${rc.git.commit}\nBuild: ${job.outcome} \u2014 verify=${verify.ok} build=${build.ok} smoke=${smoke.ok}\nSuggestion: ${verify.ok:equals('true'):and(${build.ok:equals('true')}):and(${smoke.ok:equals('true')}):ifElse('+1 \u2014 all gates green','-1/0 \u2014 a gate failed, read the evidence')}\nJob: ${k8s.job.name}\nNOTE: built + smoke-tested on aarch64 (GB10); the RC reference binaries are x86 \u2014 weigh accordingly.\nRecommendation only \u2014 cast the vote yourself from steven@sceneserver.net.",
           "Evaluation Mode": "Entire text",
           "Text to Prepend": null,
           "Line-by-Line Evaluation Mode": "All",
@@ -5107,7 +5216,7 @@
         },
         "properties": {
           "Regular Expression": "(?s)(^.*$)",
-          "Replacement Value": "{\"subject\":\"${vote.subject:escapeJson()}\",\"leg\":\"${leg}\",\"system\":\"${system}\",\"gitRepo\":\"${gitRepo}\",\"tag\":\"${rc.git.tag:escapeJson()}\",\"commit\":\"${rc.git.commit:escapeJson()}\",\"stagingUrl\":\"${rc.staging.url:escapeJson()}\",\"jobName\":\"${k8s.job.name}\",\"jobOutcome\":\"${job.outcome}\",\"verifyOk\":\"${verify.ok}\",\"buildOk\":\"${build.ok}\",\"smokeOk\":\"${smoke.ok}\",\"extensionCount\":\"${ext.count}\",\"note\":\"${job.note:escapeJson()}\",\"recommendation\":\"${verify.ok:equals('true'):and(${build.ok:equals('true')}):and(${smoke.ok:equals('true')}):ifElse('+1 suggested — all gates green','-1/0 suggested — a gate failed, read the evidence')}\",\"caveat\":\"Built and smoke-tested on aarch64 (GB10); the RC reference binaries are x86 — weigh accordingly.\",\"emittedBy\":\"ReleaseVoteWatch on spark-dd06 — recommendation only, never a vote\"}",
+          "Replacement Value": "{\"subject\":\"${vote.subject:escapeJson()}\",\"leg\":\"${leg}\",\"system\":\"${system}\",\"gitRepo\":\"${gitRepo}\",\"tag\":\"${rc.git.tag:escapeJson()}\",\"commit\":\"${rc.git.commit:escapeJson()}\",\"stagingUrl\":\"${rc.staging.url:escapeJson()}\",\"jobName\":\"${k8s.job.name}\",\"jobOutcome\":\"${job.outcome}\",\"verifyOk\":\"${verify.ok}\",\"buildOk\":\"${build.ok}\",\"smokeOk\":\"${smoke.ok}\",\"extensionCount\":\"${ext.count}\",\"note\":\"${job.note:escapeJson()}\",\"recommendation\":\"${verify.ok:equals('true'):and(${build.ok:equals('true')}):and(${smoke.ok:equals('true')}):ifElse('+1 suggested \u2014 all gates green','-1/0 suggested \u2014 a gate failed, read the evidence')}\",\"caveat\":\"Built and smoke-tested on aarch64 (GB10); the RC reference binaries are x86 \u2014 weigh accordingly.\",\"emittedBy\":\"ReleaseVoteWatch on spark-dd06 \u2014 recommendation only, never a vote\"}",
           "Evaluation Mode": "Entire text",
           "Text to Prepend": null,
           "Line-by-Line Evaluation Mode": "All",
@@ -5254,7 +5363,25 @@
       }
     ],
     "inputPorts": [],
-    "outputPorts": [],
+    "outputPorts": [
+      {
+        "identifier": "2f821747-2700-3b7b-82f7-c004ed3d1b53",
+        "instanceIdentifier": "6366c963-01a0-1000-0000-00007b5dbaa0",
+        "name": "telegram-out",
+        "comments": "#289: emits the phone-readable recommendation to TelegramNotify.",
+        "position": {
+          "x": 900.0,
+          "y": 5200.0
+        },
+        "type": "OUTPUT_PORT",
+        "concurrentlySchedulableTaskCount": 1,
+        "scheduledState": "ENABLED",
+        "allowRemoteAccess": false,
+        "portFunction": "STANDARD",
+        "componentType": "OUTPUT_PORT",
+        "groupIdentifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043"
+      }
+    ],
     "connections": [
       {
         "identifier": "8c3fb7d4-ac06-56da-8b7b-a8c87d9d2ac5",
@@ -5950,6 +6077,40 @@
         "backPressureObjectThreshold": 1000,
         "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": "10 mins",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043"
+      },
+      {
+        "identifier": "97a0d33e-c328-34e3-a644-404dc1a6bfa9",
+        "instanceIdentifier": "6366cb3f-01a0-1000-ffff-ffff888cdb15",
+        "source": {
+          "id": "b7e478dc-f2e0-3e90-9124-685f3a33b28d",
+          "type": "PROCESSOR",
+          "groupId": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
+          "name": "ComposeTelegramText",
+          "comments": "",
+          "instanceIdentifier": "6366c9d2-01a0-1000-0000-00006b6f9200"
+        },
+        "destination": {
+          "id": "2f821747-2700-3b7b-82f7-c004ed3d1b53",
+          "type": "OUTPUT_PORT",
+          "groupId": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
+          "name": "telegram-out",
+          "comments": "#289: emits the phone-readable recommendation to TelegramNotify.",
+          "instanceIdentifier": "6366c963-01a0-1000-0000-00007b5dbaa0"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 1000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
         "prioritizers": [],
         "bends": [],
         "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
@@ -6731,6 +6892,40 @@
         "groupIdentifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043"
       },
       {
+        "identifier": "476af7d3-4c68-3578-8d9b-5699ae65370f",
+        "instanceIdentifier": "6366cbad-01a0-1000-0000-000038c0c932",
+        "source": {
+          "id": "b7e478dc-f2e0-3e90-9124-685f3a33b28d",
+          "type": "PROCESSOR",
+          "groupId": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
+          "name": "ComposeTelegramText",
+          "comments": "",
+          "instanceIdentifier": "6366c9d2-01a0-1000-0000-00006b6f9200"
+        },
+        "destination": {
+          "id": "51652146-0692-5901-9711-e0a3d6d2f0e4",
+          "type": "PROCESSOR",
+          "groupId": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
+          "name": "LogFailures",
+          "comments": "",
+          "instanceIdentifier": "ab7603f8-c7da-37e1-bc50-e38b4cf3067f"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "failure"
+        ],
+        "backPressureObjectThreshold": 1000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043"
+      },
+      {
         "identifier": "8bd634d6-d00a-52fd-8f63-293021356952",
         "instanceIdentifier": "7f259c0d-cc05-353f-89d1-9251a2f23c91",
         "name": "",
@@ -6824,6 +7019,40 @@
         "zIndex": 0,
         "selectedRelationships": [
           "pass"
+        ],
+        "backPressureObjectThreshold": 1000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "101f52b8-fa6e-3a33-92fb-0a37f60dc043"
+      },
+      {
+        "identifier": "679cbc43-6c97-35fc-b6e1-7ef8e54529cb",
+        "instanceIdentifier": "6366cace-01a0-1000-0000-000049742e43",
+        "source": {
+          "id": "85e6be95-60bb-5540-859b-16a5c271b571",
+          "type": "PROCESSOR",
+          "groupId": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
+          "name": "BuildRecommendation",
+          "comments": "",
+          "instanceIdentifier": "edf51ab0-49fe-35a6-ad21-87373350b731"
+        },
+        "destination": {
+          "id": "b7e478dc-f2e0-3e90-9124-685f3a33b28d",
+          "type": "PROCESSOR",
+          "groupId": "101f52b8-fa6e-3a33-92fb-0a37f60dc043",
+          "name": "ComposeTelegramText",
+          "comments": "",
+          "instanceIdentifier": "6366c9d2-01a0-1000-0000-00006b6f9200"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
         ],
         "backPressureObjectThreshold": 1000,
         "backPressureDataSizeThreshold": "1 GB",
@@ -7895,7 +8124,7 @@
       "parameters": [
         {
           "name": "IMAP Password",
-          "description": "Sensitive — set via the API after upload from ~/.env SCENESERVER_IMAP_PASSWORD; never in this file.",
+          "description": "Sensitive \u2014 set via the API after upload from ~/.env SCENESERVER_IMAP_PASSWORD; never in this file.",
           "sensitive": true,
           "provided": false
         },
@@ -7915,7 +8144,7 @@
         },
         {
           "name": "k8s Dispatcher Token",
-          "description": "Sensitive — release-build-dispatcher SA token (secret release-build-dispatcher-token, ns release-builds); set via the API after upload.",
+          "description": "Sensitive \u2014 release-build-dispatcher SA token (secret release-build-dispatcher-token, ns release-builds); set via the API after upload.",
           "sensitive": true,
           "provided": false
         },
@@ -7963,7 +8192,7 @@
         },
         {
           "name": "IMAP User",
-          "description": "The identity subscribed to dev@nifi.apache.org — the same identity the human votes from.",
+          "description": "The identity subscribed to dev@nifi.apache.org \u2014 the same identity the human votes from.",
           "sensitive": false,
           "provided": false,
           "value": "steven@sceneserver.net"
@@ -7984,7 +8213,7 @@
         },
         {
           "name": "k8s Cluster CA",
-          "description": "k3s cluster CA (public cert, valid to 2036) — pinned by the K8sApiTrust service.",
+          "description": "k3s cluster CA (public cert, valid to 2036) \u2014 pinned by the K8sApiTrust service.",
           "sensitive": false,
           "provided": false,
           "value": "-----BEGIN CERTIFICATE-----\nMIIBdzCCAR2gAwIBAgIBADAKBggqhkjOPQQDAjAjMSEwHwYDVQQDDBhrM3Mtc2Vy\ndmVyLWNhQDE3ODc4MzEzNTMwHhcNMjYwODI3MTA0OTEzWhcNMzYwODI0MTA0OTEz\nWjAjMSEwHwYDVQQDDBhrM3Mtc2VydmVyLWNhQDE3ODc4MzEzNTMwWTATBgcqhkjO\nPQIBBggqhkjOPQMBBwNCAAQU9BL1GEOnzahIHgsOUU3nqDnH6s6XEqHmWOC9T4it\nbIVo9vequGA1ZFEjnlFtws3Lxv64su3OAQHg4ig1sv4Bo0IwQDAOBgNVHQ8BAf8E\nBAMCAqQwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU8N8yCdGX6qUxkvKkJRPD\nzfVKZG8wCgYIKoZIzj0EAwIDSAAwRQIhAPmHNcXST6R28Ejx6jMdw3Lf00wRpWF2\nTkFK8w1mVvL7AiBtKOrLyYz6v5phU3YJcd831I//obze/Sb341hvMJ/XWg==\n-----END CERTIFICATE-----"
