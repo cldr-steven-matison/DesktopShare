@@ -44,9 +44,9 @@ if [ -n "$dangle" ]; then echo "HARD — dangling [[wikilinks]] (no matching mem
 
 # 4. SOFT: repo-relative *.md paths mentioned in memories that don't exist in the repo (moved/renamed?)
 stale="$(grep -rhoE '[A-Za-z0-9_][A-Za-z0-9_/-]*\.md' *.md | sort -u | while read -r p; do
-           case "$p" in
-             */*) case "$p" in com/*|*github*|http*) ;; *) [ -e "$REPO/$p" ] || echo "$p" ;; esac ;;
-           esac
+           case "$p" in (*/*) ;; (*) continue ;; esac      # only path-like refs (bare filenames handled above)
+           case "$p" in (com/*|*github*|http*) continue ;; esac
+           [ -e "$REPO/$p" ] || echo "$p"
          done)"
 if [ -n "$stale" ]; then
   echo "SOFT — *.md paths not found under $REPO (triage: moved file, other-repo path, or fine):"
