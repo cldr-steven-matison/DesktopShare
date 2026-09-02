@@ -125,13 +125,13 @@ def proc(name, typ, bundle, x, y, props, auto=(), services=(), dynamic=(), sensi
     return p
 
 
-def conn(src, rels, dst, expiration="0 sec"):
+def conn(src, rels, dst, expiration="0 sec", src_type="PROCESSOR", dst_type="PROCESSOR"):
     s, d = uid(src), uid(dst)
     connections.append({
         "identifier": uid(f"conn:{src}:{','.join(rels)}:{dst}"), "name": "", "componentType": "CONNECTION",
         "groupIdentifier": PG_ID,
-        "source": {"id": s, "type": "PROCESSOR", "groupId": PG_ID, "name": src, "comments": ""},
-        "destination": {"id": d, "type": "PROCESSOR", "groupId": PG_ID, "name": dst, "comments": ""},
+        "source": {"id": s, "type": src_type, "groupId": PG_ID, "name": src, "comments": ""},
+        "destination": {"id": d, "type": dst_type, "groupId": PG_ID, "name": dst, "comments": ""},
         "selectedRelationships": list(rels), "labelIndex": 1, "zIndex": 0, "bends": [],
         "backPressureObjectThreshold": 1000, "backPressureDataSizeThreshold": "1 GB",
         "flowFileExpiration": expiration, "prioritizers": [],
@@ -424,6 +424,29 @@ replace_text("BuildRecommendation", 0, 5000,
     '"caveat":"Built and smoke-tested on aarch64 (GB10); the RC reference binaries are x86 — weigh accordingly.",'
     '"emittedBy":"ReleaseVoteWatch on spark-dd06 — recommendation only, never a vote"}')
 
+# ── Stage 5b: Telegram arm (#289) ─────────────────────────────────────────────
+# Off the recommendation branch: a clone of the assembled recommendation, rewritten from the
+# same attributes into a phone-readable brief (NOT the raw JSON), handed to the reusable
+# root-level TelegramNotify PG (#289) through the telegram-out OUTPUT PORT. Ports are the
+# sanctioned seam for crossing a PG boundary (skill rule 8). This flow still never casts a
+# vote — the message is a suggestion delivered to Steven's phone.
+# This is a NiFi-side ReplaceText (Java EL), so the Python-binding mixed-template EL trap
+# (custom-processors.md) does NOT apply — multi-token templates render fine here.
+TELEGRAM_MSG = (
+    "Release vote recommendation\n"
+    "${vote.subject}\n"
+    "Leg: ${leg} (${gitRepo})\n"
+    "Tag: ${rc.git.tag}  Commit: ${rc.git.commit}\n"
+    "Build: ${job.outcome} — verify=${verify.ok} build=${build.ok} smoke=${smoke.ok}\n"
+    "Suggestion: ${verify.ok:equals('true'):and(${build.ok:equals('true')})"
+    ":and(${smoke.ok:equals('true')}):ifElse('+1 — all gates green',"
+    "'-1/0 — a gate failed, read the evidence')}\n"
+    "Job: ${k8s.job.name}\n"
+    "NOTE: built + smoke-tested on aarch64 (GB10); the RC reference binaries are x86 — weigh accordingly.\n"
+    "Recommendation only — cast the vote yourself from steven@sceneserver.net."
+)
+replace_text("ComposeTelegramText", 900, 5000, TELEGRAM_MSG)
+
 route_on_attr("RouteVerdict", 0, 5200, {
     "pass": "${verify.ok:equals('true'):and(${build.ok:equals('true')})"
             ":and(${smoke.ok:equals('true')})}",
@@ -518,7 +541,10 @@ conn("ExtractResultJson", ["unmatched"], "MarkNoResult")
 conn("MarkNoResult", ["success"], "BuildRecommendation")
 conn("ExtractVerdict", ["success"], "BuildRecommendation")
 conn("BuildRecommendation", ["success"], "RouteVerdict")
+conn("BuildRecommendation", ["success"], "ComposeTelegramText")   # #289: clone to the Telegram arm
 conn("BuildRecommendation", ["failure"], "LogFailures")
+conn("ComposeTelegramText", ["success"], "telegram-out", dst_type="OUTPUT_PORT")
+conn("ComposeTelegramText", ["failure"], "LogFailures")
 conn("RouteVerdict", ["pass"], "LogRecommendation")
 conn("RouteVerdict", ["unmatched"], "LogFailedVerdict")
 conn("LogRecommendation", ["success"], "PublishRecommendation")
@@ -565,7 +591,13 @@ flow = {
             "This flow NEVER casts a vote — the human replies from steven@sceneserver.net.",
         "position": {"x": 0.0, "y": 0.0}, "parameterContextName": PG_NAME,
         "processors": processors, "connections": connections, "controllerServices": controller_services,
-        "funnels": [], "inputPorts": [], "outputPorts": [], "labels": [], "processGroups": [],
+        "funnels": [], "inputPorts": [], "outputPorts": [{
+            "identifier": uid("telegram-out"), "name": "telegram-out",
+            "comments": "#289: emits the phone-readable recommendation to the root TelegramNotify PG.",
+            "position": {"x": 900.0, "y": 5200.0}, "type": "OUTPUT_PORT", "componentType": "OUTPUT_PORT",
+            "groupIdentifier": PG_ID, "concurrentlySchedulableTaskCount": 1,
+            "scheduledState": "ENABLED", "allowRemoteAccess": False, "portFunction": "STANDARD",
+        }], "labels": [], "processGroups": [],
         "remoteProcessGroups": [], "scheduledState": "ENABLED",
         "defaultFlowFileExpiration": "0 sec", "defaultBackPressureObjectThreshold": 10000,
         "defaultBackPressureDataSizeThreshold": "1 GB", "executionEngine": "INHERITED",
@@ -581,5 +613,5 @@ if __name__ == "__main__":
     ups = [(c["source"]["name"], c["destination"]["name"]) for c in connections
            if c["source"]["id"] != c["destination"]["id"]]
     pos = {p["name"]: p["position"] for p in processors}
-    bad = [(s, d) for s, d in ups if pos[d]["y"] < pos[s]["y"]]
+    bad = [(s, d) for s, d in ups if s in pos and d in pos and pos[d]["y"] < pos[s]["y"]]
     print("connections routing upward (poll loop-back expected):", bad or "none")

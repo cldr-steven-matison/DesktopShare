@@ -1,0 +1,48 @@
+# Custom Python extensions PVC + loader pod for mynifi (spark-dd06), issue #289.
+#
+# Seeds files/issue-289/processors/SendTelegram.py onto a PVC that nifi-spark.yaml then mounts
+# at /opt/nifi/nifi-current/python/extensions. Adapted from
+# ClouderaStreamingOperators/python-extensions-loader.yaml with the k3s delta:
+#   - storageClassName: local-path  (this box's only class; 'standard' is minikube's, absent here)
+#
+# Order of operations (Phase B of #289):
+#   1. kubectl apply -f files/issue-289/python-extensions-loader.yaml
+#   2. kubectl cp files/issue-289/processors/SendTelegram.py \
+#        cfm-streaming/python-extensions-loader:/home/ubuntu/extensions/SendTelegram.py
+#   3. Apply the nifi-spark.yaml mount edit -> the operator rolls mynifi-0 (CONFIRM-FIRST).
+#   4. After the pod is Running, SendTelegram appears in the palette; the loader pod can be deleted.
+# Later code updates: kubectl cp a new SendTelegram.py + bump ProcessorDetails.version -> no pod
+# restart needed, only a per-instance bundle-version switch in the UI (custom-processors.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: custom-python-extensions
+  namespace: cfm-streaming
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: python-extensions-loader
+  namespace: cfm-streaming
+spec:
+  containers:
+  - name: ubuntu
+    command:
+    - /bin/bash
+    image: ubuntu:latest
+    stdin: true
+    tty: true
+    volumeMounts:
+    - name: custom-python-extensions-vol
+      mountPath: /home/ubuntu/extensions
+  volumes:
+    - name: custom-python-extensions-vol
+      persistentVolumeClaim:
+        claimName: custom-python-extensions

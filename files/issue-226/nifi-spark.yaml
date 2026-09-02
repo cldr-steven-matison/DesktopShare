@@ -10,8 +10,10 @@
 #     when the node is tight; k3s-cso §5 budgets 8 GB here.
 # Apply files/cso-prod-1/cluster-issuer.yaml BEFORE this CR — the node/S2S issuerRefs and the
 # userCertAuth truststore all point at cfm-operator-ca-issuer-signed / cert-manager/cfm-operator-ca-tls.
-# The custom-python-extensions PVC block from prod is deliberately NOT carried: no custom Python
-# processor is in scope for the Phase-4 gate. Add it (and the PVC) when a demo needs one.
+# Custom Python extensions (#289): the custom-python-extensions PVC (files/issue-289/
+# python-extensions-loader.yaml) is mounted at the python extensions dir below so mynifi loads
+# SendTelegram.py. Seed the PVC (kubectl cp) BEFORE applying this edit — an empty mount means an
+# empty palette. Applying the mount rolls mynifi-0 (confirm-first, let in-flight processors drain).
 apiVersion: cfm.cloudera.com/v1alpha1
 kind: Nifi
 metadata:
@@ -66,6 +68,8 @@ spec:
       upsert:
         nifi.cluster.leader.election.implementation: KubernetesLeaderElectionManager
         nifi.web.prometheus.metrics.authenticated: "false"
+        # #289: scan the mounted custom-python-extensions PVC for SendTelegram.py
+        nifi.python.extensions.directories: /opt/nifi/nifi-current/python/extensions
         nifi.remote.input.host: mynifi-0.mynifi.cfm-streaming.svc.cluster.local
         nifi.remote.input.secure: "true"
         nifi.remote.input.http.enabled: "true"
@@ -76,6 +80,18 @@ spec:
     nifi:
       requests: { memory: 8Gi, cpu: "2" }
       limits:   { memory: 8Gi }
+
+  # Custom Python extensions on a PVC (#289) — mounted at the default extensions dir so mynifi
+  # auto-discovers SendTelegram.py. Seed the PVC via files/issue-289/python-extensions-loader.yaml
+  # (kubectl cp) BEFORE applying; applying this rolls mynifi-0 (confirm-first, drain first).
+  statefulset:
+    volumes:
+      - name: python-extensions
+        persistentVolumeClaim:
+          claimName: custom-python-extensions
+    volumeMounts:
+      - name: python-extensions
+        mountPath: /opt/nifi/nifi-current/python/extensions
 
   stateManagement:
     clusterProvider:

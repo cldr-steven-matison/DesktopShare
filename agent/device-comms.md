@@ -149,6 +149,18 @@ Everything in this section applies on **WindowsDesktop only**. Other devices kee
 old rule: one brief Telegram ping on completion or hard-block of a long unattended
 task, nothing more.
 
+**One sanctioned non-session sender — a NiFi flow (#289, NvidiaSpark-1).** The rules in
+this section govern *Claude session* pings. Separately, the `TelegramNotify` NiFi PG on
+spark-dd06's `mynifi` posts to the **same bot/chat** to deliver a release-vote
+*recommendation* to Steven's phone (child of #76). It is a data-flow notification, not a
+session ping: it fires only when the release-vote flow produces a recommendation, carries
+the `[NvidiaSpark-1]` prefix centrally (the custom `SendTelegram` processor prepends it from
+`#{Device Name}`, so no caller can drop it), and never asks a question or expects a reply —
+casting the vote stays a human action. Credentials are the same shared `TOKEN`/`CHAT_ID`, set
+into the `TelegramNotify` Parameter Context via the NiFi API from spark-dd06's `~/.env` (never
+inline, never committed). This is the only sanctioned non-WindowsDesktop, non-session sender;
+any other device or flow that wants to post to the chat needs the same deliberate write-down here.
+
 **Progress polls are for unattended work only, and gated behind the `~/.claude/unattended`
 sentinel.** Steven arms that file when he leaves the desk. With it present, a WindowsDesktop
 session sends a brief ping at each real milestone and whenever it's been waiting or blocked
