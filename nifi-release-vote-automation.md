@@ -139,8 +139,9 @@ All steps are **NvidiaSpark-1 session** work (this reconciliation was authored o
 2. ~~Build **Stage 1** on `mynifi`~~ — ✅ 2026-09-01, and Stages 2–5 with it (see "As built"); flow exported to `files/issue-76/flows/`. Surfacing a real `[VOTE]` thread waits on step 1.
 3. ~~Stand up the `release-builds` namespace (+ quota) and the k3s-API dispatch~~ — ✅ 2026-09-01; **MiNiFi C++ CMake leg dry-run against the real 1.0.0 source release** ✅ GREEN in-cluster (verify + build + smoke, 35 extensions, 29 min under the quota) — full run log in `test/real_tag_dry_run.md`. Maven legs still owed their dry-runs.
 4. ~~Add the `release_vote_recommendations` topic; wire Stage 5 bulletin + Kafka~~ — ✅ 2026-09-01; the on-box vLLM brief is still to wire (optional, non-blocking).
-5. Move to `completed/`, write a blog draft to `blog/` following `agent/writing-style.md` — after a real `[VOTE]` thread has been caught live end-to-end.
-6. Comment on [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76) with the doc path + commit sha at each milestone; keep the issue open (long-running).
+5. **Next session's shortlist:** (a) re-run the **tests-on core measurement** (`files/issue-76/test/core-dryrun.yaml` with `MAVEN_ARGS: "-T 1C"`) — the first attempt died on a transient `develocity-maven-extension` resolution failure before building anything, so the tests-on wall time is still unknown and the core default stays `-DskipTests`; (b) wire the optional on-box vLLM thread-brief into Stage 5; (c) catch a **real live `[VOTE]`** end-to-end now that steven@sceneserver.net is subscribed to `dev@` — that is the one path that exercises a live staging dir and can produce a genuine `+1 suggested`.
+6. Move to `completed/`, write a blog draft to `blog/` following `agent/writing-style.md` — after a real `[VOTE]` thread has been caught live end-to-end.
+7. Comment on [#76](https://github.com/cldr-steven-matison/DesktopShare/issues/76) with the doc path + commit sha at each milestone; keep the issue open (long-running).
 
 ---
 

@@ -113,3 +113,21 @@ against the **released** artifacts (`dist/release/nifi/nifi-api-2.11.0`,
 
 **All four product legs are now proven end-to-end** (cpp / API / NAR / core). Nothing in
 the taxonomy table is deferred.
+
+## Run 10 — 2026-09-02: tests-on core attempt — INCONCLUSIVE, re-run needed
+
+Same Job with `MAVEN_ARGS=-T 1C` (tests on). Failed at **6m39s** — but **not on a test**:
+Maven could not resolve the build extension `com.gradle:develocity-maven-extension:2.1`
+that NiFi declares in `.mvn/extensions.xml`, so **0 modules were built**. Verify still
+passed (sha512 + gpg green); the verdict was `{"verifyOk":true,"buildOk":false,…,"note":"maven build failed"}`.
+
+The same extension resolved fine in run 9 twenty minutes earlier, so this reads as a
+transient repo/network hiccup rather than a real defect — but it is **not** a tests-on
+measurement, and nothing about the tests-on wall time is known yet.
+
+**Open follow-up (next session):** re-run `core-dryrun-tests` (the run-9 yaml with
+`MAVEN_ARGS: "-T 1C"`), clock it, and only then decide whether `#{Core Maven Args}` should
+default to tests-on. Until that number exists the default stays `-T 1C -DskipTests` and
+every core recommendation says so in its `note`. If the extension fails again, the fix is
+likely `-Ddevelocity.scan.disabled=true` / running with `-N` extension resolution offline —
+worth one look before assuming a network cause.
