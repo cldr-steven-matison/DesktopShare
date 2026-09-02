@@ -6,13 +6,16 @@
 # Stage-4 scrape stays leg-agnostic.
 #
 # Env: TAG, ARTIFACT_URL (file or staging-dir URL), SHA512 (falls back to the .sha512
-# file), KEYS_URL, GIT_REPO (apache/nifi-api | apache/nifi-maven — clone fallback only).
+# file), KEYS_URL, GIT_REPO (apache/nifi-api | apache/nifi-maven — clone fallback only),
+# MAVEN_ARGS (extra goals/flags — the core-NiFi leg passes `-T 1C -DskipTests`; whatever
+# is passed is echoed into the verdict's note so the recommendation says what was run).
 set -uo pipefail
 mkdir -p /work && cd /work
 
 TAG="${TAG:-}"; ARTIFACT_URL="${ARTIFACT_URL:-}"; SHA512="${SHA512:-}"
 KEYS_URL="${KEYS_URL:-https://dist.apache.org/repos/dist/release/nifi/KEYS}"
 GIT_REPO="${GIT_REPO:-apache/nifi}"
+MAVEN_ARGS="${MAVEN_ARGS:-}"
 
 VERIFY_OK=false; BUILD_OK=false; SMOKE_OK=false; JAR_COUNT=0; NOTE=""
 
@@ -73,11 +76,14 @@ else
 fi
 [ -n "${SRC_DIR:-}" ] || { NOTE="no source dir after extract"; exit 1; }
 
-echo "== maven build ($SRC_DIR) =="
+echo "== maven build ($SRC_DIR) ${MAVEN_ARGS:+[args: $MAVEN_ARGS]} =="
 cd "$SRC_DIR"
 MVN=mvn; [ -x ./mvnw ] && MVN=./mvnw
-$MVN -B clean install || { NOTE="maven build failed"; exit 1; }
+$MVN -B clean install $MAVEN_ARGS || { NOTE="maven build failed"; exit 1; }
 BUILD_OK=true
+case "$MAVEN_ARGS" in
+  *-DskipTests*) NOTE="${NOTE:+$NOTE; }built with -DskipTests — compile+package verified, unit tests NOT run" ;;
+esac
 
 echo "== smoke =="
 JAR_COUNT=$(find . -path '*/target/*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | wc -l)

@@ -92,4 +92,24 @@ against the **released** artifacts (`dist/release/nifi/nifi-api-2.11.0`,
 - Note: eclipse-temurin images lack curl/gnupg; the entrypoint apt-installs them at
   start (~20 s). `jar -xf` stands in for unzip.
 
-Core NiFi (multi-GB `./mvnw clean install`) remains the one deferred leg.
+## Run 9 — 2026-09-02: CORE NiFi LEG GREEN — and far cheaper than assumed
+
+`core-dryrun.yaml` — the released `nifi-2.11.0` source zip, full quota (8 CPU / 24Gi,
+`MAVEN_OPTS=-Xmx8g -XX:+UseG1GC`), `MAVEN_ARGS=-T 1C -DskipTests`:
+
+- **succeeded=1, wall clock 22m38s** (13:48:58Z → 14:11:36Z); Maven's own reactor clock
+  22:21. **708 modules, BUILD SUCCESS, 4016 jars.** Verify path green (sha512 + gpg).
+- Verdict: `{"verifyOk":true,"buildOk":true,"smokeOk":true,"extensionCount":4016,"tag":"rel/nifi-2.11.0","note":"built with -DskipTests — compile+package verified, unit tests NOT run"}`
+- **The "multi-hour, must stay deferred" assumption was wrong** — the whole reactor
+  compiles and packages in ~22 min on this box, comfortably inside the flow's 4-hour poll
+  window with room to spare. The deferral was a guess; the measurement retired it.
+- Watch the log *phase*, not its tail: at ~20 min the tail still showed dependency
+  downloads while the reactor was actually at module 707/708 — the last module's deps
+  resolve after almost everything is built. `grep -c 'Building '` is the honest progress
+  signal.
+- Still open: a **tests-on** measurement (`MAVEN_ARGS` cleared). Until that is run and
+  fits the window, the core leg's default skips tests and every verdict/recommendation
+  says so in its `note`.
+
+**All four product legs are now proven end-to-end** (cpp / API / NAR / core). Nothing in
+the taxonomy table is deferred.

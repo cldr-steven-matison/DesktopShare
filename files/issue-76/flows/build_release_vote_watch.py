@@ -10,7 +10,11 @@ After any live edit, re-export over ReleaseVoteWatch.json (§4).
 Pipeline (doc §Architecture): watch → assess/verify → build (k8s Job) → test → recommend.
 HARD BOUNDARY: this flow never sends mail — the terminus is a bulletin + Kafka topic.
 
-Shape (spine x=0, rows of 200; leg tags fan out at y=1400; log column x=700):
+Shape: one vertical trunk at x=0, rows of 200. The four product legs fan out at y=1400
+(x = -900/-300/+300/+900, 600px sibling pitch) and re-join the trunk at y=1600 — the join
+sits at the centre of the spread, so no merge line crosses the trunk. Error/terminal log
+sinks live to the RIGHT of every working column (LogFailures hard right at x=1360), so
+their inbound lines never cross the flow either.
 
   WatchDevList        ConsumeIMAP        steven@sceneserver.net INBOX, IMAPS 993, poll 2 min,
                                          Mark-as-Read = the primary dedup
@@ -22,13 +26,17 @@ Shape (spine x=0, rows of 200; leg tags fan out at y=1400; log column x=700):
   DedupGuard          UpdateAttribute    stateful seen.subjects guard (belt-and-suspenders)
   RouteDup            RouteOnAttribute   new vs duplicate
   RouteProductLeg     RouteOnAttribute   cpp / api / nar / core (appendix taxonomy table)
-  TagLeg*             UpdateAttribute    system/leg/gitRepo; java legs → LogDeferredLeg (the
-                                         Maven legs are routed-but-deferred until their dry-run)
+  TagLeg*             UpdateAttribute    system/leg/gitRepo — all four legs are live and
+                                         re-join the trunk (nothing is deferred any more)
   ParseVoteBody       ExtractText        rc.staging.url / rc.git.tag / rc.git.commit / rc.sha512
                                          / rc.keys.url (labeled-line regexes from the appendix)
   CheckParsed         RouteOnAttribute   both staging URL + tag present, else LogParseDrift
   PrepJobMeta         UpdateAttribute    k8s.job.name = rvb-<leg>-<epoch>
-  BuildJobManifest    ReplaceText        batch/v1 Job JSON (limits 8 CPU/24Gi — quota ceiling)
+  RouteLegManifest    RouteOnAttribute   cpp / core / maven — picks the Job manifest
+  BuildJobManifest    ReplaceText        cpp Job JSON (release-build-cpp image, 8 CPU/24Gi)
+  BuildMavenManifest  ReplaceText        API + NAR Job JSON (stock maven image, 4 CPU/8Gi)
+  BuildCoreManifest   ReplaceText        apache/nifi Job JSON — the whole quota (8 CPU/24Gi),
+                                         #{Core Maven Args} / #{Core Maven Opts}
   DispatchJob         InvokeHTTP POST    k3s API, Bearer #{k8s Dispatcher Token} (sensitive
                                          dynamic property), K8sApiTrust CA     [Retry self-loop]
   PollJobStatus       InvokeHTTP GET     job status, 1-min schedule            [Retry self-loop]
@@ -252,19 +260,19 @@ update_attr("TagLegCore", 900, 1400, {"system": "nifi", "leg": "java-core", "git
 # against a forwarded Gmail sample (multipart/alternative, both parts quoted-printable).
 # Two content passes un-QP the body enough for the labeled-line regexes: unwrap soft
 # breaks, then decode `=3D`. (Full QP decode isn't needed for these ASCII targets.)
-replace_qp = proc("UnwrapQpBreaks", "org.apache.nifi.processors.standard.ReplaceText", STD, -900, 1600, {
+replace_qp = proc("UnwrapQpBreaks", "org.apache.nifi.processors.standard.ReplaceText", STD, 0, 1600, {
     "Replacement Strategy": "Regex Replace", "Evaluation Mode": "Entire text",
     "Regular Expression": "=\\r?\\n", "Replacement Value": "",
     "Character Set": "UTF-8", "Maximum Buffer Size": "10 MB", "Line-by-Line Evaluation Mode": "All",
 }, run_ms=25)
 
-proc("DecodeQpEquals", "org.apache.nifi.processors.standard.ReplaceText", STD, -900, 1800, {
+proc("DecodeQpEquals", "org.apache.nifi.processors.standard.ReplaceText", STD, 0, 1800, {
     "Replacement Strategy": "Regex Replace", "Evaluation Mode": "Entire text",
     "Regular Expression": "=3D", "Replacement Value": "=",
     "Character Set": "UTF-8", "Maximum Buffer Size": "10 MB", "Line-by-Line Evaluation Mode": "All",
 }, run_ms=25)
 
-proc("ParseVoteBody", "org.apache.nifi.processors.standard.ExtractText", STD, -900, 2000, {
+proc("ParseVoteBody", "org.apache.nifi.processors.standard.ExtractText", STD, 0, 2000, {
     "Character Set": "UTF-8", "Maximum Buffer Size": "1 MB", "Maximum Capture Group Length": "1024",
     "Enable Case-insensitive Matching": "false", "Enable Multiline Mode": "true",
     "Enable DOTALL Mode": "false", "Include Capture Group 0": "false",
@@ -275,22 +283,23 @@ proc("ParseVoteBody", "org.apache.nifi.processors.standard.ExtractText", STD, -9
     "rc.keys.url": "(https://dist\\.apache\\.org/repos/dist/release/nifi/KEYS)",
 }, dynamic=("rc.staging.url", "rc.git.tag", "rc.git.commit", "rc.sha512", "rc.keys.url"))
 
-route_on_attr("CheckParsed", -900, 2200, {
+route_on_attr("CheckParsed", 0, 2200, {
     "parsed": "${rc.staging.url:isEmpty():not():and(${rc.git.tag:isEmpty():not()})}",
 })
 
 # ── Stage 3: dispatch as a k8s Job ────────────────────────────────────────────
-update_attr("PrepJobMeta", -900, 2400, {
+update_attr("PrepJobMeta", 0, 2400, {
     "k8s.job.name": "rvb-${leg}-${now():toNumber()}",
     "mime.type": "application/json",
 })
 
-route_on_attr("RouteLegManifest", -900, 2600, {
+route_on_attr("RouteLegManifest", 0, 2600, {
     "cpp": "${leg:equals('cpp')}",
-    "maven": "${leg:startsWith('java-')}",
+    "core": "${leg:equals('java-core')}",
+    "maven": "${leg:startsWith('java-'):and(${leg:equals('java-core'):not()})}",
 })
 
-replace_text("BuildJobManifest", -1200, 2800, json.dumps({
+replace_text("BuildJobManifest", -600, 2800, json.dumps({
     "apiVersion": "batch/v1", "kind": "Job",
     "metadata": {"name": "${k8s.job.name}", "namespace": "release-builds",
                  "labels": {"leg": "${leg}", "system": "${system}", "source": "releasevotewatch"}},
@@ -308,7 +317,7 @@ replace_text("BuildJobManifest", -1200, 2800, json.dumps({
              }]}}},
 }, separators=(",", ":")))
 
-replace_text("BuildMavenManifest", -600, 2800, json.dumps({
+replace_text("BuildMavenManifest", 0, 2800, json.dumps({
     "apiVersion": "batch/v1", "kind": "Job",
     "metadata": {"name": "${k8s.job.name}", "namespace": "release-builds",
                  "labels": {"leg": "${leg}", "system": "${system}", "source": "releasevotewatch"}},
@@ -330,47 +339,71 @@ replace_text("BuildMavenManifest", -600, 2800, json.dumps({
              "volumes": [{"name": "entry", "configMap": {"name": "maven-build-entrypoint"}}]}}},
 }, separators=(",", ":")))
 
-invoke_k8s("DispatchJob", -900, 3000, "POST",
+replace_text("BuildCoreManifest", 600, 2800, json.dumps({
+    "apiVersion": "batch/v1", "kind": "Job",
+    "metadata": {"name": "${k8s.job.name}", "namespace": "release-builds",
+                 "labels": {"leg": "${leg}", "system": "${system}", "source": "releasevotewatch"}},
+    "spec": {"backoffLimit": 0, "ttlSecondsAfterFinished": 86400,
+             "template": {"spec": {"restartPolicy": "Never", "containers": [{
+                 "name": "build", "image": "#{Build Image Maven}", "imagePullPolicy": "IfNotPresent",
+                 "command": ["bash", "/entry/entrypoint.sh"],
+                 "env": [
+                     {"name": "TAG", "value": "${rc.git.tag:escapeJson()}"},
+                     {"name": "ARTIFACT_URL", "value": "${rc.staging.url:escapeJson()}"},
+                     {"name": "SHA512", "value": "${rc.sha512:escapeJson()}"},
+                     {"name": "KEYS_URL", "value": "${rc.keys.url:isEmpty():ifElse('https://dist.apache.org/repos/dist/release/nifi/KEYS', ${rc.keys.url}):escapeJson()}"},
+                     {"name": "GIT_REPO", "value": "${gitRepo}"},
+                     {"name": "MAVEN_ARGS", "value": "#{Core Maven Args}"},
+                     {"name": "MAVEN_OPTS", "value": "#{Core Maven Opts}"},
+                 ],
+                 "volumeMounts": [{"name": "entry", "mountPath": "/entry"}],
+                 "resources": {"requests": {"cpu": "8", "memory": "16Gi"},
+                               "limits": {"cpu": "8", "memory": "24Gi"}},
+             }],
+             "volumes": [{"name": "entry", "configMap": {"name": "maven-build-entrypoint"}}]}}},
+}, separators=(",", ":")))
+
+invoke_k8s("DispatchJob", 0, 3000, "POST",
            "#{k8s API Base}/apis/batch/v1/namespaces/release-builds/jobs", body=True)
 
 # ── poll loop (the 4h expiration lives on the loop-back connection) ───────────
-invoke_k8s("PollJobStatus", -900, 3200, "GET",
+invoke_k8s("PollJobStatus", 0, 3200, "GET",
            "#{k8s API Base}/apis/batch/v1/namespaces/release-builds/jobs/${k8s.job.name}",
            schedule="1 min")
 
-eval_json("ExtractJobStatus", -900, 3400, {
+eval_json("ExtractJobStatus", 0, 3400, {
     "job.succeeded": "$.status.succeeded", "job.failed": "$.status.failed",
     "job.active": "$.status.active",
 })
 
-route_on_attr("RouteJobDone", -900, 3600, {
+route_on_attr("RouteJobDone", 0, 3600, {
     "ok": "${job.succeeded:gt(0)}",
     "fail": "${job.failed:gt(0)}",
 })
 
 # ── Stage 4: read the Job's verdict out of its pod log ────────────────────────
-update_attr("MarkBuildSucceeded", -1200, 3800, {"job.outcome": "succeeded"})
-update_attr("MarkBuildFailed", -600, 3800, {"job.outcome": "failed"})
+update_attr("MarkBuildSucceeded", -300, 3800, {"job.outcome": "succeeded"})
+update_attr("MarkBuildFailed", 300, 3800, {"job.outcome": "failed"})
 
-invoke_k8s("FetchJobPods", -900, 4000, "GET",
+invoke_k8s("FetchJobPods", 0, 4000, "GET",
            "#{k8s API Base}/api/v1/namespaces/release-builds/pods?labelSelector=job-name%3D${k8s.job.name}")
 
-eval_json("ExtractPodName", -900, 4200, {"pod.name": "$.items[0].metadata.name"})
+eval_json("ExtractPodName", 0, 4200, {"pod.name": "$.items[0].metadata.name"})
 
-invoke_k8s("FetchPodLog", -900, 4400, "GET",
+invoke_k8s("FetchPodLog", 0, 4400, "GET",
            "#{k8s API Base}/api/v1/namespaces/release-builds/pods/${pod.name}/log?tailLines=60")
 
-proc("ExtractResultJson", "org.apache.nifi.processors.standard.ExtractText", STD, -900, 4600, {
+proc("ExtractResultJson", "org.apache.nifi.processors.standard.ExtractText", STD, 0, 4600, {
     "Character Set": "UTF-8", "Maximum Buffer Size": "1 MB", "Maximum Capture Group Length": "4096",
     "Enable Multiline Mode": "true", "Enable DOTALL Mode": "false", "Include Capture Group 0": "false",
     "job.result": "(\\{\"verifyOk\".*\\})",
 }, dynamic=("job.result",))
 
-update_attr("MarkNoResult", -300, 4800,
+update_attr("MarkNoResult", 600, 4800,
             {"job.note": "no result JSON in job log", "verify.ok": "false",
              "build.ok": "false", "smoke.ok": "false", "ext.count": "0"})
 
-update_attr("ExtractVerdict", -900, 4800, {
+update_attr("ExtractVerdict", 0, 4800, {
     "verify.ok": "${job.result:jsonPath('$.verifyOk')}",
     "build.ok": "${job.result:jsonPath('$.buildOk')}",
     "smoke.ok": "${job.result:jsonPath('$.smokeOk')}",
@@ -379,7 +412,7 @@ update_attr("ExtractVerdict", -900, 4800, {
 })
 
 # ── Stage 5: recommend (a SUGGESTION — the human casts the vote) ──────────────
-replace_text("BuildRecommendation", -900, 5000,
+replace_text("BuildRecommendation", 0, 5000,
     '{"subject":"${vote.subject:escapeJson()}","leg":"${leg}","system":"${system}",'
     '"gitRepo":"${gitRepo}","tag":"${rc.git.tag:escapeJson()}","commit":"${rc.git.commit:escapeJson()}",'
     '"stagingUrl":"${rc.staging.url:escapeJson()}","jobName":"${k8s.job.name}",'
@@ -391,18 +424,18 @@ replace_text("BuildRecommendation", -900, 5000,
     '"caveat":"Built and smoke-tested on aarch64 (GB10); the RC reference binaries are x86 — weigh accordingly.",'
     '"emittedBy":"ReleaseVoteWatch on spark-dd06 — recommendation only, never a vote"}')
 
-route_on_attr("RouteVerdict", -900, 5200, {
+route_on_attr("RouteVerdict", 0, 5200, {
     "pass": "${verify.ok:equals('true'):and(${build.ok:equals('true')})"
             ":and(${smoke.ok:equals('true')})}",
 })
 
-log_attr("LogRecommendation", -1200, 5400, "info")
-log_attr("LogFailedVerdict", -600, 5400, "warn")
+log_attr("LogRecommendation", -300, 5400, "info")
+log_attr("LogFailedVerdict", 300, 5400, "warn")
 processors[-1]["autoTerminatedRelationships"] = []
 processors[-2]["autoTerminatedRelationships"] = []
 
 proc("PublishRecommendation", "org.apache.nifi.processors.kafka.pubsub.PublishKafka_2_6", KAFKA26,
-     -900, 5600, {
+     0, 5600, {
     "bootstrap.servers": "#{Kafka Bootstrap}", "topic": "#{Recommendations Topic}",
     "use-transactions": "false", "Failure Strategy": "Route to Failure", "acks": "all",
     "kafka-key": "${vote.subject}", "key-attribute-encoding": "utf-8",
@@ -414,8 +447,7 @@ proc("PublishRecommendation", "org.apache.nifi.processors.kafka.pubsub.PublishKa
 log_attr("LogRejected", 1500, 1400, "info")
 log_attr("LogRetired", 700, 800, "info")
 log_attr("LogDuplicate", 700, 1000, "info")
-log_attr("LogDeferredLeg", 300, 1600, "info")
-log_attr("LogParseDrift", -300, 2400, "warn")
+log_attr("LogParseDrift", 900, 2400, "warn")
 log_attr("LogFailures", 1360, 5600, "warn")
 
 # ── wiring ────────────────────────────────────────────────────────────────────
@@ -442,7 +474,7 @@ conn("DecodeQpEquals", ["success"], "ParseVoteBody")
 conn("DecodeQpEquals", ["failure"], "LogFailures")
 conn("TagLegApi", ["success"], "UnwrapQpBreaks")
 conn("TagLegNar", ["success"], "UnwrapQpBreaks")
-conn("TagLegCore", ["success"], "LogDeferredLeg")   # core NiFi: multi-hour build, still deferred
+conn("TagLegCore", ["success"], "UnwrapQpBreaks")
 conn("ParseVoteBody", ["matched"], "CheckParsed")
 conn("ParseVoteBody", ["unmatched"], "LogParseDrift")
 conn("CheckParsed", ["parsed"], "PrepJobMeta")
@@ -450,9 +482,12 @@ conn("CheckParsed", ["unmatched"], "LogParseDrift")
 conn("PrepJobMeta", ["success"], "RouteLegManifest")
 conn("RouteLegManifest", ["cpp"], "BuildJobManifest")
 conn("RouteLegManifest", ["maven"], "BuildMavenManifest")
+conn("RouteLegManifest", ["core"], "BuildCoreManifest")
 conn("RouteLegManifest", ["unmatched"], "LogFailures")
 conn("BuildMavenManifest", ["success"], "DispatchJob")
 conn("BuildMavenManifest", ["failure"], "LogFailures")
+conn("BuildCoreManifest", ["success"], "DispatchJob")
+conn("BuildCoreManifest", ["failure"], "LogFailures")
 conn("BuildJobManifest", ["success"], "DispatchJob")
 conn("BuildJobManifest", ["failure"], "LogFailures")
 conn("DispatchJob", ["Retry"], "DispatchJob", "10 mins")
@@ -509,6 +544,8 @@ params = [
     ("Recommendations Topic", "release_vote_recommendations", "Stage 5 terminus (files/issue-76/release_vote_topic.yaml).", False),
     ("Build Image Cpp", "docker.io/library/release-build-cpp:0.1", "files/issue-76/cpp-build/, imported into k3s containerd.", False),
     ("Build Image Maven", "docker.io/library/maven:3.9-eclipse-temurin-21", "Stock arm64 image, pulled by containerd; entrypoint mounted from the maven-build-entrypoint ConfigMap.", False),
+    ("Core Maven Args", "-T 1C -DskipTests", "apache/nifi is the heavyweight reactor: parallel build, tests skipped so the run fits the poll window. The entrypoint stamps -DskipTests into the verdict note, so a recommendation always says tests were not run. Clear this to build with tests once the wall time is known to fit.", False),
+    ("Core Maven Opts", "-Xmx8g -XX:+UseG1GC", "MAVEN_OPTS for the core leg only; the API/NAR legs build fine on the default heap.", False),
 ]
 
 flow = {

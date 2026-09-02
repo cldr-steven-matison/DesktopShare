@@ -1,0 +1,59 @@
+# Issue #76 — core NiFi build leg dry-run: the heavyweight one (multi-GB deps, the whole
+# apache/nifi reactor). Takes the FULL release-builds quota (8 CPU / 24Gi) — nothing else
+# can schedule while it runs, by design.
+#
+# Target: the released nifi-2.11.0 source zip (dist/release — no open core vote right now),
+# published sha512 inline exactly as a [VOTE] mail carries it.
+#
+# MAVEN_ARGS: `-T 1C -DskipTests` for THIS first measurement — establishes the compile+
+# package baseline and its wall time against the flow's 4-hour poll-loop window. The
+# entrypoint stamps the skip into the verdict note, so any recommendation built from it
+# says plainly that unit tests were not run. A tests-on run is the follow-up measurement.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: core-dryrun
+  namespace: release-builds
+  labels:
+    leg: java-core
+    system: nifi
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: build
+          image: docker.io/library/maven:3.9-eclipse-temurin-21
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/entry/entrypoint.sh"]
+          env:
+            - name: TAG
+              value: "rel/nifi-2.11.0"
+            - name: ARTIFACT_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/2.11.0/nifi-2.11.0-source-release.zip"
+            - name: SHA512
+              value: "6d06033994bfb2f1b753bc36a03bce99df4dbb77d47b50cba689dcb071eb1c81602bc9d54c88ec21899074b7e15b336c9fcf540a39fbf91197c000b6ea468a8d"
+            - name: KEYS_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/KEYS"
+            - name: GIT_REPO
+              value: "apache/nifi"
+            - name: MAVEN_ARGS
+              value: "-T 1C -DskipTests"
+            - name: MAVEN_OPTS
+              value: "-Xmx8g -XX:+UseG1GC"
+          volumeMounts:
+            - name: entry
+              mountPath: /entry
+          resources:
+            requests:
+              cpu: "8"
+              memory: 16Gi
+            limits:
+              cpu: "8"
+              memory: 24Gi
+      volumes:
+        - name: entry
+          configMap:
+            name: maven-build-entrypoint
