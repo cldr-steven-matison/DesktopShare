@@ -30,6 +30,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | Docs get updated when a plan lands | `workflow.md` §"Docs get updated when a plan lands" | — |
 | Shipped content strips its own provenance (dates/issue#s/agent names/proof-of-work) — outbound repos too | `writing-style.md` §"Published artifacts strip their own provenance" | — |
 | Don't guess an unread source; never mutate on a guess | §"Fixes and claims" | — |
+| Facts in the tracked doc; reasoning/narrative in the issue comment | `writing-style.md` §"Reporting work — issue comments and wrap-ups" | — |
 
 ## Sub-agent prompting
 

@@ -154,6 +154,8 @@ Writing it up anyway reads as billing him for your own mistake: he already paid 
 
 The related tell to catch earlier: an intermittent failure you cannot reproduce is not a lead worth pulling on mid-task. Note it to yourself, finish the job.
 
+**Facts in the tracked doc; the reasoning goes in the issue comment.** A tracked `.md` update carries only the concrete facts — the commands run, the config values, the log lines, what actually changed. The *why-this-matters*, the reasoning behind a choice, and the next-steps commentary belong in the GitHub issue comment, not seeded through the doc. The doc is the durable record of state; the issue thread is where the narrative of getting there lives. (Corrected live twice on StarlinkAI — 2026-07-30, then 2026-08-09 — before it was committed; until then other devices were unguarded.)
+
 ## What to strip
 
 - LLM tells: "delve," "leverage," "in the fast-paced world of," "certainly!" openings, em-dashes used for emphasis where a period would do, sentence-endings that summarize what you just said.

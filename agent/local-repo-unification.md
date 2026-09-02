@@ -21,6 +21,12 @@ quirks, where a credential lives) and user preferences not yet committed. Classi
   actually right and the repo is stale, fix the *repo* and say so — don't silently discard a correction.
 - **(c) dangling** — a `[[wikilink]]` or file path with no target → fix the link/path.
 - **(d) stale** — names a moved/renamed/deleted file, or a fact newer in the repo → fix it.
+- **(e) stranded** — the *silo itself* is orphaned, not a memory inside it. Claude Code keys the
+  memory dir off the clone's on-disk path (`~/.claude/projects/-home-...-DesktopShare/memory`), so
+  renaming the clone (`DesktopShare` → `Brainshare`/`BrainShare`, seen on StarlinkAI + NvidiaSpark-1)
+  leaves current sessions loading a **new, usually empty** path-keyed silo while the real memories sit
+  dark in the old one. Before auditing, `ls ~/.claude/projects/` for a second, older-path `*/memory`
+  dir and **migrate its contents into the live path first** — audit the merged silo, not the empty one.
 
 A rule worth keeping that lives **only** in a memory belongs in the repo: promote it, then delete
 the memory (precedent: the no-`Co-Authored-By`-trailer rule, memory-only until promoted to
@@ -29,6 +35,9 @@ the memory (precedent: the no-`Co-Authored-By`-trailer rule, memory-only until p
 ## Inventory — run these, paste the output into your device's issue
 
 ```bash
+# NOTE: `head -1` is glob-order-dependent — if this clone was ever renamed it can land on a fresh
+# EMPTY silo (see (e) stranded). If the count below is 0/near-0, `ls ~/.claude/projects/` for the
+# older-path */memory dir and migrate it in before auditing.
 MEMDIR="$(ls -d ~/.claude/projects/*/memory 2>/dev/null | head -1)"; echo "memdir: $MEMDIR"
 ls "$MEMDIR"/*.md 2>/dev/null | grep -v '/MEMORY.md$' | wc -l          # body-memory count
 bash files/memory-lint.sh "$MEMDIR"                                    # (c)/(d) mechanical check
