@@ -28,6 +28,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | AMOLED app/device ships from its per-app leader repo (app + backend) | `device-comms.md` §"Closing an issue" + `amoled-app-store-plan.md` Part C | guard 13 |
 | Canvas layout pitch / pre-flight before a processor create | skill `references/layout.md` | guard 5, known-patterns |
 | Docs get updated when a plan lands | `workflow.md` §"Docs get updated when a plan lands" | — |
+| Shipped content strips its own provenance (dates/issue#s/agent names/proof-of-work) — outbound repos too | `writing-style.md` §"Published artifacts strip their own provenance" | — |
 | Don't guess an unread source; never mutate on a guess | §"Fixes and claims" | — |
 
 ## Sub-agent prompting

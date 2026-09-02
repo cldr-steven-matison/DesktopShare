@@ -159,3 +159,26 @@ The related tell to catch earlier: an intermittent failure you cannot reproduce 
 - LLM tells: "delve," "leverage," "in the fast-paced world of," "certainly!" openings, em-dashes used for emphasis where a period would do, sentence-endings that summarize what you just said.
 - Bullet points where a sentence is fine. Bullet lists are for genuinely enumerated things.
 - Sections labelled "Introduction" or "Conclusion" — the opening and the fix ARE the introduction and conclusion.
+
+### Published artifacts strip their own provenance
+
+A shipped artifact is the finished product, not the work log that produced it. Write it clean from
+the first draft — strip every trace of how it was built:
+
+- **Dates** — "2026-08-04," "confirmed as of…," "field-proven end-to-end" freshness stamps.
+- **Issue numbers** (#59, #99) and links to issues.
+- **Agent or class names used as evidence** — `MinikubeMacJavaPyTest`, "disposable throwaway agent," "3/3 POSTs, no drops."
+- **Proof-of-work language** — "proven," "field-validated," "the manifest-staleness gotcha we hit."
+- **Cross-repo back-references** — a standalone README or chapter does not say "see Ch6 of the guide" or link back to a DesktopShare planning doc. It stands alone.
+- **Progress notes** — "see X below," "see Solved gap," "(uncommitted)," WIP asides that only make sense mid-session.
+
+The proof, the dates, and the issue trail live in the **living findings docs** (root-tier `.md`) and
+**issue comments** — never in the shipped artifact. Cross-links *between* published chapters (via the
+guide index) are fine; everything above is not.
+
+**This governs every outbound repo, not just DesktopShare's own `.md`.** Content sourced here and
+published elsewhere carries the same rule to its destination: the [`EdgeFlowManager`](https://github.com/cldr-steven-matison/EdgeFlowManager)
+guide chapters, Playground scenario READMEs, the `cldr-steven-matison.github.io` blog repo, and any
+app repo's shipped README. When a file leaves DesktopShare as published content, it leaves the
+provenance behind — the destination repo gets clean prose, and it is the author's job to scrub it on
+the way out, not the reader's to tolerate it.
