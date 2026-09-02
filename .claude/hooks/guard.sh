@@ -170,17 +170,12 @@ ds_bridge_decide() {
   # the poll waits out the whole window (agent-to-agent.md "Reply bridge").
   base="$(wc -l < "$inbox" 2>/dev/null || echo 0)"
 
-  # The command goes through the same redaction as the ping context — a ~/.env
-  # value must never reach the chat, so a credential-bearing command is asked
-  # about without quoting it.
-  cmdline="$(ds_redact_cmd "$cmd" 220 2>/dev/null)"
-  # The rule's own reason rides along, truncated. A phone approval used to carry
-  # only the label + command — a materially less-informed decision than the desk
-  # prompt on exactly the rules where the rationale matters most (#192 audit).
+  # The rule's own reason rides along, truncated. The phone ask carries the
+  # label + reason — enough to decide on from a phone. The raw command line was
+  # removed from the phone message (#285): it was noise on a small screen, and the
+  # desk prompt still shows the full command for anyone who wants to inspect it.
   why="$(printf '%.300s' "$reason")"
   q="${label:-guard check}"
-  [ -n "$cmdline" ] && q="$q
-\$ $cmdline"
   [ -n "$why" ] && q="$q
 — $why"
   q="$q

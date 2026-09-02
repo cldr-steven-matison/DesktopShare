@@ -47,7 +47,7 @@ fi
 
 MSG="❓ [$DEV]${ISSUES:+ $ISSUES} ${QUESTION}
 
-reply: /bash bash ~/reply.sh yes|no|<text>"
+/bash bash ~/reply.sh yes"
 
 # Verify delivery before claiming success — "Ask sent" on a failed send leaves the
 # session waiting forever on a question that never reached the phone (#192 review).
