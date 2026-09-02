@@ -44,7 +44,7 @@ We've already solved most of the hard problems once. Before writing something fr
 
 1. The `nifi-and-ai` skill for NiFi/MiNiFi/EFM patterns.
 2. This session's `MEMORY.md` — pointers to what past sessions on this device learned.
-3. **On `spark-dd06`:** the `ds-kb` MCP tool (`kb_search`) — semantic retrieval over this same doc corpus (root docs, `completed/`, `blog/`, `agent/`, the skill, the EFM guide, flow exports, sub-repo code). A better *grep* for a question phrased in prose; it does not replace loading the skill. Local-only to the box for now (#240, work-stream H — `nvidia-dgx-spark-local-kb.md`).
+3. **On `spark-dd06`:** the `ds-kb` MCP tool (`kb_search`) — semantic retrieval over this same doc corpus (root docs, `completed/`, `blog/`, `agent/`, the skill, the EFM guide, flow exports, sub-repo code). A better *grep* for a question phrased in prose; it does not replace loading the skill. Local-only to the box for now (#240, work-stream H — `nvidia-dgx-spark-local-kb.md`). **On the box you also get it without asking:** every Bash `grep`/`rg` of repo prose is run through the index by the `kb-retrieve.sh` hook and the top cited sections are injected at the call site (#294, work-stream L — `nvidia-dgx-spark-offload.md`). Go to the cited section; don't read five files to find it.
 4. Grep the DesktopShare root `.md` library — most post-mortems live there.
 5. Grep the relevant sub-repo. `backend/services/streamers.py` in `cso-operator-app` in particular has hard-won convention already baked in — don't re-derive it.
 

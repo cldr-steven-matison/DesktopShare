@@ -37,6 +37,17 @@
             "statusMessage": "Checking deploy/commit/claim guard"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kb-retrieve.sh\"",
+            "timeout": 10,
+            "statusMessage": "Local KB: retrieving passages for this grep (spark-dd06 only, advisory)"
+          }
+        ]
       }
     ]
   }

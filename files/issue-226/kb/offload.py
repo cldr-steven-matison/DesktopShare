@@ -15,6 +15,9 @@ Sources (all on this box; nothing leaves it):
     DEDUPED by message.id. One turn is written once per content block (text, tool_use) with
     the same usage on every line — a raw sum triple-counts (measured 3.03x on 2026-09-02).
   - kb_search: tool_use blocks named mcp__ds-kb__kb_search, deduped the same way.
+  - ~/.claude/kb-retrievals.log: retrievals the L2 hook (kb-retrieve.sh -> kb_hook.py) made at
+    the Grep call site, one JSON line each. KB adoption counts a session once if it had EITHER
+    a real tool call or a hook retrieval.
 
 Usage:
   offload.py snapshot [--dry-run]   # take a reading; append to the ledger unless --dry-run
@@ -32,6 +35,7 @@ VLLM = os.environ.get("KB_VLLM_URL", "http://127.0.0.1:8000")
 PROJECTS = os.path.expanduser("~/.claude/projects")
 LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offload-ledger.jsonl")
 KB_TOOL = "mcp__ds-kb__kb_search"
+HOOK_LOG = os.path.expanduser(os.environ.get("KB_RETRIEVAL_LOG", "~/.claude/kb-retrievals.log"))
 
 
 def _vllm():
@@ -79,25 +83,48 @@ def _claude():
             for blk in m.get("content") or []:
                 if isinstance(blk, dict) and blk.get("type") == "tool_use" and blk.get("name") == KB_TOOL:
                     kb_calls.add((mid, blk.get("id")))
-                    kb_sessions.add(f)
+                    kb_sessions.add(os.path.basename(f)[:-len(".jsonl")])
     tot = lambda k: sum(u.get(k, 0) for u in seen.values())
     return {
         "sessions": len(files), "messages": len(seen),
         "output_tokens": tot("output_tokens"), "input_fresh": tot("input_tokens"),
         "cache_read": tot("cache_read_input_tokens"), "cache_create": tot("cache_creation_input_tokens"),
         "first": (first or "")[:10], "last": (last or "")[:10],
-    }, {"calls": len(kb_calls), "sessions": len(kb_sessions)}
+    }, {"calls": len(kb_calls), "session_ids": kb_sessions}
+
+
+def _hook():
+    """Retrievals the L2 hook made at the Grep call site. Synthetic test sessions are skipped."""
+    calls, sessions = 0, set()
+    try:
+        for line in open(HOOK_LOG, encoding="utf-8"):
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            sid = o.get("session") or ""
+            if not sid or sid.endswith("-test"):
+                continue
+            calls += 1
+            sessions.add(sid)
+    except OSError:
+        pass
+    return {"calls": calls, "session_ids": sessions}
 
 
 def snapshot(dry_run):
-    v, (c, kb) = _vllm(), _claude()
+    v, (c, kbt), kbh = _vllm(), _claude(), _hook()
     gen_local, gen_claude = v["generation_tokens"], c["output_tokens"]
+    any_sessions = kbt["session_ids"] | kbh["session_ids"]
+    kb = {"calls": kbt["calls"], "sessions": len(kbt["session_ids"]),
+          "hook_calls": kbh["calls"], "hook_sessions": len(kbh["session_ids"]),
+          "any_sessions": len(any_sessions)}
     row = {
         "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "host": socket.gethostname(),
         "vllm": v, "claude": c, "kb": kb,
         "ratio": {
             "generation_pct": round(100.0 * gen_local / (gen_local + gen_claude), 3) if gen_local + gen_claude else None,
-            "kb_session_pct": round(100.0 * kb["sessions"] / c["sessions"], 1) if c["sessions"] else None,
+            "kb_session_pct": round(100.0 * len(any_sessions) / c["sessions"], 1) if c["sessions"] else None,
         },
     }
     if not dry_run:
@@ -108,7 +135,8 @@ def snapshot(dry_run):
     print(f"                output {gen_claude:,}   input: fresh {c['input_fresh']:,} / cache-read {c['cache_read']:,} / cache-create {c['cache_create']:,}")
     print(f"  Box model     {v['model']}  (counter since {time.strftime('%Y-%m-%d %H:%M', time.gmtime(v['process_start']))} UTC; every caller = CEILING)")
     print(f"                generation {gen_local:,}   prompt {v['prompt_tokens']:,}   requests {v['requests']:,}")
-    print(f"  kb_search     {kb['calls']} calls in {kb['sessions']} sessions ({row['ratio']['kb_session_pct']} %)")
+    print(f"  KB adoption   {kb['any_sessions']} of {c['sessions']} sessions ({row['ratio']['kb_session_pct']} %) — "
+          f"tool calls {kb['calls']} in {kb['sessions']} sessions · hook retrievals {kb['hook_calls']} in {kb['hook_sessions']} sessions")
     print(f"  GENERATION OFFLOAD RATIO  {gen_local:,} / ({gen_local:,} + {gen_claude:,}) = {row['ratio']['generation_pct']} %")
     if not dry_run:
         print(f"  appended to {os.path.relpath(LEDGER)}")
@@ -116,7 +144,7 @@ def snapshot(dry_run):
 
 def table():
     rows = [json.loads(l) for l in open(LEDGER, encoding="utf-8") if l.strip()]
-    print("| Reading (UTC) | Box gen (cum) | Claude out (cum) | Ratio (cum) | Δ box gen | Δ Claude out | Ratio (window) | kb_search sessions | Note |")
+    print("| Reading (UTC) | Box gen (cum) | Claude out (cum) | Ratio (cum) | Δ box gen | Δ Claude out | Ratio (window) | KB sessions (tool·hook) | Note |")
     print("|---|---|---|---|---|---|---|---|---|")
     prev = None
     for r in rows:
@@ -133,8 +161,10 @@ def table():
             dg, do = f"{dgn:,}", f"{don:,}"
             win = f"{100.0 * dgn / (dgn + don):.2f} %" if dgn + don else "—"
             note = ""
+        kb = r["kb"]
+        any_s = kb.get("any_sessions", kb["sessions"])
         print(f"| {r['date'][:16].replace('T', ' ')} | {g:,} | {o:,} | {r['ratio']['generation_pct']} % | {dg} | {do} | {win} | "
-              f"{r['kb']['sessions']}/{r['claude']['sessions']} ({r['ratio']['kb_session_pct']} %) | {note} |")
+              f"{any_s}/{r['claude']['sessions']} ({r['ratio']['kb_session_pct']} %) ({kb['sessions']}·{kb.get('hook_sessions', 0)}) | {note} |")
         prev = r
 
 
