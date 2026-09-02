@@ -8,9 +8,11 @@
 # ever exposed through the loopback zellij pane (`nifi-web:8443` in kube-service-ports-efm.kdl),
 # never a NodePort/LAN address.
 #
-# Host/scheme/port are identical end to end (https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443),
+# Upstream Host/scheme/port are NiFi's own (https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443),
 # so NiFi's host-header whitelist and the URLs it generates need no X-Proxy* headers and no
-# nifi.web.proxy.host change — nothing on the NiFi CR moves, nothing restarts.
+# nifi.web.proxy.host change — nothing on the NiFi CR moves, nothing restarts. The browser side is
+# https://localhost:8443/ (#266): the mynifi-web… hosts name on WindowsDesktop now points at DGX Spark's
+# NiFi, so the proxy rewrites the CSRF cookie domain to whatever host the browser used.
 #
 # The serving cert is minted off the same cluster CA as everything else; import
 # files/cso-prod-1 ca (see CLAUDE-CHECKIN "NiFi UI") into the Windows user Root store once and the
@@ -57,6 +59,9 @@ data:
           proxy_ssl_name mynifi-web.mynifi.cfm-streaming.svc.cluster.local;
           proxy_ssl_verify off;
           proxy_set_header Host mynifi-web.mynifi.cfm-streaming.svc.cluster.local:8443;
+          # NiFi scopes its CSRF cookie (__Secure-Request-Token) to the Host above; a browser at
+          # https://localhost:8443 discards it and every write (move/start/stop) bounces to /nifi/login.
+          proxy_cookie_domain mynifi-web.mynifi.cfm-streaming.svc.cluster.local $host;
           proxy_http_version 1.1;
           proxy_buffering off;
           proxy_read_timeout 300s;
