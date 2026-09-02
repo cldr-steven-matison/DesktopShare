@@ -86,6 +86,53 @@ downstream of a merge) when the NiFi-side work actually happens — not scoped d
 easiest. **Not done yet — this is a note for whenever the NiFi wiring work is picked up, no live
 flow touched by recording it here.**
 
+## Field history (moved out of the chapter 2026-09-02)
+
+The published chapter now describes the demo's final shape only. The dated trail it used to
+carry lives here, facts only; the reasoning is in the issue threads (#70, #106, #109, #138, #164).
+
+- **2026-06-16 → 2026-07-xx — `SparkPlug` PG lost.** A pod recreate (repos were `emptyDir` then)
+  wiped the live PG; the only copy was the 2026-06-16 export. Re-imported from `files/SparkPlug.json`
+  via `process-groups/upload`. Both legs dead-ended at an `EOL` port until 2026-08-14 (#164), when
+  `PublishKafka-XiaoTelemetry` (keyed `${device_id}`) and `PublishKafka-SparkplugTelemetry` were
+  wired live and the export re-committed (`755a4d9`).
+- **Publisher generations.** (1) Mac simulators (`mqtt_test_publisher.py`, `pysparkplug`), first
+  confirmed run. (2) BME280-on-Jetson: parked — `i2cdetect` found nothing wired on any bus, and two
+  incompatible library recipes (`adafruit-circuitpython-bme280`/Blinka vs `RPi.bme280`). (3) XIAO
+  ESP32-S3 on StarlinkAI over USB (`esptool chip-id`: QFN56 rev v0.2, MAC `e0:72:a1:fb:fd:04`),
+  Arduino `xiao-telemetry.ino` publishing `{"device_id":"XiaoESP32-01",…}` to `test/sensor/data`
+  every ~5 s; `temprature_sens_read()` → `temperatureRead()` (S3), `configTime()` for a real epoch.
+  Verified over Tailscale (`100.68.113.126:1883`) because StarlinkAI's `192.168.1.0/24` is a
+  different physical network from WindowsDesktop's. (4) Unified MicroFi firmware: MicroFi-1 JSON,
+  MicroFi-3 native `PublishSparkplug` (2026-08-15), retiring the Arduino sketch.
+- **2026-08-0x — topic contamination.** 91/91 sampled `xiao_telemetry` records were a leftover
+  `MicroFi` class `GenerateFlowFile → PublishMQTT` rig (`Client ID xiao-microfi-1`, ~1/s) on
+  `test/sensor/data`. Removed via the Designer API (connection + both processors), `MicroFi` flow
+  v16; topic silent afterwards.
+- **2026-08-05 — S2S leg descoped (final).** `mynifi-0` had no S2S configuration; enabling it meant
+  a `Nifi` CR `nifi.remote.input.*` upsert with an operator pod restart plus a `User` CR, client
+  cert, input port, and RPG (Ch10/11 recipe). Direction changed to the actuation round-trip instead;
+  descope stands.
+- **`NvidiaNanoSparkPlug` class (2026-08-05).** Second C++ agent on the Jetson
+  (`~/nifi-minifi-cpp-sparkplug`, `bin/minifi.sh run`, not systemd — the deployer hard-codes unit
+  `minifi`). Flow `ConsumeMQTT → ExecuteScript(gpu_nifi_tensorRT-3.py) → PublishKafka +
+  RouteOnAttribute → InvokeHTTP-TriggerXiao`, v4; `ESTABLISHED` to `192.168.1.198:8095` seen via
+  `ss -tn`. Export `files/efm/NvidiaNanoSparkPlug.json`. Not running as of 2026-09-02 (only the
+  Java `NvidiaNano` agent is up on the board).
+- **Four bugs fixed on that build:** script assumed JSON input (wrapped as `{"raw":…}`);
+  `PublishKafka` used in-cluster DNS (→ `192.168.1.121:31623`, agent restart needed); stale
+  `httpd_start failed (port=8095)` after a hot flow-swap on pre-teardown-fix firmware (power-cycle);
+  `${trigger.actuation:equals('true')}` arrived on-device as literal `false` (bare `${trigger.actuation}`).
+- **2026-09-01 (#138) — post-cutover re-validation.** Mosquitto redeployed to `mqtt` on
+  `cso-prod-1` from `files/mosquitto*.yaml`; all four demo PGs restarted (17 processors, 0 bulletins);
+  all three MicroFi units live at once; `ConsumeMQTTIIoT` diffed clean against the export; LED
+  actuation re-fielded on MicroFi-1 from the new `MicroFiLedActuation` PG (2 FlowFiles, 0 failures);
+  rebirth NCMD fielded (device firmware doesn't subscribe NCMD). Evidence: `files/issue-138/`.
+- **2026-09-02 — state at the re-author.** `deploy/mosquitto` in `mqtt` is scaled to 0 replicas;
+  every `ConsumeMQTT`/`ConsumeMQTTIIoT` in the SparkPlug, MicroFi2CameraBridge and AmoledImuBridge
+  PGs is yielding on `Connection failed to tcp://mosquitto.mqtt.svc.cluster.local:1883`.
+  `MicroFiLedActuation` is stopped (on-demand PG). Not touched during the re-author.
+
 ## Shipped
 
 Folded into [`guide/ch20-sparkplug-demo.md`](guide/ch20-sparkplug-demo.md) 2026-08-05. Covers the
