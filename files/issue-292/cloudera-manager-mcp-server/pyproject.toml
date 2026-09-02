@@ -1,0 +1,31 @@
+[project]
+name = "cloudera-manager-mcp-server"
+version = "0.1.0"
+description = "Read-only MCP server over Cloudera Manager, YARN, Ranger, and Atlas REST APIs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Steven Matison" }]
+dependencies = [
+    # Pinned to the v1 FastMCP API, matching the sibling Cloudera MCP servers
+    # (NiFi / Iceberg / kb_mcp). mcp 2.x renamed FastMCP -> MCPServer.
+    "mcp>=1.1.2,<2",
+    "requests>=2.31.0",
+    "tenacity>=8.2.0",
+    "anyio>=4.0.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+run-server = "cm_mcp_server.server:main"
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
