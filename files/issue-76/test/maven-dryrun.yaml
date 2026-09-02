@@ -1,0 +1,93 @@
+# Issue #76 — Maven-leg dry-runs against the two LIVE votes forwarded 2026-09-01/02:
+# NiFi API 2.11.0 RC1 and NAR Maven Plugin 2.4.0 RC2. Staging dirs are current (votes
+# open), so verification runs against the real staged artifacts. Sized small — these are
+# minutes-scale builds; both fit the release-builds quota together (limits 4+4 CPU ≤ 8).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: maven-dryrun-api
+  namespace: release-builds
+  labels:
+    leg: java-api
+    system: nifi
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: build
+          image: docker.io/library/maven:3.9-eclipse-temurin-21
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/entry/entrypoint.sh"]
+          env:
+            - name: TAG
+              value: "nifi-api-2.11.0-RC1"
+            - name: ARTIFACT_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/nifi-api-2.11.0"
+            - name: SHA512
+              value: "cb0239209be67a8388f7a88c7bd4c3d96a104822044c3bf03dd100d622172a426f7cec66e731db5381945fe1419842c9bf82403b9fde380ff58821f6b17a0870"
+            - name: KEYS_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/KEYS"
+            - name: GIT_REPO
+              value: "apache/nifi-api"
+          volumeMounts:
+            - name: entry
+              mountPath: /entry
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+      volumes:
+        - name: entry
+          configMap:
+            name: maven-build-entrypoint
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: maven-dryrun-nar
+  namespace: release-builds
+  labels:
+    leg: java-nar
+    system: nifi
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: build
+          image: docker.io/library/maven:3.9-eclipse-temurin-21
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/entry/entrypoint.sh"]
+          env:
+            - name: TAG
+              value: "nifi-maven-2.4.0-RC2"
+            - name: ARTIFACT_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/nifi-nar-maven-plugin-2.4.0"
+            - name: SHA512
+              value: "dd19299576da5086c3101df5a60ea9b37fb0ecc09e19a83d64ac3d153faec6601f93941ce8d621b776cb132579cde7480b03f7c8cd23b53f86bc2dbea58bad20"
+            - name: KEYS_URL
+              value: "https://dist.apache.org/repos/dist/release/nifi/KEYS"
+            - name: GIT_REPO
+              value: "apache/nifi-maven"
+          volumeMounts:
+            - name: entry
+              mountPath: /entry
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+      volumes:
+        - name: entry
+          configMap:
+            name: maven-build-entrypoint

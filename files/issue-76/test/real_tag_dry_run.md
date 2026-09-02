@@ -64,3 +64,32 @@ source release end-to-end as a capped k8s Job — the exact unit Stage 3 of
 `ReleaseVoteWatch` dispatches.** In-cluster is ~1min slower than plain docker
 (29m vs ~30m total incl. config — effectively identical). Next proof: a fresh
 forwarded `[VOTE]` sample driving the same Job through the flow itself.
+
+## Run 6 — overnight 2026-09-01→02: THE FLOW DISPATCHED ITS OWN JOB (fail-closed on a stale RC)
+
+The delayed MiNiFi C++ RC2 forward finally delivered overnight and the pipeline ran with
+no human: parse (tag/commit/staging/sha all correct) → dispatched `rvb-cpp-1788300901253`
+→ Job took the tag-only fallback (the RC's `dist/dev` staging dir is gone — that vote
+closed long ago) → cmake configure failed on the git-clone path ("CMake Generate step
+failed"; likely the shallow-clone/`git describe` version probe — open note, low priority
+since live votes take the verified-artifact path) → flow scraped the verdict and
+**published a complete `-1/0 suggested` recommendation to `release_vote_recommendations`**
+with all evidence + the aarch64 caveat. Terminus proven end-to-end.
+
+## Runs 7–8 — 2026-09-02: MAVEN LEGS GREEN (NiFi API + NAR Maven Plugin)
+
+`maven-dryrun.yaml` — stock `maven:3.9-eclipse-temurin-21` + the `maven-build-entrypoint`
+ConfigMap. First pass against the vote emails' `dist/dev` staging URLs correctly fell to
+tag-only fallback (**both votes had closed — only `nifi-minifi-cpp/` remains under
+`dist/dev/nifi/`**; builds+smoke green even so: API 2 jars, NAR 1 jar). Second pass
+against the **released** artifacts (`dist/release/nifi/nifi-api-2.11.0`,
+`…/nifi-nar-maven-plugin-2.4.0`) — full verify path:
+
+- **API leg:** `{"verifyOk":true,"buildOk":true,"smokeOk":true,"extensionCount":2,"tag":"nifi-api-2.11.0-RC1"}`
+- **NAR leg:** `{"verifyOk":true,"buildOk":true,"smokeOk":true,"extensionCount":1,"tag":"nifi-maven-2.4.0-RC2"}`
+- The sha512s **parsed from the vote emails** verified against the released
+  source-release zips byte-for-byte — the voted artifact is the shipped artifact.
+- Note: eclipse-temurin images lack curl/gnupg; the entrypoint apt-installs them at
+  start (~20 s). `jar -xf` stands in for unzip.
+
+Core NiFi (multi-GB `./mvnw clean install`) remains the one deferred leg.
