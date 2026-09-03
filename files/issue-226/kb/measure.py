@@ -23,6 +23,7 @@ Usage:
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -70,6 +71,62 @@ def _chat(system, user, max_tokens=2500, think=False):
     with urllib.request.urlopen(req, timeout=300) as r:
         d = json.loads(r.read().decode())
     return time.time() - t, d
+
+
+CLAIM_RE = re.compile(r'\{\s*"claim"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"kind"\s*:\s*"([^"]*)"\s*\}')
+DEDUPE_OVERLAP = 0.7
+
+
+def _parse_claims(text):
+    """The extract reply as a list of {claim, kind}. Salvages complete objects from a
+    truncated array — both unbounded L4 runs hit the output cap mid-JSON — and says so."""
+    body = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.M).strip()
+    try:
+        parsed = json.loads(body)
+        if isinstance(parsed, list):
+            return [c for c in parsed if isinstance(c, dict) and c.get("claim")], False
+    except ValueError:
+        pass
+    return [{"claim": json.loads(f'"{m.group(1)}"'), "kind": m.group(2)} for m in CLAIM_RE.finditer(body)], True
+
+
+def _words(s):
+    # Identifiers, paths, versions and numbers stay whole tokens (`prompt_tokens_total`,
+    # `files/issue-226/kb/offload.py`, `1.28`) so the content guard below can see them.
+    return {t.rstrip(".,;:") for t in re.findall(r"[a-z0-9][a-z0-9_./:\-]*", s.lower())} - {""}
+
+
+CONTENT_TOKEN = re.compile(r"\d|[_/:]|\w\.\w")   # a number, an identifier, a path, a version
+
+
+def _dedupe_claims(claims):
+    """Deterministic near-duplicate collapse, biased to FALSE-KEEP over FALSE-MERGE.
+
+    Two claims are the same fact when their word sets overlap by more than DEDUPE_OVERLAP of
+    the smaller set AND nothing in their difference is a content token. The first rule alone
+    (the check that found 48 pairs in the 249-claim run) also merged distinct facts that share
+    a frame — "provides prompt_tokens_total" into "provides generation_tokens_total", "the log
+    was 1.28 MB" into "compressed 429,745 → 1,009 tokens" — about 3 of every 8 drops on
+    inspection. A number, identifier, path or version in the difference now proves the claims
+    distinct; a redundant claim surviving costs a few tokens, a merged fact is lost. On a true
+    collision the LONGER claim survives (the more specific statement), so emission order does
+    not decide what is kept. No model, milliseconds, same answer every run."""
+    kept = []                                  # list of [claim_dict, wordset]
+    for c in claims:
+        w = _words(c["claim"])
+        if not w:
+            continue
+        hit = None
+        for k in kept:
+            if len(w & k[1]) / min(len(w), len(k[1])) > DEDUPE_OVERLAP \
+                    and not any(CONTENT_TOKEN.search(t) for t in (w ^ k[1])):
+                hit = k
+                break
+        if hit is None:
+            kept.append([c, w])
+        elif len(c["claim"]) > len(hit[0]["claim"]):
+            hit[0], hit[1] = c, w
+    return [k[0] for k in kept]
 
 
 def _doccheck(doc_rel):
@@ -122,10 +179,23 @@ def main():
     print(f"\n  QUALITY ANCHOR (independent, deterministic):")
     print(f"    doc-check.py on {doc_rel}: {_doccheck(doc_rel)}")
     print(f"    workload output: {len(reply):,} chars, first line: {reply.strip().splitlines()[0][:80] if reply.strip() else '(empty)'}")
+    note = ""
+    shown = reply
+    if workload == "extract":
+        # L4 dedupe: the model does not honour a claim budget (249 for "at most 60", 48 near-dup
+        # pairs), so distinctness is enforced here, deterministically, after the fact.
+        raw_claims, salvaged = _parse_claims(reply)
+        claims = _dedupe_claims(raw_claims)
+        note = f"claims {len(raw_claims)}→{len(claims)} deduped" + (" (salvaged from truncated JSON)" if salvaged else "")
+        print(f"    extract: {len(raw_claims)} raw claims → {len(claims)} after dedupe "
+              f"({len(raw_claims) - len(claims)} near-duplicates removed"
+              f"{', array was truncated — complete objects salvaged' if salvaged else ''})")
+        shown = json.dumps(claims, indent=1, ensure_ascii=False)
     if os.environ.get("DS_MEASURE_FULL") == "1":
-        # The adjudication step (L4) needs the whole output, not a headline.
+        # The adjudication step (L4) needs the whole output, not a headline. For extract this
+        # is the DEDUPED claim list, which is what Claude curates.
         print("\n  ---- full workload output ----")
-        print(reply)
+        print(shown)
         print("  ---- end ----")
     print(f"\n  Note: per §5.5 this is THIS BOX'S measured tokens priced at published rates,")
     print(f"  not a relayed savings headline. Latency delta vs a hosted run is a separate")
@@ -140,7 +210,8 @@ def main():
                "source": doc_rel, "input_chars": len(doc), "input_tokens_chars4": len(doc) // 4,
                "input_tokens_measured": max(0, pin - 150), "chunks": 1,
                "box_prompt_tokens": pin, "box_completion_tokens": pout, "latency_s": round(dt, 1),
-               "output_chars": len(reply), "output_tokens_measured": pout, "hosted_input_avoided_est": 0}
+               "output_chars": len(reply), "output_tokens_measured": pout, "hosted_input_avoided_est": 0,
+               "note": note}
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "offload-workloads.jsonl"),
                   "a", encoding="utf-8") as fh:
             fh.write(json.dumps(row) + "\n")

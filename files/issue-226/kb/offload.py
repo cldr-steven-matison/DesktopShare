@@ -177,11 +177,11 @@ def workloads():
         rows = [json.loads(l) for l in open(WORKLOADS, encoding="utf-8") if l.strip()]
     except OSError:
         print("(no workload rows yet)"); return
-    print("| Run (UTC) | Rung | Kind | Source | Input chars | Input tok (measured) | Chunks | Box in / out | Latency | Output tok | Hosted input avoided (est) |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|")
+    print("| Run (UTC) | Rung | Kind | Source | Input chars | Input tok (measured) | Chunks | Box in / out | Latency | Output tok | Hosted input avoided (est) | Note |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         print(f"| {r['ts'][:16].replace('T', ' ')} | {r.get('rung', '')} | {r['kind']} | {r['source']} | {r['input_chars']:,} | {r['input_tokens_measured']:,} | {r['chunks']} | "
-              f"{r['box_prompt_tokens']:,} / {r['box_completion_tokens']:,} | {r['latency_s']} s | {r['output_tokens_measured']:,} | {r['hosted_input_avoided_est']:,} |")
+              f"{r['box_prompt_tokens']:,} / {r['box_completion_tokens']:,} | {r['latency_s']} s | {r['output_tokens_measured']:,} | {r['hosted_input_avoided_est']:,} | {r.get('note', '')} |")
 
 
 def main():
