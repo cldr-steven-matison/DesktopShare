@@ -43,9 +43,14 @@ PROMPTS = {
         lambda doc: f"HOUSE STYLE RULES:\n{_read(DS + '/agent/writing-style.md')[:6000]}\n\nDOCUMENT:\n{doc}",
     ),
     "extract": (
+        # L4 (#294) bounded it: unbounded, the box's model atomized a 22 K-char doc into 300+
+        # claims, truncated at both a 2,500 and an 8,000-token cap, and drifted into restating
+        # the same fact as separate claims. A budget and a no-restatement rule are the fix.
         "You extract structured facts from technical text. Return a JSON array of "
         '{"claim":"...","kind":"config|command|decision|number|url"} for the concrete, '
-        "checkable facts in the text. No prose outside the JSON.",
+        "checkable facts in the text. Return AT MOST 60 claims — the most concrete and "
+        "checkable ones — one per DISTINCT fact; never restate the same fact as a second claim, "
+        "never split one sentence into several claims. Close the JSON array. No prose outside it.",
         lambda doc: f"TEXT:\n{doc}",
     ),
 }
@@ -69,9 +74,16 @@ def _chat(system, user, max_tokens=2500, think=False):
 
 def _doccheck(doc_rel):
     try:
+        # The status date is the DOC's own, read from its first `> **Status (YYYY-MM-DD` line —
+        # a hardcoded date here (it was 2026-08-27) turns the anchor into a false "1 error" on
+        # every doc written since.
+        import re
+        doc_path = doc_rel if os.path.isabs(doc_rel) else os.path.join(DS, doc_rel)
+        m = re.search(r"^> \*\*Status \((\d{4}-\d{2}-\d{2})", _read(doc_path), re.M)
+        status_date = m.group(1) if m else time.strftime("%Y-%m-%d")
         out = subprocess.run(
             ["python3", f"{DS}/files/issue-226/doc-check.py", "--repo", DS,
-             "--research-dir", f"{DS}/files/issue-226/research", "--status-date", "2026-08-27", doc_rel],
+             "--research-dir", f"{DS}/files/issue-226/research", "--status-date", status_date, doc_rel],
             cwd=DS, capture_output=True, text=True, timeout=60).stdout
         # header line ends with "— N errors, M warnings"
         line = out.strip().splitlines()[0] if out.strip() else ""
@@ -89,7 +101,9 @@ def main():
     system, build_user = PROMPTS[workload]
     user = build_user(doc)
 
-    dt, d = _chat(system, user)
+    # extract is the high-volume move: a 22 K-char plan doc yields 90+ checkable facts and the
+    # 2,500-token default truncated the JSON mid-array on the first L4 run. Lint stays short.
+    dt, d = _chat(system, user, max_tokens=8000 if workload == "extract" else 2500)
     u = d.get("usage", {})
     pin, pout = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
     reply = d["choices"][0]["message"]["content"] or ""
@@ -108,9 +122,29 @@ def main():
     print(f"\n  QUALITY ANCHOR (independent, deterministic):")
     print(f"    doc-check.py on {doc_rel}: {_doccheck(doc_rel)}")
     print(f"    workload output: {len(reply):,} chars, first line: {reply.strip().splitlines()[0][:80] if reply.strip() else '(empty)'}")
+    if os.environ.get("DS_MEASURE_FULL") == "1":
+        # The adjudication step (L4) needs the whole output, not a headline.
+        print("\n  ---- full workload output ----")
+        print(reply)
+        print("  ---- end ----")
     print(f"\n  Note: per §5.5 this is THIS BOX'S measured tokens priced at published rates,")
     print(f"  not a relayed savings headline. Latency delta vs a hosted run is a separate")
     print(f"  measured pair (one hosted lint of the same doc) recorded in the issue comment.")
+
+    # Work-stream L (#294) rung L4: every run is a row in the workloads ledger next to the
+    # scoreboard, same shape as compress.py's rows. For lint/extract nothing is "avoided" —
+    # generation MOVES to the box (box completion tokens) and Claude adjudicates the output;
+    # the adjudication verdict is recorded in the issue thread, not here.
+    if os.environ.get("DS_NO_LEDGER") != "1":
+        row = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "rung": "L4", "kind": workload,
+               "source": doc_rel, "input_chars": len(doc), "input_tokens_chars4": len(doc) // 4,
+               "input_tokens_measured": max(0, pin - 150), "chunks": 1,
+               "box_prompt_tokens": pin, "box_completion_tokens": pout, "latency_s": round(dt, 1),
+               "output_chars": len(reply), "output_tokens_measured": pout, "hosted_input_avoided_est": 0}
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "offload-workloads.jsonl"),
+                  "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+        print(f"  ledger: row appended to offload-workloads.jsonl (rung L4, {workload})")
 
 
 if __name__ == "__main__":
