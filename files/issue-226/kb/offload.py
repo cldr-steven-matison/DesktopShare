@@ -112,8 +112,42 @@ def _hook():
     return {"calls": calls, "session_ids": sessions}
 
 
+ADVICE_LOG = os.path.expanduser("~/.claude/compress-advice.log")
+WORKLOADS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offload-workloads.jsonl")
+
+
+def _compress_uptake():
+    """L3 uptake: offers the compress-advise hook made (bare log dumps it saw) against
+    compress.py runs actually recorded. Test sessions excluded. A ratio well under 1 means the
+    advice is being ignored — the same measurement that showed the KB instructions were."""
+    offers, sessions = 0, set()
+    try:
+        for line in open(ADVICE_LOG, encoding="utf-8"):
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            if (o.get("session") or "").endswith("-test"):
+                continue
+            offers += 1; sessions.add(o.get("session"))
+    except OSError:
+        pass
+    runs = 0
+    try:
+        for line in open(WORKLOADS_PATH, encoding="utf-8"):
+            try:
+                if json.loads(line).get("rung") == "L3":
+                    runs += 1
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    return {"offers": offers, "offer_sessions": len(sessions), "compress_runs": runs}
+
+
 def snapshot(dry_run):
     v, (c, kbt), kbh = _vllm(), _claude(), _hook()
+    up = _compress_uptake()
     gen_local, gen_claude = v["generation_tokens"], c["output_tokens"]
     any_sessions = kbt["session_ids"] | kbh["session_ids"]
     kb = {"calls": kbt["calls"], "sessions": len(kbt["session_ids"]),
@@ -121,7 +155,7 @@ def snapshot(dry_run):
           "any_sessions": len(any_sessions)}
     row = {
         "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "host": socket.gethostname(),
-        "vllm": v, "claude": c, "kb": kb,
+        "vllm": v, "claude": c, "kb": kb, "compress": up,
         "ratio": {
             "generation_pct": round(100.0 * gen_local / (gen_local + gen_claude), 3) if gen_local + gen_claude else None,
             "kb_session_pct": round(100.0 * len(any_sessions) / c["sessions"], 1) if c["sessions"] else None,
@@ -137,6 +171,7 @@ def snapshot(dry_run):
     print(f"                generation {gen_local:,}   prompt {v['prompt_tokens']:,}   requests {v['requests']:,}")
     print(f"  KB adoption   {kb['any_sessions']} of {c['sessions']} sessions ({row['ratio']['kb_session_pct']} %) — "
           f"tool calls {kb['calls']} in {kb['sessions']} sessions · hook retrievals {kb['hook_calls']} in {kb['hook_sessions']} sessions")
+    print(f"  compress      {up['offers']} bare-dump offers in {up['offer_sessions']} sessions · {up['compress_runs']} compress.py runs recorded (L3 uptake)")
     print(f"  GENERATION OFFLOAD RATIO  {gen_local:,} / ({gen_local:,} + {gen_claude:,}) = {row['ratio']['generation_pct']} %")
     if not dry_run:
         print(f"  appended to {os.path.relpath(LEDGER)}")

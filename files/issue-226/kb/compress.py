@@ -21,6 +21,17 @@ Usage:
   compress.py --kind log --source "…" --file dump.log
   compress.py --kind text --file long.md          # generic: the facts and decisions, compact
 
+  kubectl logs POD -n NS --tail=3000 | compress.py --kind log --pod NS/POD --source NS/POD
+  compress.py --advise "kubectl logs mynifi-0 -n cfm-streaming --tail=500"   # print the
+                                             # compress command a Bash log dump should become,
+                                             # or exit 3 if the command is not a bare dump
+
+--pod NS/POD prepends the pod's container status (restartCount, lastState reason / exitCode /
+finishedAt) to the dump. The L3 measurement showed why: the crash-looping broker's own log ended
+mid-INFO and the `OOMKilled exit 137` lived only in the pod status, so log-only triage could not
+see the kill. On this box kubectl needs KUBECONFIG=/etc/rancher/k3s/k3s.yaml; --pod sets it if
+KUBECONFIG is unset.
+
 Kinds: log (service log triage), text (generic prose/transcript compression).
 Env: KB_VLLM_URL, KB_VLLM_MODEL (as measure.py); DS_COMPRESS_CHUNK chars per chunk (60000).
 Reasoning is OFF (enable_thinking:false) — with it on, a verdict costs ~25 s and can return
@@ -29,6 +40,8 @@ content:null (local-kb §4.4).
 import argparse
 import json
 import os
+import re
+import subprocess
 import sys
 import time
 import urllib.request
@@ -75,18 +88,104 @@ def _chat(system, user, max_tokens=1200):
     return (d["choices"][0]["message"]["content"] or "").strip(), u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
 
 
+K3S_KUBECONFIG = "/etc/rancher/k3s/k3s.yaml"
+
+
+def pod_status(ns_pod):
+    """A short POD STATUS block for the triage: per container, restartCount and lastState.
+    Fails open to an empty string — a missing kubectl must never cost the compression."""
+    ns, _, pod = ns_pod.partition("/")
+    if not pod:
+        return ""
+    env = dict(os.environ)
+    if not env.get("KUBECONFIG") and os.path.exists(K3S_KUBECONFIG):
+        env["KUBECONFIG"] = K3S_KUBECONFIG
+    try:
+        out = subprocess.run(["kubectl", "get", "pod", pod, "-n", ns, "-o", "json"],
+                             capture_output=True, text=True, timeout=10, env=env).stdout
+        st = json.loads(out).get("status", {})
+    except Exception:
+        return ""
+    lines = [f"POD STATUS {ns}/{pod}: phase={st.get('phase')}"]
+    for c in st.get("containerStatuses", []):
+        last = c.get("lastState", {}).get("terminated", {})
+        cur = next(iter(c.get("state", {}).keys()), "?")
+        lines.append(f"  container {c.get('name')}: state={cur} restartCount={c.get('restartCount')}"
+                     + (f" lastTerminated: reason={last.get('reason')} exitCode={last.get('exitCode')} "
+                        f"startedAt={last.get('startedAt')} finishedAt={last.get('finishedAt')}" if last else ""))
+    return "\n".join(lines) + "\n\n"
+
+
+# an env-var prefix (KUBECONFIG=… kubectl logs) is the common shape on this box
+LOG_CMD = re.compile(r"(?:^|[;&(|]\s*|sudo\s+|\b[A-Z_][A-Z0-9_]*=\S*\s+)(kubectl\s+logs|docker\s+logs|journalctl)\b")
+
+
+def advise(cmd):
+    """The compress.py command a bare Bash log dump should become, or None.
+
+    A bare dump is one whose output would enter hosted context raw: a kubectl/docker logs or
+    journalctl with no head/tail/grep/rg/wc/less/compress downstream and no -f/--follow. Used by
+    .claude/hooks/compress-advise.sh (work-stream L rung L3, #294)."""
+    m = LOG_CMD.search(cmd)
+    if not m:
+        return None
+    rest = cmd[m.start():]
+    if re.search(r"\|\s*(head|tail|grep|rg|wc|less|more|awk|sed|python3?\b.*compress\.py|compress\.py)", rest):
+        return None
+    if re.search(r"\s(-f|--follow)(\s|$)", rest):
+        return None
+    first = re.split(r"\s(?:\||&&|;|>)\s*", rest, maxsplit=1)[0].strip()
+    # `first` keeps any env-var prefix so the suggested command still runs; parse from the
+    # keyword itself — dispatching on first.startswith() mis-filed a KUBECONFIG=… kubectl as a
+    # journal dump on the first live fire.
+    keyword = m.group(1).split()[0]                       # kubectl | docker | journalctl
+    body = first[first.find(m.group(1)):]
+    src, pod_arg = "log", ""
+    if keyword == "kubectl":
+        ns = re.search(r"(?:-n|--namespace)[=\s]+(\S+)", body)
+        toks = [t for t in body.split()[2:] if not t.startswith("-")]
+        # positional args after `kubectl logs`, minus the value of -n/-c/--namespace/--container
+        vals = set()
+        for opt in re.finditer(r"(?:-n|--namespace|-c|--container)[=\s]+(\S+)", body):
+            vals.add(opt.group(1))
+        pods = [t for t in toks if t not in vals]
+        if not pods:
+            return None
+        pod = pods[0]
+        ns_pod = f"{ns.group(1) if ns else 'default'}/{pod}"
+        src, pod_arg = ns_pod, f" --pod {ns_pod}"
+    elif keyword == "docker":
+        toks = [t for t in body.split()[2:] if not t.startswith("-")]
+        src = f"docker/{toks[0]}" if toks else "docker"
+    else:
+        unit = re.search(r"(?:-u|--unit)[=\s]+(\S+)", body)
+        src = f"journal/{unit.group(1)}" if unit else "journal"
+    return f"{first} | python3 files/issue-226/kb/compress.py --kind log{pod_arg} --source {src}"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--kind", choices=["log", "text"], default="log")
     ap.add_argument("--source", default="stdin", help="label for the ledger, e.g. mynifi-0/nifi")
     ap.add_argument("--file", default=None)
+    ap.add_argument("--pod", default=None, help="NS/POD — prepend the pod's container status to the dump")
+    ap.add_argument("--advise", default=None, help="a Bash command; print the compress command it should become")
     ap.add_argument("--no-ledger", action="store_true")
     a = ap.parse_args()
+
+    if a.advise is not None:
+        s = advise(a.advise)
+        if s is None:
+            sys.exit(3)
+        print(s)
+        return
 
     raw = open(a.file, encoding="utf-8", errors="replace").read() if a.file else sys.stdin.read()
     if not raw.strip():
         print("(empty input)", file=sys.stderr)
         sys.exit(2)
+    if a.pod:
+        raw = pod_status(a.pod) + raw
 
     t0 = time.time()
     chunks = [raw[i:i + CHUNK] for i in range(0, len(raw), CHUNK)]

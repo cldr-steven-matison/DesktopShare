@@ -48,6 +48,17 @@
             "statusMessage": "Local KB: retrieving passages for this grep (spark-dd06 only, advisory)"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/compress-advise.sh\"",
+            "timeout": 5,
+            "statusMessage": "Local compress: offering box-side log triage for a bare log dump (spark-dd06 only, advisory)"
+          }
+        ]
       }
     ]
   }
