@@ -129,6 +129,51 @@ def _dedupe_claims(claims):
     return [k[0] for k in kept]
 
 
+SECTION_PROMPT = (
+    "You extract structured facts from ONE section of a technical document. Return a JSON array "
+    'of {"claim":"...","kind":"config|command|decision|number|url"} with AT MOST {n} claims — the '
+    "most concrete, checkable facts in this section. Each claim must be a complete, self-contained "
+    "statement that names the thing it is about and is understandable without the section. Never "
+    "split one sentence into several claims; never restate a fact. Copy paths, identifiers, numbers "
+    "and URLs exactly as written. Close the JSON array. No prose outside it."
+)
+
+
+def _sections(doc):
+    """(heading, text) per `## ` section; the title/status preamble is the first section."""
+    out, head, buf = [], "(preamble)", []
+    for line in doc.splitlines():
+        if line.startswith("## "):
+            out.append((head, "\n".join(buf))); head, buf = line[3:].strip(), []
+        else:
+            buf.append(line)
+    out.append((head, "\n".join(buf)))
+    return [(h, t) for h, t in out if t.strip()]
+
+
+def _extract_sections(doc):
+    """L4 per-section extraction: the whole-doc pass ignored its budget (313 claims for
+    'at most 60') and sharded sentences into context-free fragments. Smaller inputs, a budget
+    per section sized to its length, and a self-containment rule are the three levers this
+    tests; per-section compliance is recorded so 'does it honour the budget now' is a number."""
+    claims, stats, pin, pout = [], [], 0, 0
+    t0 = time.time()
+    for heading, text in _sections(doc):
+        n = min(15, max(3, len(text.split()) // 60))
+        reply, p, c = "", 0, 0
+        dt_s, d = _chat(SECTION_PROMPT.replace("{n}", str(n)),
+                        f"SECTION HEADING: {heading}\n\n{text}", max_tokens=1500)
+        u = d.get("usage", {}); p, c = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+        reply = d["choices"][0]["message"]["content"] or ""
+        got, salvaged = _parse_claims(reply)
+        for g in got:
+            g["section"] = heading
+        claims.extend(got); pin += p; pout += c
+        stats.append({"section": heading[:40], "words": len(text.split()), "budget": n,
+                      "claims": len(got), "within": len(got) <= n, "truncated": salvaged, "s": round(dt_s, 1)})
+    return claims, stats, pin, pout, time.time() - t0
+
+
 def _doccheck(doc_rel):
     try:
         # The status date is the DOC's own, read from its first `> **Status (YYYY-MM-DD` line —
@@ -150,20 +195,26 @@ def _doccheck(doc_rel):
 
 
 def main():
-    if len(sys.argv) < 3 or sys.argv[1] not in PROMPTS:
-        print("usage: measure.py {lint|extract} <doc-path>", file=sys.stderr); sys.exit(2)
+    if len(sys.argv) < 3 or (sys.argv[1] not in PROMPTS and sys.argv[1] != "extract-sections"):
+        print("usage: measure.py {lint|extract|extract-sections} <doc-path>", file=sys.stderr); sys.exit(2)
     workload, doc_rel = sys.argv[1], sys.argv[2]
     doc_path = doc_rel if os.path.isabs(doc_rel) else os.path.join(DS, doc_rel)
     doc = _read(doc_path)
-    system, build_user = PROMPTS[workload]
-    user = build_user(doc)
+    chunks, section_stats = 1, []
 
-    # extract is the high-volume move: a 22 K-char plan doc yields 90+ checkable facts and the
-    # 2,500-token default truncated the JSON mid-array on the first L4 run. Lint stays short.
-    dt, d = _chat(system, user, max_tokens=8000 if workload == "extract" else 2500)
-    u = d.get("usage", {})
-    pin, pout = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
-    reply = d["choices"][0]["message"]["content"] or ""
+    if workload == "extract-sections":
+        raw_claims, section_stats, pin, pout, dt = _extract_sections(doc)
+        reply = json.dumps(raw_claims, ensure_ascii=False)
+        chunks = len(section_stats)
+    else:
+        system, build_user = PROMPTS[workload]
+        user = build_user(doc)
+        # extract is the high-volume move: a 22 K-char plan doc yields 90+ checkable facts and the
+        # 2,500-token default truncated the JSON mid-array on the first L4 run. Lint stays short.
+        dt, d = _chat(system, user, max_tokens=8000 if workload == "extract" else 2500)
+        u = d.get("usage", {})
+        pin, pout = u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+        reply = d["choices"][0]["message"]["content"] or ""
 
     print(f"== measure: {workload} on {doc_rel} ==")
     print(f"  document: {len(doc):,} chars")
@@ -181,7 +232,7 @@ def main():
     print(f"    workload output: {len(reply):,} chars, first line: {reply.strip().splitlines()[0][:80] if reply.strip() else '(empty)'}")
     note = ""
     shown = reply
-    if workload == "extract":
+    if workload in ("extract", "extract-sections"):
         # L4 dedupe: the model does not honour a claim budget (249 for "at most 60", 48 near-dup
         # pairs), so distinctness is enforced here, deterministically, after the fact.
         raw_claims, salvaged = _parse_claims(reply)
@@ -190,6 +241,14 @@ def main():
         print(f"    extract: {len(raw_claims)} raw claims → {len(claims)} after dedupe "
               f"({len(raw_claims) - len(claims)} near-duplicates removed"
               f"{', array was truncated — complete objects salvaged' if salvaged else ''})")
+        if section_stats:
+            within = sum(1 for s in section_stats if s["within"])
+            note += f"; {within}/{len(section_stats)} sections within budget"
+            print(f"    per-section: {within}/{len(section_stats)} within budget, "
+                  f"{sum(s['truncated'] for s in section_stats)} truncated")
+            for s in section_stats:
+                print(f"      {s['claims']:3d}/{s['budget']:2d}{'  ' if s['within'] else ' !'} {s['s']:5.1f}s  "
+                      f"{s['words']:5d}w  {s['section']}")
         shown = json.dumps(claims, indent=1, ensure_ascii=False)
     if os.environ.get("DS_MEASURE_FULL") == "1":
         # The adjudication step (L4) needs the whole output, not a headline. For extract this
@@ -208,7 +267,7 @@ def main():
     if os.environ.get("DS_NO_LEDGER") != "1":
         row = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "rung": "L4", "kind": workload,
                "source": doc_rel, "input_chars": len(doc), "input_tokens_chars4": len(doc) // 4,
-               "input_tokens_measured": max(0, pin - 150), "chunks": 1,
+               "input_tokens_measured": max(0, pin - 150 * chunks), "chunks": chunks,
                "box_prompt_tokens": pin, "box_completion_tokens": pout, "latency_s": round(dt, 1),
                "output_chars": len(reply), "output_tokens_measured": pout, "hosted_input_avoided_est": 0,
                "note": note}
