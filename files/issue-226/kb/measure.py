@@ -38,10 +38,16 @@ RATES = {"Opus 5": (5.0, 25.0), "Sonnet 5": (2.0, 10.0), "Haiku 4.5": (1.0, 5.0)
 
 PROMPTS = {
     "lint": (
-        "You are a documentation style linter for an engineering repo. Given the house "
-        "writing-style rules and a document, list the concrete style/structure issues you "
-        "find as a short bullet list (no preamble). If it is clean, say so.",
-        lambda doc: f"HOUSE STYLE RULES:\n{_read(DS + '/agent/writing-style.md')[:6000]}\n\nDOCUMENT:\n{doc}",
+        # L4 (#294): the first version handed the model agent/writing-style.md — the blog-post
+        # rules — and got 13 findings, 0 actionable, 1 hallucinated. The plan-doc rulebook
+        # replaces it: it says what a plan doc is, hands the deterministic checks to
+        # doc-check.py, and leaves the model only the judgment calls (voice, why, headers,
+        # specifics). Quotes must be verbatim, so a hallucinated finding is detectable.
+        "You are a documentation style linter for a root-tier PLAN DOC in an engineering repo. "
+        "Follow the PLAN-DOC RULEBOOK exactly: judge only rules 1-8; never report anything the "
+        "rulebook says is checked deterministically or does not apply to a plan doc. Every "
+        "quote must be verbatim from the document. No preamble.",
+        lambda doc: f"PLAN-DOC RULEBOOK:\n{_read(DS + '/files/issue-226/kb/plan-doc-rules.md')}\n\nDOCUMENT:\n{doc}",
     ),
     "extract": (
         # L4 (#294) bounded it: unbounded, the box's model atomized a 22 K-char doc into 300+
