@@ -168,15 +168,32 @@ def table():
         prev = r
 
 
+WORKLOADS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "offload-workloads.jsonl")
+
+
+def workloads():
+    """Per-workload rows written by the rung tools (compress.py for L3): one row per real run."""
+    try:
+        rows = [json.loads(l) for l in open(WORKLOADS, encoding="utf-8") if l.strip()]
+    except OSError:
+        print("(no workload rows yet)"); return
+    print("| Run (UTC) | Rung | Kind | Source | Input chars | Input tok (measured) | Chunks | Box in / out | Latency | Output tok | Hosted input avoided (est) |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
+    for r in rows:
+        print(f"| {r['ts'][:16].replace('T', ' ')} | {r.get('rung', '')} | {r['kind']} | {r['source']} | {r['input_chars']:,} | {r['input_tokens_measured']:,} | {r['chunks']} | "
+              f"{r['box_prompt_tokens']:,} / {r['box_completion_tokens']:,} | {r['latency_s']} s | {r['output_tokens_measured']:,} | {r['hosted_input_avoided_est']:,} |")
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "snapshot":
         snapshot("--dry-run" in args)
     elif args and args[0] == "table":
         table()
+    elif args and args[0] == "workloads":
+        workloads()
     else:
-        print(__doc__.strip().splitlines()[-3:][0].strip(), file=sys.stderr)
-        print("usage: offload.py snapshot [--dry-run] | table", file=sys.stderr)
+        print("usage: offload.py snapshot [--dry-run] | table | workloads", file=sys.stderr)
         sys.exit(2)
 
 
