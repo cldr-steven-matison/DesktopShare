@@ -266,7 +266,7 @@ The roster records 121 GB usable of the 128 GB unified pool plus 16 GB swap, and
 | Whisper-large-v3 | 6 GB | current WindowsDesktop shape, `:8001` |
 | Qdrant | 4 GB | collection `my-rag-collection`, disk-backed on NVMe here rather than `emptyDir` |
 | NiFi `mynifi-0` (JVM + five repos) | 8 GB | prod runs BestEffort and gets OOMKilled first when the node is tight (`cso-operator-app-plan.md`) — set a real request here |
-| Kafka, 3 KRaft brokers | 9 GB | 3 GB each, same shape as `files/cso-prod-1/kafka-eval.yaml` |
+| Kafka, 3 KRaft brokers | 18 GB | **as built 2026-09-03: 6 GB each, heap pinned 2g** (`files/issue-226/kafka-spark.yaml`). The planned 3 GB was too small for a *combined* controller+broker node: brokers sat at 2.5–2.7 Gi RSS and were `OOMKilled` (exit 137) ~290 times each over five days with no explicit heap |
 | Flink JobManager + 1 TaskManager | 6 GB | 1536m JM proved on `cso-prod-1` (`files/cso-prod-1/VALIDATION.md`); TM sized up for the GPU job |
 | Operators, cert-manager, k3s server, MiNiFi Java agent | 6 GB | four controllers plus the agent tarball |
 | **Subtotal** | **103 GB** | |

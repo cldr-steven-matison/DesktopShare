@@ -5,8 +5,12 @@
 #      clusters must not collide when a client on WindowsDesktop talks to both (k3s-cso §7)
 #   3. `advertisedHost` is the box's LAN IP, not an in-cluster svc name — k3s NodePorts ARE host ports,
 #      so a producer on another device connects straight to 192.168.1.203 with no tunnel (k3s-cso §3.1)
-# Resource requests come from k3s-cso §5's budget: 3 GB per broker. Every pod gets a request —
+# Resource requests came from k3s-cso §5's budget: 3 GB per broker. Every pod gets a request —
 # the one without a request is the one the kernel kills on a 128 GB unified box.
+# As built 2026-09-03: 3Gi was too small for a COMBINED controller+broker node — brokers sat at
+# 2.5–2.7 Gi RSS and were OOMKilled (exit 137) ~290 times each over five days, with no explicit heap
+# (Strimzi sizes it from the limit). Now 6Gi with the heap pinned at 2g so off-heap (direct buffers,
+# metaspace, KRaft controller) has room; 3 × 6Gi = 18 GB against the box's ~29 GB free at the time.
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
@@ -20,8 +24,11 @@ spec:
     - controller
     - broker
   resources:
-    requests: { memory: 3Gi, cpu: "1" }
-    limits:   { memory: 3Gi }
+    requests: { memory: 6Gi, cpu: "1" }
+    limits:   { memory: 6Gi }
+  jvmOptions:
+    "-Xms": 2g
+    "-Xmx": 2g
   storage:
     type: jbod
     volumes:
