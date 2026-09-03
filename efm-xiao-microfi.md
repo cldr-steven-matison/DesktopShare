@@ -1,23 +1,22 @@
 # MicroFi: making the XIAO a real EFM agent instead of an MQTT publisher
 
-`efm-xiao.md` plans to hand-write an Arduino sketch that publishes JSON to Mosquitto on `test/sensor/data`, so `ConsumeMQTT` in the `SparkPlug` PG picks it up with no NiFi-side change. That plan is sound and it still works. But Chris Burns has a private repo, `Christopheraburns/MicroFi`, that reframes the problem: it's a clean-room reimplementation of the MiNiFi C2 protocol targeting ESP32, and if it runs on our hardware the XIAO stops being a dumb publisher and becomes an agent that shows up in EFM next to `StarlinkAI`, `WindowsDesktop`, and `NvidiaNano` — flow pushed from the EFM Designer, not flashed by hand.
+`efm-xiao.md` plans to hand-write an Arduino sketch that publishes JSON to Mosquitto on `test/sensor/data`, so `ConsumeMQTT` in the `SparkPlug` PG picks it up with no NiFi-side change. That plan is sound and it still works. But Chris Burns's [`Christopheraburns/MicroFi`](https://github.com/Christopheraburns/MicroFi) (now **public** as of 2026-09-03) reframes the problem: it's a clean-room reimplementation of the MiNiFi C2 protocol targeting ESP32, and if it runs on our hardware the XIAO stops being a dumb publisher and becomes an agent that shows up in EFM next to `StarlinkAI`, `WindowsDesktop`, and `NvidiaNano` — flow pushed from the EFM Designer, not flashed by hand.
 
 This is the evaluation of whether that's real, what it changes, and what `StarlinkAI` — the host the XIAO is actually plugged into — has to do to field-verify it.
 
-## Access — confirmed, and broader than expected
+## Access — now public
 
-`MicroFi` is private and readable as `steven-matison`:
+As of **2026-09-03** the upstream is **public**: [`Christopheraburns/MicroFi`](https://github.com/Christopheraburns/MicroFi). Anyone can clone it, no token needed.
 
 ```bash
-gh api repos/Christopheraburns/MicroFi -q '.full_name, .private, .permissions'
+gh api repos/Christopheraburns/MicroFi -q '.full_name, .private'
 # Christopheraburns/MicroFi
-# true
-# {"admin":false,"maintain":false,"pull":true,"push":true,"triage":true}
+# false
 ```
 
-**The token has `push`, not just `pull`.** The task said view-only, so nothing in this evaluation writes to that repo, but the write path is open and worth knowing before someone runs a command that assumes it isn't. Read-only is a discipline here, not a permission boundary.
+**Our working fork is now [`cldr-steven-matison/MicroFi`](https://github.com/cldr-steven-matison/MicroFi)** (public, forked from upstream) — use this for our branches/PRs going forward, *not* the old personal-account `steven-matison/MicroFi` private fork. Historical references to `steven-matison/MicroFi` below record where earlier work actually happened; new work lands on the `cldr-steven-matison` fork.
 
-Last push `2026-05-29`, 355 KB, C++, PlatformIO + ESP-IDF.
+> Upstream is Chris Burns's project. Credit and PRs go to [`Christopheraburns/MicroFi`](https://github.com/Christopheraburns/MicroFi); our fork tracks it.
 
 ## What MicroFi actually is
 
@@ -628,15 +627,15 @@ interpreter — whether that's a NiFi Expression-Language evaluator or a Python 
 (#1–#3 on the shortlist) clear it because they're native C++; anything script-driven doesn't, until
 an interpreter is deliberately embedded.
 
-*Verification note:* couldn't re-read the MicroFi repo this session — the `gh` login here is the
-work account (`cldr-steven-matison`), which lacks access to the private `Christopheraburns/MicroFi`;
-the earlier eval read it as `steven-matison`. The architectural facts above are this doc's prior
-captures; the CPython/libpython requirement is freshly confirmed against apache
-`extensions/python/PYTHON.md`.
+*Verification note:* this note dates from when `Christopheraburns/MicroFi` was private and the work
+account (`cldr-steven-matison`) couldn't read it. **As of 2026-09-03 upstream is public** and the
+work account has its own public fork [`cldr-steven-matison/MicroFi`](https://github.com/cldr-steven-matison/MicroFi) —
+the access gap no longer applies. The architectural facts above are this doc's prior captures; the
+CPython/libpython requirement is freshly confirmed against apache `extensions/python/PYTHON.md`.
 
 ## What NOT to do
 
-- **Don't push to `Christopheraburns/MicroFi`.** The token allows it. The task doesn't.
+- **Don't push directly to `Christopheraburns/MicroFi`.** It's public upstream now — our work lands on the `cldr-steven-matison/MicroFi` fork, and anything for upstream goes as a PR to Chris's repo, never a direct push.
 - **Don't register MicroFi under the `StarlinkAI` agent class.** That class holds this host's live, Online MiNiFi agent. A shared class means an EFM flow push aimed at one device reaches both. Use a distinct class and verify the existing agent afterward.
 - **Don't try to flash from WSL2.** No native USB passthrough; the board enumerates on the Windows side as a `COM` port. PlatformIO runs on the Windows host. `usbipd-win` is a workaround, not the path of least resistance.
 - **Don't treat the 48-processor roadmap as available.** Two processors are built. Every capability claim in `Processor-Inventory-And-Roadmap.md` beyond `GenerateFlowFile` and `LogAttribute` is a plan.

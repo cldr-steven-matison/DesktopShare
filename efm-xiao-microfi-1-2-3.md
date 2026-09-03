@@ -34,8 +34,11 @@ construction. A flow-definition backup of the pre-migration class lives at
 - **esptool v5.3.1** (user-pip on the host's Python 3.14) drives triage/identification straight
   against COM ports; **PlatformIO** (`python -m platformio`) builds and flashes. No usbipd/WSL2
   passthrough involved.
-- Firmware repo: `C:\Users\tunas\MicroFi` (fork `steven-matison/MicroFi`, `steven-matison` gh
-  identity — WindowsDesktop has no fork push access; commits relay through StarlinkAI over SSH).
+- Firmware repo: `C:\Users\tunas\MicroFi` (historically the private `steven-matison/MicroFi` fork,
+  `steven-matison` gh identity — WindowsDesktop has no fork push access; commits relay through
+  StarlinkAI over SSH). **As of 2026-09-03 upstream [`Christopheraburns/MicroFi`](https://github.com/Christopheraburns/MicroFi)
+  is public and the working fork is [`cldr-steven-matison/MicroFi`](https://github.com/cldr-steven-matison/MicroFi)** —
+  re-point new clones there.
 - Build/flash per device: `pio run -e microfi<N> -t upload --upload-port <COM>` — always pass
   the port explicitly and verify it by MAC first (`esptool --port <COM> read-mac`); three
   identical units are plugged in.
