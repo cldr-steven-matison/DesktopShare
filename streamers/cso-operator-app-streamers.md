@@ -943,6 +943,17 @@ All follow the same shape as `agent-minikube-reset.sh`: check `TOKEN`/`CHAT_ID` 
 
 ## Session History
 
+### Session 28 (2026-09-06, NvidiaSpark-1) — Streamer KB research + the Knowledge Card (#271 K5, #281)
+
+Spark side (details in `streamers-new-brain-plan.md` §K5 as built and §"#281 — Streamer Knowledge Card"): the `StreamerResearch` PG now writes two dated `kind=research` points per roster streamer into `streamer-kb` every day (Twitch Helix / Kick API facts + Google News, Bing News, r/LivestreamFail buzz, pronoun-free by construction); the `StreamerCard` door on `:32112` reads the KB, writes the card with the 35B and posts it to X itself through `PostToX`. The brain's KB scroll limit went 10 → 30.
+
+App changes authored on the box (commit pending Steven's ask; deploy is WindowsDesktop's):
+- `backend/config.py`: `BRAIN_CARD_URL` (empty = off), `BRAIN_CARD_TIMEOUT` (120 s).
+- `backend/services/streamers.py`: `kb_cards`, `card_preview`, `card_publish`, `mark_card_published` (+ `_card_identity`, `_b64_json`, `_door`) — the door calls never raise into the UI; a real post lands in `.published_history.json` as `kind:"card"` and as `card_tweet_url` on the gif index entry, under the existing locks.
+- `backend/routers/streamers.py`: `GET /streamers/kb/cards`, `POST /streamers/kb/{platform}/{login}/card/preview`, `POST /streamers/kb/{platform}/{login}/card/publish` (`{text, hook, clip_id}`).
+- `frontend`: **Streamers KB** tab (`KbPanel` / `KbSelectedCard` / `KbCardTile`), `KB →` links on Watchlist chips and roster rows, `api.streamersKbCards/CardPreview/CardPublish` + types. `tsc --noEmit` clean.
+- Deploy steps for WindowsDesktop: `MODULES=streamers bash scripts/deploy.sh`, then `kubectl set env deploy/cso-operator-app BRAIN_CARD_URL=http://192.168.1.203:32112` (LAN; `32111` already works from there). Confirm one pod `Running` first, as always.
+
 ### Session 26 (2026-08-31) — roster pronouns populated
 
 Filled the #276 identity columns for the whole roster: 18 `PATCH /api/streamers/roster/{platform}/{login}`

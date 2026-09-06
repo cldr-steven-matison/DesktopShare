@@ -207,10 +207,14 @@ eval_json("ExtractIdentity", 0, 1000, {
 
 replace_text("BuildKbQuery", 0, 1200,
              '{"filter":{"must":[{"key":"streamer_key","match":{"value":"${streamer.key}"}}]},'
-             '"limit":10,"with_payload":true,"with_vector":false}')
+             '"limit":30,"with_payload":true,"with_vector":false}')   # was 10; K5 research adds kinds (#271)
 
 invoke_http("FetchStreamerKb", 0, 1400, "#{Qdrant URL}/collections/#{KB Collection}/points/scroll",
             "application/json", "30 secs")
+# Qdrant (actix) closes idle keep-alive sockets after 5 s; the first scroll after a quiet spell died
+# with "Broken pipe" and the caption ran without its KB. Evict idle sockets first (2026-09-06, #271).
+processors[-1]["properties"]["Socket Idle Timeout"] = "1 sec"
+processors[-1]["propertyDescriptors"]["Socket Idle Timeout"] = {"name": "Socket Idle Timeout", "displayName": "Socket Idle Timeout", "dynamic": False, "identifiesControllerService": False, "sensitive": False}
 
 eval_json("ExtractKb", 0, 1600, {"kb.points": "$.result.points[*].payload.text"})
 

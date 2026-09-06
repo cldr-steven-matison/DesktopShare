@@ -2,6 +2,8 @@
 
 **Status: planning only, nothing built yet.** Written 2026-07-20, same day as the Session 18 caption fixes and roster update in `cso-operator-app-streamers.md`.
 
+> **2026-09-06 — Stages 1–2 exist in built form as #271 K5, the `StreamerResearch` PG on the DGX Spark's NiFi** (`streamers-new-brain-plan.md` §K5, `files/streamers/flows/build_streamer_research.py`). What changed from this plan: the "what's circulating" leg does **not** scrape X — x.com's public pages are a JS shell without a session and the syndication endpoint rate-limits, confirmed from the box — it reads Google News RSS, Bing News RSS and r/LivestreamFail's search RSS instead, plus the Twitch Helix / Kick clip endpoints for the week's top clips; the egress question is answered (the Spark's `mynifi-0` reaches all of them). Its output feeds the Streamer KB (`kind=research`) rather than a second posting stream — Stages 3–4 (the hourly "new-take" post) remain unbuilt.
+
 ## Goal
 
 Right now the streamers pipeline posts a straight LLM reaction to whatever clip comes up in the fetch order. This is a second, independent posting stream: once an hour, post our own take on whichever roster clip had the most views in the last 24h — but instead of just reacting to the Whisper transcript, the caption should be informed by what's already happening about that clip/streamer on X (what other clippers said, what blew up, what the reaction was), so the caption can be a sharper, more "in on it" take instead of a generic hype reaction.

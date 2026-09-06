@@ -86,6 +86,14 @@ PublishClipPeakTimeCron / PublishClipOffPeakDay
 X                 tweepy v1 media_upload(chunked=True) + v2 create_tweet
 ```
 
+Two Spark-side legs feed and extend this (2026-09, `streamers-new-brain-plan.md`): the
+**Streamer KB** (`streamer-kb` on the DGX Spark — per-streamer profile, caption guidance and,
+since 2026-09-06, daily `research` points from Twitch/Kick APIs and news + r/LivestreamFail
+RSS, written by the `StreamerResearch` NiFi PG) is what `ProcessClips`' brain call reads, and
+the **Streamer Knowledge Card** (`StreamerCard` door on `:32112`) turns those points plus the
+roster identity into a long-form X post with one of our GIFs — generated and posted from the
+Spark's NiFi, driven from the app's Streamers KB tab (review first, then Post to X).
+
 `LiveStreamerAlert` is a separate leg, not part of this one: `PollTimer` → `GetRoster` →
 split → per-platform live check → `DedupLiveSession` (`DetectDuplicate`, 72h age-off) →
 `GetXHandle` → `XLivePostProcessor` → a reply post with the platform URL. It also pins any
@@ -317,6 +325,11 @@ ones specific to this system.
 
 ## What's next
 
+- **Streamer Knowledge Card go-live (#281).** The Spark door and `PostToX` are built; the app's
+  Streamers KB tab is authored and waits on a WindowsDesktop deploy plus `BRAIN_CARD_URL`. The
+  Twitch half of the KB research and the first real card post wait on the Twitch app id/secret
+  and the X keys landing in `~/.env` on spark-dd06. K4 accretion (the brain updating a profile
+  after a clip) is still the open KB step.
 - **NiFi-native refactor** of fetch/process/publish. Designed in detail, largely unbuilt.
   `XLivePostProcessor` proves the text-post half; extending it to chunked media upload is the
   remaining piece. Recommended order is publish → process → fetch. `ClipOverlayProcessor` is

@@ -5,8 +5,8 @@
     "name": "StreamerBrain",
     "comments": "The Streamers demo's caption brain on the Spark (#272): MP4 in, one grounded JSON answer out. Streamers track \u2014 not part of the DGX guide.",
     "position": {
-      "x": 600.0,
-      "y": 0.0
+      "x": 424.0,
+      "y": 8.0
     },
     "processGroups": [],
     "remoteProcessGroups": [],
@@ -1032,7 +1032,7 @@
         },
         "properties": {
           "Regular Expression": "(?s)(^.*$)",
-          "Replacement Value": "{\"filter\":{\"must\":[{\"key\":\"streamer_key\",\"match\":{\"value\":\"${streamer.key}\"}}]},\"limit\":10,\"with_payload\":true,\"with_vector\":false}",
+          "Replacement Value": "{\"filter\":{\"must\":[{\"key\":\"streamer_key\",\"match\":{\"value\":\"${streamer.key}\"}}]},\"limit\":30,\"with_payload\":true,\"with_vector\":false}",
           "Evaluation Mode": "Entire text",
           "Text to Prepend": null,
           "Line-by-Line Evaluation Mode": "All",
@@ -1982,7 +1982,7 @@
           "OAuth2 Access Token Refresh Strategy": "ON_TOKEN_EXPIRATION",
           "HTTP URL": "#{Qdrant URL}/collections/#{KB Collection}/points/scroll",
           "Request OAuth2 Access Token Provider": null,
-          "Socket Idle Timeout": "5 mins",
+          "Socket Idle Timeout": "1 sec",
           "Response Redirects Enabled": "True",
           "Socket Write Timeout": "60 secs",
           "Request Header Attributes Pattern": null,
@@ -4496,8 +4496,8 @@
             "resourceDefinition": {
               "cardinality": "MULTIPLE",
               "resourceTypes": [
-                "URL",
                 "FILE",
+                "URL",
                 "DIRECTORY"
               ]
             }

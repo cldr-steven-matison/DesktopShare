@@ -1,0 +1,17 @@
+# StreamerCard door — #281. Exposes the StreamerCard PG's HandleHttpRequest (listening on
+# 8092 inside mynifi-0) as a NodePort so WindowsDesktop's Streamers app can call
+# http://192.168.1.203:32112/kb, /card/preview and /card/publish (LAN) or the tailnet address.
+#
+# Same shape as streamer-brain-door.yaml: a plain Service selecting the operator's pod labels —
+# no Nifi CR edit, no pod restart. Streamers demo track; files/issue-226/nifi-spark.yaml untouched.
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamer-card-door
+  namespace: cfm-streaming
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/instance: mynifi
+    app.kubernetes.io/name: server
+  ports: [{name: card, port: 8092, targetPort: 8092, nodePort: 32112}]
