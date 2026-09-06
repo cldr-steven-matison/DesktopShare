@@ -1,7 +1,13 @@
 # #230 — a SINGLE flow deployed as its own small NiFi pod via one CR yaml, independent of the
 # main cso-prod-1 NiFi (mynifi). Distinct name + hostname; minimal footprint; singleUserAuth
 # (no S2S needed here, so cert complexity is unnecessary). This proves the "one flow = one pod
-# from a CR" mechanism (#230). GitHub-Actions CI to push a flow into it is DEFERRED to a follow-up.
+# from a CR" mechanism (#230); pushing a flow into it (no GitHub Actions) is done in #250 —
+# push-flow-to-pod.sh / nifi-flowpush-job.yaml, see PUSH-FLOW-TO-POD.md.
+#
+# PREREQUISITE: singleUserAuth below references the `flowpod-1-admin-creds` secret, which the
+# operator does NOT create. Apply this CR without it and the `nifi` container hangs in
+# CreateContainerConfigError. Use `sh flowpod-1-standup.sh` (creates the secret, then applies
+# this) rather than a bare `kubectl apply -f`.
 apiVersion: cfm.cloudera.com/v1alpha1
 kind: Nifi
 metadata:

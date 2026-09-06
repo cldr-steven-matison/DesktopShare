@@ -89,7 +89,9 @@ Plan: [`../../cso-prod-1-preprod-plan.md`](../../cso-prod-1-preprod-plan.md).
   `flow-registry.md` §4 (which uses mTLS certs).
 - Stood `flowpod-1` up again beside `mynifi`. The `nifi` container needs a **pre-created**
   `flowpod-1-admin-creds` secret (`username`/`password`, ≥12 chars) — the operator does NOT create it;
-  without it → `CreateContainerConfigError`. This is a gap the committed CR doesn't cover (documented).
+  without it → `CreateContainerConfigError`. Closed with [`flowpod-1-standup.sh`](flowpod-1-standup.sh)
+  (creates the secret, then applies the CR; idempotent) — validated clean-slate + idempotent re-run, and
+  the stale "GitHub-Actions CI deferred" comment in the CR header was corrected to point at #250.
 - **Job push** of `AmoledImuBridge.flow.json` (stock processors, no PC, self-contained CS) → imported PG,
   `components INVALID: 0`, dangling controller-service refs `0`, landed STOPPED (safe default).
 - **Upsert + start** (`START=true`) → stopped/drained/deleted the existing PG, reimported, enabled CS,

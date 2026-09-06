@@ -23,10 +23,13 @@ from `POST /nifi-api/access/token` (username/password) instead. `push-flow-to-po
 
 1. **The `credentialsSecretName` secret is NOT created by the operator.** `nifi-flowpod-1.yaml` references
    `flowpod-1-admin-creds`; without it the `nifi` container sits in `CreateContainerConfigError`
-   (`secret "flowpod-1-admin-creds" not found`). Create it before/at standup — password ≥ 12 chars:
+   (`secret "flowpod-1-admin-creds" not found`). **Stand the pod up with
+   [`flowpod-1-standup.sh`](flowpod-1-standup.sh)** — it creates the secret (generated ≥16-char password,
+   idempotent) and then applies the CR, instead of a bare `kubectl apply -f nifi-flowpod-1.yaml`:
    ```bash
-   kubectl create secret generic flowpod-1-admin-creds -n cfm-streaming \
-     --from-literal=username=admin --from-literal=password="$(openssl rand -base64 18 | tr -dc A-Za-z0-9 | head -c16)"
+   sh files/cso-prod-1/flowpod-1-standup.sh
+   # read the generated password when you need it:
+   kubectl get secret flowpod-1-admin-creds -n cfm-streaming -o jsonpath='{.data.password}' | base64 -d
    ```
 2. **Address the pod by its service DNS, not `localhost` or the pod IP.** Inside the pod 8443 binds to the
    *pod IP* (localhost → connection refused), and hitting the raw pod IP fails Jetty's SNI check
