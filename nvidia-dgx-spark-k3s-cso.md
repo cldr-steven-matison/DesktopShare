@@ -488,6 +488,29 @@ against `http://192.168.1.203:8000/v1/chat/completions`. vLLM reported `Running:
 ~162 tok/s generation, and 74.9 % speculative-draft acceptance while the job streamed. Model size
 was the binding constraint on prod, and on this box it is not.
 
+**As built, 2026-09-06 (spark-dd06) — the Kafka pipeline.** The file-based run above still reads a
+baked file and `print()`s the result; the one thing neither `cso-prod-1` nor that run did is wire the
+agent to Kafka (`flink-agents-cso-plan.md` §7 Phase 4, the Agentic-Studio leg). `kafka_agent_job.py`
+keeps `VllmReviewAnalysisAgent` verbatim and swaps only its I/O: `KafkaSource` on `spark-agent-reviews`
+→ agent → `KafkaSink` on `spark-agent-enriched`, both on the box's own `my-cluster`
+(`files/issue-226/flink-agents/kafka_agent_job.py`, `kafkatopics.yaml`; `reviews.jsonl` +
+`seed-reviews.sh` seed 10 bounded records through a broker-pod `kafka-console-producer`, since the host
+has no kafka client). The image gains one thing for this — `flink-sql-connector-kafka-3.4.0-1.20` on
+`/opt/flink/lib`, tag `spark-flink-agents:0.3.1-kafka`.
+
+As run: **10/10 reviews enriched onto the sink** (clean review → `{"score": 5, "reasons": []}`,
+shipping-damage → `{"score": 1, "reasons": ["shipping damage", "wet", "torn cover"]}`), **14
+`chat/completions` all clean**, and the `notify_shipping_manager` **tool leg fired for real** on the
+four shipping-damage reviews (`Transportation issue for product [B000YFSR4W]...`) — the full
+`Input → ChatRequest → ToolRequest → ToolResponse → ChatResponse → Output` path, not just a chat call.
+The box's `--tool-call-parser qwen3_xml` matches the model, so the prod `qwen3_coder`-vs-Qwen2.5 gotcha
+(fact 3) did not recur. Destroy path clean in **1.56 s**.
+
+One gotcha for ch11: the agent result crosses the pemja/Beam boundary as a **plain dict**, not the
+pydantic `ProductReviewAnalysisRes`, so a sink `map` calling `.model_dump_json()` fails with
+`AttributeError: 'dict' object has no attribute 'model_dump_json'` — `json.dumps` is the fix. Commit
+`5431101`.
+
 
 ## 9. The cutover ladder
 
