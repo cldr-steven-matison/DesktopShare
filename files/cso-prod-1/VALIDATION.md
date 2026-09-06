@@ -11,7 +11,8 @@ Plan: [`../../cso-prod-1-preprod-plan.md`](../../cso-prod-1-preprod-plan.md).
 | **#116** | Secure NiFi cluster + Site-to-Site from day one | ✅ mTLS/`userCertAuth` enforced; **foreign peer** `cso-s2s-peer` committed an HTTP S2S transaction (queue 67→68); operator-declared peer policies confirmed via `/policies` |
 | **#203** | Parameter Context inheritance (base `cluster-creds`) | ✅ child resolves inherited `#{Kafka Broker Endpoint}` and **publishes to the live brokers** with it; sensitive inherited param stays masked |
 | **#207** | Add a PG to a running NiFi without root rebuild | ✅ `process-groups/upload` added a working Kafka PG; sibling PG revision unchanged (0→0); skill rule 10 covers it, no gap |
-| **#230** | Single flow as its own small NiFi pod via CR | ✅ `flowpod-1` stood up beside `mynifi` in ~45 s, ran a flow, torn down clean. GitHub-Actions leg deferred |
+| **#230** | Single flow as its own small NiFi pod via CR | ✅ `flowpod-1` stood up beside `mynifi` in ~45 s, ran a flow, torn down clean |
+| **#250** | Push-to-running-flow for a single-flow CR pod (no GHA) | ✅ Job + script push a committed flow into `flowpod-1` via singleUserAuth: `AmoledImuBridge` imported clean (0 invalid, 0 dangling), upsert+start → running 3/3, torn down clean. Artifact: [`PUSH-FLOW-TO-POD.md`](PUSH-FLOW-TO-POD.md) |
 | **#231** | cso-operator-flink-agents build + deploy + destroy | ✅ image built from source; `FlinkDeployment` STABLE; job RUNNING in the Flink UI; destroy path clean. **2026-08-26: the agents example now runs against a real LLM** — GPU vLLM on cso-prod-1, 199 calls, tool leg firing (see §#231) |
 
 ## Cluster shape stood up (level-one minus EFM/PROM)
@@ -79,7 +80,25 @@ Plan: [`../../cso-prod-1-preprod-plan.md`](../../cso-prod-1-preprod-plan.md).
 ## #230 — Single flow as its own pod via CR
 - CR: [`nifi-flowpod-1.yaml`](nifi-flowpod-1.yaml) (`singleUserAuth`, minimal persistence, distinct hostname).
   Stood up 7/7 in ~45 s beside `mynifi`; a seeded `GenerateFlowFile` ran (tasks=5); CR teardown removed the
-  pod and all 5 PVCs, no residue. GitHub-Actions CI → follow-up on #230.
+  pod and all 5 PVCs, no residue. Push-to-flow follow-up → #250 below.
+
+## #250 — Push-to-running-flow for a single-flow CR pod (no GitHub Actions)
+- Artifacts: [`push-flow-to-pod.sh`](push-flow-to-pod.sh) (singleUserAuth/mTLS, upsert, validate, start) +
+  [`nifi-flowpush-job.yaml`](nifi-flowpush-job.yaml) (in-cluster Job). Full write-up + usage:
+  [`PUSH-FLOW-TO-POD.md`](PUSH-FLOW-TO-POD.md). The singleUserAuth counterpart to the skill's
+  `flow-registry.md` §4 (which uses mTLS certs).
+- Stood `flowpod-1` up again beside `mynifi`. The `nifi` container needs a **pre-created**
+  `flowpod-1-admin-creds` secret (`username`/`password`, ≥12 chars) — the operator does NOT create it;
+  without it → `CreateContainerConfigError`. This is a gap the committed CR doesn't cover (documented).
+- **Job push** of `AmoledImuBridge.flow.json` (stock processors, no PC, self-contained CS) → imported PG,
+  `components INVALID: 0`, dangling controller-service refs `0`, landed STOPPED (safe default).
+- **Upsert + start** (`START=true`) → stopped/drained/deleted the existing PG, reimported, enabled CS,
+  started → `runningCount: 3`. Root listing: exactly **one** `AmoledImuBridge`, `running=3 invalid=0` — no
+  duplicate.
+- **Auth/host finding:** token over service DNS `flowpod-1-web.cfm-streaming.svc.cluster.local:8443` = 201;
+  `localhost:8443` = 000 (8443 binds the pod IP; raw pod IP fails Jetty SNI) — the `flow-api.md` §5 trap.
+- Teardown clean: CR delete removed pod + all 5 PVCs; leftover operator cert secrets deleted by hand.
+  `mynifi` stayed 7/7 throughout; node memory peaked ~86%.
 
 ## #231 — cso-operator-flink-agents
 - Image `cso-operator-flink-agents:0.3.1` built from source into the cso-prod-1 docker daemon

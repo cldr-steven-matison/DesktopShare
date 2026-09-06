@@ -1,0 +1,68 @@
+# nifi-flowpush-job.yaml — push one committed flow definition into a running single-flow
+# NiFi CR pod, in-cluster, no GitHub Actions and no manual UI upload (#250).
+#
+# This is the singleUserAuth counterpart to the skill's flow-registry.md §4 Job (which uses
+# an mTLS client cert). It runs push-flow-to-pod.sh against the pod's service DNS — the
+# address that clears NiFi's nifi.web.proxy.host allowlist; localhost inside the pod does
+# NOT work (8443 binds to the pod IP → connection refused), and the pod IP fails Jetty's
+# SNI check. See README.md.
+#
+# ── Instantiate (three commands, no GHA) ───────────────────────────────────────────────
+#   # 1. the push script as a ConfigMap
+#   kubectl create configmap flowpush-script -n cfm-streaming \
+#     --from-file=push-flow-to-pod.sh=files/cso-prod-1/push-flow-to-pod.sh \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#   # 2. the flow definition as a ConfigMap (any committed files/cso-prod-1/flows/prod/*.flow.json;
+#   #    ConfigMaps cap at ~1 MiB — StreamersApp.flow.json fits, but see README for the >1 MiB path)
+#   kubectl create configmap flowpush-payload -n cfm-streaming \
+#     --from-file=flow.json=files/cso-prod-1/flows/prod/AmoledImuBridge.flow.json \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#   # 3. set GROUP_NAME/START below to taste, then:
+#   kubectl apply -f files/cso-prod-1/nifi-flowpush-job.yaml
+#   kubectl logs -n cfm-streaming job/flowpush --follow
+#
+# The singleUserAuth creds come from the same secret the flowpod's CR references
+# (credentialsSecretName). START=false lands the flow STOPPED (safe default for prod).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flowpush
+  namespace: cfm-streaming
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: script
+          configMap: { name: flowpush-script, defaultMode: 0755 }
+        - name: payload
+          configMap: { name: flowpush-payload }
+      containers:
+        - name: push
+          image: alpine:3.20
+          env:
+            - name: NIFI
+              value: "https://flowpod-1-web.cfm-streaming.svc.cluster.local:8443"
+            - name: FLOW_FILE
+              value: "/payload/flow.json"
+            - name: GROUP_NAME
+              value: "AmoledImuBridge"     # ← the PG name to upsert
+            - name: START
+              value: "false"               # ← "true" to enable CS + start after import
+            - name: NIFI_USER
+              valueFrom:
+                secretKeyRef: { name: flowpod-1-admin-creds, key: username }
+            - name: NIFI_PASS
+              valueFrom:
+                secretKeyRef: { name: flowpod-1-admin-creds, key: password }
+          volumeMounts:
+            - { name: script,  mountPath: /script,  readOnly: true }
+            - { name: payload, mountPath: /payload, readOnly: true }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              apk add --no-cache curl jq >/dev/null
+              exec sh /script/push-flow-to-pod.sh
