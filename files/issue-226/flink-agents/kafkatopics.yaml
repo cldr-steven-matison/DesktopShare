@@ -1,0 +1,34 @@
+# flink-agents Kafka pipeline topics (#231, DGX Spark) — source + sink for
+# kafka_agent_job.py, on the box's own my-cluster Strimzi cluster.
+# Shape/labels match the box's existing spark-* topics (spark-inference-requests).
+#   kubectl apply -f kafkatopics.yaml
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: spark-agent-reviews
+  namespace: cld-streaming
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: "2"
+    retention.ms: "604800000"
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: spark-agent-enriched
+  namespace: cld-streaming
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    min.insync.replicas: "2"
+    retention.ms: "604800000"

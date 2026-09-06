@@ -1,16 +1,21 @@
-# spark-flink-agents:0.3.1 — the aarch64 build for NvidiaSpark-1 (spark-dd06), k3s-cso §8.
+# spark-flink-agents:0.3.1-kafka — the aarch64 build for NvidiaSpark-1 (spark-dd06), k3s-cso §8.
 #
 # Byte-for-byte the cso-prod-1 recipe (files/cso-prod-1/flink-agents/Dockerfile, #231) — it needed
 # NO aarch64 changes. Both base images (maven:3-eclipse-temurin-17, flink:1.20.5-java17) are
 # multi-arch, and everything else is built from source or installed from PyPI sdists/wheels that
 # publish aarch64. Build with `docker build --platform linux/arm64`.
 #
+# The `-kafka` tag adds two things on top of the proven 0.3.1 image, both for the Agentic-Studio
+# Kafka pipeline (#231, plan §7 Phase 4): the flink-sql-connector-kafka jar on /opt/flink/lib
+# (KafkaSource/KafkaSink need it), and the repointed/new agent scripts baked in so the image is
+# self-contained. Nothing else changed from 0.3.1.
+#
 # k3s-cso §8's CUDA-wheel table does NOT apply here: that is the separate GPU-PyTorch Flink image
 # (the v5 recipe). flink-agents talks to the LLM over HTTP, so this image needs no CUDA at all —
 # the GPU claim is proven by the stock-image FlinkDeployment in files/issue-226/flink-gpu.yaml.
 #
 # k3s uses its own containerd, not Docker, so after building:
-#   sudo bash -c 'docker save spark-flink-agents:0.3.1 | k3s ctr images import -'
+#   sudo bash -c 'docker save spark-flink-agents:0.3.1-kafka | k3s ctr images import -'
 
 # ---- Stage 1: build flink-agents from source (Maven jars + Python wheel) ----
 FROM maven:3-eclipse-temurin-17 AS build
@@ -49,9 +54,11 @@ FROM flink:1.20.5-java17
 
 USER root
 
-# Python 3.11 (flink-agents supports 3.10/3.11; 3.12 needs Flink >= 2.1)
+# Python 3.11 (flink-agents supports 3.10/3.11; 3.12 needs Flink >= 2.1).
+# curl + ca-certificates are added for the Kafka connector fetch below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3.11 python3.11-venv python3.11-dev build-essential \
+        curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Isolated site-packages for the agents runtime: apache-flink (pyflink) pulls
@@ -70,6 +77,13 @@ COPY --from=build /src/flink-agents/dist/common/target/flink-agents-dist-common-
 COPY --from=build /src/flink-agents/dist/flink-1.20/target/flink-agents-dist-flink-1.20-*-thin.jar /opt/flink/lib/
 RUN cp /opt/flink/opt/flink-python-*.jar /opt/flink/lib/
 
+# Kafka connector for the Agentic-Studio pipeline (#231): KafkaSource/KafkaSink
+# resolve only if this fat "sql-connector" jar (bundles the kafka client) is on
+# the cluster classpath. Pinned to the Flink 1.20 line.
+ARG KAFKA_CONNECTOR=3.4.0-1.20
+RUN curl -fsSL -o /opt/flink/lib/flink-sql-connector-kafka-${KAFKA_CONNECTOR}.jar \
+        "https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/${KAFKA_CONNECTOR}/flink-sql-connector-kafka-${KAFKA_CONNECTOR}.jar"
+
 # Example agent jobs (the full flink_agents.examples package is also installed
 # in the venv via the wheel; these are the submittable entry scripts).
 RUN mkdir -p /opt/flink/usrlib/agents
@@ -77,6 +91,12 @@ COPY --from=build /src/flink-agents/python/flink_agents/examples/quickstart/*.py
 # The examples resolve their input as <script dir>/resources/... (FileSource),
 # so the resources dir has to sit next to the scripts, on JM and TM alike.
 COPY --from=build /src/flink-agents/python/flink_agents/examples/quickstart/resources /opt/flink/usrlib/agents/resources
+
+# The repointed/new agent scripts (from this build context), baked in so the
+# image is self-contained — no kubectl cp needed on each pod restart.
+# vllm_review_agent.py rides to the TMs via `flink run -pyfs`; the two job
+# scripts are the -py entry points (file-based regression + Kafka pipeline).
+COPY vllm_review_agent.py workflow_agent_vllm_example.py kafka_agent_job.py /opt/flink/usrlib/agents/
 
 # Make the venv python the default python for PyFlink (driver + workers).
 ENV PYFLINK_CLIENT_EXECUTABLE=/opt/flink/agents-venv/bin/python
