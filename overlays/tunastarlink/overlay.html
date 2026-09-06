@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<!--
+  @tunastarlink OBS overlay — left-side colorful chat column + !c overlay relay
+  Issue #300 · Phase 1 (static-readable first).  Golden-source spec:
+    streamers/twitch-overlay-chat-relay-plan.md
+    streamers/twitch-overlay-tunastarlink-plan.md (Phase 2 slot / OBS rules)
+
+  Browser Source setup (OBS):
+    - Local file  -> this overlay.html (Windows-visible path, e.g.
+        \\wsl.localhost\Ubuntu\home\tunas\DesktopShare\overlays\tunastarlink\overlay.html)
+    - Width/Height = canvas (1920x1080)
+    - Custom CSS: body { background-color: rgba(0,0,0,0); margin: 0; overflow: hidden; }
+    - Edit file -> right-click source -> Refresh (never restart OBS/stream)
+
+  Data source: SSE  GET /api/overlay/chat/stream  (cso-operator-app, Phase 2 — not built yet).
+  Message shape (relay -> overlay):
+    { "user":"someviewer", "color":"#1E90FF", "badges":["subscriber","moderator"],
+      "text":"GG that was clean", "ts":1725600000.123, "channel":"xqc" }
+
+  Prove it WITHOUT the backend: open with ?sim=1 (or ?sim=40 for 40 msg/s) to drive the
+  column from a built-in fake feed. It also auto-falls-back to the simulator if the SSE
+  endpoint can't be reached, so the file always shows something on screen.
+
+  URL params (all optional):
+    ?endpoint=/api/overlay/chat/stream   SSE URL to connect to
+    ?sim=1  | ?sim=<n>                    force the built-in simulator at n msg/s (default 3)
+    ?drain=650                            ms between drained lines (fixed drain rate)
+    ?lines=14                             ring-buffer size (visible lines)
+    ?nofallback=1                         do NOT auto-start the simulator when SSE fails
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>@tunastarlink chat overlay</title>
+<style>
+  /* Transparent for OBS; the page itself never paints a background. */
+  :root {
+    --col-width: 30vw;          /* left strip width  */
+    --col-max: 560px;
+    --line-bg: rgba(8, 12, 20, 0.62);
+    --line-bg-edge: rgba(8, 12, 20, 0.0);
+    --ink: #eef4ff;
+    --accent: #35d0ff;          /* Starlink cyan, matches the sat/dish assets */
+    --shadow: 0 0 3px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.75);
+    --font: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: transparent; overflow: hidden;
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Left strip, bottom-anchored: newest line at the bottom, older scroll up and off. */
+  #chat {
+    position: fixed;
+    left: 0; bottom: 0;
+    width: var(--col-width);
+    max-width: var(--col-max);
+    max-height: 100vh;
+    box-sizing: border-box;
+    padding: 14px 10px 22px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;   /* pin content to the bottom */
+    gap: 5px;
+    pointer-events: none;
+    /* soft fade at the top edge so lines dissolve rather than hard-clip */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 72px);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 72px);
+  }
+
+  .line {
+    color: var(--ink);
+    font-size: 22px;
+    line-height: 1.28;
+    text-shadow: var(--shadow);
+    /* rounded dark backing that fades to the right — readable on any game background */
+    background: linear-gradient(to right, var(--line-bg) 0%, var(--line-bg) 62%, var(--line-bg-edge) 100%);
+    border-left: 3px solid var(--nameColor, var(--accent));
+    border-radius: 4px;
+    padding: 3px 12px 4px 9px;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    animation: rise 220ms ease-out;
+    will-change: transform, opacity;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .line.leaving { animation: fade 260ms ease-in forwards; }
+  @keyframes fade { to { opacity: 0; transform: translateY(-8px); } }
+
+  .badge {
+    font-size: 15px;
+    margin-right: 3px;
+    vertical-align: 1px;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.9));
+  }
+  .name {
+    font-weight: 700;
+    color: var(--nameColor, var(--accent));
+    text-shadow: var(--shadow);
+  }
+  .sep { color: rgba(238,244,255,0.55); font-weight: 700; margin: 0 5px 0 1px; }
+  .text { color: var(--ink); }
+  .xn {
+    display: inline-block;
+    margin-left: 7px;
+    padding: 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #05121c;
+    background: var(--accent);
+    border-radius: 9px;
+    vertical-align: 1px;
+  }
+
+  /* Header: which channel the column is relaying, + live flood badge. */
+  #hud {
+    position: fixed;
+    left: 16px; top: 12px;
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--font);
+    pointer-events: none;
+    max-width: var(--col-max);
+  }
+  #target {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 16px; font-weight: 700; letter-spacing: 0.2px;
+    color: var(--ink);
+    background: rgba(8,12,20,0.60);
+    border: 1px solid rgba(53,208,255,0.45);
+    border-radius: 20px;
+    padding: 4px 13px 4px 11px;
+    text-shadow: var(--shadow);
+    white-space: nowrap;
+  }
+  #target .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 7px var(--accent);
+  }
+  #target.relaying { border-color: rgba(255,196,53,0.7); }
+  #target.relaying .dot { background: #ffc435; box-shadow: 0 0 7px #ffc435; }
+  #target .who { color: var(--accent); }
+  #target.relaying .who { color: #ffc435; }
+
+  /* Live msg/s badge — only visible while actively dropping under flood. */
+  #rate {
+    display: none;
+    align-items: center; gap: 5px;
+    font-size: 15px; font-weight: 700;
+    color: #05121c;
+    background: #ffdf5e;
+    border-radius: 20px;
+    padding: 3px 11px;
+    box-shadow: 0 0 10px rgba(255,196,53,0.55);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  #rate.on { display: inline-flex; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+  /* Small unobtrusive connection state; hidden once connected. */
+  #status {
+    position: fixed; left: 16px; bottom: 4px;
+    font-size: 11px; color: rgba(238,244,255,0.5);
+    text-shadow: var(--shadow); pointer-events: none;
+  }
+  #status.hide { display: none; }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <span id="target"><span class="dot"></span><span id="targetText">connecting…</span></span>
+    <span id="rate">⚡ <span id="rateNum">0</span> msg/s</span>
+  </div>
+  <div id="chat" aria-live="polite"></div>
+  <div id="status">starting…</div>
+
+<script>
+"use strict";
+(function () {
+  // ---- config (URL-overridable) ------------------------------------------
+  var P = new URLSearchParams(location.search);
+  var num = function (k, d) { var v = parseFloat(P.get(k)); return isFinite(v) ? v : d; };
+
+  var CFG = {
+    endpoint:  P.get('endpoint') || '/api/overlay/chat/stream',
+    drainMs:   Math.max(120, num('drain', 650)),   // fixed drain: one line per this interval
+    maxLines:  Math.max(4, Math.round(num('lines', 14))),  // ring-buffer size
+    maxQueue:  400,     // hard cap on the pending queue; overflow drops oldest
+    dedupWindowMs: 9000,// collapse identical text seen within this window
+    fallback:  P.get('nofallback') !== '1',        // sim when SSE fails
+  };
+  // ?sim / ?sim=<n>: force the built-in fake feed at n msg/s.
+  var SIM_FORCED = P.has('sim');
+  var SIM_RATE = SIM_FORCED ? Math.max(0.2, num('sim', 3) || 3) : 3;
+
+  var chatEl   = document.getElementById('chat');
+  var statusEl = document.getElementById('status');
+  var targetEl = document.getElementById('target');
+  var targetTextEl = document.getElementById('targetText');
+  var rateEl   = document.getElementById('rate');
+  var rateNumEl= document.getElementById('rateNum');
+
+  var OWN_CHANNEL = 'tunastarlink';
+
+  // ---- badge glyphs (kept simple; extend as real badge set firms up) -----
+  var BADGE = {
+    broadcaster: '👑', moderator: '⚔️', vip: '💎', subscriber: '⭐',
+    founder: '🥇', staff: '🛠️', 'artist-badge': '🎨', partner: '✔️',
+    turbo: '⚡', premium: '👑', bits: '💠', 'sub-gifter': '🎁',
+  };
+
+  // stable hash-of-username color for chatters with no IRCv3 color tag.
+  // Never near-white (must read on any game background).
+  function hashColor(name) {
+    var h = 0, s = String(name || 'anon');
+    for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+    var hue = h % 360;
+    var sat = 62 + (h >> 9) % 24;   // 62-85%
+    var lit = 56 + (h >> 15) % 12;  // 56-67% — bright but not white
+    return 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
+  }
+  function nameColor(msg) {
+    var c = msg && msg.color;
+    if (typeof c === 'string' && /^#?[0-9a-fA-F]{6}$/.test(c.trim())) {
+      var hex = c.trim(); return hex[0] === '#' ? hex : '#' + hex;
+    }
+    return hashColor(msg && msg.user);
+  }
+
+  // ---- flood pipeline: queue -> fixed drain -> ring buffer ---------------
+  var queue = [];         // pending {msg} not yet on screen
+  var recent = [];        // {key, ts, node} for dedup-collapse of copypasta/emote spam
+  var arrivals = [];      // timestamps (ms) of incoming msgs, for the msg/s badge
+
+  function norm(t) { return String(t || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+
+  function enqueue(msg) {
+    if (!msg || typeof msg.text !== 'string') return;
+    arrivals.push(performance.now());
+
+    var key = norm(msg.user) + '|' + norm(msg.text);
+    var now = performance.now();
+    // dedup against lines already on screen within the window -> bump ×N
+    for (var i = recent.length - 1; i >= 0; i--) {
+      if (now - recent[i].ts > CFG.dedupWindowMs) { recent.splice(i, 1); continue; }
+      if (recent[i].key === key && recent[i].node.isConnected) {
+        bumpCount(recent[i].node); recent[i].ts = now; return;
+      }
+    }
+    // dedup against still-queued duplicates -> bump the queued count
+    for (var j = queue.length - 1; j >= 0; j--) {
+      if (queue[j].key === key) { queue[j].count = (queue[j].count || 1) + 1; return; }
+    }
+    queue.push({ msg: msg, key: key, count: 1 });
+    if (queue.length > CFG.maxQueue) queue.shift(); // overflow: drop oldest
+  }
+
+  // fixed drain: pop exactly one queued line per tick, render it.
+  function drainTick() {
+    updateRate();
+    if (queue.length === 0) return;
+    var item = queue.shift();
+    render(item.msg, item.count, item.key);
+  }
+
+  function render(msg, count, key) {
+    var line = document.createElement('div');
+    line.className = 'line';
+    var col = nameColor(msg);
+    line.style.setProperty('--nameColor', col);
+
+    var badges = Array.isArray(msg.badges) ? msg.badges : [];
+    var badgeHtml = '';
+    for (var i = 0; i < badges.length && i < 3; i++) {
+      var g = BADGE[String(badges[i]).toLowerCase()];
+      if (g) badgeHtml += '<span class="badge" title="' + esc(badges[i]) + '">' + g + '</span>';
+    }
+    var xn = (count && count > 1) ? '<span class="xn">×' + count + '</span>' : '';
+    line.innerHTML =
+      badgeHtml +
+      '<span class="name">' + esc(msg.user || 'anon') + '</span>' +
+      '<span class="sep">:</span>' +
+      '<span class="text">' + esc(msg.text) + '</span>' + xn;
+    line.dataset.count = String(count || 1);
+
+    chatEl.appendChild(line);
+    recent.push({ key: key, ts: performance.now(), node: line });
+
+    // ring buffer: keep only the newest maxLines on screen. Normally we exceed by
+    // one per render, so fade the oldest out; if a burst gets us further ahead,
+    // drop the surplus immediately so the column can't run away.
+    if (chatEl.children.length > CFG.maxLines) {
+      var old = chatEl.firstElementChild;
+      if (chatEl.children.length > CFG.maxLines + 2) {
+        old.remove();
+      } else {
+        old.classList.add('leaving');
+        (function (n) { setTimeout(function () { if (n && n.parentNode) n.remove(); }, 260); })(old);
+      }
+    }
+  }
+
+  function bumpCount(node) {
+    var c = (parseInt(node.dataset.count, 10) || 1) + 1;
+    node.dataset.count = String(c);
+    var xn = node.querySelector('.xn');
+    if (xn) { xn.textContent = '×' + c; }
+    else {
+      xn = document.createElement('span');
+      xn.className = 'xn'; xn.textContent = '×' + c;
+      node.appendChild(xn);
+    }
+    node.style.animation = 'none'; void node.offsetWidth; node.style.animation = 'rise 180ms ease-out';
+  }
+
+  // msg/s badge: show only while the queue is actually backing up (dropping/lagging).
+  function updateRate() {
+    var now = performance.now(), cut = now - 1000;
+    while (arrivals.length && arrivals[0] < cut) arrivals.shift();
+    var mps = arrivals.length;
+    // "actively dropping" ≈ arriving faster than we can drain, with a real backlog
+    var drainCap = 1000 / CFG.drainMs;
+    var flooding = queue.length > CFG.maxLines && mps > drainCap * 1.3;
+    if (flooding) {
+      rateNumEl.textContent = mps;
+      rateEl.classList.add('on');
+    } else {
+      rateEl.classList.remove('on');
+    }
+  }
+
+  function setTarget(channel) {
+    var ch = (channel || '').replace(/^#/, '').toLowerCase();
+    if (!ch || ch === OWN_CHANNEL) {
+      targetEl.classList.remove('relaying');
+      targetTextEl.innerHTML = '<span class="who">@' + OWN_CHANNEL + '</span> chat';
+    } else {
+      targetEl.classList.add('relaying');
+      targetTextEl.innerHTML = 'relaying <span class="who">' + esc(ch) + '</span>';
+    }
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function setStatus(t, hide) {
+    statusEl.textContent = t;
+    statusEl.classList.toggle('hide', !!hide);
+  }
+
+  // start the fixed-drain timer once.
+  setInterval(drainTick, CFG.drainMs);
+
+  // track current channel from the message stream (relay sets msg.channel).
+  var lastChannel = null;
+  function observeChannel(msg) {
+    if (msg && msg.channel && msg.channel !== lastChannel) {
+      lastChannel = msg.channel; setTarget(msg.channel);
+    }
+  }
+
+  // ---- live SSE source ---------------------------------------------------
+  var es = null, simTimer = null, simOn = false;
+
+  function startSSE() {
+    setStatus('connecting ' + CFG.endpoint);
+    try { es = new EventSource(CFG.endpoint); }
+    catch (e) { onSSEFail(); return; }
+
+    es.onopen = function () { stopSim(); setStatus('live', true); setTarget(OWN_CHANNEL); };
+    es.onmessage = function (ev) {
+      var msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      observeChannel(msg); enqueue(msg);
+    };
+    es.onerror = function () {
+      // EventSource auto-retries; only fall back to sim if we never connect.
+      if (es && es.readyState === 2) onSSEFail();
+      else setStatus('reconnecting…');
+    };
+  }
+
+  function onSSEFail() {
+    setStatus('SSE unavailable' + (CFG.fallback ? ' — running demo feed' : ''));
+    if (CFG.fallback) startSim();
+  }
+
+  // ---- built-in simulator (proves the overlay with no backend) -----------
+  var SIM_USERS = [
+    ['xX_snipez', '#FF4500', ['subscriber']], ['clutch_kraken', '#1E90FF', ['moderator','subscriber']],
+    ['pixelpuff', '#2E8B57', []], ['nova_gg', '#9147FF', ['vip']], ['toastburner', '', ['subscriber']],
+    ['dishenjoyer', '#35d0ff', ['broadcaster']], ['lag_wizard', '#DAA520', []], ['tofu', '#FF69B4', ['subscriber']],
+    ['orbital', '#00CED1', ['vip','subscriber']], ['ratio_andy', '', []], ['gg_ez', '#FFD700', ['founder']],
+    ['starlink_stan', '#7FFF00', ['subscriber']], ['zoomies', '#FF6347', []], ['byte', '#4169E1', ['moderator']],
+  ];
+  var SIM_TEXT = [
+    'GG that was clean', 'no way he hit that', 'W streamer', 'chat is going nuts',
+    'PogChamp PogChamp PogChamp', 'sat looks sick tonight', 'first!!', 'ratio',
+    'how is starlink ping this good', 'KEKW', 'that dish never misses', 'clutch or kick',
+    'LULW', 'run it back', 'actual insane play', 'o7', 'copium', 'let him cook',
+    'EZ Clap', 'this song goes hard', 'when raid', 'hi from the void 🛰️',
+  ];
+  var SIM_CHANNEL = SIM_FORCED && CFG.endpoint === '/api/overlay/chat/stream'
+      ? (P.get('channel') || (SIM_RATE >= 15 ? 'xqc' : OWN_CHANNEL))
+      : OWN_CHANNEL;
+
+  function simMsg() {
+    var u = SIM_USERS[(Math.random() * SIM_USERS.length) | 0];
+    var burst = Math.random() < 0.18; // copypasta/emote burst to exercise dedup
+    var text = burst ? 'PogChamp PogChamp PogChamp' : SIM_TEXT[(Math.random() * SIM_TEXT.length) | 0];
+    return { user: u[0], color: u[1], badges: u[2], text: text,
+             ts: Date.now() / 1000, channel: SIM_CHANNEL };
+  }
+  function simSchedule() {
+    // Poisson-ish spacing around the target rate; clustered enough to trip flood at high rates.
+    var mean = 1000 / SIM_RATE;
+    var gap = Math.max(8, -Math.log(1 - Math.random()) * mean);
+    simTimer = setTimeout(function () {
+      var m = simMsg(); observeChannel(m); enqueue(m); simSchedule();
+    }, gap);
+  }
+  function startSim() {
+    if (simOn) return; simOn = true;
+    setTarget(SIM_CHANNEL);
+    setStatus('demo feed · ' + SIM_RATE + ' msg/s' + (SIM_FORCED ? '' : ' (SSE down)'),
+              SIM_FORCED);
+    simSchedule();
+  }
+  function stopSim() { if (simTimer) clearTimeout(simTimer); simTimer = null; simOn = false; }
+
+  // ---- boot --------------------------------------------------------------
+  setTarget(OWN_CHANNEL);
+  if (SIM_FORCED) { startSim(); }   // ?sim -> pure local demo, never touches SSE
+  else { startSSE(); }
+})();
+</script>
+</body>
+</html>

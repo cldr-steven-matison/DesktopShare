@@ -1,6 +1,7 @@
 # Twitch overlay — left-side colorful chat + `!c overlay` relay (@tunastarlink) (plan)
 
-**Status (2026-09-06):** Design agreed, not built. This is the golden-source spec for a new
+**Status (2026-09-06):** Phase 1 built (overlay HTML, static-readable-first) — Phases 2–4 pending.
+This is the golden-source spec for a new
 overlay feature on **StarlinkAI** (`TunaStarlink` Beelink): a vertical strip of colorful chat text
 pinned to the **left edge** of the @tunastarlink OBS canvas, plus a `!chat` / `!c overlay
 <streamer>` command that re-points the column at *another* streamer's chat and relays it. Filed as
@@ -124,9 +125,13 @@ subs/mods-always-shown priority tiers.
 
 ## Build phases (execution order at build time)
 
-1. **Overlay HTML (static-readable first).** `overlays/tunastarlink/overlay.html` — left column,
-   colorful lines, SSE client, flood handling. Prove it against a fake/local SSE feed before any
-   real chat. Add to a **test OBS scene** via Browser Source (Studio Mode, no stream restart).
+1. **Overlay HTML (static-readable first).** ✅ **Built 2026-09-06** — `overlays/tunastarlink/overlay.html`:
+   left bottom-anchored column, IRCv3-colored lines (stable hash-color fallback), badge glyphs,
+   SSE client on `/api/overlay/chat/stream`, and the full flood pipeline (fixed drain + ring buffer +
+   dedup `×N` collapse + live `⚡ msg/s` badge). A built-in demo feed makes it provable with **no
+   backend** — open with `?sim=1` (or `?sim=40` for a flood test); it also auto-falls-back to the demo
+   feed if SSE is unreachable. **Still to do here:** add to a **test OBS scene** via Browser Source
+   (Studio Mode, no stream restart) — needs the human at OBS on TunaStarlink.
 2. **Backend relay + SSE.** In `cso-operator-app`: `POST /api/overlay/relay`, the anon-IRC relay
    worker (one socket, target-swappable, defaults to @tunastarlink), `PublishKafka` to
    `overlay_chat_relay`, and SSE `/api/overlay/chat/stream`. **Read that repo's own `CLAUDE.md`
