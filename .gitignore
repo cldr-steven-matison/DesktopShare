@@ -35,3 +35,9 @@ __pycache__/
 # at (files/issue-226/kb/) ARE committed; the registration command is in
 # CLAUDE-CHECKIN.md's NvidiaSpark-1 block for any device that stands up its own KB.
 /.mcp.json
+# petru-now-playing-hack: the three 8 MB binaries stay local. The golden flash
+# backup is precious but too big for a docs repo (second copies in ~/petru/ and
+# C:\Users\tunas\); the two XIAO *.merged.bin images rebuild from the .ino with
+# one arduino-cli compile. The 318 KB app0 images and everything else are tracked.
+/files/petru-now-playing-hack/petru_backup_ORIGINAL_2026-09-06.bin
+/files/petru-now-playing-hack/**/*.merged.bin
