@@ -147,6 +147,12 @@ OBS Browser Source:
 
 Ship static HTML first (parity with Phase 0), then add motion.
 
+> **First real Phase 2 content — left-side chat column + `!c overlay` relay:** the colorful
+> left-edge chat overlay (default @tunastarlink's own chat, `!c overlay <streamer>` relays another
+> channel, with flood handling) is speced in
+> [`twitch-overlay-chat-relay-plan.md`](twitch-overlay-chat-relay-plan.md). It lives in this same
+> `overlay.html` Browser Source.
+
 ---
 
 ## Phase 3 — motion (no talking yet)
