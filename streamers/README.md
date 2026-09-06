@@ -325,11 +325,8 @@ ones specific to this system.
 
 ## What's next
 
-- **Streamer Knowledge Card go-live (#281).** The Spark door and `PostToX` are built; the app's
-  Streamers KB tab is authored and waits on a WindowsDesktop deploy plus `BRAIN_CARD_URL`. The
-  Twitch half of the KB research and the first real card post wait on the Twitch app id/secret
-  and the X keys landing in `~/.env` on spark-dd06. K4 accretion (the brain updating a profile
-  after a clip) is still the open KB step.
+- **Streamer Knowledge Card is live (#281, 2026-09-06)** — tab deployed, first card posted from it
+  (extraemily). Open KB step: K4 accretion (the brain updating a profile after a clip).
 - **NiFi-native refactor** of fetch/process/publish. Designed in detail, largely unbuilt.
   `XLivePostProcessor` proves the text-post half; extending it to chunked media upload is the
   remaining piece. Recommended order is publish → process → fetch. `ClipOverlayProcessor` is
