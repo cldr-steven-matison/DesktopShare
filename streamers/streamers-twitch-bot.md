@@ -373,9 +373,13 @@ live mode a streamer is only recorded after `POST /chat` returns `is_sent`, and 
 in state after a real refresh grant, so the state alone proves the post went out. Announcer in=2 /
 out=2, nothing queued, no error bulletins. (Provenance attributes weren't readable — the operator
 cert identity `files/racing/nifi-api.sh` runs as has no provenance permission.) The PG was left
-**RUNNING with `Dry Run = false`** — the next `!load kick:<slug>` announces for real. `bbjess` and
-`tunastreettest` are already in the dedup set from the tests; remove them from the processor's
-component state if either should get an announcement later.
+**RUNNING with `Dry Run = false`**. The test entries were then cleared (stop → `POST
+/processors/{id}/state/clear-requests` → start; NiFi can only clear a processor's *whole* state, which
+also drops the persisted rotated token — the processor re-seeds from the parameter, and Kick accepted
+the original grant token after a rotation, so the token family stays valid) and **a real `!load
+kick:bbjess` from chat announced into bbjess's Kick channel**: state `announced: ["bbjess"]` + a fresh
+rotated token, in=1/out=1, no bulletins. Deploy source: `streamers/nifi-processors/` (git-tracked
+since `2900e87`; `~/nifi-custom-processors` is a symlink to it).
 
 **Skipped by design:** Kick's `type: "bot"` post mode only writes into the *app owner's* own channel,
 so it is useless here; `type: "user"` as the bot account is the only way into a streamer's channel.
