@@ -1,11 +1,11 @@
 # Twitch overlay — left-side colorful chat + `!c overlay` relay (@tunastarlink) (plan)
 
-**Status (2026-09-06):** Phases 1–3 built & deployed to prod (`cso-prod-1`). Backend relay +
-SSE + Kafka live and verified end-to-end; the `!chat` / `!c overlay` command shipped in
-`TwitchChatListenerProcessor` v0.0.29 and the `overlay_relay` flow branch is wired and running.
-**Phase 4 remaining** is the two human-in-the-loop steps: a mod typing `!chat <streamer>` in
-@tunastarlink's chat, and adding `overlay.html` as an OBS Browser Source. See the build record at
-the bottom.
+**Status (2026-09-07):** ✅ **Live end-to-end.** Phases 1–4 complete. Backend relay + SSE + Kafka on
+prod (`cso-prod-1`); the `!chat` / `!c overlay` command shipped in `TwitchChatListenerProcessor`
+v0.0.29 with the `overlay_relay` flow branch; and the overlay is showing real relayed chat in OBS on
+StarlinkAI as a Browser Source. Verified: a real `!chat xqc` in @tunastarlink chat flowed all the way
+to the left-side column. Only v2 polish (sampling/priority tiers, CSS motion, the mistaken-target
+self-correct guard) remains. See the build record at the bottom.
 This is the golden-source spec for a new
 overlay feature on **StarlinkAI** (`TunaStarlink` Beelink): a vertical strip of colorful chat text
 pinned to the **left edge** of the @tunastarlink OBS canvas, plus a `!chat` / `!c overlay
@@ -151,9 +151,17 @@ subs/mods-always-shown priority tiers.
    Failure/No-Retry→Log) in the `ChatTriggers` child PG — mirrors the existing chat-trigger dispatch.
    **Rebased onto the live 0.0.28 source** (the local copy was 5 versions stale — lacked the gif/roster
    feature set); bundle-only partial PUT preserved the sensitive Twitch creds (Constraint 2).
-4. **Live test (remaining — human).** A mod types `!chat <streamer>` in @tunastarlink chat → column
-   relays that channel; `!c overlay off` → back to own chat. Then add `overlay.html` as an OBS Browser
-   Source on TunaStarlink. Then optional CSS motion, matching the Phase 3 style in the sibling doc.
+4. **Live test.** ✅ **Done 2026-09-07.** A real `!chat xqc` in @tunastarlink chat relayed that
+   channel to the left column; `!chat me` → back to own chat. `overlay.html` added as an OBS Browser
+   Source on StarlinkAI (URL below). Optional CSS motion (Phase 3 style in the sibling doc) is v2.
+
+   **OBS Browser Source (StarlinkAI):** uncheck "Local file", 1920×1080, URL =
+   `file:///<path>/overlays/tunastarlink/overlay.html?endpoint=http://100.68.113.126:8090/api/overlay/chat/stream`.
+   The `?endpoint=` overrides the overlay's default relative SSE path (unresolvable from a `file://`
+   origin) with WindowsDesktop's **Tailscale** IP — StarlinkAI reaches the backend over the tailnet,
+   **not** the LAN (both hosts sit on unrelated `192.168.1.x` networks). Requires the cso-operator-app
+   `:8090` port-forward (zellij `kube-service-ports-efm.kdl`, bound to `.121`+`.126`) and a Windows
+   inbound firewall allow for 8090.
 
 ---
 
