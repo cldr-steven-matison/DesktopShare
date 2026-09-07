@@ -113,6 +113,10 @@
   }
   .sep { color: rgba(238,244,255,0.55); font-weight: 700; margin: 0 5px 0 1px; }
   .text { color: var(--ink); }
+  .text .emote {
+    height: 1.3em; width: auto; vertical-align: -0.32em; margin: 0 0.06em;
+    image-rendering: auto;
+  }
   .xn {
     display: inline-block;
     margin-left: 7px;
@@ -284,6 +288,25 @@
     render(item.msg, item.count, item.key);
   }
 
+  // Emotes (#311): the relay sends `segments` — text runs plus emote images
+  // resolved server-side (Twitch `emotes=` tag, Kick `[emote:id:name]`). Render
+  // them inline; fall back to the plain text when a message has none.
+  function textHtml(msg) {
+    var segs = msg && msg.segments;
+    if (!Array.isArray(segs) || segs.length === 0) return esc(msg.text);
+    var out = '';
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      if (s && s.t === 'em' && /^https:\/\/(static-cdn\.jtvnw\.net|files\.kick\.com)\//.test(s.url || '')) {
+        out += '<img class="emote" src="' + esc(s.url) + '" alt="' + esc(s.v) +
+               '" title="' + esc(s.v) + '" loading="eager" decoding="async">';
+      } else {
+        out += esc(s && s.v != null ? s.v : '');
+      }
+    }
+    return out;
+  }
+
   function render(msg, count, key) {
     var line = document.createElement('div');
     line.className = 'line';
@@ -301,7 +324,7 @@
       badgeHtml +
       '<span class="name">' + esc(msg.user || 'anon') + '</span>' +
       '<span class="sep">:</span>' +
-      '<span class="text">' + esc(msg.text) + '</span>' + xn;
+      '<span class="text">' + textHtml(msg) + '</span>' + xn;
     line.dataset.count = String(count || 1);
 
     chatEl.appendChild(line);
