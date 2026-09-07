@@ -273,7 +273,12 @@ question on #307.
 Default message (a Parameter-editable processor property, `Announcement Message`, with `{streamer}`
 and `{screen}` placeholders):
 
-> 🐟 @{streamer} is now LIVE on screen {screen} of the TunaStreet wall 🎬 twitch.tv/tunastarlink
+> 🐟 @{streamer} is now LIVE on screen {screen} of the TunaStreet wall 🎬
+
+(The `twitch.tv/tunastarlink` link was dropped from the live property 2026-09-07 — #311 — by a
+stop → partial PUT of that one property → start; the `#{…}` secret refs were not sent and are
+still referenced. `files/OnScreenAnnouncer.json` re-exported to match. The processor `.py`'s
+built-in default still carries the link; the live value wins and survives a bundle bump.)
 
 **Architecture — new isolated PG, no watchlist/top-streamer processor touched:**
 - New custom processor `OnScreenAnnouncerProcessor` (`0.0.1-SNAPSHOT`), a standalone copy of
