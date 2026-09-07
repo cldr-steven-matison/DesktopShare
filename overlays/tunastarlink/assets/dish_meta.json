@@ -1,0 +1,16 @@
+{
+  "name": "dish",
+  "run_id": "overlay_dish_20260727_213615",
+  "model": "grok-imagine-image",
+  "prompt": "Game UI overlay icon asset. Square composition. Single subject only, centered with generous padding. Clean tech silhouette readable at 200px. White / light gray metal, dark gray panels, subtle cyan neon edge light. No text, no logos, no watermarks, no Starlink wordmark, no brand marks. Isolated on solid pure chroma-key green background #00FF00. No shadows on the background. No ground plane. No stars or space scene. Flat even lighting. Sharp edges, not photoreal blur. Subject: Starlink-style user terminal satellite dish / circular phased-array antenna on a short sturdy mount and base. Dish face angled slightly up and to the right (toward frame center when placed bottom-left). Clean industrial tech, compact iconic silhouette.",
+  "raw": "/home/tunas/DesktopShare/overlays/tunastarlink/assets/dish_raw.png",
+  "out": "/home/tunas/DesktopShare/overlays/tunastarlink/assets/dish.png",
+  "master_px": 512,
+  "stats": {
+    "model": "grok-imagine-image",
+    "egress_bytes": 67552,
+    "source": "url",
+    "image_url": "https://imgen.x.ai/xai-imgen/xai-tmp-imgen-0307af62-ff20-9847-908b-f93a442ce583-0b7b80c5.jpeg"
+  },
+  "generated_at": "2026-07-27T21:36:22.545892+00:00"
+}
