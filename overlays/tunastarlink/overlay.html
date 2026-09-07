@@ -289,15 +289,16 @@
   }
 
   // Emotes (#311): the relay sends `segments` — text runs plus emote images
-  // resolved server-side (Twitch `emotes=` tag, Kick `[emote:id:name]`). Render
-  // them inline; fall back to the plain text when a message has none.
+  // resolved server-side (Twitch `emotes=` tag + BTTV/FFZ/7TV name match, Kick
+  // `[emote:id:name]`). Render them inline; fall back to plain text when none.
+  var EMOTE_HOSTS = /^https:\/\/(static-cdn\.jtvnw\.net|files\.kick\.com|cdn\.betterttv\.net|cdn\.frankerfacez\.com|cdn\.7tv\.app)\//;
   function textHtml(msg) {
     var segs = msg && msg.segments;
     if (!Array.isArray(segs) || segs.length === 0) return esc(msg.text);
     var out = '';
     for (var i = 0; i < segs.length; i++) {
       var s = segs[i];
-      if (s && s.t === 'em' && /^https:\/\/(static-cdn\.jtvnw\.net|files\.kick\.com)\//.test(s.url || '')) {
+      if (s && s.t === 'em' && EMOTE_HOSTS.test(s.url || '')) {
         out += '<img class="emote" src="' + esc(s.url) + '" alt="' + esc(s.v) +
                '" title="' + esc(s.v) + '" loading="eager" decoding="async">';
       } else {
