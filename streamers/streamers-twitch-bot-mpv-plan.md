@@ -2,6 +2,44 @@
 
 This replaces the current kill-Chrome/relaunch-Chrome cycle used by both screens with a persistent `mpv` player controlled over its IPC socket. Written up before starting so there's a clear reference when it gets picked up.
 
+## Status as of 2026-09-07: StarlinkAI mpv plays logged in as `@tunastreettest` (#309)
+
+The "logged-out ad experience" question from the tradeoffs section at the bottom is answered
+for StarlinkAI's two screens: yt-dlp *can* carry a logged-in session, and now does.
+
+- **Mechanism:** `starlinkai_screen_control.py` launches mpv with
+  `--ytdl-raw-options-append=cookies=C:\minifi-manual\twitch-cookies.txt` whenever that file
+  exists (`COOKIES_PATH`). yt-dlp sends the jar's `auth-token` on Twitch's playback-token
+  request, so the stream is served to the account, not to an anonymous viewer. File absent →
+  logged-out playback, as before.
+- **The file is a credential.** Netscape `cookies.txt` holding `@tunastreettest`'s twitch.tv
+  web session — lives only on the box, never in the repo. The account is mpv-only; it is not
+  logged into any browser profile on this device.
+- **Persistent-player catch:** the flag is read at mpv launch, and mpv never exits between
+  loads. `ensure_mpv_running` therefore compares the live mpv's command line against the
+  file's presence and **relaunches on the next load** if they disagree — otherwise dropping the
+  file in would have changed nothing until a reboot.
+- **Getting the cookie.** `--cookies-from-browser edge` fails on this box (`Could not copy
+  Chrome cookie database`, yt-dlp #7271), and an InPrivate login leaves nothing on disk. What
+  worked: launch a dedicated Edge profile with a DevTools port
+  (`msedge.exe --user-data-dir=C:\minifi-manual\edge-tunastreettest --remote-debugging-port=9222
+  https://www.twitch.tv/login`), log in as the account, then read the jar over CDP
+  (`Storage.getCookies` on the browser target's `webSocketDebuggerUrl`) — the browser hands
+  cookies back decrypted, sidestepping App-Bound Encryption entirely. Close the window
+  afterwards (the debug port is open to localhost); never click Log Out, which revokes the
+  token. The profile dir keeps the session for re-extraction. The token validated as
+  `login=tunastreettest`, `client_id=kimne78kx3ncx6brgo4mv6wki5h1ko` (Twitch's own web
+  client — a token from the bot's *own* dev app would not authenticate playback),
+  `expires_in=0`; the cookie itself expires Oct 2027.
+- **Verified:** Twitch's `PlaybackAccessToken` for a live channel returns
+  `user_id: 1516904643` with the session and `user_id: null` without. Both screens were
+  relaunched through the real `mpv-load` entry point and came back `cookies=True`, Session 1,
+  `playing: true`. The same token also reported `turbo: false, subscriber: false` for that
+  channel — the login is proven; whether a given channel plays ad-free is whatever Twitch
+  grants that account.
+- Not done for the other launchers (`windows_screen_control.py`, `mpv_stream_launcher_linux.py`)
+  — same one-line flag if wanted, separate device issues.
+
 ## Status as of 2026-08-02: NvidiaNano (`screen1`) migrated — all four screens now on mpv, and this is what fixed `!load kick:<slug> screen1`
 
 `!load kick:<slug> screen1` never worked. Twitch on the same screen was fine.
