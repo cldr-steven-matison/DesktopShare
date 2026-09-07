@@ -256,6 +256,57 @@ Still auto-terminated and *not* addressed by #204, deliberately: `SplitTopStream
 `ExtractStreamerAttr`'s `unmatched`. Same general class, but neither is what made the discovery
 branch unsafe to start.
 
+## 16. On-Screen Announcer (as-built, live 2026-09-07, #307)
+
+**What it does:** when a streamer is loaded on a screen via `!load`, the watchlist bot
+(`@tunastreettest`) posts a one-time announcement into *that streamer's own* Twitch channel naming
+the screen they went up on — a growth play aimed at the loaded streamer's community. Confirmed live
+2026-09-07 by a real `!load` on screen1: the loaded streamer landed in the announcer's durable
+`announced` state set and the message posted to their channel, zero error bulletins.
+
+Default message (a Parameter-editable processor property, `Announcement Message`, with `{streamer}`
+and `{screen}` placeholders):
+
+> 🐟 @{streamer} is now LIVE on screen {screen} of the TunaStreet wall 🎬 twitch.tv/tunastarlink
+
+**Architecture — new isolated PG, no watchlist/top-streamer processor touched:**
+- New custom processor `OnScreenAnnouncerProcessor` (`0.0.1-SNAPSHOT`), a standalone copy of
+  `WatchlistChatJoinerProcessor`'s proven persistent-IRC + token-refresh + component-state machinery
+  (deliberately a separate class, not a mode flag on the shared processor, so the two live joiner
+  instances are untouched — skill rule 4/8). Differences from the joiner: the message is a template
+  with `{streamer}`/`{screen}`; the screen number is pulled from the `screen` attribute (`screen1`
+  → `1`); `kick:` logins are skipped (no Twitch channel to post into); and dedup is **durable** —
+  the announced-streamer set is persisted to component state (`Scope.LOCAL`, key `announced`) so a
+  streamer is announced **at most once ever, surviving a restart / bundle bump** (per the #307 ask
+  "never again on repeat"). The dead-token reseed path removes only the `refresh_token` state key,
+  never `clear(Scope.LOCAL)`, so it can't wipe the dedup set and trigger a re-announce wave.
+- Own isolated PG `OnScreenAnnouncer` (root child, id `7c9cd3cd-…`): `LoadSuccessInput` (input port)
+  → `OnScreenAnnouncer` → `LogAnnounce` (`success`+`failure`, info). Bound to the
+  `twitch-chat-bot-creds` Parameter Context. **Reuses the watchlist bot's app** — Client ID
+  `0e8hl6…`, `Client Secret` → `#{twitch-chat2-client-secret}`, `Refresh Token` →
+  `#{twitch-watchlist-bot-refresh-token}` — so no new Twitch app / device-code grant was needed
+  (safe because Twitch does not rotate these apps' refresh tokens, §14; each instance keeps its own
+  per-instance component state regardless). This is a third simultaneous IRC connection as
+  `tunastreettest`, alongside the watchlist and top-streamer bots — Twitch allows it.
+- **Tap into the live `TwitchChatBot` PG (additive only):** a new `LoadSuccessOutput` output port,
+  fed by a **second** connection off each of the four load `Invoke*` processors' `Original`
+  relationship (the same relationship that already feeds `TwitchChatReplyProcessor` — existing wiring
+  untouched, so the chat ack still fires; NiFi clones the FlowFile to both). `LoadSuccessOutput` →
+  `OnScreenAnnouncer`'s `LoadSuccessInput` at root. The four taps went on without stopping the
+  running Invokes (the relationship was already connected, so no auto-terminate change). Only the four
+  **`!load`** screens are tapped — the `matrix-*` Invokes are not, since `!matrix` has no streamer.
+- **Offline cover:** `files/test_on_screen_announcer.py` (25 assertions — screen-number extraction,
+  first-announce records + renders, dedup never-again, durability across a simulated restart, Kick
+  skip, missing-streamer failure, message rendering).
+- **Exports:** `files/OnScreenAnnouncer.json` (new PG) and a refreshed `files/TwitchChatBot.json`
+  (now carrying the output port + four taps). Sensitive props verified as `#{…}` param refs in both.
+
+**Deploy note:** the processor `.py` was `kubectl cp`'d to `mynifi-0` and the isolated PG built via
+the NiFi REST API through the `nifi-ui-proxy` (identity `nifi-admin`, no token). The writes that
+*modify the live `TwitchChatBot` PG* (output port aside, the tap/root connections and the Dry-Run
+flip) were run by Steven via the shell `!` prefix — the session's auto-mode classifier blocks the
+assistant's own Bash calls that mutate the live prod command PG, which is the intended guardrail.
+
 ## TODO / To Review
 
 Ideas raised but not settled or not yet built:
