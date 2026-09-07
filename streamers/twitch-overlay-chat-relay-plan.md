@@ -188,12 +188,13 @@ subs/mods-always-shown priority tiers.
 ## Out of scope (v1)
 
 - Sampling + sub/mod priority tiers (v2).
-- Kick relay (`kick:` channels) — the ingestion pattern exists (`streamer-kick-bot.md`) but v1 is
-  **Twitch-only**. ⚠️ `!chat k:<name>` / `!chat kick:<name>` **silently fails to switch the relay**
-  (verified 2026-09-07): unlike the `clip`/`watchlist` triggers, the `!chat` parser does **not**
-  expand `k:`→`kick:` — it only lstrips `@` and lowercases, so the literal `k:<name>` is handed to
-  the backend's anonymous *Twitch* IRC socket, which can't join it and leaves the target unchanged.
-  Kick relay is a **v2** item (WindowsDesktop).
+- ~~Kick relay (`kick:` channels)~~ — **✅ shipped in V2 (#306, deployed 2026-09-07).** `!chat
+  k:<slug>` / `!chat kick:<slug>` (and the `!c overlay` long form) now relay a Kick channel. The
+  fix was **backend-only**: `overlay_relay.normalize_target` expands `k:`→`kick:` and the relay
+  worker runs a Kick Pusher WS (`chatrooms.{id}.v2`, answering `pusher:ping`, parsing
+  `ChatMessageEvent`) instead of the Twitch IRC socket when the target is a `kick:` one — the `!chat`
+  parser still passes the target verbatim, so no NiFi processor/flow change was needed. Verified live
+  against a 63k-viewer Kick channel. Details in `cso-operator-app` `services/overlay_relay.py`.
 - Any viewer (non-mod) being able to switch the relay.
 - Alert boxes / sub goals / mascot — those belong to the sibling overlay doc's later phases.
 
