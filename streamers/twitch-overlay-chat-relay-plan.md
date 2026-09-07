@@ -1,6 +1,11 @@
 # Twitch overlay — left-side colorful chat + `!c overlay` relay (@tunastarlink) (plan)
 
-**Status (2026-09-06):** Phase 1 built (overlay HTML, static-readable-first) — Phases 2–4 pending.
+**Status (2026-09-06):** Phases 1–3 built & deployed to prod (`cso-prod-1`). Backend relay +
+SSE + Kafka live and verified end-to-end; the `!chat` / `!c overlay` command shipped in
+`TwitchChatListenerProcessor` v0.0.29 and the `overlay_relay` flow branch is wired and running.
+**Phase 4 remaining** is the two human-in-the-loop steps: a mod typing `!chat <streamer>` in
+@tunastarlink's chat, and adding `overlay.html` as an OBS Browser Source. See the build record at
+the bottom.
 This is the golden-source spec for a new
 overlay feature on **StarlinkAI** (`TunaStarlink` Beelink): a vertical strip of colorful chat text
 pinned to the **left edge** of the @tunastarlink OBS canvas, plus a `!chat` / `!c overlay
@@ -132,19 +137,40 @@ subs/mods-always-shown priority tiers.
    backend** — open with `?sim=1` (or `?sim=40` for a flood test); it also auto-falls-back to the demo
    feed if SSE is unreachable. **Still to do here:** add to a **test OBS scene** via Browser Source
    (Studio Mode, no stream restart) — needs the human at OBS on TunaStarlink.
-2. **Backend relay + SSE.** In `cso-operator-app`: `POST /api/overlay/relay`, the anon-IRC relay
-   worker (one socket, target-swappable, defaults to @tunastarlink), `PublishKafka` to
-   `overlay_chat_relay`, and SSE `/api/overlay/chat/stream`. **Read that repo's own `CLAUDE.md`
-   first.** Create the `overlay_chat_relay` Kafka topic (short retention, mirror
-   `twitch_chat_activity` conventions).
-3. **Listener command.** Add `!chat` / `!c overlay <streamer|off|me>` to
-   `TwitchChatListenerProcessor` (`nifi-custom-processors`), broadcaster/mod-gated, InvokeHTTP to
-   `/api/overlay/relay`. Update `!commands`/`!help` output. **Bundle-version bump via UI or
-   narrow-scope endpoint only** (Constraint 2). Add/extend offline tests
-   (`files/test_twitch_chat_triggers.py`).
-4. **Live test.** `!c overlay <streamer>` in @tunastarlink chat → column relays that channel,
-   colored and readable, dropping cleanly under load with the msg/s badge; `!c overlay off` → back
-   to own chat. Then optional CSS motion, matching the Phase 3 style in the sibling overlay doc.
+2. **Backend relay + SSE.** ✅ **Deployed 2026-09-06.** In `cso-operator-app`:
+   `backend/services/overlay_relay.py` (one anon `justinfan` IRC socket, target-swappable, defaults
+   to @tunastarlink, reconnect w/ backoff) + `backend/routers/overlay.py` (`POST /api/overlay/relay`,
+   `GET /api/overlay/relay`, SSE `GET /api/overlay/chat/stream`), wired into `main.py` lifespan under
+   the `streamers` module. Each PRIVMSG → Kafka `overlay_chat_relay` + SSE. Topic auto-creates on the
+   Strimzi cluster (short retention is a Surveyor op). Verified live: swap → SSE delivers real relayed
+   chat, Kafka topic receiving, `off`/`me` → own chat.
+3. **Listener command.** ✅ **Deployed 2026-09-06** as `TwitchChatListenerProcessor` **v0.0.29**.
+   `!chat <streamer|off|me>` (+ `!c overlay <…>` long form), broadcaster/mod-gated, emits an
+   `overlay_relay` FlowFile. Flow branch: `RouteChatAction` gained an `overlay_relay` route (keyed on
+   the promoted `command` attr) → new `InvokeOverlayRelay` (POST `/api/overlay/relay`, Retry self-loop,
+   Failure/No-Retry→Log) in the `ChatTriggers` child PG — mirrors the existing chat-trigger dispatch.
+   **Rebased onto the live 0.0.28 source** (the local copy was 5 versions stale — lacked the gif/roster
+   feature set); bundle-only partial PUT preserved the sensitive Twitch creds (Constraint 2).
+4. **Live test (remaining — human).** A mod types `!chat <streamer>` in @tunastarlink chat → column
+   relays that channel; `!c overlay off` → back to own chat. Then add `overlay.html` as an OBS Browser
+   Source on TunaStarlink. Then optional CSS motion, matching the Phase 3 style in the sibling doc.
+
+---
+
+## Build record — 2026-09-06 (WindowsDesktop / cso-prod-1)
+
+- **Backend** deployed via `MODULES=rag,streamers,efm bash scripts/deploy.sh` (the running pod's real
+  MODULES — a bare `MODULES=streamers` would have dropped rag+efm). One pod `Running`, creds intact.
+- **NiFi flow** built via REST on `mynifi-0` (cfm-streaming): `InvokeOverlayRelay`
+  (`78d02d5b-…`) + `overlay_relay` route on `RouteChatAction` (`238b5cf0-…`) in `ChatTriggers`
+  (`5aa71641-…`). Processor version switch: cp 0.0.29 → registered → stop → bundle-only PUT → start,
+  VALID.
+- **Verification:** backend relay/SSE/Kafka proven against a live busy channel; processor `!chat`/`!c
+  overlay` parse validated in isolation against the rebased 0.0.29 module.
+- **Not yet done:** re-export `flows/TwitchChatBot.json` (the ChatTriggers PG changed); update
+  `streamers-twitch-bot.md` §3 command list + `!commands` reply; the two Phase-4 human steps. The
+  committed `files/test_twitch_chat_triggers.py` is stale vs deployed 0.0.28 (pre-existing #174/gif
+  drift) — overlay tests added but the unrelated expectations were left for a separate sync.
 
 ---
 

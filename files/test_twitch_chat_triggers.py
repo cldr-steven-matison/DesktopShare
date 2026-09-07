@@ -124,6 +124,7 @@ def build_listener(clock, **overrides):
     p._command_prefix = "!load"
     p._matrix_command = "!matrix"
     p._watchlist_command = "!watchlist"
+    p._overlay_command = overrides.get("overlay_command", "!chat")
     p._cooldown_seconds = overrides.get("cooldown_seconds", 10.0)
     p._watchlist_trigger = overrides.get("watchlist_trigger", "tuna tuna tuna")
     p._clip_trigger_enabled = overrides.get("clip_trigger_enabled", True)
@@ -850,6 +851,87 @@ R.check(
     "the IRC thread never calls setState directly",
     "self._state_manager.setState" not in _src.split("def _flush_pending_token_write")[0],
 )
+
+
+section("8. Overlay chat relay command (!chat / !c overlay) (#300)")
+
+
+def priv_line(msg, mod=True):
+    """A PRIVMSG line with (or without) a moderator badge, for _handle_line."""
+    badges = "moderator/1" if mod else ""
+    return f"@badges={badges};display-name=U :u!u@u.tmi.twitch.tv PRIVMSG #chan :{msg}"
+
+
+# !chat form: mod repoints to another channel
+clock = Clock()
+p = build_listener(clock)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_line(sock, priv_line("!chat xqc", mod=True), "chan")
+    items = drain(p)
+    R.eq("!chat: mod enqueues one overlay_relay item", len(items), 1)
+    R.eq("  command", items[0]["command"], "overlay_relay")
+    R.eq("  channel passed through", items[0]["channel"], "xqc")
+    R.eq("  requested_by", items[0]["requested_by"], "u")
+    R.eq("  no chat reply (silent swap)", len(sock.sent), 0)
+
+# !chat off / me pass through verbatim (backend normalizes to own chat)
+clock = Clock()
+p = build_listener(clock)
+with patched(p, clock):
+    p._handle_line(Recorder(), priv_line("!chat off", mod=True), "chan")
+    p._handle_line(Recorder(), priv_line("!chat me", mod=True), "chan")
+    items = drain(p)
+    R.eq("!chat off/me both enqueue", len(items), 2)
+    R.eq("  off channel", items[0]["channel"], "off")
+    R.eq("  me channel", items[1]["channel"], "me")
+
+# @ and case stripped/normalized on the target
+clock = Clock()
+p = build_listener(clock)
+with patched(p, clock):
+    p._handle_line(Recorder(), priv_line("!chat @XQC", mod=True), "chan")
+    items = drain(p)
+    R.eq("target lstrips @ and lowercases", items[0]["channel"], "xqc")
+
+# non-mod is silently ignored
+clock = Clock()
+p = build_listener(clock)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_line(sock, priv_line("!chat xqc", mod=False), "chan")
+    R.eq("!chat: non-mod enqueues nothing", len(drain(p)), 0)
+    R.eq("!chat: non-mod is silent", len(sock.sent), 0)
+
+# bare "!chat" with no argument does nothing
+clock = Clock()
+p = build_listener(clock)
+with patched(p, clock):
+    p._handle_line(Recorder(), priv_line("!chat", mod=True), "chan")
+    R.eq("bare !chat (no arg) enqueues nothing", len(drain(p)), 0)
+
+# "!c overlay <arg>" long form
+clock = Clock()
+p = build_listener(clock)
+with patched(p, clock):
+    p._handle_line(Recorder(), priv_line("!c overlay pokimane", mod=True), "chan")
+    items = drain(p)
+    R.eq("!c overlay: mod enqueues one item", len(items), 1)
+    R.eq("  channel", items[0]["channel"], "pokimane")
+
+# "!c" without the "overlay" subword must not trigger it
+clock = Clock()
+p = build_listener(clock)
+with patched(p, clock):
+    p._handle_line(Recorder(), priv_line("!c xqc", mod=True), "chan")
+    R.eq("!c without 'overlay' subword is ignored", len(drain(p)), 0)
+    p._handle_line(Recorder(), priv_line("!c overlay", mod=True), "chan")
+    R.eq("!c overlay with no target is ignored", len(drain(p)), 0)
+
+# the !commands help lists the overlay command (_src read in section 7)
+R.check("!commands help mentions the overlay command",
+        "self._overlay_command} <streamer|off|me>" in _src,
+        "overlay command missing from help")
 
 
 # --- summary --------------------------------------------------------------------
