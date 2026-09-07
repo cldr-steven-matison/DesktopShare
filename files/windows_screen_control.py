@@ -176,8 +176,45 @@ def kill_matrix_for_screen(screen):
         subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True)
 
 
+def _reap_windowless_mpv(screen):
+    """Kill any mpv bound to this screen's pipe that has NO visible window
+    (MainWindowHandle == 0), before mpv_is_running can reuse it.
+
+    A windowless mpv still answers IPC, so mpv_is_running() would treat it as
+    live and every stream would load into a hidden window — the exact
+    Session-0/LocalSystem leftover that silently broke screen2 (a service runs
+    in Session 0, which has no interactive desktop, so its window handle never
+    becomes non-zero). If the kill fails it is SYSTEM-owned and unkillable from
+    this Session-1 user — raise so the caller surfaces it instead of loading
+    into nothing."""
+    cfg = SCREENS[screen]
+    marker = cfg["pipe"].split("\\")[-1]  # e.g. "mpv-screen2" — unique per screen
+    ps_script = (
+        "Get-CimInstance Win32_Process -Filter \"Name='mpv.exe'\" | "
+        f"Where-Object {{ $_.CommandLine -like '*{marker}*' }} | "
+        "ForEach-Object { $p = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue; "
+        "if ($p -and $p.MainWindowHandle -eq 0) { $_.ProcessId } }"
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", ps_script],
+        capture_output=True, text=True, timeout=15,
+    )
+    for pid in [int(x) for x in (result.stdout or "").split() if x.strip().isdigit()]:
+        kill = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True, text=True)
+        if kill.returncode != 0:
+            raise RuntimeError(
+                f"windowless mpv {pid} holds {cfg['pipe']} and could not be killed "
+                f"({(kill.stderr or kill.stdout).strip()}); it is almost certainly a "
+                f"Session-0/LocalSystem leftover — kill it with an elevated "
+                f"'taskkill /F /PID {pid}' and retry")
+        _log(f"{screen}: reaped windowless mpv {pid} (Session-0 leftover)")
+
+
 def ensure_mpv_running(screen):
     cfg = SCREENS[screen]
+    # Guard: never reuse or launch behind a windowless mpv on this pipe.
+    _reap_windowless_mpv(screen)
     pid = mpv_is_running(screen)
     if pid:
         _show_window(pid, SW_RESTORE)

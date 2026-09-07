@@ -115,12 +115,63 @@ def build_url(streamer):
     return f"https://www.twitch.tv/{streamer}"
 
 
+def _windowless_mpv_pids(pipe_marker):
+    """PIDs of mpv processes bound to this screen's pipe that have NO visible
+    window (MainWindowHandle == 0).
+
+    A windowless mpv still answers IPC and still owns the pipe name, so it gets
+    treated as "already running" and every stream loads into nothing — and a
+    second mpv launched onto the same pipe name behind it collides. This is
+    exactly what silently broke screen2 for 8 days: an mpv launched by the
+    LocalSystem "Apache NiFi MiNiFi" service runs in Session 0, which has no
+    interactive desktop, so its window handle never becomes non-zero. Detected
+    here by (pipe cmdline) + (MainWindowHandle == 0) so it is reaped or
+    surfaced, never reused."""
+    ps_script = (
+        "Get-CimInstance Win32_Process -Filter \"Name='mpv.exe'\" | "
+        f"Where-Object {{ $_.CommandLine -like '*{pipe_marker}*' }} | "
+        "ForEach-Object { $p = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue; "
+        "if ($p -and $p.MainWindowHandle -eq 0) { $_.ProcessId } }"
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", ps_script],
+        capture_output=True, text=True, timeout=15,
+    )
+    return [int(x) for x in (result.stdout or "").split() if x.strip().isdigit()]
+
+
+def _reap_windowless_mpv(screen):
+    """Kill any windowless mpv holding this screen's pipe before we reuse or
+    relaunch. If the kill fails it is almost certainly a Session-0/LocalSystem
+    leftover (SYSTEM-owned, not killable by this Session-1 user) — raise a
+    diagnostic so /load returns it instead of silently loading into a hidden
+    window."""
+    cfg = SCREENS[screen]
+    marker = cfg["pipe"].split("\\")[-1]  # e.g. "mpv-screen2" — unique per screen
+    for pid in _windowless_mpv_pids(marker):
+        result = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"windowless mpv {pid} holds {cfg['pipe']} and could not be killed "
+                f"({(result.stderr or result.stdout).strip()}); it is almost certainly "
+                f"a Session-0/LocalSystem leftover — kill it with an elevated "
+                f"'taskkill /F /PID {pid}' and retry")
+        _running.pop(screen, None)
+        _debug_log(f"{screen}: reaped windowless mpv {pid} (Session-0 leftover)")
+
+
 def ensure_mpv_running(screen):
     """Lazy-start: launch once per screen, left running --idle forever after.
     Always restores fullscreen/un-minimizes on the way out, even for an
     already-running process — /stop (see below) minimizes the window rather
     than killing it, so a later /load on the same screen must un-minimize it
     again or the stream would load invisibly behind everything."""
+    # Guard: never reuse or launch behind a windowless mpv on this pipe. A
+    # /stop minimizes the window (handle stays non-zero), so a legitimately
+    # running mpv is untouched here; only a genuinely windowless one is reaped.
+    _reap_windowless_mpv(screen)
+
     pid = _running.get(screen)
     if pid is not None:
         # Confirm it's still alive; a crashed mpv leaves a stale pid.
