@@ -5,14 +5,21 @@
     streamers/twitch-overlay-chat-relay-plan.md
     streamers/twitch-overlay-tunastarlink-plan.md (Phase 2 slot / OBS rules)
 
-  Browser Source setup (OBS):
-    - Local file  -> this overlay.html (Windows-visible path, e.g.
-        \\wsl.localhost\Ubuntu\home\tunas\DesktopShare\overlays\tunastarlink\overlay.html)
+  Browser Source setup (OBS on the Beelink / Windows side):
+    - Local file  -> this overlay.html (Windows-visible WSL path):
+        \\wsl.localhost\Ubuntu\home\tunas\Brainshare\overlays\tunastarlink\overlay.html
     - Width/Height = canvas (1920x1080)
     - Custom CSS: body { background-color: rgba(0,0,0,0); margin: 0; overflow: hidden; }
     - Edit file -> right-click source -> Refresh (never restart OBS/stream)
 
-  Data source: SSE  GET /api/overlay/chat/stream  (cso-operator-app, Phase 2 — not built yet).
+  IMPORTANT (local-file load): a file:// page has no origin, so the DEFAULT relative
+  endpoint /api/overlay/chat/stream will NOT reach the backend. For the live stream the
+  Browser Source URL MUST carry an ABSOLUTE endpoint, e.g.:
+      ...\overlay.html?endpoint=http://HOST:PORT/api/overlay/chat/stream
+  (fill HOST:PORT with wherever cso-operator-app's overlay route is reachable from the
+  Beelink). Without ?endpoint=, SSE fails and the file auto-falls-back to the demo feed.
+
+  Data source: SSE  GET /api/overlay/chat/stream  (cso-operator-app overlay route).
   Message shape (relay -> overlay):
     { "user":"someviewer", "color":"#1E90FF", "badges":["subscriber","moderator"],
       "text":"GG that was clean", "ts":1725600000.123, "channel":"xqc" }
@@ -187,8 +194,16 @@
   var P = new URLSearchParams(location.search);
   var num = function (k, d) { var v = parseFloat(P.get(k)); return isFinite(v) ? v : d; };
 
+  // ---- EDIT ME: backend overlay route -----------------------------------
+  // OBS "Local file" mode is browse-only (no ?query allowed), and a file:// page
+  // has no origin — so the live endpoint must be an ABSOLUTE URL baked in here.
+  // Fill in the host:port where cso-operator-app's overlay route is reachable
+  // from the Beelink, e.g. 'http://100.x.x.x:8080/api/overlay/chat/stream'.
+  // ?endpoint=... in the URL still overrides this (useful in URL mode / testing).
+  var DEFAULT_ENDPOINT = 'http://10.68.113.126:8090/api/overlay/chat/stream';
+
   var CFG = {
-    endpoint:  P.get('endpoint') || '/api/overlay/chat/stream',
+    endpoint:  P.get('endpoint') || DEFAULT_ENDPOINT,
     drainMs:   Math.max(120, num('drain', 650)),   // fixed drain: one line per this interval
     maxLines:  Math.max(4, Math.round(num('lines', 14))),  // ring-buffer size
     maxQueue:  400,     // hard cap on the pending queue; overflow drops oldest
