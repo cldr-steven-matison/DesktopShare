@@ -28,7 +28,9 @@ they were not. Check live yourself before acting on either.
 | Clip pipeline — `FetchClips` → `ProcessClips` → review → publish | **Live**, posting |
 | `LiveStreamerAlert` — "streamer is live" posts to X | **Live** |
 | `PostWatchList` — daily watch-list post, tagging X handles | **Live** |
-| `TwitchChatBot` — `!load` / `!matrix` / `!watchlist` → 4 screens | **Live** |
+| `TwitchChatBot` — `!load` / `!matrix` / `!watchlist` → 4 screens; `!chat`/`!c` overlay relay; 🐟🐟🐟 vote/🎬/🖼️/➕/➖ triggers via `ChatTriggers` (listener `0.0.30`, no rate limits since `0.0.28`) | **Live** |
+| `OnScreenAnnouncer` — watchlist bot announces a `!load`ed streamer in their own channel (Twitch only) | **Live 2026-09-07** (#307) |
+| Streamers **KB** tab + Knowledge Card preview/publish through the Spark door (`BRAIN_CARD_URL`) | **Live 2026-09-06** (#281/#302) |
 | `WatchlistChatJoiner` — joins watchlisted channels, greets, removes on offline | **Live** |
 | Inspector — one-shot chat/clip probe for any login | **Live** (Streamers tab) |
 | `WatchlistChatSnapshotPoller` + `TopStreamerJoiner` (chat activity, #89) | `TopStreamerJoiner` **live 2026-08-21** (#200) — own-channel branch only; `WatchlistChatSnapshotPoller` still stopped |
@@ -50,6 +52,8 @@ Seven under the `StreamersApp` parent PG, plus four at NiFi root. Schedules are 
 | `PostWatchList` | `0 50 22 * * ?` | RUNNING |
 | `TunaStarLinkFlows` | 5 min timer | DISABLED |
 | `TwitchChatBot` (root) | persistent IRC socket | RUNNING |
+| `ChatTriggers` (under `StreamersApp`) | `chat_trigger` FlowFiles from `TwitchChatBot` → `RouteChatAction` → `InvokeChatClip`/`Gif`/`Roster`/`OverlayRelay` → reply | RUNNING (9/9) |
+| `OnScreenAnnouncer` (root) | tapped off the four `!load` `Invoke*` `Original` relationships in `TwitchChatBot` | RUNNING (2/2), live 2026-09-07 |
 | `WatchlistChatJoiner` (root) | `TriggerCycle`, 15 min | RUNNING |
 | `WatchlistChatSnapshotPoller` (root) | `TriggerCycle`, ~2 min | stopped |
 | `TopStreamerJoiner` (root) | `OwnChannelTrigger` cron 10 min; discovery `TriggerCycle` cron 1 hr | own-channel branch **running**; discovery branch stopped |
