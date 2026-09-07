@@ -795,7 +795,7 @@ R.check(
 )
 
 
-section("8. Overlay chat relay command (!chat / !c overlay) (#300)")
+section("8. Overlay chat relay command (!chat / !c) (#300, #306)")
 
 
 def priv_line(msg, mod=True):
@@ -852,27 +852,46 @@ with patched(p, clock):
     p._handle_line(Recorder(), priv_line("!chat", mod=True), "chan")
     R.eq("bare !chat (no arg) enqueues nothing", len(drain(p)), 0)
 
-# "!c overlay <arg>" long form
+# "!c <arg>" is the short form of "!chat <arg>" (like !l/!m/!w)
 clock = Clock()
 p = build_listener(clock)
 with patched(p, clock):
-    p._handle_line(Recorder(), priv_line("!c overlay pokimane", mod=True), "chan")
+    p._handle_line(Recorder(), priv_line("!c pokimane", mod=True), "chan")
     items = drain(p)
-    R.eq("!c overlay: mod enqueues one item", len(items), 1)
+    R.eq("!c: mod short form enqueues one item", len(items), 1)
+    R.eq("  command", items[0]["command"], "overlay_relay")
     R.eq("  channel", items[0]["channel"], "pokimane")
 
-# "!c" without the "overlay" subword must not trigger it
+# kick targets pass through verbatim (backend expands k: -> kick:, #306)
 clock = Clock()
 p = build_listener(clock)
 with patched(p, clock):
-    p._handle_line(Recorder(), priv_line("!c xqc", mod=True), "chan")
-    R.eq("!c without 'overlay' subword is ignored", len(drain(p)), 0)
-    p._handle_line(Recorder(), priv_line("!c overlay", mod=True), "chan")
-    R.eq("!c overlay with no target is ignored", len(drain(p)), 0)
+    p._handle_line(Recorder(), priv_line("!chat k:roshtein", mod=True), "chan")
+    p._handle_line(Recorder(), priv_line("!c kick:xqc", mod=True), "chan")
+    items = drain(p)
+    R.eq("kick targets pass through verbatim", [i["channel"] for i in items], ["k:roshtein", "kick:xqc"])
 
-# the !commands help lists the overlay command (_src read in section 7)
-R.check("!commands help mentions the overlay command",
-        "self._overlay_command} <streamer|off|me>" in _src,
+# non-mod "!c <arg>" is silently ignored (mod-only, same as !chat)
+clock = Clock()
+p = build_listener(clock)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_line(sock, priv_line("!c xqc", mod=False), "chan")
+    R.eq("!c: non-mod enqueues nothing", len(drain(p)), 0)
+    R.eq("!c: non-mod is silent", len(sock.sent), 0)
+
+# a bare "!c" (no argument) is short for !commands - open to everyone, no relay
+clock = Clock()
+p = build_listener(clock)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_line(sock, priv_line("!c", mod=False), "chan")
+    R.eq("bare !c enqueues nothing (it's !commands, not a relay)", len(drain(p)), 0)
+    R.check("bare !c prints the command list", any("Commands:" in m for m in sock.sent), sock.sent)
+
+# the !commands help lists the overlay command with its !c short form (_src read in section 7)
+R.check("!commands help mentions the overlay command + !c short form",
+        "self._overlay_command} (or !c) <streamer|off|me" in _src,
         "overlay command missing from help")
 
 
