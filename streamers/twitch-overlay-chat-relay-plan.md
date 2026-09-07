@@ -186,7 +186,11 @@ subs/mods-always-shown priority tiers.
 
 - Sampling + sub/mod priority tiers (v2).
 - Kick relay (`kick:` channels) — the ingestion pattern exists (`streamer-kick-bot.md`) but v1 is
-  Twitch-only.
+  **Twitch-only**. ⚠️ `!chat k:<name>` / `!chat kick:<name>` **silently fails to switch the relay**
+  (verified 2026-09-07): unlike the `clip`/`watchlist` triggers, the `!chat` parser does **not**
+  expand `k:`→`kick:` — it only lstrips `@` and lowercases, so the literal `k:<name>` is handed to
+  the backend's anonymous *Twitch* IRC socket, which can't join it and leaves the target unchanged.
+  Kick relay is a **v2** item (WindowsDesktop).
 - Any viewer (non-mod) being able to switch the relay.
 - Alert boxes / sub goals / mascot — those belong to the sibling overlay doc's later phases.
 
