@@ -1,5 +1,12 @@
 # Kick chat bot — plan and first build
 
+> **Update 2026-09-07 — the posting bot exists (#307).** `KickOnScreenAnnouncerProcessor` posts into a
+> streamer's Kick channel as `@tunastreettest` via `POST /public/v1/chat`; the auth story (a second Kick
+> app was required for `chat:write`, refresh tokens rotate, app token for lookups), the one-time grant
+> helper `files/kick-bot-oauth.py`, and the PG wiring are in `streamers-twitch-bot.md` §17. §4 below is
+> the plan that preceded it — the "bigger lift" paragraph turned out right about the user token and wrong
+> about the shape: no Pusher listener was needed, because the trigger is the `!load` FlowFile, not Kick chat.
+
 **Status (2026-07-26):** Built and confirmed live today: an "Inspector" sub-page in `cso-operator-app`'s Streamers tab that, given any streamer (Twitch or Kick), shows live status, recent clips, and who's actually talking in their chat right now — with third-party bots flagged separately from real viewers. This came out of live-testing `!load clavicular screen4` against an offline streamer, which led to poking around bbjess's Kick channel, finding two real bots (`BotRix`, `KickBot`) running there, and reverse-engineering how Kick chat itself works well enough to read it directly. What's below is both the writeup of that (Inspector, live) and the plan for the next step: an actual Kick chat bot that posts, not just reads (not built).
 
 ## 1. How Kick chat actually works (the discovery)

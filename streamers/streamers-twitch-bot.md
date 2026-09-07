@@ -318,6 +318,69 @@ the NiFi REST API through the `nifi-ui-proxy` (identity `nifi-admin`, no token).
 flip) were run by Steven via the shell `!` prefix — the session's auto-mode classifier blocks the
 assistant's own Bash calls that mutate the live prod command PG, which is the intended guardrail.
 
+## 17. Kick On-Screen Announcer (as-built 2026-09-07, #307 reopen)
+
+**What it does:** the Kick twin of §16. When a `kick:<slug>` streamer is loaded via `!load`, the bot
+account (`@tunastreettest` **on Kick**, user_id 116854141) posts the same one-time announcement into
+*that streamer's own Kick channel* through Kick's public API — no IRC, no Pusher, no threads: one
+channel lookup + one `POST /public/v1/chat` (`type: "user"`, `broadcaster_user_id`, `content`) per
+FlowFile. Twitch logins are skipped silently (§16 owns those). Default message (Parameter-editable
+property `Announcement Message`, `{streamer}` = the Kick slug, `{screen}` = the screen number):
+
+> 🐟 @{streamer} is now LIVE on screen {screen} of the TunaStreet wall 🎬
+
+**Auth — the part that took five grants.** Posting into another channel needs a *user* token with
+scope `chat:write`; the app-level `client_credentials` token the app already holds cannot do it. The
+original Kick app (`01KW7ZZB…`, behind `KICK_CLIENT_ID`) is **not allowed** that scope — Kick silently
+dropped `chat:write` from a `user:read chat:write` request four times and answered `invalid_scope`
+when asked for it alone. A **second Kick app** (`01M1Z07M…`, "RW", creds in `~/.env` as
+`KICK_CLIENT_ID_RW`/`KICK_CLIENT_SECRET_RW`) grants it. One-time grant: `files/kick-bot-oauth.py`
+(PKCE, local callback on `localhost:8765`, browser-like headers because `id.kick.com` 403s a library
+User-Agent from a bare host, code kept until the exchange succeeds) run logged in to Kick as the bot.
+Proven end-to-end from this box: `POST /public/v1/chat` into the bot's own channel → `200 is_sent`.
+Two tokens are needed: the **user** token (refresh grant) for the POST, and an **app** token
+(`client_credentials`, same RW app, 60-day) for the `GET /channels?slug=` lookup — the user token
+lacks `channel:read`. **Kick rotates the refresh token on every refresh** (old one still accepted,
+refresh lifetime 30 d, access 2 h), so the rotated token is persisted to component state at once and
+the `Refresh Token` property is a seed only — the same discipline as §14.
+
+**Architecture — isolated root PG `KickOnScreenAnnouncer` (`7e0f7ffc-…`), nothing existing touched:**
+- Custom processor `KickOnScreenAnnouncerProcessor` (`0.0.1-SNAPSHOT`, deploy source in the local-only
+  `nifi-custom-processors`), a structural copy of `OnScreenAnnouncerProcessor` minus the IRC thread:
+  same durable once-ever dedup (`Scope.LOCAL` key `announced`), same rotated-token persistence (key
+  `refresh_token`), same reseed-from-property on a rejected state token that removes only that key,
+  `Dry Run` default **true** (does the lookup, never POSTs, still records). Extras: 401 on the POST →
+  one token refresh + retry; a failed FlowFile is never recorded (the flow retries it); Kick's
+  500-character cap enforced; browser-like UA on every call.
+- Parameter Context **`kick-chat-bot-creds`** (`7e0edd83-…`): `kick-rw-client-id`,
+  `kick-rw-client-secret` (sensitive), `kick-bot-refresh-token` (sensitive seed). Bound to the PG.
+- Inside the PG, the §16 shape: `LoadSuccessInput` (400,0) → `KickOnScreenAnnouncer` (400,220) →
+  `LogAnnounce` (400,460, `success` + `failure`, info).
+- **Tap:** a second root connection off `TwitchChatBot`'s existing `LoadSuccessOutput` port (the one
+  already feeding §16) into this PG's `LoadSuccessInput` — NiFi clones the FlowFile to both. The four
+  load `Invoke*` taps inside `TwitchChatBot` are untouched.
+- **Offline cover:** `files/test_kick_on_screen_announcer.py` — 33 checks (skip / dedup across a
+  restart / dry run / live POST body and token roles / rotation persisted / 401 retry / rejected
+  state token reseed without touching the dedup set / unknown slug / 500-char cap).
+
+**Verified live 2026-09-07, no chat command needed:** a throwaway Run-Once `GenerateFlowFile` inside the
+PG (`streamer` / `screen` attributes, removed afterwards) drove both runs. **Dry run** with
+`kick:bbjess` → component state `announced: ["bbjess"]`, queue 0, *no* `refresh_token` in state (the
+user token is never requested on a dry run). **Live** (`Dry Run` → `false`, stop → partial PUT →
+start) with `kick:tunastreettest` — the bot's own, empty channel, the one target that reaches nobody
+→ state `announced: ["bbjess","tunastreettest"]` **plus a persisted rotated `refresh_token`**: in
+live mode a streamer is only recorded after `POST /chat` returns `is_sent`, and the token only lands
+in state after a real refresh grant, so the state alone proves the post went out. Announcer in=2 /
+out=2, nothing queued, no error bulletins. (Provenance attributes weren't readable — the operator
+cert identity `files/racing/nifi-api.sh` runs as has no provenance permission.) The PG was left
+**RUNNING with `Dry Run = false`** — the next `!load kick:<slug>` announces for real. `bbjess` and
+`tunastreettest` are already in the dedup set from the tests; remove them from the processor's
+component state if either should get an announcement later.
+
+**Skipped by design:** Kick's `type: "bot"` post mode only writes into the *app owner's* own channel,
+so it is useless here; `type: "user"` as the bot account is the only way into a streamer's channel.
+The old app's creds stay in place for the clips/channel reads — swapping them was not needed.
+
 ## TODO / To Review
 
 Ideas raised but not settled or not yet built:

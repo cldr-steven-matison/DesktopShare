@@ -119,8 +119,10 @@ ignored, same as an unknown command; the full-text forms stay open to everyone.
 
 A successful `!load` also fires the **On-Screen Announcer** (#307, live 2026-09-07): the
 watchlist bot posts once-ever into the loaded streamer's *own* Twitch channel that they're
-up on screen N. `kick:` logins are skipped (no Twitch channel) — see
-`streamers-twitch-bot.md` §16.
+up on screen N — see `streamers-twitch-bot.md` §16. **Kick loads are announced too, since
+2026-09-07 (evening):** `kick:` logins are skipped by the Twitch announcer and picked up by its
+twin `KickOnScreenAnnouncer`, which posts the same line into the streamer's *Kick* channel as
+`@tunastreettest` on Kick through the public API (§17; needed a second Kick app for `chat:write`).
 
 ### Overlay chat relay (mods/broadcaster only — #300/#306)
 | Command | Alias | What it does |
