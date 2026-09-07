@@ -128,18 +128,24 @@ def build_listener(clock, **overrides):
     p._cooldown_seconds = overrides.get("cooldown_seconds", 10.0)
     p._watchlist_trigger = overrides.get("watchlist_trigger", "tuna tuna tuna")
     p._clip_trigger_enabled = overrides.get("clip_trigger_enabled", True)
+    p._gif_trigger_enabled = overrides.get("gif_trigger_enabled", False)
     p._vote_count = overrides.get("vote_count", 3)
     p._vote_window_seconds = overrides.get("vote_window_seconds", 120.0)
-    p._clip_daily_cap = overrides.get("clip_daily_cap", 4)
+    # #174 gutted the rate-limit ladder (_check_limit is now a no-op), but
+    # _configure_triggers still seeds these, so mirror them for fidelity.
+    p._daily_caps = {"clip": overrides.get("clip_daily_cap", 4),
+                     "gif": overrides.get("gif_daily_cap", 4)}
     p._progress_replies = overrides.get("progress_replies", True)
 
     p._limit_windows = dict(Listener._LIMIT_SUBWINDOWS)
     p._limit_windows["device"] = p._cooldown_seconds
     p._limit_windows["watchlist"] = overrides.get("watchlist_cooldown", 60.0)
     p._limit_windows["clip"] = overrides.get("clip_cooldown", 900.0)
+    p._limit_windows["gif"] = overrides.get("gif_cooldown", 900.0)
     p._limits = {}
     p._limit_warned = {}
-    p._clip_history = _module.collections.deque()
+    p._cap_history = {"clip": _module.collections.deque(),
+                      "gif": _module.collections.deque()}
     p._votes = _module.collections.OrderedDict()
     p._current_streamer = None
     p._trigger_registry = p._build_trigger_registry(p._watchlist_trigger)
@@ -400,133 +406,26 @@ class _ClockPatch:
         _module.time.time = self.real
 
 
-# --- device class: existing !load / !matrix behaviour must be untouched
-clock = Clock()
-p = build_listener(clock, cooldown_seconds=10.0)
-sock = Recorder()
-with patched(p, clock):
-    R.check("device: first !load allowed", p._check_limit(sock, "chan", "device"))
-    R.check("device: immediate second blocked", not p._check_limit(sock, "chan", "device"))
-    R.eq("device: one warning, original wording",
-         sock.last(), "PRIVMSG #chan :Slow down - try again in 10s.")
-    before = len(sock.sent)
-    R.check("device: third also blocked", not p._check_limit(sock, "chan", "device"))
-    R.eq("device: further spam in the same window is silent", len(sock.sent), before)
-    clock.advance(10.1)
-    R.check("device: allowed again after the cooldown", p._check_limit(sock, "chan", "device"))
-    R.check("device: blocked again, and warns once more", not p._check_limit(sock, "chan", "device"))
-    R.eq("device: warning re-arms in the new window", len(sock.sent), before + 1)
-
-# --- watchlist class: global / per-user / per-target
-clock = Clock()
-p = build_listener(clock, watchlist_cooldown=60.0)
-sock = Recorder()
-with patched(p, clock):
-    R.check("watchlist: first fire allowed",
-            p._check_limit(sock, "chan", "watchlist", user="alice", target="xqc"))
-    R.check("watchlist: global 60s blocks a different user AND target",
-            not p._check_limit(sock, "chan", "watchlist", user="bob", target="lacy"))
-    R.check("watchlist: block warns once", "cooling down" in (sock.last() or ""))
-    clock.advance(61)
-    R.check("watchlist: past the global window, a fresh user/target is allowed",
-            p._check_limit(sock, "chan", "watchlist", user="bob", target="lacy"))
-    clock.advance(61)
-    R.check("watchlist: per-user 300s still blocks bob",
-            not p._check_limit(sock, "chan", "watchlist", user="bob", target="jynxzi"))
-    R.check("watchlist: a different user is fine at the same moment",
-            p._check_limit(sock, "chan", "watchlist", user="carol", target="jynxzi"))
-    clock.advance(400)  # past global(60) and per-user(300)
-    R.check("watchlist: per-target 3600s still blocks xqc",
-            not p._check_limit(sock, "chan", "watchlist", user="alice", target="xqc"))
-    R.check("watchlist: a different target is fine",
-            p._check_limit(sock, "chan", "watchlist", user="alice", target="ronaldo"))
-    clock.advance(3600)
-    R.check("watchlist: past the per-target window, xqc is allowed again",
-            p._check_limit(sock, "chan", "watchlist", user="alice", target="xqc"))
-
-# --- watchlist: a blocked call must not stamp any of its classes
-clock = Clock()
-p = build_listener(clock, watchlist_cooldown=60.0)
-sock = Recorder()
-with patched(p, clock):
-    p._check_limit(sock, "chan", "watchlist", user="alice", target="xqc")
-    p._check_limit(sock, "chan", "watchlist", user="bob", target="lacy")  # blocked on global
-    clock.advance(61)
-    R.check("watchlist: a blocked attempt didn't stamp the per-user window",
-            p._check_limit(sock, "chan", "watchlist", user="bob", target="lacy"))
-
-# --- clip class: longer windows, plus the rolling daily cap
-clock = Clock()
-p = build_listener(clock, clip_cooldown=900.0, clip_daily_cap=4)
-sock = Recorder()
-with patched(p, clock):
-    R.check("clip: first fire allowed",
-            p._check_limit(sock, "chan", "clip", user="mod1", target="xqc"))
-    R.check("clip: global 900s blocks everyone",
-            not p._check_limit(sock, "chan", "clip", user="mod2", target="lacy"))
-    clock.advance(901)
-    R.check("clip: second fire after the global window",
-            p._check_limit(sock, "chan", "clip", user="mod2", target="lacy"))
-    clock.advance(901)
-    R.check("clip: per-user 3600s blocks mod2",
-            not p._check_limit(sock, "chan", "clip", user="mod2", target="jynxzi"))
-    R.check("clip: mod3 allowed at the same moment",
-            p._check_limit(sock, "chan", "clip", user="mod3", target="jynxzi"))
-    clock.advance(4000)  # past global + per-user
-    R.check("clip: per-target 21600s still blocks xqc",
-            not p._check_limit(sock, "chan", "clip", user="mod1", target="xqc"))
-    R.check("clip: 4th fire, fresh target",
-            p._check_limit(sock, "chan", "clip", user="mod1", target="ronaldo"))
-    R.eq("clip: 4 fires recorded in the rolling history", len(p._clip_history), 4)
-    clock.advance(21600)  # everything but the 24h cap has expired
-    sock.clear()
-    R.check("clip: daily cap of 4 now blocks a fully-clear request",
-            not p._check_limit(sock, "chan", "clip", user="mod9", target="newguy"))
-    R.check("clip: cap message says the budget is spent",
-            "budget is spent" in (sock.last() or ""), sock.last())
-    clock.advance(86400)
-    R.check("clip: rolling window rolls off, allowed again",
-            p._check_limit(sock, "chan", "clip", user="mod9", target="newguy"))
-    R.eq("clip: history pruned to just the new fire", len(p._clip_history), 1)
-
-# --- the rolling cap is rolling, not calendar-day
-clock = Clock()
-p = build_listener(clock, clip_cooldown=0.0, clip_daily_cap=2)
-sock = Recorder()
-with patched(p, clock):
-    p._check_limit(sock, "chan", "clip", user="m1", target="a")
-    clock.advance(43200)
-    p._check_limit(sock, "chan", "clip", user="m2", target="b")
-    clock.advance(43201)  # 24h+1s after the first fire only
-    R.check("clip: cap frees one slot as the oldest fire ages out, not at midnight",
-            p._check_limit(sock, "chan", "clip", user="m3", target="c"))
-    R.check("clip: and the second slot is still held",
-            not p._check_limit(sock, "chan", "clip", user="m4", target="d"))
-
-# --- notarget class: rate-limited but silent when blocked
+# #174 removed the entire rate-limit ladder: _check_limit is now an inert
+# pass-through (always True, never warns) so a mod/broadcaster driving these
+# commands is never throttled. Assert that contract across every class name the
+# call sites still pass; the vote mechanic and enable switches (below) are what
+# actually gate a trigger now, not any cooldown.
 clock = Clock()
 p = build_listener(clock)
 sock = Recorder()
 with patched(p, clock):
-    R.check("notarget: first nudge allowed", p._check_limit(sock, "chan", "notarget"))
-    R.check("notarget: second blocked", not p._check_limit(sock, "chan", "notarget"))
-    R.eq("notarget: blocking is silent - no warning about a nudge", len(sock.sent), 0)
-    clock.advance(61)
-    R.check("notarget: allowed again after 60s", p._check_limit(sock, "chan", "notarget"))
-
-# --- pruning keeps the ledger bounded
-clock = Clock()
-p = build_listener(clock)
-sock = Recorder()
-with patched(p, clock):
-    for i in range(50):
-        p._check_limit(sock, "chan", "watchlist", user=f"u{i}", target=f"t{i}")
-        clock.advance(61)
-    live = len(p._limits)
-    clock.advance(21601)  # past the largest window in the table
-    p._check_limit(sock, "chan", "watchlist", user="last", target="last")
-    R.check("limits ledger prunes past the largest window",
-            len(p._limits) < live and len(p._limits) <= 3, f"{live} -> {len(p._limits)}")
+    for name, kwargs in (
+        ("device", {}),
+        ("watchlist", {"user": "alice", "target": "xqc"}),
+        ("clip", {"user": "mod1", "target": "xqc"}),
+        ("gif", {"user": "mod1", "target": "xqc"}),
+        ("notarget", {}),
+    ):
+        # Fire the same class back-to-back: never blocked, never a warning.
+        allowed = all(p._check_limit(sock, "chan", name, **kwargs) for _ in range(5))
+        R.check(f"{name}: _check_limit is an inert pass-through (always True)", allowed)
+    R.eq("no cooldown/warning message is ever sent (#174)", len(sock.sent), 0)
 
 
 # --- 5. end-to-end trigger handling (still fully offline) -----------------------
@@ -591,7 +490,7 @@ with patched(p, clock):
     p._handle_trigger(sock, "chan", ("clip", "xqc"), "viewer", False)
     R.eq("clip: non-mod enqueues nothing", len(drain(p)), 0)
     R.eq("clip: non-mod is ignored silently", len(sock.sent), 0)
-    R.eq("clip: non-mod burned no rate-limit budget", len(p._clip_history), 0)
+    R.eq("clip: non-mod recorded no cap history", len(p._cap_history["clip"]), 0)
 
     p._handle_trigger(sock, "chan", ("clip", "kick:trainwreckstv"), "mod1", True)
     items = drain(p)
@@ -605,10 +504,52 @@ with patched(p, clock):
 
     sock.clear()
     p._handle_trigger(sock, "chan", ("clip", "xqc"), "mod1", True)
-    R.eq("clip: a mod does NOT bypass the cooldown", len(drain(p)), 0)
-    R.check("clip: and gets the cooldown warning", "cooling down" in (sock.last() or ""), sock.last())
+    R.eq("clip: a mod fires again immediately (#174 - no cooldown)", len(drain(p)), 1)
+    R.check("clip: and just gets the ack, no cooldown warning",
+            "pulling a clip from xqc" in (sock.last() or ""), sock.last())
 
-# k: short form stays mod-only inside a trigger
+# gif trigger: exact mod-only, enable-gated twin of clip
+clock = Clock()
+p = build_listener(clock, gif_trigger_enabled=False)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_trigger(sock, "chan", ("gif", "xqc"), "mod1", True)
+    R.eq("gif: disabled = nothing enqueued", len(drain(p)), 0)
+    R.eq("gif: disabled = silent", len(sock.sent), 0)
+p = build_listener(clock, gif_trigger_enabled=True)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_trigger(sock, "chan", ("gif", "xqc"), "viewer", False)
+    R.eq("gif: non-mod enqueues nothing", len(drain(p)), 0)
+    p._handle_trigger(sock, "chan", ("gif", "lacy"), "mod1", True)
+    items = drain(p)
+    R.eq("gif: mod fires one gif_request", len(items), 1)
+    R.eq("  chat_action", items[0]["chat_action"], "gif_request")
+    R.eq("  streamer", items[0]["streamer"], "lacy")
+    R.check("gif: immediate ack posted", "cutting a gif from lacy" in (sock.last() or ""), sock.last())
+
+# roster add/remove triggers (#273): mod-only, no enable switch, must name a target
+clock = Clock()
+p = build_listener(clock)
+sock = Recorder()
+with patched(p, clock):
+    p._handle_trigger(sock, "chan", ("roster_add", "xqc"), "viewer", False)
+    R.eq("roster: non-mod ignored silently", len(drain(p)) + len(sock.sent), 0)
+    p._handle_trigger(sock, "chan", ("roster_add", ""), "mod1", True)
+    R.eq("roster: mod with no target enqueues nothing", len(drain(p)), 0)
+    R.check("roster: bare form nudges to name a streamer", "Name a streamer" in (sock.last() or ""))
+    p._handle_trigger(sock, "chan", ("roster_add", "pokimane"), "mod1", True)
+    add = drain(p)
+    R.eq("roster_add: mod fires one chat_trigger", len(add), 1)
+    R.eq("  chat_action", add[0]["chat_action"], "roster_add")
+    R.eq("  streamer", add[0]["streamer"], "pokimane")
+    p._handle_trigger(sock, "chan", ("roster_remove", "k:roshtein"), "mod1", True)
+    rem = drain(p)
+    R.eq("roster_remove: mod fires one chat_trigger", len(rem), 1)
+    R.eq("  chat_action", rem[0]["chat_action"], "roster_remove")
+    R.eq("  k: expands to kick:", rem[0]["streamer"], "kick:roshtein")
+
+# k: short form stays mod-only inside a trigger; a mod watchlist add dispatches instantly
 clock = Clock()
 p = build_listener(clock)
 sock = Recorder()
@@ -616,9 +557,12 @@ with patched(p, clock):
     p._handle_trigger(sock, "chan", ("watchlist", "k:trainwreckstv"), "viewer", False)
     R.eq("trigger: 'k:' from a non-mod is silently ignored", len(sock.sent), 0)
     R.eq("  and records no vote", len(p._votes), 0)
+    R.eq("  and enqueues nothing", len(drain(p)), 0)
     p._handle_trigger(sock, "chan", ("watchlist", "k:trainwreckstv"), "mod1", True)
-    R.eq("trigger: 'k:' from a mod expands to kick:", list(p._votes.keys()),
-         [("watchlist", "kick:trainwreckstv")])
+    items = drain(p)
+    R.eq("trigger: 'k:' from a mod expands to kick: and dispatches instantly (no vote)", len(items), 1)
+    R.eq("  streamer keeps the kick: prefix", items[0]["streamer"], "kick:trainwreckstv")
+    R.eq("  no vote recorded (mod = instant add)", len(p._votes), 0)
 
 # bare trigger target resolution
 clock = Clock()
@@ -631,26 +575,24 @@ with patched(p, clock):
     R.eq("  and records no vote", len(p._votes), 0)
     before = len(sock.sent)
     p._handle_trigger(sock, "chan", ("watchlist", ""), "bob", False)
-    R.eq("  the nudge is rate-limited (silent second time)", len(sock.sent), before)
+    R.eq("  the nudge is no longer rate-limited (#174) - fires each time", len(sock.sent), before + 1)
 
     p._current_streamer = "lacy"
     p._handle_trigger(sock, "chan", ("watchlist", ""), "alice", False)
     R.eq("bare trigger uses the last !load target", list(p._votes.keys()), [("watchlist", "lacy")])
 
-# a rate-limit-blocked fire keeps the tally above the threshold
+# non-mod votes reaching the threshold fire once and clear their own tally
 clock = Clock()
-p = build_listener(clock, watchlist_cooldown=60.0)
+p = build_listener(clock)
 sock = Recorder()
 with patched(p, clock):
     for nick in ("a", "b", "c"):
-        p._handle_trigger(sock, "chan", ("watchlist", "xqc"), nick, False)
-    drain(p)
-    sock.clear()
-    for nick in ("d", "e", "f"):
         p._handle_trigger(sock, "chan", ("watchlist", "lacy"), nick, False)
-    R.eq("blocked fire enqueues nothing", len(drain(p)), 0)
-    R.check("blocked tally stays above the threshold (no progress-reply loop)",
-            sum(len(v) for v in p._votes[("watchlist", "lacy")].values()) >= 3)
+    items = drain(p)
+    R.eq("3 non-mod votes fire exactly one watchlist_add", len(items), 1)
+    R.eq("  chat_action", items[0]["chat_action"], "watchlist_add")
+    R.eq("  streamer", items[0]["streamer"], "lacy")
+    R.check("  tally cleared on fire", ("watchlist", "lacy") not in p._votes)
 
 
 # --- 6. help text -----------------------------------------------------------------
@@ -673,8 +615,8 @@ join1 = (f"tunastreettest is online! Type {p_on._command_prefix} (or !l) <stream
          f"<screen1|screen2|screen3|screen4> for the matrix screensaver, "
          f"{p_on._watchlist_command} (or !w) for who's on watch, or !commands for help.")
 R.check("join message 1 fits in one PRIVMSG", len(join1) < 500, str(len(join1)))
-R.check("the two together leave under 25 chars of headroom at defaults",
-        0 < 500 - (len(join1) + len(help_on)) < 25, str(len(join1) + len(help_on)))
+R.check("join + trigger help already overrun a single 500-char PRIVMSG (why they're two messages)",
+        len(join1) + len(help_on) > 500, str(len(join1) + len(help_on)))
 
 # ...and any longer trigger phrase spends that headroom immediately, which is the
 # reason this is two messages rather than one carefully-measured one.

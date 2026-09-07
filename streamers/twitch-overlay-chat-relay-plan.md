@@ -175,10 +175,13 @@ subs/mods-always-shown priority tiers.
   VALID.
 - **Verification:** backend relay/SSE/Kafka proven against a live busy channel; processor `!chat`/`!c
   overlay` parse validated in isolation against the rebased 0.0.29 module.
-- **Not yet done:** re-export `flows/TwitchChatBot.json` (the ChatTriggers PG changed); update
-  `streamers-twitch-bot.md` §3 command list + `!commands` reply; the two Phase-4 human steps. The
-  committed `files/test_twitch_chat_triggers.py` is stale vs deployed 0.0.28 (pre-existing #174/gif
-  drift) — overlay tests added but the unrelated expectations were left for a separate sync.
+- **Wrap-up (all done 2026-09-07):** re-exported `flows/TwitchChatBot.json`; updated
+  `streamers-twitch-bot.md` §3 + `!commands`; both Phase-4 human steps done. And
+  `files/test_twitch_chat_triggers.py` brought current with deployed 0.0.29 — **177 passed, 0 failed**:
+  §4 rewritten as the no-op `_check_limit` contract test (#174 removed the whole rate-limit ladder), §5
+  fixed for mod-instant-dispatch + the un-throttled nudge with gif + roster (#273) coverage added, §6
+  updated for the longer help text, and the new `_gif_trigger_enabled`/`_daily_caps`/`_cap_history`
+  attrs seeded in `build_listener`.
 
 ---
 
