@@ -1,0 +1,48 @@
+# kubectl top pods -A — after (2026-09-08)
+NAMESPACE       NAME                                         CPU(cores)   MEMORY(bytes)   
+default         vllm-server-66cc4f98dc-qsc5t                 22m          7435Mi          
+default         whisper-server-8645dff44b-5bd2r              449m         3691Mi          
+cfm-streaming   mynifi-0                                     347m         1941Mi          
+cld-streaming   efm-554dd47879-m58hn                         20m          1771Mi          
+kube-system     kube-apiserver-cso-prod-1                    70m          838Mi           
+cld-streaming   my-cluster-combined-2                        20m          620Mi           
+cld-streaming   my-cluster-combined-1                        25m          551Mi           
+cld-streaming   my-cluster-combined-0                        22m          544Mi           
+cld-streaming   strimzi-cluster-operator-6557fd69b4-m5b82    6m           290Mi           
+cld-streaming   my-cluster-entity-operator-c4448f9f4-zktwv   6m           286Mi           
+default         cso-operator-app-846bfc8ffb-hp5wf            3m           142Mi           
+cld-streaming   ssb-postgresql-68d79f94b7-hnlgm              40m          129Mi           
+kube-system     kube-controller-manager-cso-prod-1           16m          98Mi            
+kube-system     etcd-cso-prod-1                              36m          86Mi            
+ingress-nginx   ingress-nginx-controller-596f8778bc-pwfgg    3m           70Mi            
+cfm-streaming   cfm-operator-57c84c9cb9-hgr54                2m           48Mi            
+kube-system     kube-scheduler-cso-prod-1                    6m           44Mi            
+cert-manager    cert-manager-cainjector-5d7bdfc74f-q456r     2m           42Mi            
+kube-system     metrics-server-9d74bb658-p6pxp               4m           32Mi            
+kube-system     coredns-7d764666f9-kndht                     2m           29Mi            
+cert-manager    cert-manager-9c78bbdf4-6r6vc                 1m           29Mi            
+kube-system     kube-proxy-gvk5q                             1m           27Mi            
+cert-manager    cert-manager-webhook-5f67d8fc6d-cds2h        1m           17Mi            
+kube-system     storage-provisioner                          2m           16Mi            
+kube-system     nvidia-device-plugin-daemonset-8jkvc         1m           14Mi            
+cfm-streaming   nifi-ui-proxy-d4c5f9b97-rbm4j                0m           2Mi             
+cfm-streaming   python-extensions-loader                     0m           1Mi             
+
+# kubectl top nodes
+NAME         CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+cso-prod-1   1110m        6%       13698Mi         56%         
+
+# free -m (WSL)
+               total        used        free      shared  buff/cache   available
+Mem:           24032       13616         474         251       10498       10415
+Swap:           8192        4571        3620
+
+# nvidia-smi
+memory.used [MiB], memory.total [MiB]
+7388 MiB, 8188 MiB
+
+# WSL process count
+118
+
+# host free MB
+983.265625
