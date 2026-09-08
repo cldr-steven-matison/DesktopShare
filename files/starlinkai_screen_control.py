@@ -78,16 +78,24 @@ def _ps(script, timeout=15):
     return (result.stdout or "").strip() + (result.stderr or "").strip()
 
 
-def find_process_pid_by_cmdline_substring(substring):
+def find_process_pid_by_cmdline_substring(substring, name=None):
     """Resolve a live PID from OS state via its command line — the
     stateless replacement for an in-memory pid dict. Returns None if no
-    matching process is running."""
+    matching process is running.
+
+    `name` (a process image name, e.g. 'mpv.exe') is filtered server-side by
+    WmiPrvSE FIRST, so the client-side CommandLine -like runs over a handful of
+    processes instead of pulling the command line for all ~200. The unfiltered
+    form stalled under CPU/WMI contention on this box and timed out the
+    load/matrix commands (array screen3/screen4) on 2026-09-08. The wider 20s
+    subprocess timeout is a cushion for a still-slow WMI, not the fix."""
+    name_filter = f" -Filter \"Name='{name}'\"" if name else ""
     ps_script = (
-        "Get-CimInstance Win32_Process | "
+        f"Get-CimInstance Win32_Process{name_filter} | "
         f"Where-Object {{ $_.CommandLine -like '*{substring}*' }} | "
         "Select-Object -First 1 -ExpandProperty ProcessId"
     )
-    out = _ps(ps_script, timeout=10)
+    out = _ps(ps_script, timeout=20)
     out = out.strip()
     return int(out) if out.isdigit() else None
 
@@ -172,7 +180,7 @@ def mpv_is_running(screen):
         send_ipc(screen, ["get_property", "idle-active"], timeout=4)
     except Exception:
         return None
-    return find_process_pid_by_cmdline_substring(f"input-ipc-server={cfg['pipe']}")
+    return find_process_pid_by_cmdline_substring(f"input-ipc-server={cfg['pipe']}", name="mpv.exe")
 
 
 def _profile_dir_prefix(screen):
@@ -190,7 +198,7 @@ def kill_matrix_for_screen(screen):
     /kill/<screen>; now resolved directly from process list instead of a
     cross-process call. Also the body of the standalone `matrix-stop`
     action idle_watcher.py drives."""
-    pid = find_process_pid_by_cmdline_substring(_profile_dir_prefix(screen))
+    pid = find_process_pid_by_cmdline_substring(_profile_dir_prefix(screen), name="msedge.exe")
     if pid:
         subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True)
 
