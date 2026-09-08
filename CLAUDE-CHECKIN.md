@@ -21,6 +21,7 @@ Device ↔ hostname ↔ label map (name each device by its **device name** — t
 | Stevens-MacBook-Pro (personal Mac) | Stevens-MacBook-Pro | `device:macbook` | — |
 | DigitalOcean droplet | nifi.sceneserver.net | (none yet) | — |
 | NvidiaSpark-1 | spark-dd06 (DGX Spark GB10) | `device:NvidiaSpark-1` | landed 2026-08-26 — runs its own session directly |
+| TunaSurface | tuna-Surface-Pro-2 (Surface Pro 2) | `device:TunaSurface` | landed 2026-09-08 — takes #315/AXIOMETA over from StarlinkAI |
 
 **Two Macs, two labels — don't conflate them.** `FTF3XR2065` is the Cloudera-issued M4 Pro work
 laptop (arm64, full local minikube). `Stevens-MacBook-Pro` is the personal 2017 Intel MacBook Pro
@@ -449,3 +450,38 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 - Tailscale IP: not joined
 - EFM: `http://192.168.1.121:10090/efm/api` — confirmed reachable (heartbeat + REST API both open)
 - Kafka: bootstrap `192.168.1.121:31623` — confirmed reachable; `/etc/hosts` maps `my-cluster-kafka-bootstrap.cld-streaming.svc` and `my-cluster-combined-{0,1,2}.my-cluster-kafka-brokers.cld-streaming.svc` all to `192.168.1.121`
+
+---
+
+## TunaSurface (Microsoft Surface Pro 2, hostname tuna-Surface-Pro-2)
+
+- **Role**: Low-spec docs/planning device on the Starlink LAN, and the new home for the **AXIOMETA** board — [#315](https://github.com/cldr-steven-matison/DesktopShare/issues/315) and the Genesis Mini move here from StarlinkAI (2026-09-08, see [efm-axiometa.md](efm-axiometa.md) §"Moving to TunaSurface"). Not a cluster host: 3.7 GB RAM rules out minikube/k3s and any CSO work.
+- **Checked in**: 2026-09-08
+- **Claude Code version**: 2.1.263
+
+### Hardware
+- CPU: Intel Core i5-4300U @ 1.90GHz (Haswell-ULT, 2C/4T)
+- GPU: Intel Haswell-ULT Integrated Graphics (`00:02.0`) — no discrete GPU, no CUDA
+- RAM: 3.7GB
+- Storage: Samsung MZMPC128HBFU-000MV, 119.2GB SSD — 96GB free at check-in
+
+### OS
+- OS: Ubuntu 24.04.4 LTS (Noble)
+- Kernel: 7.0.0-31-generic
+
+### Key tool versions
+- Git: 2.43.0
+- Python: 3.12.3 (pip 24.0)
+- gh: 2.45.0 — **authenticated** as `TunaStreetTest` (keyring; scopes `gist, read:org, repo, workflow`). The issue-inbox step and `guard.sh`/`finish-check.sh` are live: the SessionStart hook mapped this host → `TunaSurface` and listed the inbox, and guard auto-claim flipped an issue on first engagement.
+- jq 1.7 · ripgrep 14.1.0 · shellcheck 0.9.0
+- Tailscale: not installed
+- No node/npm, no Java, no Docker, no kubectl/minikube — none installed, and the cluster ones aren't wanted here.
+
+### Network
+- Connection: **Wi-Fi only** (`wlx281878d5f3f1`, a USB adapter), `192.168.1.91/24`, gateway `192.168.1.1`
+- Tailscale IP: not joined
+- **This device is on the Starlink LAN, not the ATT LAN** — verified 2026-09-08: EFM direct (`192.168.1.121:10090`) is **unreachable** (connect timeout), while StarlinkAI's EFM C2 relay (`192.168.1.245:10090`) answers **HTTP 200** and lists all 12 agent classes including `AXIOMETA`. Both LANs are numbered `192.168.1.x`, so the subnet alone tells you nothing — test the relay, don't assume. ICMP to both hosts is dropped (Windows firewall); use HTTP to test liveness, not `ping`.
+- **Consequence for the AXIOMETA move**: no new relay is needed on this host. The board can keep pointing its C2 URL at `192.168.1.245:10090`, exactly as it did on StarlinkAI — the "stand up an equivalent relay" fallback in `efm-axiometa.md` does not apply. That relay is a StarlinkAI process, so AXIOMETA on TunaSurface stays dependent on StarlinkAI being up.
+
+### Repo homes on this host
+- DesktopShare: `~/DesktopShare` (cloned 2026-09-08; no local rename, unlike StarlinkAI's `~/Brainshare` and NvidiaSpark-1's `~/BrainShare`)

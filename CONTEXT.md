@@ -19,6 +19,7 @@ hostname. Full specs and per-device paths: `CLAUDE-CHECKIN.md`.
 - **Stevens-MacBook-Pro** — the personal Intel Mac (x86_64); authoring only, no cluster.
 - **droplet** — `nifi.sceneserver.net`, the public DigitalOcean NiFi host.
 - **NvidiaSpark-1** — the NVIDIA **DGX Spark** (GB10 Grace Blackwell, 128 GB unified, aarch64), landed 2026-08-26 as hostname `spark-dd06`; desk-class local-AI host + on-box k3s/CSO + EFM agent. Planning: `nvidia-dgx-spark-plan.md`. **Naming rule:** "DGX Spark" is the box, "Apache Spark" is the engine — never bare "Spark" in a Cloudera-integration sentence.
+- **TunaSurface** — the Microsoft Surface Pro 2 (hostname `tuna-Surface-Pro-2`); Ubuntu 24.04, x86_64, 3.7 GB RAM — a docs/planning device, no cluster. Joined 2026-09-08. Sits on the **Starlink LAN** (reaches EFM only through StarlinkAI's C2 relay, not directly), and is the new host for the **AXIOMETA** Genesis Mini board (#315). Specs: `CLAUDE-CHECKIN.md`.
 
 ## Cloudera stack
 

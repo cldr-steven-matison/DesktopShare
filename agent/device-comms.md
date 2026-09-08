@@ -41,6 +41,7 @@ Pick the `device:*` value from the responsibility map below.
 | `device:FTF3XR2065` | Work for the **Cloudera work Mac** (arm64, local minikube, golden-source / CDP access) |
 | `device:macbook` | Work for the **personal Mac** — Stevens-MacBook-Pro (x86_64, authoring only, no cluster) |
 | `device:NvidiaSpark-1` | Work for **NvidiaSpark-1** — the NVIDIA DGX Spark (GB10, aarch64, hostname `spark-dd06`). Landed 2026-08-26 and runs its own session; it owns the whole DGX Spark series — EPIC #226 and every work-stream issue (#232–#243) — with no other `device:*` label on them |
+| `device:TunaSurface` | Work for **TunaSurface** — the Surface Pro 2 (hostname `tuna-Surface-Pro-2`, Ubuntu 24.04, x86_64). Docs/planning device on the Starlink LAN; owns the AXIOMETA board and #315 from 2026-09-08 |
 | `status:todo` | Filed, not yet picked up |
 | `status:in-progress` | A device session is working it |
 | `status:blocked` | Waiting on something (device offline, dependency, a decision) |
@@ -64,6 +65,7 @@ host is responsible for:
 | Stevens-MacBook-Pro (personal Mac) | `device:macbook` |
 | DigitalOcean droplet | (none yet) |
 | NvidiaSpark-1 (`spark-dd06`, DGX Spark) | `device:NvidiaSpark-1` |
+| TunaSurface (`tuna-Surface-Pro-2`, Surface Pro 2) | `device:TunaSurface` |
 
 WindowsDesktop additionally carries the Telegram session-comms duties (progress polls,
 reply bridge, keyboard-needed pings) — see "Session comms (Telegram)" below.
