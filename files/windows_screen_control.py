@@ -31,6 +31,11 @@ EDGE_PATHS = [
 MATRIX_HTML = r"C:\minifi-manual\matrix-screensaver.html"
 PROFILE_DIR_PREFIX = r"C:\minifi-manual\edge-matrix-profile-"
 LOG_PATH = r"C:\minifi-manual\windows_screen_control.log"
+# @tunastreettest's twitch.tv session in Netscape cookies.txt format (issue
+# #309). A credential - lives only on this box, never in the repo. Present:
+# yt-dlp resolves every stream logged in as that (ad-free) account. Absent:
+# logged-out playback with commercial breaks, exactly as before.
+COOKIES_PATH = r"C:\minifi-manual\twitch-cookies.txt"
 
 SCREENS = {
     "screen2": {
@@ -69,17 +74,27 @@ def _ps(script, timeout=15):
     return (result.stdout or "").strip() + (result.stderr or "").strip()
 
 
-def find_process_pid_by_cmdline_substring(substring):
+def find_process_pid_by_cmdline_substring(substring, name=None):
     """Resolve a live PID from OS state via its command line — the
     stateless replacement for an in-memory pid dict. Returns None if no
-    matching process is running."""
+    matching process is running.
+
+    `name` (a process image name, e.g. 'mpv.exe') is filtered server-side by
+    WmiPrvSE FIRST, so the client-side CommandLine -like runs over a handful of
+    processes instead of pulling the command line for all ~200. The unfiltered
+    form stalled under CPU/WMI contention (OBS/Lemonade/MiNiFi/Edge all live)
+    and timed out the load/matrix commands on the StarlinkAI counterpart on
+    2026-09-08; this file carried the identical bug. The wider 20s subprocess
+    timeout is a cushion for a still-slow WMI, not the fix. The same fast
+    Name-filter-then-CommandLine-match pattern is what `_reap_windowless_mpv`
+    already uses."""
+    name_filter = f" -Filter \"Name='{name}'\"" if name else ""
     ps_script = (
-        "Get-CimInstance Win32_Process | "
+        f"Get-CimInstance Win32_Process{name_filter} | "
         f"Where-Object {{ $_.CommandLine -like '*{substring}*' }} | "
         "Select-Object -First 1 -ExpandProperty ProcessId"
     )
-    out = _ps(ps_script, timeout=10)
-    out = out.strip()
+    out = _ps(ps_script, timeout=20).strip()
     return int(out) if out.isdigit() else None
 
 
@@ -164,14 +179,15 @@ def mpv_is_running(screen):
         send_ipc(screen, ["get_property", "idle-active"], timeout=4)
     except Exception:
         return None
-    return find_process_pid_by_cmdline_substring(f"input-ipc-server={cfg['pipe']}")
+    return find_process_pid_by_cmdline_substring(
+        f"input-ipc-server={cfg['pipe']}", name="mpv.exe")
 
 
 def kill_matrix_for_screen(screen):
     """Coexistence: tear down any Edge matrix kiosk on this screen before
     mpv takes it over. Was a POST to windows_matrix_launcher.py's /kill;
     now resolved directly from process list instead of a cross-process call."""
-    pid = find_process_pid_by_cmdline_substring(PROFILE_DIR_PREFIX)
+    pid = find_process_pid_by_cmdline_substring(PROFILE_DIR_PREFIX, name="msedge.exe")
     if pid:
         subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True)
 
@@ -211,20 +227,45 @@ def _reap_windowless_mpv(screen):
         _log(f"{screen}: reaped windowless mpv {pid} (Session-0 leftover)")
 
 
+def _mpv_has_cookies(pid):
+    """Whether the live mpv was launched with the cookies flag — read from its
+    command line, the same OS-state source mpv_is_running resolved the pid from
+    (so if we have a pid at all, the command line is readable and this can't
+    spuriously report False)."""
+    out = _ps(
+        f"Get-CimInstance Win32_Process -Filter 'ProcessId={pid}' | "
+        "Select-Object -ExpandProperty CommandLine", timeout=10)
+    return "cookies=" in out
+
+
 def ensure_mpv_running(screen):
     cfg = SCREENS[screen]
     # Guard: never reuse or launch behind a windowless mpv on this pipe.
     _reap_windowless_mpv(screen)
+    # The cookies flag (issue #309) only takes effect at mpv launch, and the
+    # player is persistent — so an mpv already up without it would silently
+    # stay logged out forever. Relaunch it on the next load if the live flag
+    # disagrees with the file's presence (one black-screen flash on a screen
+    # that's changing stream anyway). Mirrors starlinkai_screen_control.py.
+    use_cookies = os.path.exists(COOKIES_PATH)
     pid = mpv_is_running(screen)
     if pid:
-        _show_window(pid, SW_RESTORE)
-        send_ipc(screen, ["set_property", "fullscreen", True])
-        return pid
+        if _mpv_has_cookies(pid) == use_cookies:
+            _show_window(pid, SW_RESTORE)
+            send_ipc(screen, ["set_property", "fullscreen", True])
+            return pid
+        _log(f"{screen}: mpv pid={pid} running with cookies={not use_cookies}, "
+             f"want cookies={use_cookies} - relaunching")
+        subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True)
+        time.sleep(0.5)
 
     mpv = _find_exe(MPV_PATHS, "mpv.exe")
+    mpv_args = [mpv, "--idle", "--force-window=immediate",
+                f"--input-ipc-server={cfg['pipe']}", "--ytdl-format=best", "--no-terminal"]
+    if use_cookies:
+        mpv_args.append(f"--ytdl-raw-options-append=cookies={COOKIES_PATH}")
     proc = subprocess.Popen(
-        [mpv, "--idle", "--force-window=immediate", f"--input-ipc-server={cfg['pipe']}",
-         "--ytdl-format=best", "--no-terminal"],
+        mpv_args,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     for _ in range(50):
@@ -233,7 +274,7 @@ def ensure_mpv_running(screen):
         time.sleep(0.1)
 
     pos_result = _position_window(proc.pid, cfg["x"], cfg["y"], cfg["w"], cfg["h"])
-    _log(f"{screen}: launched pid={proc.pid} position result: {pos_result}")
+    _log(f"{screen}: launched pid={proc.pid} cookies={use_cookies} position result: {pos_result}")
     send_ipc(screen, ["set_property", "fullscreen", True])
     return proc.pid
 
