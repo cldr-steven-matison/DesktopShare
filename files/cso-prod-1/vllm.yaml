@@ -2,6 +2,12 @@
 # GPU-backed: needs the profile created with --gpus all (parity with default).
 # HF_TOKEN comes from secret default/hf-token (not committed).
 #
+# DEMO CONFIG, NOT PROD. Prod vllm-server runs Qwen/Qwen2.5-3B-Instruct from
+# ~/ClouderaStreamingOperators/vllm-Qwen2.5-3B-Instruct.yaml (restored 2026-08-27 after
+# this 7B-AWQ manifest broke every streamers caption and fought whisper for the GPU).
+# Apply this only for the flink-agents demo, change the app's VLLM_MODEL with it, and
+# restore the 3B manifest afterwards. See CLAUDE-CHECKIN.md (WindowsDesktop services).
+#
 # Two deliberate deviations from what the default profile runs, both forced by #231's
 # agents example (measured 2026-08-26, see VALIDATION.md #231):
 #

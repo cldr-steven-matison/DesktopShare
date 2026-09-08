@@ -31,6 +31,34 @@ reaction GIF from the clip and post that instead (the automated #173 giphy
 clipping action). A streamer can have both (ExtraEmily) — one approval queues
 both posts.
 
+GIF path facts (as built 2026-08-18 → 08-21, #173/#195):
+
+- **The quality bar is curation, not encoding.** A reaction GIF is a tight
+  single-face closeup of the streamer (YuNet detection + SFace identity match
+  against the streamer's avatar, face-size × confidence window ranking, short
+  closeups over long wide cuts); a two-person or profile cut is rejected. A clip
+  post whose frame is mostly static black (phone layouts) fails the
+  `_static_black_fraction` gate at 0.35 (normal 0.00–0.14, bad 0.63). Judge a
+  generated GIF or clip against this before calling it done; automating the
+  mechanics never lowers the bar the curated #173 work set.
+- **Identity refs can be weak.** The reference is the Twitch avatar cached at
+  `/clips/.face_refs/{login}.png`; jasontheween's (sunglasses, tongue out) keeps
+  his cosines at ~0.35–0.49 against the 0.363 threshold, so his cuts skip as
+  ambiguous. Next lever if that persists: a curated `{login}_manual.png` preferred
+  over the fetched avatar (adding files to the PVC needs Steven's go, `agent/live-queues.md`).
+- **Only gif-only streamers' GIFs are surfaced today**; the gif leg of a dual-path
+  streamer (clip + gif, e.g. ExtraEmily) is not, so don't over-invest there.
+- **Facecam layout store** `.face_layout.json` on the PVC learns each streamer's
+  webcam box (rolling 15 observations, median, frame fractions); it can learn a
+  wrong thing and there is no reset endpoint — `rm /clips/.face_layout.json`.
+  The edge-search band must reach past the face box's top edge or it finds the
+  platform bar instead of the cam border.
+- **Giphy channel `tunastreet`** (https://giphy.com/channel/tunastreet): the
+  artist/brand upgrade was applied for 2026-08-16; until approved, uploads show
+  only on the channel page or by direct link, not in public search or the API
+  GIF pickers. No Giphy API key exists in the stack — GIF posts go to X only and
+  Giphy uploads are manual.
+
 **Source of truth since 2026-08-30 (#275): the `streamer` table in the
 `streamers` Postgres database on `ssb-postgresql` (`cld-streaming`)** — one row
 per (platform, login) with the X handle, `x_handle_status`

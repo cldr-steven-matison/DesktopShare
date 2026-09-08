@@ -152,7 +152,7 @@ it. Reproduced with a direct curl from the JobManager pod, then fixed to `--tool
 **The default (prod) profile's vLLM still runs `qwen3_coder` against the same model family — its
 tool-calling is silently broken the same way. Not changed here; raised as a finding.**
 
-**4. Qwen2.5-3B cannot hold the quickstart's output contract.** The quickstart's
+**4. Qwen2.5-3B cannot hold the quickstart's output contract — a demo-only finding; prod stayed on 3B.** The 7B-AWQ switch below was validated for the flink-agents example and reverted on 2026-08-27: prod `vllm-server` runs `Qwen/Qwen2.5-3B-Instruct` (bitsandbytes, `--gpu-memory-utilization 0.75`, manifest `~/ClouderaStreamingOperators/vllm-Qwen2.5-3B-Instruct.yaml`) because the app's `VLLM_MODEL` names 3B and 7B at 0.84 cannot share the 8 GB GPU with whisper. Run 7B-AWQ only for the demo, with the app's `VLLM_MODEL` changed in step, and restore 3B after (`CLAUDE-CHECKIN.md`, WindowsDesktop services). The quickstart's
 `process_chat_response` calls `json.loads()` on the reply directly, so the model must answer with
 nothing but JSON. Measured over the same 15 reviews:
 

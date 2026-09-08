@@ -384,6 +384,12 @@ Raw working docs, kept as-is. This README is the summary; these are the detail.
 | [`streamers-original-architecture.md`](streamers-original-architecture.md) | The original 2026-06 clipping-pipeline sketch | Historical |
 | [`cso-operator-app-streamers-review-2026-07-17.md`](cso-operator-app-streamers-review-2026-07-17.md) | Full-series audit of the streamers docs | Historical |
 
+Where a new section goes: anything about **our own pipeline's code behavior, API capabilities we
+use, or what was built/punted** lands in `cso-operator-app-streamers.md`, even when the
+investigation started from growth research. `research/x-clip-usertags.md` (repo root) is for
+external X growth/market research only — algorithm mechanics, competitor accounts, posting-strategy
+theory not tied to a code change. When unsure, ask rather than appending to whichever file was open.
+
 ### Two doc conflicts, resolved
 
 - **Tuna avatar: HeyGen is the settled direction.** `cso-operator-app-streamers-tuna.md`'s
