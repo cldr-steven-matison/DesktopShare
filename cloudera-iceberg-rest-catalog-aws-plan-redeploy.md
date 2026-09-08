@@ -24,7 +24,23 @@ is changed today (the env is disposed tonight regardless); everything below is e
 - Present: `sql/seed-airlines.sql`, `sql/seed-flights.sql`, `test-rest-catalog.sh`,
   `~/.venvs/cdpcli`, `~/.venvs/clouderacloud`, `cloudera.cloud` collection, `.workload.creds`. ✅
 
-## The three gaps to fix Monday
+## The gaps to fix Monday
+
+### 0. Pre-clean the surviving SG rules (correctness — else `terraform apply` fails on step 1)
+The VPC survives the reaper, so its security groups keep junk that makes `terraform apply` abort with
+`InvalidPermission.Duplicate` on the knox/default SGs (hit live 2026-09-08):
+- **Stale personal /32 rules** from a prior session's public IP (your IP rotates week to week).
+- **A CDP-created admin `:443` rule with no description** — CDP adds your admin IP to the knox SG on
+  env creation, and it collides with terraform's own managed extra-CIDR rule.
+
+Run **before** `redeploy.sh` (idempotent — revokes nothing if already clean):
+```
+bash ~/Documents/GitHub/iceberg-rest-catalog-demo/preclean-sg.sh
+```
+It reconciles `srm-iceberg-knox-sg` + `srm-iceberg-default-sg`: revokes any /32 rule that isn't your
+current public IP and any no-description `:443` /32 orphan, and preserves the self-ingress, the
+inter-VPC `/16` rule, and the current-IP managed rules. Terraform then recreates its managed rules
+cleanly. (Do **not** `terraform refresh` — the orphan isn't in state, so refresh won't clear it.)
 
 ### 1. Bump the reaper `enddate` (correctness — else the fresh env is stamped for immediate reap)
 `terraform.tfvars` still has `enddate = "2026-08-28"` (today). Monday's `terraform apply` stamps the
@@ -73,6 +89,8 @@ mid-session cache bust):
    `aws sso login --profile cldr-se`  (`.workload.creds` already present; `cdp configure` only if
    the CDP API key was rotated). Suggest they type it as `! aws sso login --profile cldr-se`.
 3. Apply gaps 1 + 3 (edit `enddate`; write `monday-redeploy.sh`). Two small edits — cheap.
+   Then run gap 0: `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/preclean-sg.sh` (reconciles the
+   surviving SG rules so `terraform apply` doesn't abort on a duplicate ingress rule).
 4. **Launch as ONE background job**, log to a file — the completion notification is the guaranteed
    signal (fires on exit, success *or* `set -e` abort):
    `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/monday-redeploy.sh` (run_in_background).
