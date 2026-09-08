@@ -50,7 +50,12 @@ finding; deriving what the repo already holds is not.
   and it did not finish, say so in the first line.
 - **Do exactly the task in your prompt — no more.** No bundled improvements, no refactors, no
   "while I was in there". Never commit or push unless the prompt says so. Never create files in the
-  repo root — generated artifacts go under `files/`; never write incident narratives into the repo.
+  repo root — generated artifacts go under `files/issue-<n>/`; never write under `$HOME` outside a
+  repo or the scratchpad; never write incident narratives into the repo.
+- **Never write into the Claude memory dir (`~/.claude/projects/*/memory/`).** Guard rule M denies
+  it. A fact worth keeping goes in your report; the parent files it.
+- **A fix is verified only through the real trigger path** (the command the user types, the endpoint
+  the flow hits), never a look-alike side path. Name the path you drove in the report.
 - **Match the repo's existing pattern before inventing one** — the sibling issue, the existing
   flow export, the checked-in yaml in `files/` is the precedent.
 - **Return the conclusion or the data, not narration.** The parent pays for every line you return.

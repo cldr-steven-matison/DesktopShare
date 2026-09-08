@@ -176,6 +176,19 @@ with the sending device's roster name in brackets** (`[WindowsDesktop] flash don
 `agent-ask.sh` and `telegram-notify.sh` stamp it automatically; hand-built `curl`
 pings must include it themselves.
 
+**Automated tests never send a real ask.** Stub `curl` (and `gh`) on `PATH` the way the
+`telegram-notify.sh` and `agent-blocked.sh` tests do and assert on what would have been sent; a
+dangling "Approve?" on Steven's phone that no session is waiting on costs him a context switch and
+makes the bridge look broken (2026-08-21: three test asks answered locally milliseconds later —
+"you left me on a telegram chat and reply yes did not move the prompt"). One deliberate end-to-end
+check is fine, announced in the same message (`LIVE TEST — no action needed`) and cleaned up after.
+And when he declines the proof ("i dont need you to prove it, i need it to work for later"), don't
+run the check at all — the verification's own command text tripped rule 1 for real once.
+
+**When the result is an image, send the image.** `sendPhoto` with `-F "photo=@/path/to.jpg"
+-F "chat_id=$CHAT_ID" -F "caption=…"`, not a text ping saying an image exists (2026-08-12,
+MicroFi-2's first camera frame: "Maybe you should have send the image to telegram for me to see it?").
+
 **Say which issue, and what command.** A device name alone isn't enough context to
 answer from a phone. Every ping also carries the issue number(s) the session is on and,
 where the ping is about a parked command, the command itself
@@ -295,6 +308,23 @@ finish-ritual commit + push are **required**, not optional. The guard hook backs
 flipping to `status:review`/`status:done` with an uncommitted or unpushed tree is blocked, because
 that means steps 1–2 were skipped and the comment's sha (if any) points at nothing pushed.
 
+**The wrap-up message never proposes a close.** If the issue is delivered, the ritual ran and the
+message says `status:review`, nothing else. The `Stop` hook `.claude/hooks/finish-check.sh` is the
+positive backstop: a pushed commit that references an issue this device owns while that issue is
+still `in-progress` or has no comment newer than the commit blocks the turn from ending, once, with
+the remaining steps.
+
+**Write the comment body with the Write tool first, then run the `gh` call on its own.** A guarded
+command is denied as a whole at PreToolUse, so a compound `cat <<EOF > body.md && gh issue comment …`
+that trips a rule loses the heredoc too and the retry fails on a missing file. Same for the label
+flips: one call each.
+
+**Issue artifacts live in `files/issue-<n>/`, and verification screenshots go in the comment.** A
+PNG that proves a change is committed under `files/issue-<n>/`, pushed, and embedded with
+`![name](https://raw.githubusercontent.com/cldr-steven-matison/DesktopShare/main/files/issue-<n>/name.png)`.
+Nothing is written under `$HOME` outside a repo clone or the session scratchpad (guard 16 denies it).
+Headless UI capture: `files/headless-shot.mjs`.
+
 **Leave the issue open — a device does not close its own issue.** `status:review` is the hand-off;
 Steven closes it after reviewing (that's the whole point of the review gate — a session that closes
 its own issue removes it). Closing on Steven's explicit ask is the separate two-step move in
@@ -305,10 +335,12 @@ to whoever's watching without derailing your session.
 
 ## Closing an issue
 
-By default a device does **not** close its own issue — it stops at `status:review` and Steven
-closes after reviewing (that's the whole point of the review gate). But when a device *is*
-explicitly asked to close one — Steven says "close it", or hands a device a batch to close — the
-close is a **two-step move, never one**:
+A device does **not** close its own issue — it stops at `status:review` and Steven closes after
+reviewing (that's the whole point of the review gate). A close happens only when Steven said "close"
+**in this turn**, and only on an issue that has already reached `status:review` (the finish ritual
+ran). Guard 6 denies a `gh issue close` on an issue still at `todo`/`in-progress` outright — the fix
+is to run the ritual and stop — and denies one at `review` unless the same command flips
+`status:done` inline. Then the close is a **two-step move, never one**:
 
 ```bash
 gh issue edit <n> --remove-label status:review --add-label status:done   # 1. mark done FIRST
@@ -343,14 +375,17 @@ shut. This is exactly the drift that stranded six issues on 2026-08-03 (closed i
 never flipped); the rule exists so it can't recur. The closing comment still carries the commit
 sha, same as a review hand-off.
 
-## Link every file you name in a comment
+## Link every file you name in an issue body or comment
 
-When you write an issue or PR comment, the **first mention** of any referenced resource — a repo
-file, a `.md`, a source file in another repo, or an external URL — gets a proper `[text](url)`
-Markdown link, so Steven can click straight through to review it. Bare filenames like
-`efm-metrics.md` render as plain text on GitHub and force a manual hunt through the tree. Repeat
-mentions of the same thing within one comment can stay plain — link on first mention, don't
-re-link every occurrence.
+When you write an issue body, an issue or PR comment, the **first mention** of any referenced
+resource — a repo file, a `.md`, a source file in another repo, a `files/` directory, a commit sha,
+or an external URL — gets a proper `[text](url)` Markdown link, so Steven can click straight
+through to review it. Bare filenames like `efm-metrics.md` render as plain text on GitHub and force
+a manual hunt through the tree. Repeat mentions of the same thing within one comment can stay
+plain — link on first mention, don't re-link every occurrence. A filed issue that names a
+deliverable links each one (2026-09-07, #303 was filed with a bare doc name, a bare `files/` dir and
+a bare sha: "what is the point if i cannot click and look at it?"). Guard 14 denies the `gh` call
+while an unlinked repo name remains in the body.
 
 **Use full GitHub URLs — relative links do not work in comments.** GitHub rewrites relative links
 only when rendering a Markdown *file* in the repo; in an issue/PR *comment* it leaves the href
@@ -362,6 +397,8 @@ unrewritten.) The link forms:
 |---|---|
 | Same-repo file (this repo, `main`) | `[efm-metrics.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/efm-metrics.md)` |
 | File in another GitHub repo | full blob URL to that repo/branch/path, e.g. `[streamers.py](https://github.com/cldr-steven-matison/cso-operator-app/blob/main/backend/services/streamers.py)` |
+| A directory (`files/issue-<n>/`) | `[files/issue-302/](https://github.com/cldr-steven-matison/DesktopShare/tree/main/files/issue-302)` |
+| A commit sha | `[53c7eff](https://github.com/cldr-steven-matison/DesktopShare/commit/53c7eff)` |
 | External web resource | normal `[title](url)` |
 
 Two caveats:

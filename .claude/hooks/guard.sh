@@ -30,11 +30,13 @@
 #      endpoint carrying a `position`), state the flow shape + pitch and match it
 #      against layout.md. Prose in layout.md alone failed to stop two fresh EFM builds
 #      from landing at the cramped NiFi pitch (2026-07-30, issue #47).
-#   6. [DENY] Never `gh issue close` an issue that isn't status:done yet — set the
-#      label FIRST, then close (device-comms.md "Closing an issue"). A close while the
-#      issue still carries todo/in-progress/review strands the label; six issues
-#      drifted this way on 2026-08-03. An inline done-flip in the same command passes,
-#      and the guard auto-flips this device's own issues without saying anything.
+#   6. [DENY] A device never closes its own issue as a wrap-up step. A close from
+#      todo/in-progress is denied outright (run the finish ritual and STOP at
+#      status:review — a close is Steven's explicit ask, 2026-09-07 #247); from review
+#      it passes only with the inline done-flip in the same command; a done issue with a
+#      second stale status:* label is denied until it is stripped (25 closed issues
+#      carried stale labels on 2026-09-08 because the old auto-flip removed only the
+#      first one). The auto-flip is GONE.
 #   7. [CTX] Never flip an issue to status:review/done with an uncommitted or unpushed
 #      tree — finishing is the ordered ritual commit->push->comment(sha)->flip
 #      (device-comms.md "Finishing an issue"); a dirty flip strands the work and the
@@ -63,6 +65,20 @@
 #  13. [CTX] An AMOLED app/device issue flipped to review/done — remind that the app's
 #      backend/ ships only from the per-app leader repo TunaStreetTest/amoled-<app>,
 #      which the local trees don't track (2026-08-27, #236/#222 stranded local-only).
+#  14. [DENY] A `gh issue create|comment|edit|close` / `gh pr create|comment` body that
+#      names a repo file, a files/ dir or a commit sha WITHOUT a full-URL markdown link
+#      (device-comms.md "Link every file you name"; #303 was filed with nothing clickable,
+#      2026-09-07). The denial lists each bare token with its blob/tree/commit URL form.
+#  15. [ASK] A full AMOLED platform build (setup.sh under esp-brookesia/waveshare-devices,
+#      BOARD_PROFILE=, idf.py build/flash) — ~10 min and Steven's call; an app/shell change
+#      is the 20 s littlefs path (2026-08-27 #262/#263, the ask proposed on #247 that day).
+#  16. [DENY, Edit/Write] A write under $HOME/{Downloads,Desktop,Documents,Pictures,Videos}
+#      — issue artifacts go in files/issue-<n>/, scratch in the scratchpad (2026-09-08 #302).
+#   M. [DENY -> ASK, Edit/Write] The memory gate (#310). No proposal on file for the target
+#      path -> deny with "run files/memory-propose.sh first". PENDING proposal -> a bridged
+#      ASK to Steven carrying the fact + the #247 comment; yes = this one write, no = DENIED
+#      recorded. A DENIED row -> deny. Nothing writes a memory by default; the
+#      known-patterns `memory-dir` row carries the reminder for Bash commands.
 #   A. [AUTO] The MAIN SESSION engaging a still-todo issue for this device auto-claims
 #      it (status:in-progress) and tells the model. Fires on a `gh issue view N` or a
 #      `gh issue comment N`; a SUB-AGENT's view (agent_id present) records only, never
@@ -219,10 +235,12 @@ Approve?"
   case "$ans" in
     yes|y|ok|okay|approve|approved|proceed|go)
       ds_bridge_ack "✅ approved — running it"
+      [ -n "${DS_MEM_SLUG:-}" ] && ds_mem_state "$DS_MEM_SLUG" APPROVED
       emit_ctx "Approved from the phone through the #192 permission bridge (reply: \"$ans\"). Steven answered this himself, so it satisfies 'ask fresh every time'. It covers ONLY this one command. Guard's reason was: $reason"
       ;;
     no|n|deny|denied|stop|cancel|abort)
       ds_bridge_ack "🚫 denied — not running it"
+      [ -n "${DS_MEM_SLUG:-}" ] && ds_mem_state "$DS_MEM_SLUG" DENIED
       emit_deny "Denied from the phone through the #192 permission bridge (reply: \"$ans\"). Do NOT retry this command. Say what you would do instead and move on to work that doesn't depend on it. Guard's reason was: $reason"
       ;;
   esac
@@ -246,18 +264,62 @@ ds_bridge_ack() {
   ) >/dev/null 2>&1 || true
 }
 
-# ---- Rule B: edit/write while a claim is still pending ----
+# ---- Memory-proposal registry helpers (rule M, #310) ----
+# .claude/.memory-proposals: slug<TAB>target-path<TAB>#247-comment-url<TAB>STATE<TAB>date<TAB>fact
+# written by files/memory-propose.sh (PENDING) and updated here (ASKED/APPROVED/DENIED) and
+# by memory-propose.sh --index (WRITTEN). checkin.sh ages out settled rows.
+ds_mem_reg() { echo "$proj/.claude/.memory-proposals"; }
+ds_mem_state() {
+  local r; r="$(ds_mem_reg)"; [ -f "$r" ] || return 0
+  awk -F'\t' -v s="$1" -v st="$2" -v d="$(date +%F)" 'BEGIN{OFS="\t"} $1==s {$4=st; $5=d} {print}' "$r" > "$r.tmp" 2>/dev/null && mv "$r.tmp" "$r" 2>/dev/null || rm -f "$r.tmp"
+}
+
+# ---- Edit/Write-family rules: M (memory gate), 16 ($HOME junk dirs), B (claim pending) ----
 # Edit-family tools carry no .command, so the Bash rules below never apply to them;
-# handle them here and exit. The marker is only ever non-empty after auto-claim (rule
-# A) FAILED to flip an issue this session, so this cannot false-positive on an
-# unrelated session (checkin.sh clears stale markers at start).
+# handle them here and exit. Rule B's marker is only ever non-empty after auto-claim (rule
+# A) FAILED to flip an issue this session, so it cannot false-positive on an unrelated
+# session (checkin.sh clears stale markers at start).
 case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
+    fpath="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/null)"
+    # M. The memory gate. Nothing writes into ~/.claude/projects/*/memory/ by default:
+    # the harness's own "save a memory" instruction is overridden on this project (#310,
+    # 2026-09-07; recurred 2026-09-08). The only path is propose -> incident comment on
+    # #247 -> Steven's yes at write time -> this one write. MEMORY.md is maintained by
+    # memory-propose.sh --index, so a direct edit of it is gated the same way.
+    if printf '%s' "$fpath" | grep -Eq '/\.claude/projects/[^/]+/memory/'; then
+      mreg="$(ds_mem_reg)"; mrow=""
+      [ -f "$mreg" ] && mrow="$(awk -F'\t' -v p="$fpath" '$2==p {r=$0} END{print r}' "$mreg")"
+      if [ -z "$mrow" ]; then
+        emit_deny "BLOCKED: no auto-created memories (#310 — 'Stop claude default save a memory'). A memory is a device-local fact only (paths, ports, quirks), never a lesson, a correction, a quote or a rule: those go issue -> incident (agent/incident-rules.md) -> a comment on #247, and a device fact another device needs goes in CLAUDE-CHECKIN.md. If this genuinely is a device-local fact the repo cannot hold, propose it first: write the proposal file (see the header of files/memory-propose.sh for the shape: type reference|project, <=15 lines, a 'Why the repo cannot hold it:' line), then run: bash files/memory-propose.sh <slug> <proposal.md> — it posts the proposal on #247 and registers it; retry this exact write afterwards and Steven decides at that moment. Do not retry before that. Do not edit MEMORY.md by hand (memory-propose.sh --index does it after an approved write)."
+      fi
+      mslug="$(printf '%s' "$mrow" | cut -f1)"; murl="$(printf '%s' "$mrow" | cut -f3)"
+      mstate="$(printf '%s' "$mrow" | cut -f4)"; mdate="$(printf '%s' "$mrow" | cut -f5)"; mfact="$(printf '%s' "$mrow" | cut -f6)"
+      case "$mstate" in
+        DENIED)
+          emit_deny "BLOCKED: Steven declined the memory proposal '$mslug' on $mdate ($murl). The fact stays in the #247 thread and, if it belongs anywhere, in the repo doc — not in a memory. Do not retry this write."
+          ;;
+        *)
+          # PENDING (fresh), ASKED (a desk decision we could not see), APPROVED (phone
+          # yes, first write) and WRITTEN (an edit of an approved memory) all ask —
+          # every write to a memory is Steven's call, one at a time.
+          DS_MEM_SLUG="$mslug"
+          ds_mem_state "$mslug" ASKED
+          emit_ask "Memory proposal '$mslug' (#310 gate) — $mfact. Proposal + incident record: $murl. Approve = this ONE write to $fpath (frontmatter must carry 'approved: <date> $murl'; then run: bash files/memory-propose.sh --index $mslug \"<one-line hook>\"). Decline = the fact stays on #247 / in the repo doc." "memory proposal: $mslug"
+          ;;
+      esac
+    fi
+    # 16. Nothing is written under $HOME's user dirs. Issue artifacts (screenshots, exports)
+    # live in files/issue-<n>/ and get embedded in the issue comment; scratch goes in the
+    # session scratchpad (2026-09-08, #302: two proof screenshots landed in ~/Downloads/302/
+    # on a stale memory's advice — "who ever said to work in ~/Downloads/?").
+    if [ -n "$HOME" ] && printf '%s' "$fpath" | grep -Eq "^$HOME/(Downloads|Desktop|Documents|Pictures|Videos)(/|$)"; then
+      emit_deny "BLOCKED: writing under $HOME/{Downloads,Desktop,Documents,Pictures,Videos} ($fpath). Per agent/incident-rules.md 'Issue hygiene' (2026-09-08, #302): an artifact that belongs to an issue goes in files/issue-<n>/ in the repo (commit + push, embed a screenshot in the issue comment via its raw.githubusercontent.com URL); anything temporary goes in the session scratchpad. Re-run the write to one of those paths."
+    fi
     if [ -n "$marker" ] && [ -s "$marker" ]; then
       nums="$(paste -sd, "$marker" 2>/dev/null | sed 's/,/, #/g')"
       # Name the file in the phone label — Edit-family tools carry no .command, so
       # without this the bridged ask arrived with zero context (#192 audit).
-      fpath="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/null)"
       emit_ctx "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Do it yourself as soon as gh is reachable: gh issue edit <n> --remove-label status:todo --add-label status:in-progress — then clear this marker ($marker). Allowed rather than asked on purpose: gh being offline is not a decision for Steven, and blocking your edits on it would strand the work twice."
     fi
     exit 0
@@ -446,6 +508,16 @@ if printf '%s' "$cmd" | grep -Eq 'deploy\.sh|rollout restart|kubectl +delete +po
   emit_ask "Live-service redeploy/restart detected. Per agent/incident-rules.md (Live service restarts): a redeploy or single-pod restart of a service a running NiFi InvokeHTTP calls into kills the in-flight request (unexpected end of stream) — this has bitten 3x. Before approving: dump the live NiFi flow and confirm no processor is running/mid-fetch, let in-flight ones drain, and confirm exactly one pod Running. This approval covers ONLY this one command." "guard rule 1 — live-service redeploy/restart"
 fi
 
+# 15. Full AMOLED platform build — ~10 min per board on this host, and Steven's call: an
+# app or shell complaint is the ~20 s littlefs path (stage_apps.py + write-flash 0xaa1000),
+# not a rebuild (2026-08-27, #262/#263: two full ESP-IDF rebuilds + reflashes for an app
+# change, "20+ minutes on fable for an app change, really?"; the ask was proposed on #247
+# that day and built 2026-09-08). Passes THE TEST for an ask: the cost is his, not a check
+# the model can run. A littlefs-only flash (write-flash 0xaa1000) never matches this.
+if printf '%s' "$cmd" | grep -Eq 'BOARD_PROFILE=|esp-brookesia[^ ]*/setup\.sh|platform/setup\.sh|(^|[;&| ])bash +setup\.sh|idf\.py +(build|flash)\b'; then
+  emit_ask "Full AMOLED platform build/flash detected (setup.sh / idf.py). This is the ~10-minute-per-board path and it is Steven's call (agent/incident-rules.md 'Fixes and claims': check in with the diagnosis and the cost before an expensive step). If the change is an app, shell, launcher, splash or resource change, do NOT rebuild: stage with tools/stage_apps.py (--shell for the launcher) and write-flash 0xaa1000 littlefs_data.bin (~20 s) — efm-waveshare-amoled.md. Two boards plugged in = two parallel builds in separate BROOKESIA_DIR work trees. This approval covers ONLY this one command." "guard rule 15 — full AMOLED platform build (~10 min)"
+fi
+
 # 2. Commit / push only when asked — except the issue-finish ritual, which the hook
 #    verifies itself: an issue #N in the command (or, for a bare push, in the unpushed
 #    subjects) that this device has claimed. Everything else is allowed with the rule
@@ -516,7 +588,7 @@ if printf '%s' "$cmd" | grep -Eq '(^|[;&|(] *)git +([^;&|]* )?(commit|push)\b'; 
   fi
   if [ -n "$finish_n" ]; then
     ds_note_session_issue "$finish_n" 2>/dev/null || true
-    emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits.$pubnote"
+    emit_ctx "Finish-ritual guard: this commit/push references issue #$finish_n ($finish_why) — the sanctioned issue-finish exception (device-comms.md 'Finishing an issue'). Auto-approved; this covers finishing THAT issue only, not unrelated commits. The ritual is not done at the push: NOW comment the result with the commit sha (every file a full-URL link) and flip the label to status:review — run both, do not offer them back as options; do NOT close the issue (a close is Steven's explicit ask, after review). The Stop hook blocks the turn end while either step is missing.$pubnote"
   fi
   # Not verifiable as a finish ritual -> hand the rule to the model. Advisory by
   # design: label/clock heuristics always mis-fire on the honest case, and this gate
@@ -580,43 +652,44 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
   fi
 fi
 
-# 6. Closing an issue that isn't status:done yet. device-comms.md "Closing an issue":
-# the close is a two-step move — set status:done FIRST, then `gh issue close`. A close
-# while the issue still carries todo/in-progress/review strands the label (the
-# 2026-08-03 batch: six issues closed, labels never flipped, so `gh issue list`
-# filters lied). If the SAME command also flips the label to status:done inline
-# (the documented `gh issue edit ... --add-label status:done && gh issue close`
-# one-liner), it's compliant — pass. Otherwise the hook FIXES the label ITSELF
-# (issue #192, 2026-08-20: this fired 4x in 5 days as an ask that parked unattended
-# sessions — same "remove the model from the loop" reshape as auto-claim rule A):
-# for this device's issues it runs the status:done flip and allows with a context
-# note; only a failed flip, or another device's issue, still asks. Loops ALL issue
-# numbers; fails open (no gh).
+# 6. Closing an issue. device-comms.md "Closing an issue": a device never closes its own
+# issue as a wrap-up step — the proper end is commit -> push -> comment -> status:review
+# and STOP; a close is Steven's explicit ask, after that. (2026-09-07 #247: "claude goes to
+# commit and close... Close is never there unless explicit, and only AFTER the proper end
+# was already completed". The 2026-08-20 auto-flip made a self-close a one-liner and is
+# gone.) Decision by the issue's CURRENT labels:
+#   todo / in-progress          -> DENY: run the ritual, stop at review; no close.
+#   review, no inline done-flip -> DENY with the documented two-step (only if Steven asked).
+#   review + inline done-flip   -> allow + ctx (close only on an explicit ask in this turn).
+#   done + another status:*     -> DENY until the stale label is stripped (the double-label
+#                                  bug: 25 closed issues carried stale labels, 2026-09-08).
+#   done                        -> allow + ctx.
+# Loops ALL issue numbers; the worst outcome wins; fails open (no gh).
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +close +[0-9]+' \
    && ! printf '%s' "$cmd" | grep -Eq -- '(-R|--repo)[= ]'; then
-  # Inline done-flip in the same command satisfies the rule — don't second-guess it.
-  if ! { printf '%s' "$cmd" | grep -Eq -- '--add-label' \
-         && printf '%s' "$cmd" | grep -Eq 'status:done'; }; then
-    if command -v gh >/dev/null 2>&1; then
-      fixed=""
-      for n in $(ds_issue_numbers "$cmd" close); do
-        ds_note_session_issue "$n" 2>/dev/null || true
-        cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
-        if [ -n "$cur" ] && ! printf '%s' "$cur" | grep -q 'status:done'; then
-          mine=""
-          for l in $(ds_device_labels 2>/dev/null); do
-            [ -n "$l" ] && printf '%s' "$cur" | grep -q "device:$l" && mine=1
-          done
-          old="$(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | head -1)"
-          if [ -n "$mine" ] && gh issue edit "$n" ${old:+--remove-label "$old"} --add-label status:done >/dev/null 2>&1; then
-            fixed="$fixed #$n"
-          else
-            emit_deny "BLOCKED: issue #$n is being closed but does not carry status:done (it's still $(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)) and the guard could not auto-flip it (another device's issue, or gh edit failed). device-comms.md 'Closing an issue': set status:done FIRST, then close. Do it in one move and re-run — the retry passes once the label is right: gh issue edit $n --remove-label status:<current> --add-label status:done && gh issue close $n --comment '<result + sha>'. This is a denial and not a prompt on purpose: it is an instruction to you, and the retry is yours to make."
-          fi
-        fi
-      done
-      [ -n "$fixed" ] && emit_ctx "Close guard: flipped$fixed to status:done for you before the close (device-comms.md 'Closing an issue' — label first, then close). Auto-fixed, no action needed."
-    fi
+  inline_done=""
+  printf '%s' "$cmd" | grep -Eq -- '--add-label' && printf '%s' "$cmd" | grep -q 'status:done' && inline_done=1
+  if command -v gh >/dev/null 2>&1; then
+    deny6=""
+    for n in $(ds_issue_numbers "$cmd" close); do
+      ds_note_session_issue "$n" 2>/dev/null || true
+      cur="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
+      [ -n "$cur" ] || continue
+      sts="$(printf '%s' "$cur" | grep -oE 'status:[a-z-]+' | paste -sd, -)"
+      if printf '%s' "$cur" | grep -Eq 'status:(todo|in-progress)'; then
+        deny6="BLOCKED: issue #$n is still $sts — a device never closes its own issue as a wrap-up step (device-comms.md 'Closing an issue', 2026-09-07). The proper end is: commit -> push -> gh issue comment $n (result + sha, files linked) -> gh issue edit $n --remove-label status:in-progress --add-label status:review, and STOP there. A close happens only on Steven's explicit ask in this turn, and only after the issue is at status:review (then --add-label status:done && gh issue close, one move). Do not retry the close now."
+        break
+      elif printf '%s' "$cur" | grep -q 'status:done' && printf '%s' "$cur" | grep -Eq 'status:(todo|in-progress|review|blocked)'; then
+        stale="$(printf '%s' "$cur" | grep -oE 'status:(todo|in-progress|review|blocked)' | sed 's/^/--remove-label /' | paste -sd' ' -)"
+        deny6="BLOCKED: issue #$n carries status:done AND a stale status label ($sts). A closed issue keeps exactly one status label. Strip it first, then re-run the close: gh issue edit $n $stale"
+        break
+      elif printf '%s' "$cur" | grep -q 'status:review' && [ -z "$inline_done" ]; then
+        deny6="BLOCKED: issue #$n is at status:review. Close it ONLY if Steven asked for the close in this turn — if he did not, stop here; review is the hand-off. If he did: gh issue edit $n --remove-label status:review --add-label status:done && gh issue close $n --comment '<result + sha>' (device-comms.md 'Closing an issue', label first, then close, one move)."
+        break
+      fi
+    done
+    [ -n "$deny6" ] && emit_deny "$deny6"
+    emit_ctx "Close guard: the label state allows this close. It is only correct if Steven asked for the close in THIS turn — a wrap-up ends at status:review and never closes (device-comms.md 'Closing an issue'). If he did not ask, abandon this command now."
   fi
 fi
 
@@ -637,6 +710,68 @@ if printf '%s' "$cmd" | grep -Eq 'gh +issue +edit\b' \
       emit_ctx "AMOLED issue #$n -> review/done: before this counts as shipped, confirm the per-app LEADER repo TunaStreetTest/amoled-<app> 'main' carries BOTH the on-device app package AND the backend/ change (the :8091-:8094 services). waveshare-devices / DesktopShare do NOT track the backends, so a clean local tree here proves nothing — check the leader directly (gh api repos/TunaStreetTest/amoled-<app>/commits, or its main). Two AMOLED backends were stranded local-only this way on 2026-08-27 (#236/#222); background in amoled-app-store-plan.md Part C. Allowed rather than asked: this is a check you run yourself."
     fi
   done
+fi
+
+# 14. Every repo file / files/ dir / commit sha named in an issue body or comment is a
+# full-URL link (device-comms.md "Link every file you name"). #303 was filed 2026-09-07
+# with a bare doc name, a bare files/ dir and a bare sha — "what is the point if i cannot
+# click and look at it?". The body is read from --body-file/-F (a real file) or taken as
+# the command text for inline --body/-b/--comment. A token counts only when it resolves:
+# a tracked path/basename (git ls-files) in DesktopShare or the cwd repo, a files/<dir>
+# directory, or a 7-40-hex sha that `git cat-file -e` accepts. A token that appears
+# anywhere in the body as `[token](` or `/token)` is linked. DENY (the model fixes the
+# body and retries); fails open when git/the remote can't be resolved. Runs after
+# rules 4/6/7 so their decisions keep precedence.
+if printf '%s' "$cmd" | grep -Eq 'gh +(issue +(create|comment|edit|close)|pr +(create|comment))\b' \
+   && printf '%s' "$cmd" | grep -Eq -- '(--body-file|--body|--comment|(^|[[:space:]])-[bF])([= ]|$)' \
+   && command -v git >/dev/null 2>&1; then
+  body14=""
+  bf="$(printf '%s' "$cmd" | grep -oE -- '(--body-file|(^|[[:space:]])-F)[= ]+[^[:space:]]+' | head -1 | sed -E 's/^.*(--body-file|-F)[= ]+//; s/^["'"'"']//; s/["'"'"']$//')"
+  if [ -n "$bf" ]; then
+    case "$bf" in "~"*) bf="$HOME${bf#\~}" ;; esac
+    if [ -f "$bf" ]; then body14="$(cat "$bf" 2>/dev/null)"
+    elif [ -n "$hookcwd" ] && [ -f "$hookcwd/$bf" ]; then body14="$(cat "$hookcwd/$bf" 2>/dev/null)"
+    elif [ -f "$proj/$bf" ]; then body14="$(cat "$proj/$bf" 2>/dev/null)"
+    fi
+  else
+    body14="$cmd"
+  fi
+  if [ -n "$body14" ]; then
+    # Repos whose files count: DesktopShare + the session's cwd repo (if different).
+    repos14="$proj"
+    if [ -n "$hookcwd" ] && git -C "$hookcwd" rev-parse --show-toplevel >/dev/null 2>&1; then
+      t14="$(git -C "$hookcwd" rev-parse --show-toplevel 2>/dev/null)"
+      [ "$t14" != "$(cd "$proj" && pwd)" ] && repos14="$repos14 $t14"
+    fi
+    gh_base() { git -C "$1" remote get-url origin 2>/dev/null | sed -E 's#^git@github\.com:#https://github.com/#; s#\.git$##'; }
+    stripped="$(printf '%s' "$body14" | sed -E 's/\[[^]]*\]\([^)]*\)//g; s#https?://[^[:space:])]+##g')"
+    cands="$(printf '%s' "$stripped" | grep -oE '(^|[^A-Za-z0-9_./-])[A-Za-z0-9_][A-Za-z0-9_./-]*\.(md|py|sh|json|yaml|yml|kdl|png|mjs|tsv|ino|txt|js|ts|tsx)\b|files/[A-Za-z0-9_.-]+|\b[0-9a-f]{7,40}\b' | sed -E 's/^[^A-Za-z0-9_./-]//' | sort -u)"
+    unlinked=""
+    for t in $cands; do
+      # already linked somewhere in the body (first-mention rule)?
+      bn="$(basename "$t")"
+      printf '%s' "$body14" | grep -qF "[$t](" && continue
+      printf '%s' "$body14" | grep -qF "[$bn](" && continue
+      printf '%s' "$body14" | grep -qE "/$(printf '%s' "$bn" | sed 's/[.[\*^$]/\\&/g')\)" && continue
+      form=""
+      for r in $repos14; do
+        base="$(gh_base "$r")"; [ -n "$base" ] || continue
+        if printf '%s' "$t" | grep -Eq '^[0-9a-f]{7,40}$'; then
+          git -C "$r" cat-file -e "$t^{commit}" 2>/dev/null && form="[$t]($base/commit/$t)" && break
+        elif [ -d "$r/$t" ] && printf '%s' "$t" | grep -q '^files/'; then
+          form="[$t/]($base/tree/main/$t)"; break
+        else
+          p="$(git -C "$r" ls-files -- "$t" "*/$t" 2>/dev/null | head -1)"
+          [ -z "$p" ] && p="$(git -C "$r" ls-files 2>/dev/null | grep -E "(^|/)$(printf '%s' "$bn" | sed 's/[.[\*^$]/\\&/g')$" | head -1)"
+          [ -n "$p" ] && form="[$bn]($base/blob/main/$p)" && break
+        fi
+      done
+      [ -n "$form" ] && unlinked="$unlinked"$'\n'"  $t  ->  $form"
+    done
+    if [ -n "$unlinked" ]; then
+      emit_deny "BLOCKED: this issue/PR body names repo files, files/ dirs or commit shas without a clickable link (device-comms.md 'Link every file you name in an issue body or comment'; #303, 2026-09-07). Link each on first mention with the full GitHub URL — relative links do not resolve in issue text — then re-run:$unlinked"
+    fi
+  fi
 fi
 
 # 5. Processor create/update carrying a position — the layout self-check gate.

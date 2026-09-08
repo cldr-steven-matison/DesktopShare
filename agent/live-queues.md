@@ -13,6 +13,7 @@ That changes what "safe to touch" means. This file is the rule set for anything 
 
 - **Never cancel, edit, or reorder items already sitting in the pending queue without an explicit, per-instance ask.** Not even ones that are obviously bad. Not even ones a fix you just shipped clearly flags as bad. A queue with a bad entry, left alone, is still recoverable; a queue that was quietly hand-edited is not.
 - **Never hand-inject items into the queue to shortcut a test.** Even with real, verified data. Let the real pipeline fetch fire, or scope the test off the live path (dry-run mode, a separate PG, etc.).
+- **Verify a live-trigger endpoint only with a value that is guaranteed inert** — an unmatched route, a nonexistent id — never a real target, even for a "did my deploy work" check. `curl …/trigger/FetchClips` to prove the route exists fires a real trigger flowfile into `FetchClips`; it queued harmlessly on 2026-07-24 only because the PG happened to be stopped.
 
 ## Redeploy sanity
 

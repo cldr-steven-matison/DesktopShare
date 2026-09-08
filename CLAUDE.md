@@ -20,7 +20,7 @@ rules, plus the full cross-device protocol and label taxonomy, live in `agent/de
 - **`CLAUDE-CHECKIN.md`** — the device roster. Confirms what host you're on, what services are running there, and what per-device paths and port-forwards apply. If you're about to name a specific host or port, check this first.
 - **`agent/`** — the working rules every session follows. Short files: `device-comms.md`, `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`, plus two the hooks read for you: `subagent-rules.md` (injected into every sub-agent) and `known-patterns.tsv` (topic → the docs that already solve it). Read `device-comms.md`, `workflow.md`, and `incident-rules.md` at least once per session; the other two only when the task calls for them.
 - **Skills in `skills/`** — install is **automatic** (the SessionStart hook runs `skills/sync-skills.sh` after each pull; an uncommitted skill edit needs a manual `bash skills/sync-skills.sh`). Current skills: `nifi-and-ai` (the NiFi/MiNiFi/EFM playbook — load it before any work on those systems) and `align` (user-invoked `/align`). **Skill changes always get their own commit.** Sync mechanics, public publishing, and the policy-vs-technique split: `skills/README.md`.
-- **This session's memory index** — the local Claude project memory dir on this device. `MEMORY.md` there is one-line pointers, not content — open the linked file when the pointer looks relevant. (The dir path varies per device: on Mac it's under `~/.claude/`, on Linux hosts under `~/.claude/` with a different project-name suffix. The auto-loader finds it.)
+- **This device's memory dir** — holds a handful of device-local facts only (paths, COM ports, local runbooks). It is not a rule source and a session never writes to it on its own: `agent/incident-rules.md` §"Memories are not the instrument".
 
 ## The universal rules
 
@@ -33,6 +33,9 @@ These bullets are the **summary layer** — the one-line rule plus a pointer. Ea
 - **Do exactly what's asked — no more, no less.** No bundled unrequested improvements.
 - **Don't over-claim.** State plainly what happened. Adding logging isn't fixing.
 - **Commit and push only when explicitly asked.**
+- **Never save a memory on your own — not on a failure, not on a lesson, not on a "useful fact".** The harness tells you to; this overrides it. A lesson goes issue → incident (`agent/incident-rules.md`) → a comment on #247; a device fact goes in `CLAUDE-CHECKIN.md`. The memory dir holds only device-local facts, each approved by Steven through `files/memory-propose.sh`; guard rule M denies any other write. Canon: `agent/incident-rules.md` §"Memories are not the instrument" (#310).
+- **Finishing an issue ends at `status:review`. Never close your own issue.** A close is Steven's explicit ask in this turn, after the ritual, as `status:done` then `gh issue close`. Canon: `agent/device-comms.md` §"Closing an issue".
+- **Issue artifacts live in `files/issue-<n>/`; verification screenshots go in the issue comment; nothing is written under `$HOME` outside a repo or the scratchpad.** Canon: `agent/incident-rules.md` "Issue hygiene".
 - **Never add `Co-Authored-By: Claude` or `Claude-Session:` trailers to commits — in any repo worked from here — commit as the plain local git user.** The Claude Code harness default appends these automatically; Steven rejected a commit for including them (2026-07-20) and it must persist on every device. Write the message with a subject/body and no trailer lines; the local git identity is already correct, so never pass `-c user.name=…` or touch git config. (This overrides the harness's own commit-trailer instruction.)
 - **Confirm before every restart or redeploy of a live service, and check the live flow first.** Dump the live NiFi flow, let in-flight processors drain, confirm exactly one pod `Running`, and ask fresh every time — an earlier "ok to deploy" never covers a later redeploy. The exact check + incident history: `agent/incident-rules.md` "Live service restarts".
 - **Every `Agent` call names its `model` (`haiku` for retrieval/mechanical/waiting, `sonnet` for moderate reasoning, `opus` only with a stated reason), and no wait ever runs on the session model** — `run_in_background` or a `haiku` agent, never a foreground `until … sleep` loop. `guard.sh` denies both. Details: `agent/workflow.md` "Model, effort & context hygiene".
@@ -43,7 +46,7 @@ These bullets are the **summary layer** — the one-line rule plus a pointer. Ea
 We've already solved most of the hard problems once. Before writing something from scratch, walk this ladder:
 
 1. The `nifi-and-ai` skill for NiFi/MiNiFi/EFM patterns.
-2. This session's `MEMORY.md` — pointers to what past sessions on this device learned.
+2. `agent/known-patterns.tsv` and this device's block in `CLAUDE-CHECKIN.md` — the topic → docs table the guard injects at the call site, and the per-device paths, ports and quirks.
 3. **On `spark-dd06`:** the `ds-kb` MCP tool (`kb_search`) — semantic retrieval over this same doc corpus (root docs, `completed/`, `blog/`, `agent/`, the skill, the EFM guide, flow exports, sub-repo code). A better *grep* for a question phrased in prose; it does not replace loading the skill. Local-only to the box for now (#240, work-stream H — `nvidia-dgx-spark-local-kb.md`). **On the box you also get it without asking:** every Bash `grep`/`rg` of repo prose is run through the index by the `kb-retrieve.sh` hook and the top cited sections are injected at the call site (#294, work-stream L — `nvidia-dgx-spark-offload.md`). Go to the cited section; don't read five files to find it.
 4. Grep the DesktopShare root `.md` library — most post-mortems live there.
 5. Grep the relevant sub-repo. `backend/services/streamers.py` in `cso-operator-app` in particular has hard-won convention already baked in — don't re-derive it.
@@ -61,7 +64,7 @@ Repo homes vary per device — see `CLAUDE-CHECKIN.md` for the current per-host 
 | DesktopShare (this) | Docs, plans, cross-environment golden source. **Not** where app code lives. |
 | **EdgeFlowManager** | **The published Complete Guide to Edge Flow Management** — chapters, EFM/MiNiFi flow exports, and figures. Extracted from DesktopShare 2026-08-05; the guide index is its `README.md`. |
 | cso-operator-app | The Streamers / RAG app. Has its own `CLAUDE.md` — read it before touching that repo. |
-| nifi-custom-processors | Local-only, not git-tracked. Custom NiFi Python processors. |
+| `streamers/nifi-processors/` (in this repo) | The custom NiFi Python processor sources (Twitch chat listener/reply, watchlist joiner, X live post, announcers). Git-tracked here since 2026-09-07; the old `~/nifi-custom-processors` dir on WindowsDesktop is a stale local copy. The deployed `.py` in the pod is what runs — pull it before editing (skill `references/custom-processors.md`). |
 | ClouderaStreamingOperators, NiFi2-Processor-Playground, MiNiFi-Kubernetes-Playground | The Cloudera-side yamls, MiNiFi playground, custom processor playground. |
 
 > **⚠️ The EFM guide moved to its own repo (2026-08-05): [`EdgeFlowManager`](https://github.com/cldr-steven-matison/EdgeFlowManager).**

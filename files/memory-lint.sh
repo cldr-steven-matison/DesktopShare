@@ -42,6 +42,20 @@ dangle="$(grep -rhoE '\[\[[A-Za-z0-9_./-]+\]\]' *.md | sed -E 's/^\[\[//; s/\]\]
           | while read -r s; do grep -qxF "$s" <(printf '%s\n' "$avail") || echo "$s"; done)"
 if [ -n "$dangle" ]; then echo "HARD — dangling [[wikilinks]] (no matching memory):"; echo "$dangle" | sed 's/^/  [[/; s/$/]]/'; fail=1; fi
 
+# 3b. HARD (#310, 2026-09-08): a `type: feedback` memory. Lessons and corrections go
+#     issue -> incident (agent/incident-rules.md) -> #247 comment, never a memory.
+fb="$(grep -l -E '^ *type: *feedback' $(ls *.md | grep -v '^MEMORY.md$') 2>/dev/null)"
+if [ -n "$fb" ]; then echo "HARD — feedback-type memories (not allowed; file the incident instead):"; echo "$fb" | sed 's/^/  /'; fail=1; fi
+
+# 3c. HARD (#310): a body memory with no `approved:` frontmatter line — every memory is approved
+#     by Steven through files/memory-propose.sh and carries the date + #247 comment URL.
+noapp="$(for f in $(ls *.md | grep -v '^MEMORY.md$'); do grep -q '^approved:' "$f" || echo "$f"; done)"
+if [ -n "$noapp" ]; then echo "HARD — memories with no 'approved:' line (never went through memory-propose.sh):"; echo "$noapp" | sed 's/^/  /'; fail=1; fi
+
+# 3d. SOFT (#310): a body memory over 40 lines — a memory is a terse device-local fact, not a narrative.
+long="$(for f in $(ls *.md | grep -v '^MEMORY.md$'); do n=$(wc -l < "$f"); [ "$n" -gt 40 ] && echo "$f ($n lines)"; done)"
+if [ -n "$long" ]; then echo "SOFT — memories over 40 lines (trim to the fact, promote the rest to the repo):"; echo "$long" | sed 's/^/  ? /'; fi
+
 # 4. SOFT: repo-relative *.md paths mentioned in memories that don't exist in the repo (moved/renamed?)
 stale="$(grep -rhoE '[A-Za-z0-9_][A-Za-z0-9_/-]*\.md' *.md | sort -u | while read -r p; do
            case "$p" in (*/*) ;; (*) continue ;; esac      # only path-like refs (bare filenames handled above)

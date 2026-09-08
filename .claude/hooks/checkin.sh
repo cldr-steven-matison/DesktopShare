@@ -61,7 +61,28 @@ if command -v ds_last_tool_file >/dev/null 2>&1; then
   rm -f "$(ds_last_tool_file)" 2>/dev/null || true
 fi
 
+# Same for the finish-ritual nag marker (finish-check.sh Stop hook, #247 B1): once per
+# issue per SESSION, so it resets here. And age out settled memory-proposal rows
+# (guard.sh rule M, #310): WRITTEN/DENIED rows older than 7 days are history, not state.
+rm -f "$proj/.claude/.finish-nagged" 2>/dev/null || true
+if [ -f "$proj/.claude/.memory-proposals" ]; then
+  cutoff="$(date -d '7 days ago' +%F 2>/dev/null || date -v-7d +%F 2>/dev/null || echo 0000-00-00)"
+  awk -F'\t' -v c="$cutoff" '!($4=="WRITTEN" || $4=="DENIED") || $5 >= c' "$proj/.claude/.memory-proposals" \
+    > "$proj/.claude/.memory-proposals.tmp" 2>/dev/null && mv "$proj/.claude/.memory-proposals.tmp" "$proj/.claude/.memory-proposals" 2>/dev/null || true
+fi
+
 out=""
+
+# 0. Memory silo lint (#310): findings only, never blocks. A feedback-type memory, an
+#    unapproved one, or a dead pointer surfaces here at session start instead of being
+#    read as truth for weeks (agent/incident-rules.md "Memories are not the instrument").
+if [ -f "$proj/files/memory-lint.sh" ]; then
+  memdir="$HOME/.claude/projects/$(printf '%s' "$(cd "$proj" && pwd)" | sed 's#/#-#g')/memory"
+  if [ -d "$memdir" ]; then
+    lint="$(bash "$proj/files/memory-lint.sh" "$memdir" "$proj" 2>/dev/null | grep -E '^(HARD|SOFT|  )' )"
+    [ -n "$lint" ] && out+="== memory-lint (#310): fix in an optimize sweep, never by a default save =="$'\n'"$lint"$'\n\n'
+  fi
+fi
 
 # 1. Pull first (device-comms.md rule 1).
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then

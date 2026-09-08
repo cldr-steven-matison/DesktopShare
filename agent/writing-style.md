@@ -154,6 +154,20 @@ Writing it up anyway reads as billing him for your own mistake: he already paid 
 
 The related tell to catch earlier: an intermittent failure you cannot reproduce is not a lead worth pulling on mid-task. Note it to yourself, finish the job.
 
+**The chat reply is the result and the next step, nothing else.** A few lines: what is fixed, what is left, what needs him. No before/after tables, no log excerpts, no timeline of the investigation, no list of what was ruled out, no restating history he just lived through. The evidence goes in the issue comment or the doc. When a hook or classifier blocks a step, work the block yourself (re-invoke the skill, retry) instead of handing him a command to paste; escalate only what is un-actionable. (2026-08-22: "you do it and stop trauma dumping on me in replies good lord.")
+
+**During live debugging, questions are plain text.** A walkthrough with real output at every step (an OAuth flow, a curl that fails) gets a normal question he can answer by pasting; `AskUserQuestion`'s canned choices are for a genuine fork in approach, not for "did step 3 work" (2026-07-18: "i dont want to play this game all day"). This holds in plan mode too.
+
+**State a scope distinction neutrally; never frame a misread as a "FALSE/MISLEADING claim".** "The existing Helix/OAuth integration is reused for X; the chat-listening layer is new work" — then move on. A gotcha frame reads as an accusation and re-litigates who said what (2026-07-18).
+
+**A repo doc is facts → design → Done → Next, plus terse gotchas as technical facts.** Never a postmortem, a "what went wrong" section, or a moralizing what-not-to-do list — the same rule as the provenance strip below, applied to internal docs (2026-08-18, #181: "stop trauma dumping in my repo. Fix the MD to be what works, what's done, what needs to be done"). A correction that lands on one issue sweeps the siblings with one-liners, not the story.
+
+**No "built with Claude" or AI credits in anything an end user sees** — terminal output, site copy, boot sequences, UI. Attribution belongs in a README, source comments, or commit messages, even on projects Steven wants known as built with Claude (sceneserver.com).
+
+**Session History entries are one per calendar day, not one per sitting.** Several conversations on the same day all land under that day's single `### Session N (YYYY-MM-DD)` heading; a new chat or a break does not mint a new session number (corrected 2026-07-03).
+
+**A plan states verified facts and the work to do; it never carries scoping lines it was not asked for.** No "out of scope", no "stays with Steven", no ".wslconfig → max, Steven's call" asides. Scoping a child issue down inside a plan is drift (2026-08-25, #244: "Remove this completely, this fucked me last time"). If a real decision is needed, ask one direct question.
+
 **Facts in the tracked doc; the reasoning goes in the issue comment.** A tracked `.md` update carries only the concrete facts — the commands run, the config values, the log lines, what actually changed. The *why-this-matters*, the reasoning behind a choice, and the next-steps commentary belong in the GitHub issue comment, not seeded through the doc. The doc is the durable record of state; the issue thread is where the narrative of getting there lives. (Corrected live twice on StarlinkAI — 2026-07-30, then 2026-08-09 — before it was committed; until then other devices were unguarded.)
 
 ## What to strip
