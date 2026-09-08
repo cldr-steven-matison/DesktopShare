@@ -314,7 +314,11 @@ case "$tool" in
     # session scratchpad (2026-09-08, #302: two proof screenshots landed in ~/Downloads/302/
     # on a stale memory's advice — "who ever said to work in ~/Downloads/?").
     if [ -n "$HOME" ] && printf '%s' "$fpath" | grep -Eq "^$HOME/(Downloads|Desktop|Documents|Pictures|Videos)(/|$)"; then
-      emit_deny "BLOCKED: writing under $HOME/{Downloads,Desktop,Documents,Pictures,Videos} ($fpath). Per agent/incident-rules.md 'Issue hygiene' (2026-09-08, #302): an artifact that belongs to an issue goes in files/issue-<n>/ in the repo (commit + push, embed a screenshot in the issue comment via its raw.githubusercontent.com URL); anything temporary goes in the session scratchpad. Re-run the write to one of those paths."
+      # Repo clones under ~/Documents (or any other user dir) are fine — only bare $HOME paths are banned.
+      _repo_root=$(git -C "$(dirname "$fpath")" rev-parse --show-toplevel 2>/dev/null)
+      if [ -z "$_repo_root" ]; then
+        emit_deny "BLOCKED: writing under $HOME/{Downloads,Desktop,Documents,Pictures,Videos} ($fpath). Per agent/incident-rules.md 'Issue hygiene' (2026-09-08, #302): an artifact that belongs to an issue goes in files/issue-<n>/ in the repo (commit + push, embed a screenshot in the issue comment via its raw.githubusercontent.com URL); anything temporary goes in the session scratchpad. Re-run the write to one of those paths."
+      fi
     fi
     if [ -n "$marker" ] && [ -s "$marker" ]; then
       nums="$(paste -sd, "$marker" 2>/dev/null | sed 's/,/, #/g')"
