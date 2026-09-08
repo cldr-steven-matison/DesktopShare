@@ -113,4 +113,4 @@ The point of the box is that flows on other devices hit it as an inference targe
 
 - [DeepSeek-V4-Flash single-Spark recipe](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-One-DGX-Spark) · [Qwen3-27B SGLang recipe](https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark)
 - [Red Hat — RHEL on DGX Spark](https://www.redhat.com/en/blog/supercharging-local-ai-development-rhel-nvidia-dgx-spark)
-- `nvidia-dgx-spark-landscape.md` (model sizing) · `nvidia-dgx-spark-cloudera-demos.md` (what the endpoint feeds)
+- `nvidia-dgx-spark-landscape.md` (model sizing) · `nvidia-dgx-spark-cso-demos.md` (what the endpoint feeds)

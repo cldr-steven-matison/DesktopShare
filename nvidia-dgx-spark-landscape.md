@@ -110,7 +110,7 @@ Locked before the first non-lead weight pull on `spark-dd06`. Each slot lists th
 
 ## When this ships
 
-- The locked list feeds `nvidia-dgx-spark-runbook.md` (which model to pull, as-built) and `nvidia-dgx-spark-cloudera-demos.md` (which model backs each demo).
+- The locked list feeds `nvidia-dgx-spark-runbook.md` (which model to pull, as-built) and `nvidia-dgx-spark-cso-demos.md` (which model backs each demo).
 - If promoted to a public blog later, strip issue numbers and internal framing per `agent/writing-style.md`.
 
 ## Resources

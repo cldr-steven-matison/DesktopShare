@@ -19,12 +19,12 @@ LLM_TELLS = ["delve", "leverage", "in the fast-paced", "it's worth noting", "it 
 CLOSERS = ["## Definition of done", "## When this ships", "## Resources"]
 SIBLINGS = ["nvidia-dgx-spark-research.md", "nvidia-dgx-spark-landscape.md", "nvidia-dgx-spark-runbook.md",
             "nvidia-dgx-spark-k3s-cso.md", "nvidia-dgx-spark-efm-agent.md", "nvidia-dgx-spark-local-kb.md",
-            "nvidia-dgx-spark-cloudera-aws.md", "nvidia-dgx-spark-cloudera-demos.md", "nvidia-dgx-spark-plan.md"]
+            "nvidia-dgx-spark-cloudera-aws.md", "nvidia-dgx-spark-cso-demos.md", "nvidia-dgx-spark-plan.md"]
 SHORT = {"research": "nvidia-dgx-spark-research.md", "landscape": "nvidia-dgx-spark-landscape.md",
          "runbook": "nvidia-dgx-spark-runbook.md", "k3s-cso": "nvidia-dgx-spark-k3s-cso.md",
          "efm-agent": "nvidia-dgx-spark-efm-agent.md", "local-kb": "nvidia-dgx-spark-local-kb.md",
-         "cloudera-aws": "nvidia-dgx-spark-cloudera-aws.md", "cloudera-demos": "nvidia-dgx-spark-cloudera-demos.md",
-         "demos": "nvidia-dgx-spark-cloudera-demos.md", "plan": "nvidia-dgx-spark-plan.md"}
+         "cloudera-aws": "nvidia-dgx-spark-cloudera-aws.md", "cloudera-demos": "nvidia-dgx-spark-cso-demos.md",
+         "demos": "nvidia-dgx-spark-cso-demos.md", "plan": "nvidia-dgx-spark-plan.md"}
 URL_RE = re.compile(r'https?://[^\s<>"\'\)\]`]+')
 ALLOW_URL_PREFIX = ("https://github.com/cldr-steven-matison/",)
 FILE_RE = re.compile(r'`([^`\s]+\.(?:md|sh|js|py|json|yaml|yml|kdl|txt|csv|flow\.json))`')

@@ -631,7 +631,7 @@ Merged and deduplicated from every bucket's `open_questions` plus `critic.json`,
 ## When this ships
 
 - [#237](https://github.com/cldr-steven-matison/DesktopShare/issues/237) closes and Phase 1 of `nvidia-dgx-spark-plan.md` is done; the plan's work-stream table row for E flips from "not yet written" to the sha.
-- Every sibling doc stops carrying its own citations and points here instead. `nvidia-dgx-spark-landscape.md` takes its sizing numbers from §2/§4/§5 with the tags attached; `nvidia-dgx-spark-runbook.md` takes day-one commands from §1 and §2; `nvidia-dgx-spark-cloudera-demos.md` takes the demo shapes from §7 and §10.
+- Every sibling doc stops carrying its own citations and points here instead. `nvidia-dgx-spark-landscape.md` takes its sizing numbers from §2/§4/§5 with the tags attached; `nvidia-dgx-spark-runbook.md` takes day-one commands from §1 and §2; `nvidia-dgx-spark-cso-demos.md` catalogues the flows built on the box and defers to their as-built docs (Flink from §10 only).
 - The chapters this doc feeds — ch01, ch02, ch03, ch04, ch05, ch06, ch07, ch08, ch09, ch10, ch11, ch12, ch13, ch14, ch15, ch16, ch17, ch18, ch19, ch21, ch22, ch23 under `files/nvidia-spark-guide/` — each get their source rows lifted from the section that names them, so no chapter re-derives a citation.
 - On-box execution ([#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235)) turns "expected" into "as-built": every `# expected — verify on the box` block in §3 becomes a measured result, and §11's k3s row gets an empirical verdict rather than a documentary one. When it does, this doc gets a dated update, not a new file.
 - [#243](https://github.com/cldr-steven-matison/DesktopShare/issues/243) — the on-box `docker pull` + `docker image inspect` — appends a second, as-built column to §9's table. If any image disagrees with the registry probe, §9's fallback list is what gets used.
@@ -640,7 +640,7 @@ Merged and deduplicated from every bucket's `open_questions` plus `critic.json`,
 
 ## Resources
 
-- Companion docs: `nvidia-dgx-spark-plan.md` (the EPIC spine) · `nvidia-dgx-spark-landscape.md` · `nvidia-dgx-spark-runbook.md` · `nvidia-dgx-spark-cloudera-demos.md` · `Complete Developer Guide for Nvidia Spark with Cloudera.md` · `files/nvidia-spark-guide/README.md`
+- Companion docs: `nvidia-dgx-spark-plan.md` (the EPIC spine) · `nvidia-dgx-spark-landscape.md` · `nvidia-dgx-spark-runbook.md` · `nvidia-dgx-spark-cso-demos.md` · `Complete Developer Guide for Nvidia Spark with Cloudera.md` · `files/nvidia-spark-guide/README.md`
 - Fleet facts cited above: `CLAUDE-CHECKIN.md` (NvidiaSpark-1, WindowsDesktop and NvidiaNano blocks) · `CONTEXT.md` (the DGX Spark vs Apache Spark naming rule) · `files/cso-prod-1/VALIDATION.md` · `files/cso-prod-1/SNAPSHOT.md` · `files/cso-prod-1/flows/prod/parameter-contexts.md`
 - The corpus itself: `files/issue-226/research/` — 17 bucket JSONs, `verify.json` (the three-lens votes), `critic.json` (the coverage table in §11)
 - Precedent: `efm-nvidia-nano-research.md` (the confidence-tag convention) · `efm-nvidia-nano-inference.md` · `agent/writing-style.md`

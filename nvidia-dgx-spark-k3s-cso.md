@@ -587,7 +587,7 @@ The Spark box is a development and demo platform and an inference target, not a 
 
 ## Resources
 
-- Companion docs: `nvidia-dgx-spark-plan.md` (EPIC spine) · `nvidia-dgx-spark-research.md` (§3 Kubernetes on GB10, §9 CSO on aarch64, §10 Flink Agents and NiFi → local LLM) · `nvidia-dgx-spark-landscape.md` · `nvidia-dgx-spark-runbook.md` · `nvidia-dgx-spark-cloudera-demos.md` · `Complete Developer Guide for Nvidia Spark with Cloudera.md` · `files/nvidia-spark-guide/README.md`
+- Companion docs: `nvidia-dgx-spark-plan.md` (EPIC spine) · `nvidia-dgx-spark-research.md` (§3 Kubernetes on GB10, §9 CSO on aarch64, §10 Flink Agents and NiFi → local LLM) · `nvidia-dgx-spark-landscape.md` · `nvidia-dgx-spark-runbook.md` · `nvidia-dgx-spark-cso-demos.md` · `Complete Developer Guide for Nvidia Spark with Cloudera.md` · `files/nvidia-spark-guide/README.md`
 - Fleet precedent: `files/cso-prod-1/VALIDATION.md` · `files/cso-prod-1/SNAPSHOT.md` · `cso-prod-1-preprod-plan.md` · `cso-prod-1-cutover-plan.md` · `files/agent-install-operators.sh` · `files/setup-cloudera-streaming.sh` · `files/cso-prod-1/nifi-cso-prod-1.yaml` · `files/cso-prod-1/kafka-eval.yaml` · `files/cso-prod-1/kafkatopics.yaml` · `files/cso-prod-1/flows/prod/parameter-contexts.md`
 - GPU Flink precedent: `flink-plan.md` §7 · `completed/gpu-minikube-grok-flink-image.md` · `completed/flink-minikube-gpu-working.md` · `flink-agents-cso-plan.md`
 - NiFi and app precedent: `completed/how-to-nifi-and-ai.md` · `skills/nifi-and-ai/SKILL.md` · `cso-operator-app-plan.md` · `agent/incident-rules.md` · `CLAUDE-CHECKIN.md`
