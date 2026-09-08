@@ -1,6 +1,6 @@
 # EFM Guide — Humanization Pass
 
-**Work-stream G of EPIC #137, tracked in #295 (`device:WindowsDesktop`). Status: method + baseline landed 2026-09-02; A/B and the all-chapter pass not started.**
+**Work-stream G of EPIC #137, tracked in #295 (`device:WindowsDesktop`). Status: method + baseline landed 2026-09-02; A/B decided 2026-09-08 (rules only, see §"The A/B"); pass under way, Ch14/16/19 first.**
 
 Steven, 2026-09-02, after reading the 09-01 delivery: *"we need to rewrite some of the war story stuff. Once those are refined, i think an entire pass of humanization and evaluate the content output versus author writing style."* Ch20 and Ch12 were re-authored the same day under `agent/writing-style.md` as committed (#138, #178). This doc is the second half: measure every chapter against Steven's own published voice, decide with evidence whether the committed style rules are enough, and run the pass in the order the numbers say.
 
@@ -81,6 +81,8 @@ Steven reads both without labels and picks. Three outcomes, each with a conseque
 | neither | voice needs something the rubric does not capture | Steven marks up B by hand; the markup becomes rubric lines; re-run the A/B once |
 
 One section, one read, one decision. Do not A/B every chapter.
+
+**Outcome (2026-09-08).** Steven read both versions blind, presented as Version 1 / Version 2 in coin-flip order, and picked Version 1, which was A, the current rules-only text. B had `you/k` 35.3 and `I/k` 5.9 against A's 0 and 0; both scored 0 on every mechanical column. Conclusion per the table: the committed rules carry the voice, and lines 6 and 7 (second person, first person, plain bullets) do not go into `writing-style.md`. Lines 2, 3 and 5 went in as §"The blog-voice band". Ch20 stays as it is. The pass runs with `writing-style.md` plus those three thresholds; the rest of the rubric (lines 1, 4, 8, 9, 10) stays here as the reviewer's checklist, not a rule.
 
 ## Order of the pass — chapters ranked by distance from the band
 

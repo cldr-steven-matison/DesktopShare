@@ -29,6 +29,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | Canvas layout pitch / pre-flight before a processor create | skill `references/layout.md` | guard 5, known-patterns |
 | Docs get updated when a plan lands | `workflow.md` §"Docs get updated when a plan lands" | — |
 | Shipped content strips its own provenance (dates/issue#s/agent names/proof-of-work) — outbound repos too | `writing-style.md` §"Published artifacts strip their own provenance" | — |
+| Published prose stays inside the blog-voice band (em-dash ≤2/k, proof-words ≤3/k, colon-joins ≤10/k) | `writing-style.md` §"The blog-voice band" | `files/prose-lint.py`; known-patterns `humanize` |
 | Don't guess an unread source; never mutate on a guess | §"Fixes and claims" | — |
 | Facts in the tracked doc; reasoning/narrative in the issue comment | `writing-style.md` §"Reporting work — issue comments and wrap-ups" | — |
 

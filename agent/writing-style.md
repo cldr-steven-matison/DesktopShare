@@ -162,6 +162,16 @@ The related tell to catch earlier: an intermittent failure you cannot reproduce 
 - Bullet points where a sentence is fine. Bullet lists are for genuinely enumerated things.
 - Sections labelled "Introduction" or "Conclusion" — the opening and the fix ARE the introduction and conclusion.
 
+### The blog-voice band — three thresholds the lint checks
+
+Steven's published posts set the band; `files/prose-lint.py` measures a draft against it (per 1,000 prose words, code and tables excluded). A blind A/B on one guide section (2026-09-08) showed the rules above already carry his voice; these three are the mechanical residue they did not name. Run the lint before and after any pass over published prose, and keep every one inside the line:
+
+- **Em-dashes: at most 2 per 1,000 words** (`emdash/k`). His posts run 1.5; first drafts run 24. A period, a comma, or a new sentence instead.
+- **Proof-of-work words: at most 3 per 1,000** (`proof/k`): "real", "genuine", "actually", "confirmed", "verified", "proven", "field-validated". State the thing; do not certify it. "The consumer decodes it," not "the consumer genuinely decodes it, confirmed live."
+- **Colon- or dash-joined clauses: at most 10 per 1,000** (`colon/k`). His posts run 8; first drafts run 33. Split the clause into two sentences.
+
+Sentence length is not in the band. His sentences are as long as a first draft's; do not chop prose to hit a readability score. Method and measurements: `efm-guide-humanization-plan.md`.
+
 ### Published artifacts strip their own provenance
 
 A shipped artifact is the finished product, not the work log that produced it. Write it clean from
