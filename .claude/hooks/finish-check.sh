@@ -60,7 +60,7 @@ for n in $(awk '!seen[$0]++' "$marker"); do
   [ -n "$last" ] && lts="$(date -d "$last" +%s 2>/dev/null || date -j -f '%Y-%m-%dT%H:%M:%SZ' "$last" +%s 2>/dev/null || echo 0)"
   why=""
   if printf '%s' "$lbls" | grep -q 'status:in-progress'; then
-    why="still status:in-progress"
+    why="is still status:in-progress"
     [ "$lts" -lt "$cts" ] && why="$why and has no comment newer than the pushed commit"
   elif [ "$lts" -lt "$cts" ]; then
     why="has no comment newer than the pushed commit (a comment with the sha is step 3 of the ritual)"
@@ -69,7 +69,7 @@ for n in $(awk '!seen[$0]++' "$marker"); do
   mkdir -p "$(dirname "$nag")" 2>/dev/null; echo "$n" >> "$nag" 2>/dev/null
   sha="$(for r in $repos; do git -C "$r" log @{u} --since=12.hours.ago --format='%h %s' 2>/dev/null | grep -E "#$n\b" | head -1; done | head -1 | awk '{print $1}')"
   [ -n "$sha" ] || sha="see the upstream log"
-  jq -nc --arg r "Finish ritual incomplete for #$n (device-comms.md 'Finishing an issue'): a commit referencing it ($sha) was pushed within the last 12h, but the issue is $why. Before you stop, run the rest in one motion — do not offer it back as options: (1) gh issue comment $n --body-file <report.md> with the result and the commit sha, every file named as a full-URL link; (2) gh issue edit $n --remove-label status:in-progress --add-label status:review. Do NOT close it. If the work is genuinely not delivered yet, say so in one line and stop; this check fires once per issue per session." \
+  jq -nc --arg r "Finish ritual incomplete for #$n (device-comms.md 'Finishing an issue'): a commit referencing it ($sha) was pushed within the last 12h, but the issue $why. Before you stop, run the rest in one motion — do not offer it back as options: (1) gh issue comment $n --body-file <report.md> with the result and the commit sha, every file named as a full-URL link; (2) gh issue edit $n --remove-label status:in-progress --add-label status:review. Do NOT close it. If the work is genuinely not delivered yet, say so in one line and stop; this check fires once per issue per session." \
     '{decision:"block", reason:$r}'
   exit 0
 done
