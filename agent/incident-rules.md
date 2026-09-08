@@ -40,6 +40,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | Every repo file, `files/` dir or sha named in an issue body or comment is a full-URL link | `device-comms.md` §"Link every file you name" | guard 14 |
 | Issue artifacts live in `files/issue-<n>/`; verification screenshots embed in the comment; nothing is written under `$HOME` outside a repo or the scratchpad | §"Issue hygiene" | guard 16 |
 | A background gate clearing means proceed; the completion notification is a backstop | `workflow.md` §"Model, effort & context hygiene" | — |
+| "Move a post to the blog site" = copy + translate the draft **and its assets** into the `cldr-steven-matison.github.io` clone; DesktopShare `blog/` is not the destination | §"Publishing a blog post" | — |
 
 ## Sub-agent prompting
 
@@ -139,6 +140,11 @@ At the time of a session failure the only actions are: fix the work, and file. S
 
 - **Commit / branch / push discipline lives in `workflow.md`.** The short version: commit and push only when explicitly asked; working-tree changes stay uncommitted by default.
 - **Don't build a permanent API endpoint to clean up a one-time mess.** This is local infra, not a shipping product. Run the cleanup directly and delete the code path.
+
+## Publishing a blog post
+
+- **"Move the post over to the blog site" means translate and copy the post *and its assets* into the `cldr-steven-matison.github.io` repo clone — not into DesktopShare's own `blog/` mirror.** The two-hop pipeline is fixed: a draft matures in DesktopShare (`files/issue-<n>/` → `blog/` for the internal mirror), and *publishing* it means copying the `.md` into the blog repo's `_posts/` as `<YYYY-MM-DD>-Title.md` and every referenced asset into that repo's `assets/images/` so the front-matter `header.teaser` path resolves. On this Mac the blog repo is `~/Documents/GitHub/cldr-steven-matison.github.io`. DesktopShare `blog/` is a draft mirror, never the live destination. (2026-09-08, #303: told twice to "move the post over to the blog site" and both times stopped at `DesktopShare/blog/` — the internal mirror — instead of copying into the github.io clone. The blog-publishing flow was already known from the promotion-flow and live-site-propagation memories; the miss was not running it.)
+- **Pushing the blog repo to the live site is Steven's manual trigger.** Copy the files into the github.io clone and leave them for him unless he says otherwise; the CI image-size limit (≤5 MB, resize to ~1200 px) still applies to anything you copy into `assets/`.
 
 ## Issue hygiene
 
