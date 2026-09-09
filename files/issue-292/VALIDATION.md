@@ -19,6 +19,15 @@ The build recipe below is the field-proven one from `blog/cloudera-ce-cm-evaluat
 **The default `ozone-cluster.yml` topology brings up all 14 services — including YARN, Ranger, and Atlas — so it
 covers all four MCP surfaces with no topology hunt.**
 
+> **Model note:** once §2b's patches and the §2 parcel pin are in place, this runbook is meant to
+> execute at **sonnet / low effort** — it's a straight top-to-bottom run, not a debugging expedition.
+> The one live-attention point is the §5.5 parcel-distribution stall. The run that first *proved*
+> this end-to-end (Opus, live-debug) is the exception, not the steady state.
+>
+> **Upstream note:** `cloudera-labs/cloudera-ce-aws` **v1.0.1** (2026-08-04) only fixes a
+> publish-workflow build-dep — it does **not** address the JDK/Caddy/parcel drift below. **Keep the
+> `1.0.0-amd64` EE pin and keep the §2b patches** until a later release fixes the collection itself.
+
 ---
 
 ## 0. Cost + teardown contract (read first)
@@ -60,6 +69,8 @@ infra_region: "us-east-2"
 common_password: "Cldr2026mcp"     # ALPHANUMERIC ONLY, min 8, ≥1 digit — see trap below
 owner_email: "steven.matison@cloudera.com"
 enable_prometheus: false           # group_vars declares it twice (last-wins=true); pin false
+cloudera_parcels:                  # PATCH: archive updated from p0.77083870 → p10000.82216952
+  CDH: "7.3.2-1.cdh7.3.2.p10000.82216952"
 ```
 
 > **`common_password` must be letters+digits only.** Cloudera's automation sets service admin passwords via
@@ -69,11 +80,62 @@ enable_prometheus: false           # group_vars declares it twice (last-wins=tru
 
 ---
 
+## 2b. Prereq patches — EE image drift (MANDATORY as of 2026-09-03)
+
+Both patches are volume-mounts in `ansible-navigator.yml`. Confirm both are present before running:
+```bash
+grep -c "PATCH (#292)" patches/jdk_facts.py   # → 2
+grep -c "PATCH (#292)" patches/RedHat-pre.yml # → 1
+```
+Remove the mounts + `patches/` once the upstream collection ships fixes.
+
+### Patch 1 — `jdk_facts` regex crash
+
+> **Symptom:** `services.yml` fails on every cluster node at `prereq_jdk : Discover installed JDK details`
+> with `AttributeError: 'NoneType' object has no attribute 'group'`.
+
+The AMI now ships OpenJDK **`17.0.20.1+1-LTS`** (Red Hat build, 2026-08-18) — a four-component version
+with a `-LTS` suffix. The collection's `VERSION_REGEX` expects `major.minor.patch+build)`; the trailing
+`-LTS` makes it return `None`, and `jdk_facts.py` crashes on `.group()`.
+
+Fix: `patches/jdk_facts.py` adds `[^)]*` before the closing paren (consumes trailing suffixes) and
+degrades gracefully instead of raising. Mounted at:
+```
+dest: /usr/share/ansible/collections/ansible_collections/cloudera/exe/plugins/modules/jdk_facts.py
+```
+
+### Patch 2 — Caddy install on RHEL 9 (no subscription)
+
+> **Symptom:** `services.yml` fails on the gateway node at `cloudera.exe.caddy : Install Caddy binaries`
+> with `No package caddy available.`
+
+Three compounding issues: (1) COPR's RHEL 9 caddy repo requires a Red Hat subscription and returns 503
+on unregistered EC2 instances; (2) Cloudsmith's `el/9` caddy repo has been empty since 2020; (3) Caddy
+dropped RPM packaging in v2.11+ — GitHub releases ship `tar.gz` only.
+
+Fix: `patches/RedHat-pre.yml` replaces the COPR setup steps. It downloads the Caddy `2.11.4` binary from
+GitHub, builds a wrapper RPM via `rpmbuild`, and installs it so `dnf` sees `caddy` as a registered
+package (required by the subsequent `ansible.builtin.package` task). Idempotent: skipped if `rpm -q caddy`
+already exits 0. Mounted at:
+```
+dest: /usr/share/ansible/collections/ansible_collections/cloudera/exe/roles/caddy/tasks/RedHat-pre.yml
+```
+
+---
+
 ## 3. Deploy (one command, four stages, ~2.5 h)
 
 ```bash
 ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml \
   playbooks/cms.yml playbooks/ozone-cluster.yml -e @config.yml -m stdout
+```
+
+**Resuming after the `jdk_facts` failure** (infra already up — don't rebuild it): re-run from
+`services.yml` onward; the earlier-passed tasks re-verify idempotently and the patched module clears
+the JDK task:
+```bash
+ansible-navigator run playbooks/services.yml playbooks/cms.yml \
+  playbooks/ozone-cluster.yml -e @config.yml -m stdout
 ```
 
 - infrastructure → Terraform (VPC, SGs, 11 EC2, SSH key). services → FreeIPA/PostgreSQL/Caddy-TLS.
@@ -86,21 +148,77 @@ ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml \
 
 ---
 
+## 3.5. Parcel-distribution stall — detect + recover (the one live-attention point)
+
+> **Symptom (killed run 2):** `ozone-cluster.yml` hangs on the CDH parcel with CM showing
+> `DISTRIBUTING n/N` (e.g. `3200/6400`), **no active commands**, and no forward progress after an
+> extended wait. Never root-caused; treat it as a known manual gate, not a hard failure.
+
+This is the only step in the runbook that may need a human/model in the loop. **Watch, don't wait
+blind** — send the poll to background, not a foreground loop.
+
+1. **Detect.** In CM UI → **Running Commands** / **Recent Commands**, or via the parcels API on the
+   CM host, watch the parcel state. Healthy = `DISTRIBUTING` byte count climbing. Stalled = count
+   frozen with no running command.
+   ```bash
+   # from the SSH-forwarded CM (see §4), or on the CM host:
+   curl -ks -u admin:<common_password> \
+     'https://<cm-host>:7183/api/v51/clusters/ozone-base-cluster/parcels' | \
+     python3 -m json.tool   # look at stage + progress per parcel
+   ```
+2. **Recover** if frozen (no active command, count not moving for ~5+ min):
+   - **CM UI (simplest):** Parcels page → the CDH parcel → **Distribute** again (idempotent; it
+     resumes/re-pushes to the lagging agents). If a node is stuck, check that agent's
+     `/var/log/cloudera-scm-agent/` and restart `cloudera-scm-agent` on it, then re-Distribute.
+   - **API equivalent:** `POST …/parcels/products/CDH/versions/<ver>/commands/startDistribution`.
+3. **Then** let `ozone-cluster.yml` continue (re-run the playbook from `ozone-cluster.yml`; the
+   activate step proceeds once distribution reaches 100% on all hosts).
+
+> If this recurs on this run, capture the CM command log + agent log for the stuck host so the
+> next iteration of this runbook can carry a real root-cause fix instead of a manual gate.
+
+---
+
 ## 4. Point the MCP server at it, from the Mac
 
-Only the gateway has a public IP; every other node is private behind the Caddy proxy. Reach the four surfaces
-with SSH local-forwards from the Mac through the gateway to each service node's private `host:port`
-(SSH key is generated by the infra stage — path is in the Terraform output):
+Only the gateway has a public IP; every other node is private behind the Caddy proxy. The infra stage
+generates an SSH key and an SSH config in the repo root:
+- key: `steven-ce-ssh-key.pem`
+- config: `steven-ce-ssh.config` (defines `Host jump` = gateway public IP, and a `ProxyJump jump` for
+  internal hosts)
+- gateway public IP + node private IPs: read from `tf_cluster_aws/terraform.tfstate` (or the EC2 console).
+
+> **⚠️ Generated-SSH-config bug (blocks hostname SSH):** the generated config writes
+> `Host *.cldr.internal, 10.10.*` with a **comma**. OpenSSH separates `Host` patterns by **whitespace
+> only**, so the comma turns the first pattern into the literal `*.cldr.internal,` — which never
+> matches. Result: `ssh -F steven-ce-ssh.config steven-ce-base-master-01.cldr.internal` fails with
+> `Could not resolve hostname` (the `ProxyJump` never applies; your Mac tries to resolve the internal
+> name locally). The `10.10.*` pattern is intact, so **SSH to the private IP works** — or use an
+> explicit `-J`. Two working forms:
 
 ```bash
-# discover private hostnames+ports from CM: Hosts + each service's "Web UI" links, or the Caddy config on the
-# gateway. Then forward each surface to a local port, e.g.:
-ssh -i <generated_key.pem> -N \
-  -L 7183:<cm-host>:7183 \
-  -L 8088:<yarn-rm-host>:8088 \
-  -L 6182:<ranger-host>:6182 \
-  -L 31000:<atlas-host>:31000 \
-  ec2-user@cm.<gateway-public-ip>.nip.io
+# A) private IP through the generated config (matches the intact 10.10.* pattern):
+ssh -F steven-ce-ssh.config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  10.10.1.31 "java -version 2>&1"
+
+# B) explicit jump, no reliance on the config's Host block (fill in gateway public IP):
+ssh -i steven-ce-ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -o ProxyCommand="ssh -i steven-ce-ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@<gateway-public-ip>" \
+  ec2-user@10.10.1.31 "java -version 2>&1"
+```
+
+Then forward each MCP surface to a local port. Use form (B)'s explicit jump (or add the private-IP
+targets to a fixed config); discover the private host IPs from `terraform.tfstate` and the ports from
+CM → Hosts / each service's "Web UI" link:
+
+```bash
+ssh -i steven-ce-ssh-key.pem -N \
+  -o ProxyCommand="ssh -i steven-ce-ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@<gateway-public-ip>" \
+  -L 7183:<cm-host-ip>:7183 \
+  -L 8088:<yarn-rm-host-ip>:8088 \
+  -L 6182:<ranger-host-ip>:6182 \
+  -L 31000:<atlas-host-ip>:31000 \
+  ec2-user@<cm-host-ip>
 ```
 
 `.env` for the run (HTTP-Basic; CE uses AutoTLS so prefer the TLS ports and set `*_VERIFY_SSL=false` for the
@@ -163,10 +281,11 @@ ansible-navigator run playbooks/resume.yml  -e @config.yml -m stdout   # bring i
 ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml -m stdout   # destroy everything
 ```
 
-Prove nothing is left billing:
+Prove nothing is left billing — **the `deployment` tag equals `name_prefix` from `config.yml`**
+(currently `steven-ce`, not `cm-mcp-ce`), so match that value:
 ```bash
 aws ec2 describe-instances --profile <profile> --region us-east-2 \
-  --filters "Name=tag:deployment,Values=cm-mcp-ce" \
+  --filters "Name=tag:deployment,Values=steven-ce" \
             "Name=instance-state-name,Values=running,pending,stopping,stopped" \
   --query 'length(Reservations[].Instances[])' --output text
 # -> 0
