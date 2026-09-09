@@ -1,0 +1,66 @@
+# #292 — YARN RM via Knox: live smoke test against CDP CE Base 7.3.2
+# Date: 2026-09-09  |  cluster: ozone-base-cluster  |  Knox: sdx-01:8443  |  RM: base-master-02
+# Published server: git+https://github.com/cldr-steven-matison/cloudera-manager-mcp-server@main (commit a2d6811)
+# YARN_RM_URL=https://localhost:8443/gateway/cdp-proxy-api/resourcemanager/v1/cluster (Knox Basic; Knox terminates SPNEGO to backend RM)
+# Prior direct-RM result (run 1): structured HTTP 401 WWW-Authenticate: Negotiate
+# ---------------------------------------------------------------------------
+
+## Server startup banner (stderr):
+Starting Cloudera Manager MCP Server via transport: stdio (services: yarn_rm)
+
+## MCP stdio client — published package:
+YARN tools registered: ['yarn_app_attempts', 'yarn_cluster_metrics', 'yarn_get_application', 'yarn_list_applications', 'yarn_scheduler_info']
+
+=== yarn_cluster_metrics (via Knox) ===
+{
+  "clusterMetrics": {
+    "appsSubmitted": 0,
+    "appsCompleted": 0,
+    "appsPending": 0,
+    "appsRunning": 0,
+    "appsFailed": 0,
+    "appsKilled": 0,
+    "reservedMB": 0,
+    "availableMB": 32768,
+    "allocatedMB": 0,
+    "pendingMB": 0,
+    "reservedVirtualCores": 0,
+    "availableVirtualCores": 32,
+    "allocatedVirtualCores": 0,
+    "pendingVirtualCores": 0,
+    "containersAllocated": 0,
+    "containersReserved": 0,
+    "containersPending": 0,
+    "totalMB": 32768,
+    "utilizedMB": 0,
+    "totalVirtualCores": 32,
+    "utilizedVirtualCores": 8,
+    "utilizedMBPercent": 62,
+    "utilizedVirtualCoresPercent": 25,
+    "rmSchedulerBusyPercent": 0,
+    "totalNodes": 4,
+    "lostNodes": 0,
+    "unhealthyNodes": 0,
+    "decommissioningNodes": 0,
+    "decommissionedNodes": 0,
+    "rebootedNodes": 0,
+    "activeNodes": 4,
+    "shutdownNodes": 0,
+    "containerAssignedPerSecond": 0,
+  
+
+=== yarn_scheduler_info (via Knox) ===
+{
+  "scheduler": {
+    "schedulerInfo": {
+      "type": "capacityScheduler",
+      "capacity": 100.0,
+      "usedCapacity": 0.0,
+      "maxCapacity": 100.0,
+      "weight": -1.0,
+      "normalizedWeight": 0.0,
+      "queueCapacityVectorInfo": {
+        "configuredCapacityVector": "[memory-mb=100.0%,vcores=100.0%]",
+        "capacityVectorEntries": [
+          {
+            "resourceName": "memory-

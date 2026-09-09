@@ -295,14 +295,21 @@ Expect the banner (stderr) to report `services: atlas, cm, ranger, yarn_rm`.
 | Ranger | `ranger_list_services()` | HDFS, Hive, YARN, Kafka, Atlas, … |
 | Atlas | `atlas_list_entity_types()` | hive_table, hdfs_path, … |
 
-> **AS-BUILT RESULT (this run): 3 of 4 surfaces returned live data.** CM, Ranger, and Atlas
+> **AS-BUILT RESULT: 4 of 4 surfaces returned live data.** CM, Ranger, and Atlas
 > authenticate with HTTP Basic over TLS and returned real cluster data (`ozone-base-cluster`
 > 7.3.2; 17 Ranger repos incl. `cm_hdfs`/`cm_yarn`/`cm_atlas`; Atlas entity defs incl.
-> `trino_table_ddl`). **YARN RM returned a structured `401`** — the RM REST enforces SPNEGO
-> (`WWW-Authenticate: Negotiate`) on a Kerberized cluster and this server's client is
-> Basic/Bearer only. Not a bug: the tool surfaces the 401 cleanly. **Follow-up candidate for
-> the MCP server:** add SPNEGO (or a Knox-token path) for YARN. Both the stdio transcript and
-> the Inspector screenshots are attached to the issue.
+> `trino_table_ddl`).
+>
+> **YARN RM — fixed via Knox (2026-09-09 re-validation).** Run 1 saw a structured `401`: the RM
+> REST enforces SPNEGO (`WWW-Authenticate: Negotiate`) on a Kerberized cluster and the client is
+> Basic/Bearer only. The fix (published `a2d6811`) routes YARN RM through the **Knox** gateway,
+> which terminates SPNEGO to the backend RM. Re-validated live: `YARN_RM_URL` pointed at
+> `https://<knox>:8443/gateway/cdp-proxy-api/resourcemanager/v1/cluster` with Knox Basic
+> (`YARN_RM_KNOX_TOKEN` supports the JWT form too, but this CE doesn't deploy the KNOXTOKEN
+> topology by default). The published package returned live `yarn_cluster_metrics`
+> (`totalMB 32768`, `32` vCores, `4` active NodeManagers) and `yarn_scheduler_info`. Placement
+> this run: KNOX on `sdx-01:8443`, RESOURCEMANAGER on `base-master-02`. Transcript:
+> `files/issue-292/yarn-knox-smoke-transcript.txt`.
 
 ### Screenshots — one per agent loop (README "Agent-loop mapping")
 

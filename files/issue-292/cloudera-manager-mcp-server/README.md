@@ -163,8 +163,13 @@ In the Inspector: **Connect** → **List Tools** → you should see one group pe
 > return live data — the same gateway path the CM and Atlas surfaces use.
 >
 > AutoTLS ports for the direct surfaces: CM `:7183`, Ranger `:6182`, Atlas `:31443`
-> (the plaintext `:8088`/`:6080`/`:31000` ports are disabled). Verified against CDP CE Base
-> **7.3.2** (CM 7.13.2); the Knox YARN path is pending live re-validation.
+> (the plaintext `:8088`/`:6080`/`:31000` ports are disabled).
+>
+> **Validated live against CDP CE Base 7.3.2 (CM 7.13.2), all four surfaces:** CM / Ranger /
+> Atlas over direct TLS Basic, and **YARN RM over Knox** — the published package pointed at
+> `.../cdp-proxy-api/resourcemanager/v1/cluster` (Knox Basic) returned live `yarn_cluster_metrics`
+> (`totalMB 32768`, `32` vCores, `4` active NodeManagers) and `yarn_scheduler_info`
+> (capacityScheduler queues), where the direct RM port had returned `401`.
 
 ## Step 5 — Claude Desktop / Claude Code
 
