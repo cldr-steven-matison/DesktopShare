@@ -42,7 +42,8 @@ def build_clients(cfg: ServerConfig) -> Dict[str, Any]:
     if cfg.yarn_rm_url:
         clients["yarn_rm"] = YARNRMClient(
             cfg.yarn_rm_url,
-            build_session(user=cfg.yarn_rm_user, password=cfg.yarn_rm_password, verify=cfg.yarn_rm_verify),
+            build_session(knox_token=cfg.yarn_rm_knox_token, user=cfg.yarn_rm_user,
+                          password=cfg.yarn_rm_password, verify=cfg.yarn_rm_verify),
             timeout=cfg.timeout, retries=cfg.retries, retry_wait=cfg.retry_wait,
         )
     nm_url = cfg.nm_base_url()

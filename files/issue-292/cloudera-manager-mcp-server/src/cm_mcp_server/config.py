@@ -41,9 +41,14 @@ class ServerConfig:
     cm_verify: Verify = field(default_factory=lambda: _parse_verify(_env("CM_VERIFY_SSL", "true")))
 
     # --- YARN ResourceManager (v1) ---
+    # A Kerberized RM enforces SPNEGO on its REST endpoint, which this Basic/Bearer
+    # client cannot satisfy directly. Point YARN_RM_URL at the Knox cdp-proxy-api
+    # topology and set YARN_RM_KNOX_TOKEN (or Knox Basic creds) — Knox terminates
+    # SPNEGO to the backend RM, the same path the CM / Atlas surfaces use.
     yarn_rm_url: str = field(default_factory=lambda: _env("YARN_RM_URL"))
     yarn_rm_user: str = field(default_factory=lambda: _env("YARN_RM_USER"))
     yarn_rm_password: str = field(default_factory=lambda: _env("YARN_RM_PASSWORD"))
+    yarn_rm_knox_token: str = field(default_factory=lambda: _env("YARN_RM_KNOX_TOKEN"))
     yarn_rm_verify: Verify = field(default_factory=lambda: _parse_verify(_env("YARN_RM_VERIFY_SSL", "true")))
 
     # --- YARN NodeManager (v1, optional) ---

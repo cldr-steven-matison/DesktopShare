@@ -112,7 +112,8 @@ CM_BASE_URL=https://<gateway>/<datahub>/cdp-proxy-api/cm-api/v51
 CM_KNOX_TOKEN=<jwt>
 CM_VERIFY_SSL=true
 
-YARN_RM_URL=http://rm-host:8088/ws/v1/cluster
+YARN_RM_URL=https://<gateway>/<datahub>/cdp-proxy-api/resourcemanager/v1/cluster
+YARN_RM_KNOX_TOKEN=<jwt>
 YARN_NM_HOST=worker-1:8042
 
 RANGER_BASE_URL=https://ranger-host:6182
@@ -154,10 +155,16 @@ In the Inspector: **Connect** → **List Tools** → you should see one group pe
 
 > **On a secured (Kerberos + AutoTLS) cluster**, CM, Ranger, and Atlas authenticate with
 > HTTP Basic over TLS and return live data. The **YARN RM REST endpoint enforces SPNEGO**
-> (`WWW-Authenticate: Negotiate`), which this Basic/Bearer client does not perform, so
-> `yarn_*` tools return a structured `401`. Use the **AutoTLS** ports in that case:
-> CM `:7183`, Ranger `:6182`, Atlas `:31443`, YARN RM `:8090` (the plaintext `:8088`/`:6080`/`:31000`
-> ports are disabled). Verified against CDP CE Base **7.3.2** (CM 7.13.2).
+> (`WWW-Authenticate: Negotiate`) on its direct port, which this Basic/Bearer client does not
+> perform — hitting `:8090`/`:8088` directly returns a structured `401`. **Route YARN RM
+> through Knox instead:** point `YARN_RM_URL` at the `cdp-proxy-api` topology
+> (`https://<gateway>/<topology>/resourcemanager/v1/cluster`) and set `YARN_RM_KNOX_TOKEN`
+> (or Knox Basic creds). Knox terminates SPNEGO to the backend RM, so the `yarn_*` tools
+> return live data — the same gateway path the CM and Atlas surfaces use.
+>
+> AutoTLS ports for the direct surfaces: CM `:7183`, Ranger `:6182`, Atlas `:31443`
+> (the plaintext `:8088`/`:6080`/`:31000` ports are disabled). Verified against CDP CE Base
+> **7.3.2** (CM 7.13.2); the Knox YARN path is pending live re-validation.
 
 ## Step 5 — Claude Desktop / Claude Code
 
@@ -217,7 +224,8 @@ investigation without leaving the conversation.
 
 ## Knox token
 
-For CDP Public Cloud, obtain a Knox JWT and set `CM_KNOX_TOKEN` / `ATLAS_KNOX_TOKEN`:
+For CDP Public Cloud — or any Kerberized Base cluster fronted by Knox — obtain a Knox JWT and
+set `CM_KNOX_TOKEN` / `YARN_RM_KNOX_TOKEN` / `ATLAS_KNOX_TOKEN`:
 
 ```bash
 curl -su '<user>:<password>' \
@@ -232,7 +240,7 @@ expired — re-mint and restart. `*_VERIFY_SSL` accepts `true`, `false`, or a pa
 ## Configuration reference
 
 All settings are environment variables (see [`.env.example`](.env.example) for the annotated set):
-per-service `*_BASE_URL` / `*_URL`, `*_USER` / `*_PASSWORD`, `*_KNOX_TOKEN` (CM & Atlas),
+per-service `*_BASE_URL` / `*_URL`, `*_USER` / `*_PASSWORD`, `*_KNOX_TOKEN` (CM, YARN RM & Atlas),
 `*_VERIFY_SSL`, plus globals `CM_MCP_TIMEOUT` / `CM_MCP_RETRIES` / `CM_MCP_RETRY_WAIT`,
 `MCP_TRANSPORT` (`stdio`|`sse`), and `CM_MCP_READONLY` (always `true` — no write paths exist).
 
