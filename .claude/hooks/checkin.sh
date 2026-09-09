@@ -11,9 +11,11 @@
 #      plus two guard triggers still didn't stop a 7th claim-skip, because a banner in
 #      SessionStart context is (a) ignorable and (b) never seen by subagents at all —
 #      SessionStart doesn't fire for subagents. Claiming is now handled mechanically by
-#      guard.sh rule A, which AUTO-claims a still-todo issue for this device the moment
-#      it's opened with `gh issue view`, needing no model cooperation. The inbox listing
-#      stays — it's how a session sees what's waiting.)
+#      .claude/hooks/claim-on-prompt.sh (UserPromptSubmit), which claims a still-todo
+#      issue for this device when Steven's prompt DIRECTS the session at it, needing no
+#      model cooperation. A `gh issue view` never claims (guard.sh rule A only records —
+#      2026-09-08, #247: a view-claim flipped #315 on a session told to start #316). The
+#      inbox listing stays — it's how a session sees what's waiting.)
 # Output is injected as SessionStart additionalContext. Fails OPEN throughout
 # (always exit 0): a missing gh/jq, an offline network, or a non-ff pull must
 # never block the session from starting. The hostname->label map is kept in

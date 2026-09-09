@@ -72,6 +72,18 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/claim-on-prompt.sh\"",
+            "timeout": 20,
+            "statusMessage": "Claim-on-prompt: flip the issue Steven directed this session at to status:in-progress"
+          }
+        ]
+      }
     ]
   }
 }

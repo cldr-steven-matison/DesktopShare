@@ -58,6 +58,12 @@ cat > "$FIX/stubbin/gh" <<'EOF'
 #!/usr/bin/env bash
 args="$*"
 labels_json() { printf '%s' "${GH_LABELS:-}" | tr ',' '\n' | grep -v '^$' | sed 's/.*/{"name":"&"}/' | paste -sd, -; }
+# GH_ISSUES (space-separated numbers): when set, only those numbers exist; a view of any
+# other number prints nothing, like the real gh on a non-issue.
+if [ -n "${GH_ISSUES:-}" ]; then
+  n="$(printf '%s' "$args" | grep -oE 'issue (view|edit|comment|close) [0-9]+' | grep -oE '[0-9]+$' | head -1)"
+  if [ -n "$n" ] && ! printf ' %s ' "$GH_ISSUES" | grep -q " $n "; then exit 1; fi
+fi
 case "$args" in
   *"issue view"*"-q"*)                          printf '%s' "${GH_LABELS:-}"; exit 0 ;;
   *"issue view"*"--json labels,closedAt"*)      printf '{"labels":[%s],"closedAt":null}' "$(labels_json)"; exit 0 ;;
@@ -138,17 +144,59 @@ assert_decision "10 sleep 60     -> deny"   deny  "FOREGROUND Bash call"  "$(p_b
 assert_decision "10 backgrounded -> pass"   pass  ""                      "$(p_bash 'while true; do sleep 5; done' true)"
 assert_decision "10 short sleep  -> pass"   pass  ""                      "$(p_bash 'sleep 5')"
 
-echo "[1a] rule A — claim on engagement, agent_id-gated (#247 Class 1)"
+echo "[1a] rule A — a view/comment RECORDS, never claims (#247, 2026-09-08 TunaSurface #315)"
 GH_LABELS="device:WindowsDesktop,status:todo" \
-  assert_decision "A main-session comment own todo -> claims"        allow "flipped #247" "$(p_bash 'gh issue comment 247 --body hi')"
+  assert_decision "A main-session VIEW own todo -> no claim (a view is reading)"  pass "" "$(p_bash 'gh issue view 247')"
 GH_LABELS="device:WindowsDesktop,status:todo" \
-  assert_decision "A main-session VIEW own todo -> claims (the fix)"  allow "flipped #247" "$(p_bash 'gh issue view 247')"
+  assert_decision "A main-session COMMENT own todo -> no claim"                    pass "" "$(p_bash 'gh issue comment 247 --body hi')"
 GH_LABELS="device:WindowsDesktop,status:todo" \
-  assert_decision "A SUB-AGENT view own todo -> records, no claim"    pass  ""             "$(p_bash 'gh issue view 247' false subagent-abc123)"
+  assert_decision "A SUB-AGENT view own todo -> no claim"                          pass "" "$(p_bash 'gh issue view 247' false subagent-abc123)"
+GH_LABELS="device:WindowsDesktop,status:todo" \
+  run_guard "$(p_bash 'gh issue view 247')" >/dev/null
+if grep -qx 247 "$FIX/.claude/.session-issues" 2>/dev/null; then ok "A own-device view -> recorded in .session-issues"; else bad "A own-device view -> recorded in .session-issues" "marker missing 247"; fi
 GH_LABELS="device:StarlinkAI,status:todo" \
-  assert_decision "A main-session view OTHER device todo -> no claim" pass  ""             "$(p_bash 'gh issue view 999')"
-GH_LABELS="device:WindowsDesktop,status:in-progress" \
-  assert_decision "A main-session view already-claimed -> no reclaim" pass  ""             "$(p_bash 'gh issue view 247')"
+  run_guard "$(p_bash 'gh issue view 999')" >/dev/null
+if grep -qx 999 "$FIX/.claude/.session-issues" 2>/dev/null; then bad "A other-device view -> not recorded" "999 recorded"; else ok "A other-device view -> not recorded"; fi
+
+echo "[1b] claim-on-prompt.sh — the claim fires from Steven's DIRECTIVE, nothing else"
+PROMPTHOOK="$REPO/.claude/hooks/claim-on-prompt.sh"
+ln -sf "$PROMPTHOOK" "$FIX/.claude/hooks/claim-on-prompt.sh"
+run_prompt() {
+  rm -f "$FIX/.claude/.claim-pending" "$FIX/.claude/.session-issues" 2>/dev/null
+  jq -nc --arg p "$1" '{hook_event_name:"UserPromptSubmit",prompt:$p,cwd:env.CLAUDE_PROJECT_DIR}' | env -i \
+    PATH="$FIX/stubbin:/usr/bin:/bin" HOME="$FIX" CLAUDE_PROJECT_DIR="$FIX" \
+    GH_LABELS="${GH_LABELS:-}" GH_EDIT_RC="${GH_EDIT_RC:-0}" GH_ISSUES="${GH_ISSUES:-}" DS_TEST_HOST="${DS_TEST_HOST:-}" \
+    bash "$FIX/.claude/hooks/claim-on-prompt.sh" 2>/dev/null
+}
+# assert_prompt <name> <expect: claim|pass|failed> <prompt>
+assert_prompt() {
+  local name="$1" want="$2" prompt="$3" out ctx
+  out="$(run_prompt "$prompt")"
+  ctx="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)"
+  case "$want" in
+    pass)   if [ -z "$out" ]; then ok "$name"; else bad "$name" "expected silence, got: $out"; fi ;;
+    claim)  if printf '%s' "$ctx" | grep -q "flipped to status:in-progress"; then ok "$name"; else bad "$name" "no claim :: $out"; fi ;;
+    failed) if printf '%s' "$ctx" | grep -q "could NOT claim"; then ok "$name"; else bad "$name" "no failure note :: $out"; fi ;;
+  esac
+}
+T="device:WindowsDesktop,status:todo"
+GH_LABELS="$T" assert_prompt "P 'start on task 316'                 -> claim"   claim "start on task 316"
+GH_LABELS="$T" assert_prompt "P 'work #245'                          -> claim"   claim "work #245, all that's left is the PR"
+GH_LABELS="$T" assert_prompt "P 'pick up issue 315'                  -> claim"   claim "please pick up issue 315"
+GH_LABELS="$T" assert_prompt "P 'continue 231'                       -> claim"   claim "continue 231 where we left off"
+GH_LABELS="$T" assert_prompt "P bare '316'                           -> claim"   claim "316"
+GH_LABELS="$T" assert_prompt "P bare '#316'                          -> claim"   claim " #316 "
+GH_LABELS="$T" assert_prompt "P 'start on 316, and read 315 first'   -> claims 316 only" claim "start on 316, and read 315 first"
+out="$(GH_LABELS="$T" run_prompt 'start on 316, and read 315 first')"
+if printf '%s' "$out" | grep -q '#315'; then bad "P '…read 315 first' -> 315 NOT claimed" "315 claimed :: $out"; else ok "P '…read 315 first' -> 315 NOT claimed"; fi
+GH_LABELS="$T" assert_prompt "P 'look at 247 and my last comment'    -> no claim" pass "look at 247 and my last comment first"
+GH_LABELS="$T" assert_prompt "P 'what happened on 315?'              -> no claim" pass "what happened on 315?"
+GH_LABELS="$T" assert_prompt "P 'read the last comment on #316'      -> no claim" pass "read the last comment on #316"
+GH_LABELS="$T" GH_ISSUES="316 315" assert_prompt "P 'start the pod on port 8082' -> no claim (not an issue)" pass "start the pod on port 8082"
+GH_LABELS="device:StarlinkAI,status:todo" assert_prompt "P 'start 316' OTHER device -> no claim" pass "start 316"
+GH_LABELS="device:WindowsDesktop,status:in-progress" assert_prompt "P 'start 316' already in-progress -> no reclaim" pass "start 316"
+GH_LABELS="$T" GH_EDIT_RC=1 assert_prompt "P 'start 316' gh edit fails -> marker + note" failed "start 316"
+if grep -qx 316 "$FIX/.claude/.claim-pending" 2>/dev/null; then ok "P gh edit fails -> .claim-pending has 316"; else bad "P gh edit fails -> .claim-pending has 316" "marker missing"; fi
 
 echo "[1c] rule 12 — EFM agent-deployer agentIdentifier reuse (#127 Class 8)"
 assert_decision "12 deployer +agentIdentifier -> deny"   deny  "carries an agentIdentifier" "$(p_bash 'bash agent-deployer.sh install --agentIdentifier abc123 --class KubernetesPod')"

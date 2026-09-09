@@ -79,10 +79,11 @@
 #      ASK to Steven carrying the fact + the #247 comment; yes = this one write, no = DENIED
 #      recorded. A DENIED row -> deny. Nothing writes a memory by default; the
 #      known-patterns `memory-dir` row carries the reminder for Bash commands.
-#   A. [AUTO] The MAIN SESSION engaging a still-todo issue for this device auto-claims
-#      it (status:in-progress) and tells the model. Fires on a `gh issue view N` or a
-#      `gh issue comment N`; a SUB-AGENT's view (agent_id present) records only, never
-#      claims (the #192 carve-out, now drawn by agent_id — #247 Class 1).
+#   A. [RECORD] A `gh issue view/comment N` on one of this device's issues records N as
+#      a session issue (Telegram-ping context, finish-check). It NEVER claims: the claim
+#      lives in claim-on-prompt.sh (UserPromptSubmit) and fires only when Steven directs
+#      the session at an issue — 2026-09-08, #247: "start on task 316" read #315 for
+#      context and the old view-claim flipped it too.
 #   B. [CTX] Edit/Write while the claim marker is non-empty: claim it yourself.
 # Issue-number extraction goes through ds_issue_numbers (lib-device.sh).
 # Non-matching calls pass through. Fails open (exit 0) so a missing jq/gh never
@@ -107,10 +108,8 @@ hookcwd="$(printf '%s' "$payload" | jq -r '.cwd // ""' 2>/dev/null)"
 # agent_id is present in the payload ONLY when this PreToolUse fires inside a
 # sub-agent (Claude Code hooks reference: "Present only when the hook fires inside a
 # subagent call. Use this to distinguish subagent hook calls from main-thread calls").
-# Empty => the MAIN session. Rule A uses it so a main-session `gh issue view` claims
-# the issue (restoring the #51 behaviour) while a read-only exploration sub-agent's
-# view never does — the 2026-08-21 #192 narrowing that reopened the claim-skip gap
-# (#247 Class 1, the single most-recurring failure: 9 instances, 6 after #247 opened).
+# Empty => the MAIN session. Kept for rules that care who is calling; rule A no longer
+# claims on a view from anyone (claiming moved to claim-on-prompt.sh, 2026-09-08 #247).
 agentid="$(printf '%s' "$payload" | jq -r '.agent_id // ""' 2>/dev/null)"
 
 proj="${CLAUDE_PROJECT_DIR:-.}"
@@ -793,63 +792,25 @@ if printf '%s' "$cmd" | grep -Eq '/processors\b' \
   emit_ctx "Processor create/update with an explicit position detected. layout.md was skipped on two fresh EFM builds (#47), landing cramped. State out loud, before this lands: (1) the flow SHAPE — linear / branch-fanout / parallel-lanes; (2) the PITCH values you're using. Match them against skills/nifi-and-ai/references/layout.md's per-shape rules. For an EFM Designer build specifically: row pitch 300 (not the NiFi 200), branch/column pitch ~600-900 (not ~300-480), and default a linear chain to VERTICAL (constant x, y += pitch) — a (0,0)->(400,0) sideways pair is the exact flagged-bad shape. If the numbers are already right, or this is a read (GET), carry on. Allowed rather than asked on purpose: reading layout.md and checking your own numbers is your job, not a question for Steven."
 fi
 
-# A. Auto-claim on ENGAGEMENT. The claim fires when THE MAIN SESSION engages a
-# still-todo issue this device owns — a `gh issue view N` (the session was pointed at
-# the issue and is reading it) OR a mutating `gh issue comment N`. It does NOT fire
-# when the caller is a sub-agent (agent_id present): the 2026-08-21 #192 narrowing to
-# comment-only existed solely to stop a read-only exploration sub-agent's
-# `gh issue view 199` from claiming — agent_id now draws that line precisely, so a
-# main-session view can claim again (restoring #51) without reopening #192. This is
-# the fix for #247 Class 1, the most-recurring failure (9 instances, 6 of them after
-# #247 was filed): every recurrence was a main session that started research/planning/
-# diffing after being pointed at an issue, and never commented, so comment-only
-# auto-claim had no trigger. A view still fires in plan mode (permission_mode="plan"),
-# which is exactly the 2026-08-30 report ("in planning mode, the tasks are not set in
-# progress"). Loops ALL issue numbers; edit/close transitions stay owned by rules 4/6.
-# The gh lookups only run on this rare match, so the common Bash path pays nothing.
+# A. RECORD on engagement — never claim. A `gh issue view N` / `gh issue comment N` on
+# one of this device's issues appends N to the session-issue marker (what the Telegram
+# pings quote as "which issue(s) you are on" (#192), and what finish-check.sh scans).
+# Claiming used to happen here too — first on comment (#51), then on any main-session
+# view (2026-09-01, #247 Class 1). The view-claim over-reached: a view is READING, and a
+# session reads issues it was not directed to (2026-09-08: TunaSurface told "start on
+# task 316" opened #315 because #316's body pointed at it, and rule A claimed #315 —
+# Steven: "I did not even tell this session to look at the 315 issue"). The rule in his
+# words is "in-progress is when I tell a session to start an issue", so the claim now
+# fires from the PROMPT: .claude/hooks/claim-on-prompt.sh (UserPromptSubmit). Rule 4
+# (todo -> review denied) stays the backstop for a directive that hook did not parse.
 if printf '%s' "$cmd" | grep -Eq 'gh +issue +(view|comment) +[0-9]+' && command -v gh >/dev/null 2>&1 \
    && ! printf '%s' "$cmd" | grep -Eq -- '(-R|--repo)[= ]'; then
-  do_claim=""
-  # A mutating comment always claims. A bare view claims too, but ONLY from the main
-  # session (agent_id empty) — a sub-agent's view records the issue for ping context
-  # (below) yet never claims, which is the whole point of the agent_id gate.
-  printf '%s' "$cmd" | grep -Eq 'gh +issue +comment +[0-9]+' && do_claim=1
-  if [ -z "$do_claim" ] && [ -z "$agentid" ] \
-     && printf '%s' "$cmd" | grep -Eq 'gh +issue +view +[0-9]+'; then
-    do_claim=1
-  fi
-  claimed=""; failed=""
   for n in $(ds_issue_numbers "$cmd" '(view|comment)'); do
     lbls="$(gh issue view "$n" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)"
-    # Remember every one of THIS device's issues the session opens — it is what the
-    # Telegram pings quote as "which issue(s) you are on" (#192). Independent of the
-    # claim below: an already-claimed issue is still the issue being worked.
     for l in $(ds_device_labels 2>/dev/null); do
       [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && ds_note_session_issue "$n" 2>/dev/null
     done
-    [ -n "$do_claim" ] || continue                            # sub-agent view records only
-    printf '%s' "$lbls" | grep -q 'status:todo' || continue   # only unclaimed issues
-    mine=""
-    for l in $(ds_device_labels 2>/dev/null); do
-      [ -n "$l" ] && printf '%s' "$lbls" | grep -q "device:$l" && mine=1
-    done
-    [ -n "$mine" ] || continue                                # only this device's issues
-    if gh issue edit "$n" --remove-label status:todo --add-label status:in-progress >/dev/null 2>&1; then
-      claimed="$claimed #$n"
-    else
-      failed="$failed #$n"
-      if [ -n "$marker" ]; then
-        mkdir -p "$(dirname "$marker")" 2>/dev/null || true
-        grep -qxF "$n" "$marker" 2>/dev/null || echo "$n" >> "$marker"
-      fi
-    fi
   done
-  if [ -n "$claimed" ] || [ -n "$failed" ]; then
-    msg="Auto-claim guard (device-comms.md 'Working an issue' step 1):"
-    [ -n "$claimed" ] && msg="$msg flipped$claimed to status:in-progress for this device on first mutating engagement — claiming is AUTOMATIC here, you do NOT need to run gh issue edit to claim these."
-    [ -n "$failed" ] && msg="$msg could NOT auto-claim$failed (gh edit failed — offline or perms); claim manually before any Edit/Write: gh issue edit <n> --remove-label status:todo --add-label status:in-progress."
-    emit_ctx "$msg"
-  fi
 fi
 
 # 10.5 Local pre-execution validator — ADVISORY (spark-dd06 only, #240 §4, rung H5).

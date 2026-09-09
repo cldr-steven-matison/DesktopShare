@@ -84,39 +84,38 @@ that runs `.claude/hooks/checkin.sh` on every session start:
 3. Maps the host to its `device:*` label(s) via the case block in the script and
    lists that inbox with `gh issue list --state open`.
 
-Claiming itself is no longer nagged at session start — it is done **mechanically** by
-the `PreToolUse` hook (`.claude/hooks/guard.sh`). The old **CLAIM-FIRST banner** was
-removed 2026-07-31 (issue #51): six-plus repetitions plus two "ask"-style guard triggers
-still didn't stop a 7th claim-skip, because a banner (a) is ignorable and (b) is never
-seen by subagents — `SessionStart` doesn't fire for subagents, and the WindowsDesktop
-skip happened inside a `/plan` that farmed issue-reading out. The guard now does three
-things, the first of which needs **no model cooperation at all**:
+Claiming itself is no longer nagged at session start — it is done **mechanically**, from
+the prompt. The old **CLAIM-FIRST banner** was removed 2026-07-31 (issue #51): six-plus
+repetitions plus two "ask"-style guard triggers still didn't stop a 7th claim-skip, because
+a banner (a) is ignorable and (b) is never seen by subagents. Two hooks now share the job,
+neither needing model cooperation:
 
-   - **Rule A — auto-claim on engagement (main session).** The **main session** engaging a
-     still-`todo` issue for this device — a `gh issue view <n>` **or** a `gh issue comment
-     <n>` — makes the hook run `gh issue edit … status:in-progress` **itself** and inject an
-     `additionalContext` line telling the model it was claimed. A **sub-agent's** view
-     (its `PreToolUse` payload carries `agent_id`) only records the issue for Telegram-ping
-     context, never claims — that is the whole point of the 2026-08-21 #192 narrowing (a
-     read-only exploration sub-agent's `gh issue view 199` had claimed an issue nobody was
-     working), now drawn precisely by `agent_id` instead of by forbidding *all* view-claims.
-     Restoring the main-session view-claim closed #247 Class 1 — the most-recurring failure
-     (9 instances, 6 after #247 opened): every recurrence was a main session pointed at an
-     issue that started research/planning/diffing and never commented, so comment-only
-     auto-claim had no trigger. No prompt, no model decision. It fires in plan mode
-     (`permission_mode: "plan"`) — the 2026-08-30 report was exactly a plan-mode session not
-     getting claimed — and loops **every** issue number in the command (the old `head -1`
-     only saw the first — the #51 root cause). If the `gh edit` fails (offline/perms) it
-     records `<n>` in the `.claude/.claim-pending` marker — Rule B then backstops it.
-   - **Rule B — edit-while-pending backstop.** An `Edit`/`Write` while that marker is
-     non-empty (i.e. auto-claim couldn't reach `gh`) prompts to claim manually.
+   - **Claim-on-prompt (`.claude/hooks/claim-on-prompt.sh`, `UserPromptSubmit`).** The rule
+     in Steven's words: *"in-progress is when I tell a session to start an issue."* So the
+     trigger is his prompt. A clause carrying a directive verb (start, work, pick up, do,
+     continue, resume, finish, implement, fix, …) and an issue number (`#316`, `issue 316`,
+     `task 316`, bare `316`, or a prompt that is only the number) makes the hook run
+     `gh issue edit … status:in-progress` **itself** — if that number is an open
+     `status:todo` issue carrying this device's label — and inject an `additionalContext`
+     line saying so. Every issue number in the directive clause is claimed. "Look at 247",
+     "what happened on 315?", "read 316's last comment" carry no directive verb and never
+     claim. If the `gh edit` fails (offline/perms) it records `<n>` in the
+     `.claude/.claim-pending` marker — Rule B then backstops it.
+   - **Rule A — record on engagement, never claim (`guard.sh`).** A `gh issue view <n>` or
+     `gh issue comment <n>` on one of this device's issues records `<n>` as a session issue
+     (Telegram-ping context, `finish-check.sh`). It does **not** claim. It used to: first on
+     comment (#51), then on any main-session view (2026-09-01, #247 Class 1). The view-claim
+     over-reached — a view is *reading*, and a session reads issues it was not directed to.
+     2026-09-08: TunaSurface was told "start on task 316", opened #315 because #316's body
+     pointed at it, and the view-claim flipped #315 too. Steven: *"I did not even tell this
+     session to look at the 315 issue."* Reading an issue for context is never a claim.
+   - **Rule B — edit-while-pending backstop.** An `Edit`/`Write` while the claim-pending
+     marker is non-empty (i.e. the claim couldn't reach `gh`) prompts to claim manually.
      `checkin.sh` clears stale markers at session start.
-   - **Review-skip backstop:** marking an issue `status:review`/`status:done` while it
-     still carries `status:todo` — the forbidden `todo → review` jump — prompts before it
-     can land.
-   Residual gap (much smaller now): a session that starts editing files **without ever
-   viewing or commenting the issue** gives Rule A no trigger — the claim-first norm in
-   "Working an issue" below still applies there.
+   - **Review-skip backstop (rule 4):** marking an issue `status:review`/`status:done` while
+     it still carries `status:todo` — the forbidden `todo → review` jump — is denied with
+     the claim command. This is also the backstop for a directive the prompt hook did not
+     parse: if you were directed at an issue and it is still `todo`, claim it yourself.
 
 Two more hooks landed 2026-08-25 (#247), same "no model cooperation needed" shape:
 
@@ -255,16 +254,17 @@ Telegram is only the doorbell.
 
 ## Working an issue
 
-1. **Claim when you pick up the issue — the guard auto-claims on your first engagement.**
-   When the **main session** runs `gh issue view <n>` (you were pointed at the issue and
-   are reading it) or `gh issue comment <n>` on a still-`status:todo` issue for this device,
-   the guard flips it to `status:in-progress` **itself** and confirms via an
-   `additionalContext` line — so being pointed at an issue is enough, in plan mode too. A
-   **sub-agent's** view never claims (its payload carries `agent_id`) — that is the
-   #192 carve-out. The one case with no trigger: starting to edit files without ever
-   viewing or commenting the issue — there, run the claim yourself. Never jump
-   `status:todo` → `status:review` — the progression is `todo → in-progress → review`, and
-   `in-progress` must be set even for a task you finish in one sitting (a guard backstop
+1. **Claim when Steven directs you at the issue — the prompt hook does it for you.**
+   When his prompt directs this session at an issue ("start on 316", "work #245", "pick up
+   issue 315", or just "316") and that issue is still `status:todo` for this device, the
+   `UserPromptSubmit` hook flips it to `status:in-progress` **itself** and confirms via an
+   `additionalContext` line — in plan mode too. Nothing else claims: opening another issue
+   with `gh issue view` while you work is reading for context, and a sub-agent's view is
+   the same. **Never claim an issue he did not direct you to.** The one case with no
+   trigger: a directive the hook did not parse — if you were told to work an issue and it
+   is still `todo`, run the claim yourself before any research, planning, or diffing. Never
+   jump `status:todo` → `status:review` — the progression is `todo → in-progress → review`,
+   and `in-progress` must be set even for a task you finish in one sitting (a guard backstop
    blocks that jump). The claim command:
    ```bash
    gh issue edit <n> --remove-label status:todo --add-label status:in-progress
