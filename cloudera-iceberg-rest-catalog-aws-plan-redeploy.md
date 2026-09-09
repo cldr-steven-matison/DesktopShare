@@ -141,39 +141,58 @@ final VERIFY block is the real done-check.
 **Prereqs** (same as redeploy): `aws sso login --profile cldr-se`, `cdp` authed, `~/.venvs/cdpcli`
 on PATH. The script hard-fails fast if any is missing.
 
-**Order (and why):** CDW EKS and the Data Hubs are **not** in terraform state, and the CDP control
-plane **blocks an env delete while any Data Hub / CDW cluster is still attached** — so they are
-removed via `cdp` CLI first; only then does `terraform destroy` (which owns the CDP
-env+DL+cross-acct cred + VPC + SGs + IAM + keypair + S3) succeed. S3 must be **emptied first** or
-the bucket delete fails. Bastion + its SG are raw `aws ec2` (out-of-band) and go last.
+**Order (and why):** CDW and the Data Hubs are **not** in terraform state, and the CDP control
+plane **blocks an env delete while any Data Hub / CDW cluster is still attached** — so they go via
+`cdp` CLI first. Then the **bastion** (also out-of-band) must be terminated **before**
+`terraform destroy`, because it lives in a TF-managed public subnet and otherwise wedges the subnet
+delete with `DependencyViolation`. Only then does `terraform destroy` (which owns the CDP
+env+DL+cross-acct cred + VPC + SGs + IAM + keypair + data S3 bucket) succeed.
+
+The whole run was **validated live end-to-end on 2026-09-09** — every step below is what actually
+worked, and each gotcha was hit and fixed on that run.
 
 1. Prereq check + typed confirmation gate.
 2. Kill the local `ssh -D 1080` SOCKS proxy.
-3. **CDW**: match the cluster on `.name` (= the env name — `.environmentCrn` is a UUID CRN and
-   won't contain the name), then delete VWs → wait drained → delete DBCs → delete cluster → poll
-   until gone. EKS + internal NLB + worker SGs are removed with the cluster.
+3. **CDW** — match the cluster on `.name` (= the env name; `.environmentCrn` is a UUID CRN and won't
+   contain "srm-iceberg"). Delete in this exact order or it deadlocks:
+   **VWs → connectors → non-default DBCs → cluster.**
+   - Delete all VWs, wait until none remain.
+   - **Delete the auto-created `iceberg` + `hive` connectors** — they ride in with the Trino VW, and
+     `delete-cluster` 500s `connector(s) associated` while any remain.
+   - Delete only **non-default** DBCs (name ≠ `*-default`) and wait for them to drain. The default
+     catalog (`srm-iceberg-aw-dl-default`) **cannot** be deleted directly (500 "only default
+     catalog") — `delete-cluster` reaps it.
+   - `delete-cluster` (retry a few times — it 400s `DB Catalog(s) associated` for a beat while a
+     just-deleted DBC finishes). Poll until gone; EKS + internal NLB + worker SGs go with it.
 4. **Data Hubs**: delete `srm-iceberg-impala` (and `srm-hol-optimizer` if the HOL was left up),
    poll until gone.
 5. **DataShare**: best-effort `delete-data-share --datalake-crn --environment-crn --data-share-id`
-   (env delete cascades this anyway; CRNs read from `config.env`, falling back to a live lookup).
-6. **Empty S3** buckets matching `srm-iceberg-*` (data / log / backup).
-7. **`terraform destroy -auto-approve`** — CDP env+DL+cred + VPC+SG+IAM+keypair+S3.
-8. **Bastion** (out-of-band): terminate the `srm-iceberg-bastion` EC2 (resolved by Name tag),
-   then delete `srm-iceberg-bastion-sg`.
-9. **Local cleanup**: `rm` `config.env` + `credentials*.json`; warn (don't auto-`sudo`-edit) if
+   (env delete cascades this anyway; CRNs from `config.env`, falling back to a live lookup).
+6. **Bastion** (out-of-band, **before** destroy): terminate `srm-iceberg-bastion` (by Name tag),
+   wait terminated, then delete `srm-iceberg-bastion-sg`.
+7. **`terraform init` then `terraform destroy -auto-approve`** — init first or destroy aborts with
+   `Module source has changed` (module ref drifts between rebuilds). Destroys CDP env+DL+cred + VPC +
+   SGs + IAM + keypair + the data bucket. The data bucket is **`force_destroy=true`**, so terraform
+   empties+deletes it — **no manual S3 pre-empty needed** (it would just churn thousands of CDW log
+   objects for nothing). Destroy is **idempotent** — if it stops on a stray dependency, clear it and
+   re-run. Afterward, `aws s3 rb --force` any leftover out-of-band buckets (e.g. `srm-iceberg-emr-*`,
+   which terraform doesn't own).
+8. **Local cleanup**: `rm` `config.env` + `credentials*.json`; warn (don't auto-`sudo`-edit) if
    `/etc/hosts` has stale `*.dw-srm-iceberg` lines; remind to clear the FoxyProxy SOCKS entry.
+9. **Verify**: env / terraform state / S3 / VPC / bastion all gone.
 
-**Preserved on purpose** (all reused by Monday's redeploy): `.workload.creds`, the SSH keypair
-`.pem`, the tooling venvs, and `terraform.tfstate` (emptied by destroy, file kept). `redeploy.sh`
-regenerates `config.env` + `credentials*.json`.
+**Preserved on purpose** (reused by Monday's redeploy): `.workload.creds`, the tooling venvs, and
+`terraform.tfstate` (emptied by destroy, file kept). `redeploy.sh` regenerates `config.env` +
+`credentials*.json`. **Note:** the SSH `.pem` is a terraform resource
+(`local_sensitive_file.pem_file`) and **is** destroyed — `terraform apply` regenerates it Monday.
 
 **Fallback if `terraform destroy` stalls on the CDP env** (CDW/DH residue): commented at the bottom
 of step 7 — `cdp environments delete-environment --cascade`, then `terraform state rm` the
 `cdp_environment`/`cdp_datalake` resources, then re-run `terraform destroy` for the AWS infra.
 
-**Verify (printed by the script):** `CDP env gone` · `terraform state empty` · `S3 buckets gone`.
-Spot-check: `cdp dw list-clusters` shows no srm-iceberg cluster; `aws ec2 describe-instances` shows
-the bastion terminated.
+**Verify (printed by the script):** `CDP env gone` · `terraform state empty` · `S3 buckets gone` ·
+`VPC gone` · `bastion gone`. The 2026-09-09 live run ended with all five clean (terraform state = 0
+resources, no srm-iceberg env / CDW / DH / VPC / SG / IAM / bucket / bastion remaining).
 
 **Monday impact:** full destroy adds ~10–15 min of VPC/IAM recreate to `terraform apply`; the model
 stays out of the loop, so the < $6.00 target holds. On a fresh VPC, `preclean-sg.sh` (gap 0) is a
