@@ -72,8 +72,10 @@ Was empty (no files, no `MEMORY.md`). Added the header-only `MEMORY.md`.
 ## Candidate promotions — Steven's call (nothing edited this pass)
 
 Highest-value gaps the subagents surfaced, ranked:
-1. **`cso-operator-app-work-on-main`** — `cso-operator-app/CLAUDE.md` lacks "commit to main, never
-   auto-branch"; effectively a repo-wrong. One line fixes it.
+1. **`cso-operator-app-work-on-main`** — **PROMOTED 2026-09-09** to `cso-operator-app/CLAUDE.md`
+   (commit `dba0359`) after Steven's steer: it's git-provable (every commit on `main`, no branches),
+   absent from an always-loaded file, and prevents the harness auto-branching off `main`. The only
+   one of the 10 placed; the rest below stay unplaced (delete-and-wait-for-recurrence).
 2. **`subagent-model-401-gateway`** — the "smoke-test one sub-agent before fanning out on a gateway
    key" rule is absent from `agent/workflow.md`.
 3. **`stacked-pr-base-branch-deletion`** — retarget-child-before-merging-base is a universal git
