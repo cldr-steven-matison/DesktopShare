@@ -1,6 +1,6 @@
 # EFM Guide — Humanization Pass
 
-**Work-stream G of EPIC #137, tracked in #295 (`device:WindowsDesktop`). Status: method + baseline landed 2026-09-02; A/B decided 2026-09-08 (rules only, see §"The A/B"); pass under way, Ch14/16/19 first.**
+**Work-stream G of EPIC #137, tracked in #295 (`device:WindowsDesktop`). Status: method + baseline landed 2026-09-02; A/B decided 2026-09-08 (rules only, see §"The A/B"); Ch14/16/19 humanized 2026-09-08 (Ch14/19 cleared on read 2026-09-09, Ch16 reworked for content the same day); Ch03/18/13/21 humanized 2026-09-09. 14 chapters remain; next Ch01, Ch04, Ch10, Ch05. Progress table in §"Progress".**
 
 Steven, 2026-09-02, after reading the 09-01 delivery: *"we need to rewrite some of the war story stuff. Once those are refined, i think an entire pass of humanization and evaluate the content output versus author writing style."* Ch20 and Ch12 were re-authored the same day under `agent/writing-style.md` as committed (#138, #178). This doc is the second half: measure every chapter against Steven's own published voice, decide with evidence whether the committed style rules are enough, and run the pass in the order the numbers say.
 
@@ -113,6 +113,30 @@ Distance = (em-dash/k over 1.5) + (proof/k over 2.7) + half the colon/k over 8.2
 | 21 | `ch20-sparkplug-demo.md` | 1732 | 5.8 | 2.3 | 15.6 | 16.7 | 0.6 | 0 | 14 |
 
 Two notes on the ranking. Ch03 and Ch18 lead because they are catalogs and cards: dash-separated one-liners and bold-led entries are their format, so their pass is a format decision (keep the tables, humanize the prose around them), not a rewrite. Ch13 and Ch21 rank high despite Steven's "pretty good" and "approved": they pass on shape and fail on punctuation and proof words, which is the exact axis this pass exists for. Ch14/16/19 are still waiting on his read-through; run their pass before that read so he reads them once.
+
+## Progress
+
+One commit per chapter in EdgeFlowManager. "After" is the lint row on the committed text; every command, path, port, script, sample-output block and figure in a chapter is unchanged unless the row says otherwise.
+
+| chapter | sha | words | em-dash/k | proof/k | colon/k | contrast/k | prov | bold% | Steven's read |
+|---|---|---|---|---|---|---|---|---|---|
+| Ch14 | `6ac3da1` | 3383 | 0.3 | 3.0 | 4.1 | 0 | 0 | 37.8 | cleared 2026-09-09 |
+| Ch16 | `84fd200` → `1e7451b` | 1758 → 2389 | 0.8 | 2.5 | 6.3 | 0.4 | 3* | 40.9 | light on content 2026-09-09; reworked (MCP-servers section), re-read pending |
+| Ch19 | `0a97248` | 2800 | 0.0 | 2.1 | 8.6 | 0 | 0 | 14.3 | cleared 2026-09-09 |
+| Ch03 | `ac8c5f6` | 1295 | 1.5 | 1.5 | 3.9 | 0 | 0 | 0 | |
+| Ch18 | `3de5211` | 831 | 0.0 | 1.2 | 1.2 | 0 | 0 | 0 | |
+| Ch13 | `ca67b83` | 2899 | 0.0 | 1.0 | 1.4 | 0 | 0 | 0 | |
+| Ch21 | `467aff2` | 3878 | 0.0 | 1.0 | 0.5 | 1.0 | 0 | 0 | |
+
+\* the lint matching Windows "Session 0" / "Session 1"; kept.
+
+Three things the second batch settled about the method.
+
+- **Headings count.** `colon/k` counts every mid-line `: ` and every ` — ` in prose, headings included, and tables are stripped. A table-heavy chapter has little prose left, so twelve `## Entry N: …` headings alone put Ch18 at 15.4/k. Number the headings (`## 1. …`) or parenthesize (`### Cloud Storage (AWS)`); the H1 `# Chapter N: Title` is mandated and is one hit.
+- **Catalog and card chapters are a format move, not a rewrite.** Moving `- **Name** — description` bullets into two-column tables took Ch03 from 56.3 em-dash/k and 97.6% bold bullets to 1.5 and 0 with every name preserved; Ch18's cards became field/value tables plus `#### Shape` / `#### Verify` code blocks (48 fences unchanged). Check the code blocks with a whitespace-normalized diff, since de-indenting them out of list items changes bytes but not content.
+- **Confirm the counts, not just the prose.** Ch03 stated 74/79/81 processors per platform; the live Jetson manifest (`GET /efm/api/agent-manifests/{id}`) reports 67 (74 minus 12 bundle-gated types plus the 5 extras), no Windows C++ agent is enrolled, and the committed Windows capture carries `ConsumeWindowsEventLog`/`PerformanceDataMonitor`/`TailEventLog`, not Couchbase or llama. The chapter now says what the manifests say and tells the reader to read their own.
+
+Ch13's field-validation section became a What Runs Where table; Ch21's investigation timelines became mechanism plus fix. Rubric line 4 (contrast ≤ 1) is gated per §"Procedure" even though it is not in `writing-style.md`; Ch13 needed nine `rather than` / `instead of` rewrites to clear it.
 
 ## Procedure per chapter
 
