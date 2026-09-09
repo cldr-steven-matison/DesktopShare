@@ -1,25 +1,16 @@
 #!/usr/bin/env bash
-# Wrapper to start opencode with GitHub integration for DesktopShare repo on NvidiaSpark-1
-# Usage: ./spark-session.sh [message]
-
+# Wrapper to start opencode with inbox for NvidiaSpark-1 — no landing screen, no spam
 set -euo pipefail
 
 proj="/home/tunas/BrainShare"
-TOKEN=$(gh auth token 2>/dev/null) || { echo "gh not authenticated"; exit 1; }
+gh auth token >/dev/null 2>&1 || { echo "gh not authenticated"; exit 1; }
 
+# Build inbox message from GitHub (write to temp file to avoid quote escaping issues)
+inbox_file="$(mktemp)"
 cd "$proj"
+gh issue list --state open --label "device:NvidiaSpark-1" --json number,title,labels 2>/dev/null \
+  | python3 "$proj/.opencode/build_inbox.py" > "$inbox_file" 2>/dev/null
 
-echo "Starting opencode with GitHub integration..."
-echo ""
-
-# Run startup script
-bash "$proj/.opencode/startup.sh" 2>/dev/null || true
-
-echo ""
-echo "=== opencode GitHub integration active ==="
-echo "Repo: cldr-steven-matison/DesktopShare"
-echo "Device: NvidiaSpark-1 (spark-dd06)"
-echo ""
-
-# Start opencode with a message so it doesn't show the landing screen
-opencode run --title "NvidiaSpark-1 Session" --dir "$proj" "$*"
+# Start opencode with inbox as initial message — suppress all stdout/stderr spam
+# The inbox is injected as the first message so it appears in the chat
+exec opencode run --title "NvidiaSpark-1" --dir "$proj" -- "$(cat "$inbox_file")" </dev/null 2>/dev/null
