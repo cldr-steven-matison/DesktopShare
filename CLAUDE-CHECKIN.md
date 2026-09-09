@@ -82,11 +82,13 @@ auto-sync made per-device tracking obsolete. Per-change skill history lives in g
 - CPU: AMD Ryzen 7 260 w/ Radeon 780M Graphics (8C/16T, 3.8GHz base) — confirmed via `Get-CimInstance Win32_Processor`, corrects an earlier wrong assumption (this is a Beelink SER9 MAX "H260" variant, not a Ryzen AI 9 HX 370 unit)
 - GPU: AMD Radeon 780M (RDNA3, 12 CUs, integrated)
 - NPU: none — this chip is not "Ryzen AI" branded and has no XDNA2 NPU; Lemonade's NPU backends (`flm:npu`, `ryzenai-llm:npu`) correctly report unsupported
+- **Front USB-C is power-only, no data** — the front-panel USB-C port carries power delivery only; no data pins are routed to it (a dock plugged there logged zero PnP events, then enumerated fully when moved to the rear). Any data peripheral (docks, drives, HID, DP-Alt-Mode video) goes in a **rear USB4** port. Check the port first before deeper "device not detected" diagnostics on this box.
 - RAM: 64GB LPDDR5X
 - Storage: ~1TB, 955GB free at time of check-in
 
 ### OS
 - Windows host: Windows 11 Pro, build 26200 (25H2) — confirmed via `Win32_OperatingSystem` (registry `ProductName` key incorrectly shows "Windows 10 Pro", a known cosmetic issue; build number is authoritative)
+- **Reboot/crash runbook (`starlinkai-dpc-crash-investigation.md`, #313).** Two failure modes: **Type A** 0x133 DPC_WATCHDOG was root-caused (WinDbg) to **`amdgpio2.sys` 2.2.0.137** and **FIXED 2026-08-27** by rolling GPIO back to 2.2.0.136 (`pnputil /delete-driver <oemNN.inf> /uninstall /force` → reboot → PnP rebinds `oem0.inf`) plus `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\ExcludeWUDriversInQualityUpdate=1` to stop WU re-staging it — zero 0x133 since. If 0x133 recurs, check `pnputil /enum-drivers` for a re-staged 2.2.0.137 first, don't re-diagnose. **Type B** (no-bugcheck hard resets: GPU TDR 0x117 + xHCI 0x144 live dumps then reset) is still **open** — see the doc. Dumps need Steven's elevated copy to `C:\minifi-manual\` to read.
 - Linux (WSL2, dev/Claude Code environment only — not in the serving path): Ubuntu 26.04 LTS, kernel 6.18.33.2-microsoft-standard-WSL2
 
 ### Key tool versions
