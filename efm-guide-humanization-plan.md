@@ -1,6 +1,6 @@
 # EFM Guide — Humanization Pass
 
-**Work-stream G of EPIC #137, tracked in #295 (`device:WindowsDesktop`). Status: method + baseline landed 2026-09-02; A/B decided 2026-09-08 (rules only, see §"The A/B"); Ch14/16/19 humanized 2026-09-08 (Ch14/19 cleared on read 2026-09-09, Ch16 reworked for content the same day); Ch03/18/13/21 humanized 2026-09-09. 14 chapters remain; next Ch01, Ch04, Ch10, Ch05. Progress table in §"Progress".**
+**Work-stream G of EPIC #137, tracked in #295 (`device:WindowsDesktop`). Status: COMPLETE 2026-09-09 — all 21 chapters humanized, every gated lint column inside the blog-voice band. Method + baseline landed 2026-09-02; A/B decided 2026-09-08 (rules only, see §"The A/B"); Ch14/16/19 cleared on read-through, Ch16 after a content rework. Per-chapter shas and after-rows in §"Progress".**
 
 Steven, 2026-09-02, after reading the 09-01 delivery: *"we need to rewrite some of the war story stuff. Once those are refined, i think an entire pass of humanization and evaluate the content output versus author writing style."* Ch20 and Ch12 were re-authored the same day under `agent/writing-style.md` as committed (#138, #178). This doc is the second half: measure every chapter against Steven's own published voice, decide with evidence whether the committed style rules are enough, and run the pass in the order the numbers say.
 
@@ -118,17 +118,33 @@ Two notes on the ranking. Ch03 and Ch18 lead because they are catalogs and cards
 
 One commit per chapter in EdgeFlowManager. "After" is the lint row on the committed text; every command, path, port, script, sample-output block and figure in a chapter is unchanged unless the row says otherwise.
 
-| chapter | sha | words | em-dash/k | proof/k | colon/k | contrast/k | prov | bold% | Steven's read |
-|---|---|---|---|---|---|---|---|---|---|
-| Ch14 | `6ac3da1` | 3383 | 0.3 | 3.0 | 4.1 | 0 | 0 | 37.8 | cleared 2026-09-09 |
-| Ch16 | `84fd200` → `1e7451b` | 1758 → 2389 | 0.8 | 2.5 | 6.3 | 0.4 | 3* | 40.9 | light on content 2026-09-09; reworked (MCP-servers section), re-read pending |
-| Ch19 | `0a97248` | 2800 | 0.0 | 2.1 | 8.6 | 0 | 0 | 14.3 | cleared 2026-09-09 |
-| Ch03 | `ac8c5f6` | 1295 | 1.5 | 1.5 | 3.9 | 0 | 0 | 0 | |
-| Ch18 | `3de5211` | 831 | 0.0 | 1.2 | 1.2 | 0 | 0 | 0 | |
-| Ch13 | `ca67b83` | 2899 | 0.0 | 1.0 | 1.4 | 0 | 0 | 0 | |
-| Ch21 | `467aff2` | 3878 | 0.0 | 1.0 | 0.5 | 1.0 | 0 | 0 | |
+| chapter | sha | words | em-dash/k | proof/k | colon/k | contrast/k | prov | Steven's read |
+|---|---|---|---|---|---|---|---|---|
+| Ch01 | `220eb06` | 940 | 0.0 | 0.0 | 2.1 | 0.0 | 0 | |
+| Ch02 | `fd65d9d` | 2055 | 0.0 | 1.0 | 1.9 | 0.0 | 0 | |
+| Ch03 | `ac8c5f6` | 1295 | 1.5 | 1.5 | 3.9 | 0.0 | 0 | |
+| Ch04 | `f5eda10` | 1268 | 0.0 | 0.0 | 2.4 | 0.0 | 0 | |
+| Ch05 | `fd265ff` | 1368 | 0.0 | 0.7 | 3.7 | 0.0 | 2* | |
+| Ch06 | `7d2c29d` | 1449 | 0.0 | 1.4 | 0.7 | 0.0 | 0 | |
+| Ch07 | `2d2c83e` `096a6f3` | 860 | 0.0 | 0.0 | 1.2 | 0.0 | 0 | |
+| Ch08 | `74dc102` | 845 | 0.0 | 0.0 | 4.7 | 0.0 | 0 | |
+| Ch09 | `53bee6b` | 985 | 0.0 | 1.0 | 3.0 | 0.0 | 0 | |
+| Ch10 | `5bacd27` | 1200 | 0.0 | 0.0 | 4.2 | 0.8 | 0 | |
+| Ch11 | `1ed7e3b` | 1352 | 0.0 | 0.0 | 2.2 | 0.7 | 0 | |
+| Ch12 | `0916dd8` | 3455 | 0.3 | 0.3 | 7.8 | 0.3 | 0 | re-authored under #178, trim only |
+| Ch13 | `ca67b83` | 2899 | 0.0 | 1.0 | 1.4 | 0.0 | 0 | "pretty good" 2026-09-02 |
+| Ch14 | `6ac3da1` | 3383 | 0.3 | 3.0 | 4.1 | 0.0 | 0 | cleared 2026-09-09 |
+| Ch15 | `de39dbb` | 1093 | 0.0 | 2.7 | 2.7 | 0.0 | 0 | |
+| Ch16 | `84fd200` → `1e7451b` | 2389 | 0.8 | 2.5 | 6.3 | 0.4 | 3* | light on content 2026-09-09; reworked (MCP-servers section), **cleared on re-read** |
+| Ch17 | `dce474f` | 1541 | 0.0 | 1.9 | 2.6 | 0.6 | 0 | |
+| Ch18 | `3de5211` | 831 | 0.0 | 1.2 | 1.2 | 0.0 | 0 | |
+| Ch19 | `0a97248` | 2800 | 0.0 | 2.1 | 8.6 | 0.0 | 0 | cleared 2026-09-09 |
+| Ch20 | `266b372` | 1728 | 0.6 | 1.2 | 7.5 | 0.0 | 0 | re-authored under #138, trim only |
+| Ch21 | `467aff2` | 3878 | 0.0 | 1.0 | 0.5 | 1.0 | 0 | approved 2026-09-02 (#140) |
 
-\* the lint matching Windows "Session 0" / "Session 1"; kept.
+Band: em-dash ≤2/k, proof ≤3/k, colon ≤10/k, contrast ≤1/k, meta 0, provenance 0. Every row passes.
+
+\* the lint matching the Windows "Session 0" / "Session 1" term as a "Session N" provenance marker. Kept on purpose in both chapters.
 
 Three things the second batch settled about the method.
 
@@ -137,6 +153,12 @@ Three things the second batch settled about the method.
 - **Confirm the counts, not just the prose.** Ch03 stated 74/79/81 processors per platform; the live Jetson manifest (`GET /efm/api/agent-manifests/{id}`) reports 67 (74 minus 12 bundle-gated types plus the 5 extras), no Windows C++ agent is enrolled, and the committed Windows capture carries `ConsumeWindowsEventLog`/`PerformanceDataMonitor`/`TailEventLog`, not Couchbase or llama. The chapter now says what the manifests say and tells the reader to read their own.
 
 Ch13's field-validation section became a What Runs Where table; Ch21's investigation timelines became mechanism plus fix. Rubric line 4 (contrast ≤ 1) is gated per §"Procedure" even though it is not in `writing-style.md`; Ch13 needed nine `rather than` / `instead of` rewrites to clear it.
+
+Three more the later batches settled.
+
+- **The hand-built deployer command was the most-repeated stale artifact in the guide.** Ch02, Ch04, Ch09, Ch10 and Ch17 each carried a `curl`/`Invoke-WebRequest` with a literal or `uuidgen`-substituted agent identifier, the exact shape `agent/incident-rules.md` "EFM agent deployment" forbids (#127). All five now state the rule and tell the reader to paste what EFM's Deploy Agent CLI screen or `generateCommand` returns. This was a correctness fix the prose pass surfaced, not a style change.
+- **A chapter that is already re-authored needs a trim, not a rewrite.** Ch12 and Ch20 were re-authored to final state under #178/#138 and read by Steven. Rewriting them would have put approved content back in play, so both got mechanical punctuation edits only: Related-Chapters entries and `## Heading — Sub` forms carry an em-dash *and* a colon-join each, so converting those two shapes alone took Ch12 from 14 em-dashes to 1 and Ch20 from 10 to 1, with every table, fence and figure byte-identical.
+- **Lint the whole set at the end, not just the chapter you touched.** The final sweep caught Ch07 sitting at contrast 1.2/k from a single "instead of" — invisible while working chapter-by-chapter.
 
 ## Procedure per chapter
 
@@ -153,8 +175,10 @@ Batch three to five chapters per session; one commit per chapter so a bad rewrit
 
 - Fold the surviving rubric lines into `agent/writing-style.md` §"What to strip" and add a Rule-canon row in `agent/incident-rules.md` pointing at it, so every device writing chapters or READMEs has the bar. Delete nothing from this doc; it stays the record of how the bar was set.
 - Add a `humanize` topic row to `agent/known-patterns.tsv` pointing at this doc and `files/prose-lint.py`, so a session that starts rewriting prose gets the lint injected.
-- Flip the tracker: each chapter's row notes "humanized (#295)" with its after-row; the EPIC #137 close then waits only on the Ch14/16/19 read-through.
+- Flip the tracker: each chapter's row notes "humanized (#295)" with its after-row; the EPIC #137 close then waits only on the Ch14/16/19 read-through. **Done 2026-09-09 — all 21 rows carry their after-row, and the read-throughs are cleared.**
 - Re-run the blog baseline whenever a new non-release post publishes; the band is a moving target by design.
+
+**Shipped 2026-09-09.** The first three bullets are done: the band is in `agent/writing-style.md` §"The blog-voice band", the rule-canon row and the `humanize` known-pattern are in place, and every tracker row carries its after-row. What stays live is the last bullet (re-baseline on a new post) and the band itself, which now applies to any published prose written from this repo, not only guide chapters.
 
 ## Appendix — excluded posts (release emails, 47)
 
