@@ -1,28 +1,27 @@
-# Chapter 5: NIM on the DGX Spark — Cloudera AI Inference parity
+# Chapter 05 — NIM on the DGX Spark — Cloudera AI Inference parity
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-cloudera-aws.md` (DesktopShare root) · driving issue: [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** DGX Spark NIM images running locally with an OpenAI-compatible surface that matches the Cloudera AI Inference endpoint shape.
 
-Standing a model up as a NIM microservice so the desk endpoint and Cloudera AI Inference speak the same API: image, auth, health, and the exact request shape a NiFi InvokeHTTP sends to both.
+## What this covers
+- DGX Spark NIM container images
+- OpenAI-compatible API surface (/v1/chat/completions, /v1/embeddings)
+- Parity with Cloudera AI Inference endpoint behavior
+- Base-URL swap pattern used in later chapters
 
-## Prerequisites
+## Before you start
+- Inference stacks running (Chapter 04 complete)
+- NVIDIA NGC credentials for NIM image pull
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- A `curl` to the local NIM endpoint returns the same response shape as the Cloudera AI Inference endpoint
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 06 — NVFP4, speculative decoding, MoE vs dense, concurrency](ch06-nvfp4-spec-decode-moe-concurrency.md) · Guide index: [README](README.md)

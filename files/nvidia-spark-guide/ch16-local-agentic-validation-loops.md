@@ -1,28 +1,28 @@
-# Chapter 16: Local agentic validation loops
+# Chapter 16 — Local agentic validation loops
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-local-kb.md` (DesktopShare root) · driving issue: [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: measured 2026-09-03; partial.** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) + [`nvidia-dgx-spark-offload.md`](../../nvidia-dgx-spark-offload.md) · Work-streams H/L · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) / [#294](https://github.com/cldr-steven-matison/DesktopShare/issues/294) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** An agentic loop where the DGX Spark's local LLM flags problems in doc or code artifacts, and the hosted Claude session adjudicates — measured on real DesktopShare docs.
 
-A local model as reviewer/validator ahead of Claude acting — OpenClaw, NemoClaw and the CLI coding-agent playbooks measured against our own `claw-claude.sh` pattern.
+## What this covers
+- The box-flags / Claude-adjudicates loop architecture
+- Document and code artifact validation use cases
+- Measured loop performance from 2026-09-03 runs
+- Integration with the local KB (Chapter 15)
 
-## Prerequisites
+## Before you start
+- Local KB running (Chapter 15 complete)
+- Local inference running (Chapter 04 complete)
+- Claude Code session with MCP tool access to spark-dd06
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- A test document flagged by the local loop produces a structured finding that Claude adjudicates correctly
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 17 — What moves off cloud tokens — cost control, measured](ch17-what-moves-off-cloud-tokens.md) · Guide index: [README](README.md)

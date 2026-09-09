@@ -1,28 +1,28 @@
-# Chapter 9: Cloudera Streaming Operators on aarch64 — install
+# Chapter 09 — Cloudera Streaming Operators on aarch64 — install
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-k3s-cso.md` (DesktopShare root) · driving issue: [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (operators installed on-box 2026-08-27; all 16 images arm64-native).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** All Cloudera Streaming Operators (cert-manager, Strimzi, CSA, CFM) installed in order on the aarch64 k3s cluster, with ingress-nginx and ssl-passthrough enabled.
 
-Image architecture verified per component, the install sequence ported from `files/agent-install-operators.sh`, the resource budget inside 128 GB, and the upstream-image fallback for anything that is amd64-only.
+## What this covers
+- All 16 CSO images confirmed arm64-native
+- Install order: cert-manager → Strimzi → CSA → CFM
+- ingress-nginx with ssl-passthrough flag
+- Resource budget for all operators within 128 GB unified memory
 
-## Prerequisites
+## Before you start
+- k3s with GPU running (Chapter 08 complete)
+- Helm available on the install machine
+- CSO image registry credentials
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- All operator pods in `Running` state; `kubectl get nifi` returns the CRD
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 10 — NiFi → local LLM: custom Python processors and InvokeHTTP shapes](ch10-nifi-to-local-llm.md) · Guide index: [README](README.md)

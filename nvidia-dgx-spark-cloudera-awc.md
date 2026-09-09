@@ -1,6 +1,6 @@
 # The DGX Spark and Cloudera Anywhere (AWC)
 
-> **Status (2026-08-31):** the AWC-form-factor companion to `nvidia-dgx-spark-cloudera-aws.md`, driving issue [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) under EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). This is the **using** doc — what the DGX Spark and Cloudera Anywhere *do together*. It is **not** an AWC getting-started guide: the setup, the CA chain, Knox SSO, the `hadoop-jwt` credential and the Console/CDF/SSB/Trino APIs live in `cloudera-anywhere-getting-started.md` (issue [#284](https://github.com/cldr-steven-matison/DesktopShare/issues/284)), which this doc treats as a prerequisite. **Decided:** AWC is a third Cloudera shape alongside CDP Base and CDP Public Cloud; the DGX Spark is a *client* of it, never a node in it; the parity payload is the OpenAI-compatible API on both sides. **Not yet run:** every AWC-runtime claim below is authored from the #284 discovery and the Console API inventory, and is marked `[TO-VERIFY]` until a runbook has hit `goes01` from the box. Feeds `files/nvidia-spark-guide/` chapter ch20 (and the AWC leg of ch21).
+> **Status (2026-08-31):** the AWC-form-factor companion to `nvidia-dgx-spark-cloudera-aws.md`, driving issue [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) under EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). This is the **using** doc — what the DGX Spark and Cloudera Anywhere *do together*. It is **not** an AWC getting-started guide: the setup, the CA chain, Knox SSO, the `hadoop-jwt` credential and the Console/CDF/SSB/Trino APIs live in `cloudera-anywhere-getting-started.md` (issue [#284](https://github.com/cldr-steven-matison/DesktopShare/issues/284)), which this doc treats as a prerequisite. **Decided:** AWC is a third Cloudera shape alongside CDP Base and CDP Public Cloud; the DGX Spark is a *client* of it, never a node in it; the parity payload is the OpenAI-compatible API on both sides. **Not yet run:** every AWC-runtime claim below is authored from the #284 discovery and the Console API inventory, and is marked `[TO-VERIFY]` until a runbook has hit `goes01` from the box. Feeds `files/nvidia-spark-guide/` chapter ch22 (and the AWC leg of ch24).
 
 ## 1. The three shapes, side by side
 
@@ -41,7 +41,7 @@ The runbook this chapter drives, all `[TO-VERIFY]`:
 3. Register / locate a served model and its **AI-Registry-assigned name** (the model id the request body must use, not the raw HF/NGC id).
 4. Issue the identical OpenAI request that the desk NIM answers (§5) and confirm the response contract matches.
 
-Until steps 1–4 run, ch20 states the Cloudera AI on AWC endpoint as *expected*, citing the Console inventory as evidence it exists, and never as a validated base-URL swap.
+Until steps 1–4 run, ch22 states the Cloudera AI on AWC endpoint as *expected*, citing the Console inventory as evidence it exists, and never as a validated base-URL swap.
 
 ## 4. The DGX Spark against the AWC data plane
 
@@ -52,7 +52,7 @@ The box as a producer/consumer against Cloudera Anywhere's data services. Each r
 - **Object Store (Ozone).** S3-compatible gateway. The public Ozone S3 gateway host was **not reachable** from the laptop session in #284 (`HTTP 000`) — direct Ozone access needs a VPC-internal / on-subnet host, which sharpens §2's reachability question for the box. `[TO-VERIFY]`
 - **Streaming (CDF / CSA-SSB / CSM-Kafka).** CDF (`/cdf/api/v1/`, needs `hadoop-jwt` + XSRF) and SSB (`/api/v1/`) are reachable and auth-passing (#284); the CSM Kafka node (`10.80.133.150`) was **not reachable** from the laptop and must be driven from an on-subnet host. A MiNiFi/NiFi leg on the box producing into AWC Kafka is therefore gated on §2. `[TO-VERIFY]`
 
-## 5. The API shape, and the base-URL swap (the AWC leg of ch21)
+## 5. The API shape, and the base-URL swap (the AWC leg of ch24)
 
 The whole thesis of the same-code arc is that only the base URL, the auth header and the model name change. The AWC column, expected shape:
 
@@ -100,13 +100,13 @@ Extends the ten-row catalogue in `nvidia-dgx-spark-cloudera-aws.md` §6 with the
 - AWC is described as the third Cloudera shape with its real reachability, auth, SQL engine, object store and Iceberg model, each traced to #284 or the Console API.
 - The Cloudera AI on AWC inference runbook (§3 steps 1–4) is written, with every runtime value marked `[TO-VERIFY]` until executed.
 - The base-URL-swap table (§5) isolates the AWC delta to base URL, auth header, model name and network — reusing the same three artifacts as the AWS doc, not a rewrite.
-- The integration catalogue rows (§6) each map to ch20/ch21 and carry an honest state (PROVEN vs `[TO-VERIFY]`).
+- The integration catalogue rows (§6) each map to ch22/ch24 and carry an honest state (PROVEN vs `[TO-VERIFY]`).
 - Every AWC-runtime claim carries `[TO-VERIFY]` or a #284 citation; nothing is asserted as validated that has not been run against `goes01` this issue.
 
 ## When this ships
 
 - `nvidia-dgx-spark-plan.md` §4 records the AWC form factor under work-stream I, and the Phase-5 gate gains an AWC target alongside the two AWS shapes.
-- Chapter ch20 (`files/nvidia-spark-guide/ch20-cloudera-ai-on-awc.md`) takes its content from §1–§6 here; the tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md` records the state change.
+- Chapter ch22 (`files/nvidia-spark-guide/ch22-cloudera-ai-on-awc.md`) takes its content from §1–§6 here; the tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md` records the state change.
 - The first executed leg turns the matching `[TO-VERIFY]` block into an as-built block the same day, and measured values replace the expected ones.
 - Anything customer-facing gets a clean blog per `agent/writing-style.md`, with issue numbers stripped.
 

@@ -1,6 +1,6 @@
 # CSO Operators / DGX Demo Designs
 
-> **Status (2026-09-08):** Rewritten on the box. This catalogue is **what has been built with EFM and NiFi on the DGX Spark itself** — four flows, every one running or field-validated on `spark-dd06`, each with a committed export. Nothing here is another device's flow with the DGX Spark swapped in; the 2026-08-24 draft was, and it is gone. The Cloudera AI / NIM-parity thread ("same code, two backends") belongs to work-stream I (`nvidia-dgx-spark-cloudera-aws.md` §5, [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241)), which Steven is re-scoping. Work-stream **C** of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234); feeds guide Ch22.
+> **Status (2026-09-08):** Rewritten on the box. This catalogue is **what has been built with EFM and NiFi on the DGX Spark itself** — four flows, every one running or field-validated on `spark-dd06`, each with a committed export. Nothing here is another device's flow with the DGX Spark swapped in; the 2026-08-24 draft was, and it is gone. The Cloudera AI / NIM-parity thread ("same code, two backends") belongs to work-stream I (`nvidia-dgx-spark-cloudera-aws.md` §5, [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241)), which Steven is re-scoping. Work-stream **C** of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234); feeds guide Ch25.
 
 ## 1. What a demo is here
 
@@ -123,13 +123,13 @@ kubectl -n cld-streaming delete flinkdeployment flink-agents                    
 
 - Every demo names a live or field-validated component on `spark-dd06`, a committed export, and the as-built section it defers to. Satisfied for all four on 2026-09-08.
 - The "How to run it" block for each demo has been run from this box or another LAN device at least once (Demos 1–3 are live; Demo 4's last full run was 2026-09-06).
-- Guide Ch22 (`files/nvidia-spark-guide/ch22-demo-catalogue.md`) is authored from this page, not from the retired draft.
+- Guide Ch25 (`files/nvidia-spark-guide/ch25-demo-catalogue.md`) is authored from this page, not from the retired draft.
 
 ## When this ships
 
 - A new flow on the box's NiFi or a new EFM class flow gets a section here in the same session it is field-validated, with its export path.
 - If a demo is retired from the canvas, its section moves under §6 with the date.
-- `nvidia-dgx-spark-plan.md` §4 row C and the guide tracker's Ch22 row point here.
+- `nvidia-dgx-spark-plan.md` §4 row C and the guide tracker's Ch25 row point here.
 
 ## Resources
 

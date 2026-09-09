@@ -1,28 +1,27 @@
-# Chapter 7: Embeddings, reranking, Whisper — migrating the RAG service tier
+# Chapter 07 — Embeddings, reranking, Whisper — the RAG service tier
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-k3s-cso.md` (DesktopShare root) · driving issue: [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (RAG tier built + measured 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** Three RAG-tier services running on the DGX Spark: bge-m3 embeddings on TEI (:8001), bge-reranker-v2-m3 on TEI (:8002), and whisper.cpp large-v3 with CUDA acceleration (:8003).
 
-The non-LLM services WindowsDesktop runs today (TEI embeddings, Whisper, the trt-infer daemon) rebuilt for Arm on the Spark, with the cutover rung and rollback for each.
+## What this covers
+- bge-m3 embeddings via TEI on port :8001
+- bge-reranker-v2-m3 reranker via TEI on port :8002
+- whisper.cpp large-v3 with CUDA on port :8003
+- Measured memory footprints from 2026-08-28 runs
 
-## Prerequisites
+## Before you start
+- DGX OS updated; CUDA available (Chapter 01–03 complete)
+- Model weights or TEI/whisper.cpp images accessible
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `curl http://localhost:8001/health`, `:8002/health`, and `:8003/health` each return 200; a test embed call returns a vector
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 08 — k3s with GPU on GB10](ch08-k3s-with-gpu.md) · Guide index: [README](README.md)

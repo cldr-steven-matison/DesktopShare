@@ -1,28 +1,27 @@
-# Chapter 11: Flink on GPU + Flink Agents
+# Chapter 11 — Flink on GPU + Flink Agents
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-k3s-cso.md` (DesktopShare root) · driving issue: [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (Flink on GPU + flink-agents 0.3.1 STABLE 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A Flink TaskManager with `nvidia.com/gpu` resource claim running on k3s, plus a flink-agents 0.3.1 job pointed at the box's own inference endpoint.
 
-Reviving the `custom-flink-gpu` image on Arm, `nvidia.com/gpu` in the TaskManager podTemplate, and Flink Agents (its own FlinkDeployment, Flink ≥ 1.20.3) with the Spark as the OpenAI-compatible backend.
+## What this covers
+- Flink TaskManager pod with `nvidia.com/gpu` resource request
+- GPU visibility and utilization inside the Flink pod
+- flink-agents 0.3.1 (STABLE) deployment and job submission
+- flink-agents job configured against the box's local endpoint
 
-## Prerequisites
+## Before you start
+- k3s with GPU running (Chapter 08 complete)
+- CSA operator installed (Chapter 09 complete)
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- Flink TaskManager pod shows GPU allocated; flink-agents job reaches RUNNING state
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 12 — EFM agent class NvidiaSpark-1](ch12-efm-agent-class-nvidiaspark-1.md) · Guide index: [README](README.md)

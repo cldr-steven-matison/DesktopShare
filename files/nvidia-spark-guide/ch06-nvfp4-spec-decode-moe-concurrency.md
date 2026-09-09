@@ -1,28 +1,27 @@
-# Chapter 6: NVFP4, speculative decoding, MoE vs dense, concurrency
+# Chapter 06 — NVFP4, speculative decoding, MoE vs dense, concurrency
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-landscape.md` (DesktopShare root) · driving issue: [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated substance (measured 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A measured characterization of NVFP4 quantization, speculative decoding gains, MoE vs dense behavior on the bandwidth wall, and concurrency limits — all from spark-dd06 runs.
 
-The four levers that move tokens-per-second on a bandwidth-bound box, each with a before/after number, and how concurrent streams behave for a multi-flow NiFi load.
+## What this covers
+- NVFP4 quantization and its effect on throughput vs quality
+- Speculative decoding: measured token/s gain on spark-dd06
+- MoE vs dense model behavior at the 273 GB/s bandwidth ceiling
+- Measured concurrency limits from 2026-08-28 benchmark runs
 
-## Prerequisites
+## Before you start
+- Inference stacks running (Chapter 04 complete)
+- Familiarity with vLLM serving configuration
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- Benchmark script completes and reports token/s figures matching the 2026-08-28 baseline
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 07 — Embeddings, reranking, Whisper — the RAG service tier](ch07-embeddings-rerank-whisper-tier.md) · Guide index: [README](README.md)

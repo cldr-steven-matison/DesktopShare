@@ -1,28 +1,28 @@
-# Chapter 12: EFM agent class NvidiaSpark-1
+# Chapter 12 — EFM agent class NvidiaSpark-1
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-efm-agent.md` (DesktopShare root) · driving issue: [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (#239 closed 2026-08-28; class flow v5 validated on-box).** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** An EFM agent class for the DGX Spark, with the spark-dd06 MiNiFi agent enrolled via `generateCommand` and the single-handler router flow (flowVersion 5) deployed.
 
-A MiNiFi Java agent on the box, enrolled only through EFM's `generateCommand`, the class flow, the service unit, and the heartbeat/health checks — the NvidiaNano recipe applied one tier up.
+## What this covers
+- EFM agent class creation for NvidiaSpark-1
+- Enrollment via `POST /efm/api/agent-deployer/generateCommand` (no `agentIdentifier`)
+- Single-handler router flow (flowVersion 5) with four inference doors
+- Inference doors fronted on port :8190
 
-## Prerequisites
+## Before you start
+- EFM running and reachable from spark-dd06 (Chapter 03 complete)
+- MiNiFi C++ binary available on the box
+- Inference stacks serving on :8000–:8003 (Chapter 04/07 complete)
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- spark-dd06 agent appears as `CONNECTED` in the EFM fleet board; a test request to :8190 routes to the correct inference door
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 13 — Out-of-box edge-AI use cases — the Jetson → Spark ladder](ch13-edge-ai-use-cases-jetson-to-spark.md) · Guide index: [README](README.md)

@@ -1,28 +1,27 @@
-# Chapter 10: NiFi → local LLM: custom Python processors and InvokeHTTP shapes
+# Chapter 10 — NiFi → local LLM: custom Python processors and InvokeHTTP shapes
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-k3s-cso.md` (DesktopShare root) · driving issue: [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated substance (SparkLlmBridge flow built 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A NiFi flow using InvokeHTTP to call the box's `/v1/chat/completions` endpoint, with the SparkLlmBridge gate process group and custom Python processors.
 
-The `StreamTovLLM` shape pointed at the box's endpoint, the Bearer/Parameter-Context convention, and where a custom Python processor is justified over a native chain.
+## What this covers
+- InvokeHTTP processor configuration targeting the local `/v1/chat/completions`
+- The SparkLlmBridge gate flow (committed export)
+- Custom Python processors for LLM request/response shaping
+- Request JSON structure for the box's vLLM endpoint
 
-## Prerequisites
+## Before you start
+- CSO operators installed, NiFi running (Chapter 09 complete)
+- Inference stack serving on :8000 (Chapter 04 complete)
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- A test FlowFile routed through SparkLlmBridge returns an LLM response in the output queue
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 11 — Flink on GPU + Flink Agents](ch11-flink-on-gpu-and-flink-agents.md) · Guide index: [README](README.md)

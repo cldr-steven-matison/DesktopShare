@@ -1,28 +1,28 @@
-# Chapter 15: Local knowledge base for Claude Code (MCP + Qdrant)
+# Chapter 15 — Local knowledge base for Claude Code (MCP + Qdrant)
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-local-kb.md` (DesktopShare root) · driving issue: [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (KB live on spark-dd06 since 2026-08-27).** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) · Work-stream H · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A Qdrant + TEI vector index of the DesktopShare doc corpus, exposed to Claude Code as the `ds-kb` MCP tool, with a call-site retrieval hook that injects relevant sections automatically.
 
-Ingest → embed → Qdrant → MCP server → Claude Code, over DesktopShare, the EFM guide, Cloudera docs and NVIDIA playbooks; the wiring precedent is the Iceberg MCP server.
+## What this covers
+- Qdrant instance on spark-dd06 holding the DesktopShare doc index
+- TEI embeddings pipeline for indexing
+- The `ds-kb` MCP tool and `kb_search` call
+- Call-site retrieval hook (`kb-retrieve.sh`) injecting top cited sections into Bash grep results
 
-## Prerequisites
+## Before you start
+- TEI embeddings running on :8001 (Chapter 07 complete)
+- Qdrant running on the box (port documented in CLAUDE-CHECKIN.md)
+- Claude Code with MCP tool support configured
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `kb_search "EFM agent enrollment"` returns relevant DesktopShare doc sections; the hook injects citations into a test Bash grep
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 16 — Local agentic validation loops](ch16-local-agentic-validation-loops.md) · Guide index: [README](README.md)

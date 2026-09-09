@@ -1,28 +1,27 @@
-# Chapter 1: DGX Spark hardware and the 273 GB/s reality
+# Chapter 01 — DGX Spark hardware and the 273 GB/s reality
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-landscape.md` (DesktopShare root) · driving issue: [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated substance (sizing measured on spark-dd06 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A working understanding of the GB10 Grace Blackwell SoC, its 128 GB unified memory at 273 GB/s, and how that bandwidth ceiling governs every serving decision made in later chapters.
 
-GB10, 128 GB unified LPDDR5x, why memory bandwidth — not capacity — decides what is interactive, and the three regimes (sweet spot / capacity ceiling / stunt) the rest of the guide sizes against.
+## What this covers
+- GB10 Grace Blackwell SoC on aarch64
+- 128 GB LPDDR5x unified memory at 273 GB/s
+- The bandwidth wall that caps decode speed for large models
+- Measured thermal envelope from spark-dd06 (2026-08-28)
 
-## Prerequisites
+## Before you start
+- DGX Spark unit powered on and enrolled in the array (see Chapter 02–03)
+- SSH access to spark-dd06 for measurement commands
 
-- A DGX Spark, unboxed.
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `nvidia-smi` reports GB10 GPU; `free -h` shows ~128 GB unified memory
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 02 — DGX OS day one: first boot, NVIDIA Sync, Dashboard, updates, recovery](ch02-dgx-os-day-one.md) · Guide index: [README](README.md)

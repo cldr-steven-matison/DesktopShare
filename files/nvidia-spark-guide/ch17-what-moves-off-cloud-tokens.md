@@ -1,28 +1,27 @@
-# Chapter 17: What moves off cloud tokens — cost control, measured
+# Chapter 17 — What moves off cloud tokens — cost control, measured
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-local-kb.md` (DesktopShare root) · driving issue: [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: measured 2026-09-02/03; partial.** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) §5 + [`nvidia-dgx-spark-offload.md`](../../nvidia-dgx-spark-offload.md) · Work-streams H/L · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) / [#294](https://github.com/cldr-steven-matison/DesktopShare/issues/294) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A measured breakdown of which tasks shift from hosted Claude tokens to local inference on the DGX Spark, including the session scoreboard showing offload share.
 
-Which workloads the box takes over, with before/after token and latency numbers, and the ones that stay on Claude on purpose.
+## What this covers
+- Measured offload share from 2026-09-02/03 sessions
+- Tasks that move to local: doc lookups, long-log digests, fact extraction
+- Tasks that stay hosted: complex reasoning, code generation requiring full context
+- The session scoreboard metric and how to read it
 
-## Prerequisites
+## Before you start
+- Local KB and inference running (Chapters 07, 15 complete)
+- Agentic loop configured (Chapter 16 complete)
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- Session scoreboard shows nonzero offload share; cost reduction measurable against a baseline hosted-only session
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 18 — CDP Base CE on AWS + the DGX Spark](ch18-cdp-base-ce-on-aws.md) · Guide index: [README](README.md)

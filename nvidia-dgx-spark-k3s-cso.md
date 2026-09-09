@@ -51,7 +51,7 @@ Cloudera's own docs do **not** settle this, and the aggregate claim "the operato
 | NiFi Python extensions | wheels, in-pod | **unknown** | no aarch64 note anywhere in the corpus | native processor chain | no `ParseDocument` OCR path |
 | PyFlink / Flink Agents wheels | built into the image | **unknown** | build-time question, §8 | Java-only Flink jobs | no agents, no Python UDFs |
 
-Two things the probe does not answer, and both are on-box work: whether the images *run* under k3s on GB10 (cgroup v2, NiFi's bundled native libs, CUDA in the Flink image), and whether the Python wheel layers resolve for aarch64. #243 is the pull-and-inspect half, and it runs here, on `spark-dd06` — not on the Mac, which was the original scope.
+Two things the probe does not answer, and both are on-box work: whether the images *run* under k3s on GB10 (cgroup v2, NiFi's bundled native libs, CUDA in the Flink image), and whether the Python wheel layers resolve for aarch64. #243 is the pull-and-inspect half, and it runs here, on `spark-dd06`.
 
 ```bash
 # expected — verify on the box (#243). Docker 29.2.1 and nvidia-ctk 1.20.0 are installed; the
@@ -582,7 +582,7 @@ The Spark box is a development and demo platform and an inference target, not a 
 - `CLAUDE-CHECKIN.md`'s NvidiaSpark-1 block gets the real k3s/kubectl/helm versions, the static IP reservation, the cluster's NodePort block, and its endpoint map; `CONTEXT.md` gets any new namespace or endpoint name.
 - The Flink GPU image finally gets a checked-in Dockerfile under `files/`, which `completed/gpu-minikube-grok-flink-image.md` and `completed/flink-minikube-gpu-working.md` never had.
 - `agent/known-patterns.tsv` gets a row for k3s-on-GB10 so the next session does not re-derive §3, and any canonical flow shape from §6 goes back into the `nifi-and-ai` skill.
-- #243 closes on the box; #238 flips to review; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) unblocks once the cluster exists, and the ch22 demo catalogue can start pulling from a working stack.
+- #243 closes on the box; #238 flips to review; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) unblocks once the cluster exists, and the ch25 demo catalogue can start pulling from a working stack.
 - Blog drafts follow `agent/writing-style.md` — the k3s-on-GB10 write-up is genuinely first-of-its-kind: a [forum search for NiFi and DGX Spark](https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark) returns nothing, and [NVIDIA's playbook library](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md) has no Kafka, NiFi or Flink playbook at all.
 
 ## Resources

@@ -1,28 +1,28 @@
-# Chapter 4: Inference stacks on GB10 and the model lock
+# Chapter 04 — Inference stacks on GB10 and the model lock
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-landscape.md` (DesktopShare root) · driving issue: [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (model lock closed 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** vLLM, TEI, and whisper.cpp serving the locked model set on ports :8000–:8003, each verified healthy.
 
-llama.cpp, vLLM, SGLang, TensorRT-LLM, NIM — what each is for on this box, the measured numbers behind the lead (~27 B NVFP4) and stretch (~100 B) model choices, and how the lock was made.
+## What this covers
+- vLLM, TEI, and whisper.cpp inference engines on GB10
+- The locked model set (validated 2026-08-28)
+- Port assignments: :8000 (vLLM chat), :8001 (TEI embeddings), :8002 (TEI reranker), :8003 (whisper.cpp)
+- Per-engine container launch and health check
 
-## Prerequisites
+## Before you start
+- DGX OS updated; NVIDIA drivers operational (Chapter 01–03 complete)
+- Docker or container runtime available on the box
+- Model weights present on local storage
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `curl http://localhost:8000/health` returns 200 for each of the four ports
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 05 — NIM on the DGX Spark — Cloudera AI Inference parity](ch05-nim-on-spark-cloudera-ai-parity.md) · Guide index: [README](README.md)

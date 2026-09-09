@@ -2,7 +2,7 @@
 
 *by Steven Matison*
 
-> **Skeleton (2026-08-24).** This is the staged table of contents for the guide, filed under work-stream J of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). Chapters are stubs until the box lands and each one field-validates; the public repo is cut when the first validated chapter exists. Internal tracker of record: `Complete Developer Guide for Nvidia Spark with Cloudera.md` at the DesktopShare root. Naming rule throughout: **DGX Spark** is the box, **Apache Spark** is the engine.
+> **Skeleton (2026-09-09).** Staged table of contents for the guide, work-stream J of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226) — **26 chapters in 9 parts**. Chapters are stubs; each field-validates before its prose is authored, and the public repo is cut when the first validated chapter exists. Internal tracker of record: `Complete Developer Guide for Nvidia Spark with Cloudera.md` at the DesktopShare root. Naming rule throughout: **DGX Spark** is the box, **Apache Spark** is the engine.
 
 NVIDIA's DGX Spark is documented as a personal AI supercomputer; what it is *not* documented as is a node in a working data platform. This guide is the missing half: the box as an inference endpoint for NiFi and Flink, as a Kubernetes host for Cloudera Streaming Operators on Arm, as an EFM-managed edge agent, as the home of a local knowledge base for a coding agent, and as the desk-side prototype that promotes unchanged into Cloudera AI on AWS. Every chapter marked done in the tracker points at a runbook that ran on the real hardware.
 
@@ -50,27 +50,35 @@ Keeping Claude Code's execution, retrieval, and validation on the desk: a local 
 - **Ch16** — [Local agentic validation loops](ch16-local-agentic-validation-loops.md)
 - **Ch17** — [What moves off cloud tokens — cost control, measured](ch17-what-moves-off-cloud-tokens.md)
 
-### Part VI — Cloudera on AWS
+### Part VI — DGX Spark with the Cloudera platform
 
-The three Cloudera-on-AWS shapes — CDP Base / Community Edition on EC2, CDP Public Cloud, and AWC (Cloudera Anywhere) — as integration targets for a local DGX Spark, ending in the same-code-three-backends arc.
+Using the box with each Cloudera platform form factor as an external client — never a cluster node.
 
-- **Ch18** — [CDP Base on AWS + the DGX Spark](ch18-cdp-base-on-aws-and-the-spark.md)
-- **Ch19** — [CDP Public Cloud on AWS: Cloudera AI Inference, NIM, AI Registry, Agent Studio, DataFlow](ch19-cdp-public-cloud-on-aws-cloudera-ai.md)
-- **Ch20** — [Cloudera AI on AWC — the DGX Spark and Cloudera Anywhere, together](ch20-cloudera-ai-on-awc.md)
-- **Ch21** — [Same code, three backends — the arc](ch21-same-code-three-backends.md)
+- **Ch18** — [CDP Base CE on AWS + the DGX Spark](ch18-cdp-base-ce-on-aws.md)
+- **Ch19** — [CDP Public Cloud on AWS + the DGX Spark](ch19-cdp-public-cloud-on-aws.md)
+- **Ch20** — [Cloudera AWC on AWS + the DGX Spark](ch20-cloudera-awc-on-aws.md)
 
-### Part VII — Demos
+### Part VII — DGX Spark with Cloudera AI
+
+Cloudera AI as a form factor in its own right, with the DGX Spark as the local half, ending in the same-code arc.
+
+- **Ch21** — [Cloudera AI on AWS](ch21-cloudera-ai-on-aws.md)
+- **Ch22** — [Cloudera AI on AWC](ch22-cloudera-ai-on-awc.md)
+- **Ch23** — [Cloudera AI on Data Services](ch23-cloudera-ai-on-data-services.md)
+- **Ch24** — [Same code, N backends — the arc](ch24-same-code-n-backends.md)
+
+### Part VIII — Demos
 
 The field-validated demo catalogue: each demo names the chapter it exercises and the exact artifact it reuses.
 
-- **Ch22** — [Demo catalogue](ch22-demo-catalogue.md)
+- **Ch25** — [Demo catalogue](ch25-demo-catalogue.md)
 
-### Part VIII — Scale-out
+### Part IX — Scale-out
 
 When one box isn't enough: two, three, and four Sparks over ConnectX-7.
 
-- **Ch23** — [Two, three, four Sparks: ConnectX-7, NCCL, 1M context](ch23-multi-spark-scale-out.md)
+- **Ch26** — [Two, three, four Sparks: ConnectX-7, NCCL, 1M context](ch26-multi-spark-scale-out.md)
 
 ## What you have here
 
-Twenty-three chapters in eight parts. Parts I–II are the box on its own; III–IV put it inside the Cloudera edge and streaming stack; V is the developer-workflow payoff; VI–VII take the same artifacts to the three Cloudera-on-AWS shapes and into demos; VIII is scale-out. `files/` will hold flow exports, manifests and scripts; `images/` the figures — both at this directory's root, siblings of the chapters, the same layout as the EFM guide.
+Twenty-six chapters in nine parts. Parts I–II are the box on its own; III–IV put it inside the Cloudera edge and streaming stack; V is the developer-workflow payoff; VI takes the same artifacts to the three Cloudera platform form factors and VII to Cloudera AI (on AWS, AWC, and Data Services); VIII is the demo catalogue and IX is scale-out. `files/` holds flow exports, manifests and scripts; `images/` the figures — both at this directory's root, siblings of the chapters.

@@ -1,28 +1,27 @@
-# Chapter 14: Observability: Prometheus exporters, the EFM fleet board, DGX Dashboard
+# Chapter 14 — Observability: Prometheus exporters, the EFM fleet board, DGX Dashboard
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-efm-agent.md` (DesktopShare root) · driving issue: [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: partial (:9936/metrics live; cluster scrape pending).** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A Prometheus scrape path from the MiNiFi agent metrics exporter (:9936/metrics) into the cluster, with the EFM fleet board and DGX Dashboard providing the visual layer.
 
-`dgx-spark-prometheus` as a host row on the existing fleet board, the agent's flow-level exporter, and what DGX Dashboard shows that Prometheus doesn't.
+## What this covers
+- MiNiFi agent Prometheus exporter on :9936/metrics (live)
+- ServiceMonitor configuration for cluster scrape (pending)
+- EFM fleet board: agent health and flow version tracking
+- DGX Dashboard: GPU utilization and thermal metrics
 
-## Prerequisites
+## Before you start
+- EFM agent class NvidiaSpark-1 enrolled (Chapter 12 complete)
+- Prometheus operator running in the k3s cluster
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `curl http://spark-dd06:9936/metrics` returns Prometheus text; at least one metric visible in Grafana or Prometheus UI
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 15 — Local knowledge base for Claude Code (MCP + Qdrant)](ch15-local-knowledge-base-for-claude-code.md) · Guide index: [README](README.md)

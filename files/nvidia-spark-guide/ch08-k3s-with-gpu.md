@@ -1,28 +1,27 @@
-# Chapter 8: k3s with GPU on GB10
+# Chapter 08 — k3s with GPU on GB10
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-k3s-cso.md` (DesktopShare root) · driving issue: [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (k3s + GPU built 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A k3s v1.32.13+k3s1 single-node cluster on the DGX Spark with the NVIDIA device plugin installed and GPU resources visible to pods.
 
-The nvidia container runtime, k3s on the host with its containerd auto-detecting that runtime, the version pin under the Cloudera operators' 1.32 ceiling, and the device-plugin version floor for unified memory — with a GPU pod proven on the cluster.
+## What this covers
+- k3s v1.32.13+k3s1 install on aarch64
+- NVIDIA device plugin deployment
+- GPU resource visibility in `kubectl describe node`
+- kubeconfig setup for remote access
 
-## Prerequisites
+## Before you start
+- DGX OS updated; NVIDIA drivers operational (Chapter 01–03 complete)
+- Root or sudo access on spark-dd06
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `kubectl describe node` shows `nvidia.com/gpu: 1` (or the correct count) in allocatable resources
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 09 — Cloudera Streaming Operators on aarch64 — install](ch09-cso-operators-on-aarch64.md) · Guide index: [README](README.md)

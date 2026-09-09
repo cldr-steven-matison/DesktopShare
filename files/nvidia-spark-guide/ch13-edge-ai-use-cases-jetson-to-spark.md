@@ -1,28 +1,27 @@
-# Chapter 13: Out-of-box edge-AI use cases — the Jetson → Spark ladder
+# Chapter 13 — Out-of-box edge-AI use cases — the Jetson → Spark ladder
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-efm-agent.md` (DesktopShare root) · driving issue: [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: source done (#239); end-to-end from a non-Spark device pending.** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** Ten edge-AI use-case flows deployable via EFM, demonstrating the Jetson → Spark escalation ladder where lighter models run on a Jetson and heavier inference escalates to the DGX Spark.
 
-The HandleHttp front-door legs (classify, transcribe, reason) re-homed on the Spark, what the extra tier buys, and the flows exported for the gallery.
+## What this covers
+- Ten use-case flow designs covering common edge-AI patterns
+- The Jetson → Spark escalation decision: when to offload to the Spark
+- EFM class-based deployment of each use-case flow
+- Agent targeting by class for mixed-device fleets
 
-## Prerequisites
+## Before you start
+- EFM agent class NvidiaSpark-1 enrolled (Chapter 12 complete)
+- At least one non-Spark edge device enrolled in EFM for end-to-end testing
 
-- The box is on the array per [Chapter 3](ch03-joining-the-array.md).
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- All ten use-case flows deployable from EFM; at least one end-to-end flow from a non-Spark agent escalates successfully to the Spark endpoint
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 14 — Observability: Prometheus exporters, the EFM fleet board, DGX Dashboard](ch14-observability.md) · Guide index: [README](README.md)

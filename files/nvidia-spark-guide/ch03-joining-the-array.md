@@ -1,28 +1,29 @@
-# Chapter 3: Joining the array: LAN, Tailscale, firewall, roster, EFM reachability
+# Chapter 03 — Joining the array: LAN, Tailscale, firewall, roster, EFM reachability
 
-> **⚠️ Stub — not yet field-validated.** Scope is fixed; content lands when this chapter's runbook has run on the box (landed 2026-08-26 as `spark-dd06`; on-box bring-up is #235). Source doc: `nvidia-dgx-spark-runbook.md` (DesktopShare root) · driving issue: [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub (roster done; network legs pending B expansion).** Source: [`nvidia-dgx-spark-runbook.md`](../../nvidia-dgx-spark-runbook.md) · Work-stream B · [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
-## Scope
+**What you'll build.** A DGX Spark on a static LAN IP, enrolled in the Tailscale mesh, with firewall rules set and EFM reachability confirmed from the array.
 
-Static IP, the Tailscale playbook, the firewall rules a LAN-exposed endpoint needs, and the three-file roster onboarding (`CLAUDE-CHECKIN.md`, `lib-device.sh`, `device-comms.md`) so the fleet sees the box.
+## What this covers
+- Static LAN IP assignment
+- Tailscale installation and enrollment
+- Firewall rule configuration
+- Device roster entry
+- EFM reachability verification
 
-## Prerequisites
+## Before you start
+- DGX OS updated (Chapter 02 complete)
+- LAN router access to assign static DHCP or configure a static IP
+- Tailscale account credentials
 
-- [Chapter 2](ch02-dgx-os-day-one.md) complete — the box boots, patches, and runs a GPU container.
-- *(filled from the source doc when the chapter is authored)*
+## Walkthrough
+*(Steps land here when the chapter is authored — ordered and copy-pasteable, captured from the source doc's runbook.)*
 
-## Sections (planned)
+## Verify it worked
+- `tailscale status` shows the box in the mesh; EFM agent-class enrollment succeeds from the device
 
-*Operational order, one command block per step, field-captured output labelled with the device that produced it. Exact section list comes from the source doc's runbook when it has run.*
+## Reference
+- *(Command forms, endpoints, and config keys land here at authoring — table form.)*
 
-## What NOT to Do
-
-*(populated from the first real run)*
-
-## Appendix — Reusable Command Forms
-
-*(populated from the first real run)*
-
-## Related Chapters
-
-- Guide index: [README](README.md)
+## Next
+- [Chapter 04 — Inference stacks on GB10 and the model lock](ch04-inference-stacks-and-model-lock.md) · Guide index: [README](README.md)
