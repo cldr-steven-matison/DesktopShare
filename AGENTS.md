@@ -21,24 +21,6 @@ Local inference on this box is vLLM at `http://127.0.0.1:8000/v1` (`nvidia/Qwen3
 
 **Git:** `Already up to date.`
 
-**All open issues:**
-322	OPEN	[DGX Spark] spark-dd06: make ALL box services survive a reboot (Docker serving tier didn't recover from the 09-08 reboot — root of #321)	status:in-progress, device:NvidiaSpark-1
-320	OPEN	[DGX Spark] Sort out dangling chapter work across all guide subplans (single tracker)	status:in-progress, device:NvidiaSpark-1
-315	OPEN	Introduce AXIOMETA to the device array	device:StarlinkAI, status:review
-314	OPEN	[Streamers]  New Feedback BOT Testing	device:WindowsDesktop, status:todo
-304	OPEN	[Streamers] KB input mechanism	status:todo, device:NvidiaSpark-1
-295	OPEN	Close Plan v2 · G — Humanization pass: evaluate guide prose against the author's blog voice	device:WindowsDesktop, status:in-progress
-294	OPEN	[DGX Spark] L — Local-inference offload: route the §5 'Move' workloads to the box + a standing offload-ratio scoreboard	status:review, device:NvidiaSpark-1
-284	OPEN	Cloudera Iceberg Rest Catalog + Trino on AWC	device:FTF3XR2065, status:blocked
-268	OPEN	Monday 5am — srm-iceberg full redeploy (REST Catalog + Trino VW), <$6 cost target	device:FTF3XR2065, status:todo
-242	OPEN	DGX Spark · J — Complete Developer Guide for Nvidia Spark with Cloudera: tracker + skeleton	status:todo, device:NvidiaSpark-1
-241	OPEN	DGX Spark · I — NVIDIA ↔ Cloudera on AWS integrations (CDP Base on AWS + CDP Public Cloud on AWS)	status:review, device:NvidiaSpark-1
-239	OPEN	DGX Spark · G — EFM agent class NvidiaSpark-1 + out-of-box use cases	status:in-progress, device:NvidiaSpark-1
-233	OPEN	DGX Spark · B — Day-1 setup runbook	status:in-progress, device:NvidiaSpark-1
-180	OPEN	Test CFM Operator NiFi -> CDP Ranger (CDP Base and CDP Public Cloud)	device:FTF3XR2065, status:todo
-76	OPEN	NiFi and MiNiFi (java and cpp) build automation and release voting system	status:review, device:NvidiaSpark-1
-50	OPEN	HeyGen Proof Of Concept	device:WindowsDesktop, status:todo
-== device:NvidiaSpark-1 ==
 322	OPEN	[DGX Spark] spark-dd06: make ALL box services survive a reboot (Docker serving tier didn't recover from the 09-08 reboot — root of #321)	status:in-progress, device:NvidiaSpark-1
 320	OPEN	[DGX Spark] Sort out dangling chapter work across all guide subplans (single tracker)	status:in-progress, device:NvidiaSpark-1
 304	OPEN	[Streamers] KB input mechanism	status:todo, device:NvidiaSpark-1
@@ -48,6 +30,5 @@ Local inference on this box is vLLM at `http://127.0.0.1:8000/v1` (`nvidia/Qwen3
 239	OPEN	DGX Spark · G — EFM agent class NvidiaSpark-1 + out-of-box use cases	status:in-progress, device:NvidiaSpark-1
 233	OPEN	DGX Spark · B — Day-1 setup runbook	status:in-progress, device:NvidiaSpark-1
 76	OPEN	NiFi and MiNiFi (java and cpp) build automation and release voting system	status:review, device:NvidiaSpark-1
-
 
 <!-- GORK-INBOX-END -->
