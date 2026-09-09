@@ -340,6 +340,14 @@ aws ec2 describe-instances --profile <profile> --region us-east-2 \
 # -> 0
 ```
 
+> **AS-BUILT (2026-09-09): teardown executed, `-> 0`.** `infrastructure-teardown.yml` ran
+> `PLAY RECAP ok=3 changed=1 failed=0`; both the `deployment=steven-ce` and `Name=steven-ce*`
+> instance counts returned `0`. Two run-time gotchas for the teardown specifically: export
+> `CDP_LICENSE_FILE` (the navigator config volume-mounts it, so it must resolve even for teardown),
+> and export the SSO creds as env vars — `eval "$(aws configure export-credentials --format env
+> --profile <profile>)"` — because the EE container only inherits `AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN`,
+> not the host's `--profile`.
+
 ---
 
 ## 6. On success
