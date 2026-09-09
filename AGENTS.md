@@ -17,18 +17,16 @@ Local inference on this box is vLLM at `http://127.0.0.1:8000/v1` (`nvidia/Qwen3
 
 <!-- GORK-INBOX-START -->
 
-## Session Start — Open Issues
+## Inbox — NvidiaSpark-1
 
-**Git:** `Already up to date.`
-
-322	OPEN	[DGX Spark] spark-dd06: make ALL box services survive a reboot (Docker serving tier didn't recover from the 09-08 reboot — root of #321)	status:in-progress, device:NvidiaSpark-1
-320	OPEN	[DGX Spark] Sort out dangling chapter work across all guide subplans (single tracker)	status:in-progress, device:NvidiaSpark-1
-304	OPEN	[Streamers] KB input mechanism	status:todo, device:NvidiaSpark-1
-294	OPEN	[DGX Spark] L — Local-inference offload: route the §5 'Move' workloads to the box + a standing offload-ratio scoreboard	status:review, device:NvidiaSpark-1
-242	OPEN	DGX Spark · J — Complete Developer Guide for Nvidia Spark with Cloudera: tracker + skeleton	status:todo, device:NvidiaSpark-1
-241	OPEN	DGX Spark · I — NVIDIA ↔ Cloudera on AWS integrations (CDP Base on AWS + CDP Public Cloud on AWS)	status:review, device:NvidiaSpark-1
-239	OPEN	DGX Spark · G — EFM agent class NvidiaSpark-1 + out-of-box use cases	status:in-progress, device:NvidiaSpark-1
-233	OPEN	DGX Spark · B — Day-1 setup runbook	status:in-progress, device:NvidiaSpark-1
-76	OPEN	NiFi and MiNiFi (java and cpp) build automation and release voting system	status:review, device:NvidiaSpark-1
+322  [DGX Spark] spark-dd06: make ALL box services survive a reboot (Docker serving tier didn't recover from the 09-08 reboot — root of #321)  [OPEN]  status:in-progress, device:NvidiaSpark-1
+320  [DGX Spark] Sort out dangling chapter work across all guide subplans (single tracker)  [OPEN]  status:in-progress, device:NvidiaSpark-1
+304  [Streamers] KB input mechanism  [OPEN]  status:todo, device:NvidiaSpark-1
+294  [DGX Spark] L — Local-inference offload: route the §5 'Move' workloads to the box + a standing offload-ratio scoreboard  [OPEN]  status:review, device:NvidiaSpark-1
+242  DGX Spark · J — Complete Developer Guide for Nvidia Spark with Cloudera: tracker + skeleton  [OPEN]  status:in-progress, device:NvidiaSpark-1
+241  DGX Spark · I — NVIDIA ↔ Cloudera on AWS integrations (CDP Base on AWS + CDP Public Cloud on AWS)  [OPEN]  status:review, device:NvidiaSpark-1
+239  DGX Spark · G — EFM agent class NvidiaSpark-1 + out-of-box use cases  [OPEN]  status:in-progress, device:NvidiaSpark-1
+233  DGX Spark · B — Day-1 setup runbook  [OPEN]  status:in-progress, device:NvidiaSpark-1
+76  NiFi and MiNiFi (java and cpp) build automation and release voting system  [OPEN]  status:review, device:NvidiaSpark-1
 
 <!-- GORK-INBOX-END -->
