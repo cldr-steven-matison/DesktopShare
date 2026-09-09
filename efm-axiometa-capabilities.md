@@ -2,7 +2,7 @@
 
 Companion to [efm-axiometa.md](efm-axiometa.md). This is the discovery pass #315 asks for: **each out-of-box AX22 capability mapped to a MicroFi processor**, ordered easiest→hardest by bus and dependency weight, so the build proceeds one earned slot at a time. Same shape as [efm-amoled-capabilities.md](efm-amoled-capabilities.md).
 
-**Status: design, 2026-09-08 — pre-hardware.** Interfaces are the expected AX22 wiring; the pin/bus assignments are confirmed at inspection (Phase 1) against the actual board and `axiometa.io` module pages. Nothing built yet.
+**Status: design.** Pin/bus assignments follow the `axiometa_genesis_mini` Arduino variant and the axiometa.io module pages (see [efm-axiometa.md](efm-axiometa.md) §1–2). Nothing built.
 
 ## Ground rules for every AXIOMETA processor
 
@@ -42,7 +42,7 @@ WS2812-style timed protocol — use the ESP32 **RMT** peripheral (not bit-bang).
 Two directions, both on RMT with a 38 kHz carrier. `SendIR`: transmit a code (NEC/RC5) carried in the FlowFile. `ReceiveIR`: RMT-RX capture → decode → emit a code as a FlowFile (an ingress source that turns a physical remote into edge data). Heaviest of the sense set — carrier timing + protocol decode. Defer unless a demo needs IR specifically.
 
 ### 8. `DisplayMessage` (adapt) — 0.96" IPS LCD (SPI)
-The AMOLED line already has a `DisplayMessage`; adapt it to this panel's SPI controller (likely ST7735/ST7789-class — confirm the exact driver at inspection; the AMOLED §"lessons" records that a wrong display driver call was a real time-sink, so bring the panel up minimally first — light it, one string — before wiring it to a processor). Properties: **Message** (+ optional **Line** / **Color**). Egress sink for text/status from a flow.
+The AMOLED line already has a `DisplayMessage`; adapt it to this panel's controller — **ST7735S**, 160×80 SPI (AX22-0034). Bring the panel up minimally first (light it, one string) before wiring it into a processor. Properties: **Message** (+ optional **Line** / **Color**). Egress sink for text/status from a flow.
 
 ## Suggested build order
 

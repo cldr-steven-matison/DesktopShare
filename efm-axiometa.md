@@ -1,141 +1,116 @@
-# AXIOMETA — introducing an ESP32-S3 board to the device array as an EFM agent
+# AXIOMETA Genesis Mini — device report and evaluation (#315)
 
-**Status: agent LIVE in EFM (Phases 1–3 done), 2026-09-08 — [issue #315](https://github.com/cldr-steven-matison/DesktopShare/issues/315) (`device:StarlinkAI`).** Board plugged into StarlinkAI on **COM11**; chip/flash pinned (below); MicroFi flashed; class `AXIOMETA` registered with agent `microfi-a0f262eb9910` (`heartbeat #0 -> 200`), other 11 classes untouched — see the bring-up log below. **Still pending:** the AX22 peripheral inventory (needs Steven's eyes on the board) and the Phase-4 processor ladder.
+**[Issue #315](https://github.com/cldr-steven-matison/DesktopShare/issues/315), `device:StarlinkAI`.** The Axiometa Genesis Mini kit on StarlinkAI: what the board and its modules are, and an evaluation of what the array could do with it. Companion: the capability→processor ladder in [efm-axiometa-capabilities.md](efm-axiometa-capabilities.md).
 
-## Confirmed at inspection (2026-09-08, COM11 on StarlinkAI)
+Every fact below is tagged with its source. Inference is marked as such.
 
-`esptool v5.3.1` on the Windows host (`python -m esptool --port COM11 chip-id` / `flash-id`):
+## 1. The board
 
-| | Read from silicon |
-|---|---|
-| Chip | **ESP32-S3 (QFN56) rev v0.2**, Dual Core + LP Core @ 240 MHz, Wi-Fi + BT 5 LE |
-| Flash | **4 MB embedded (XMC**, JEDEC `46 4016`), quad, 3.3 V |
-| PSRAM | **2 MB embedded (AP_3v3)**, quad |
-| USB | native **USB-Serial/JTAG** (`VID_303A PID_1001`), so COM11 direct, no bridge chip |
-| MAC | **`a0:f2:62:eb:99:10`** → EFM agent id will be `microfi-a0f262eb9910` |
-
-**This is an `N4R2`-class part — 4 MB flash, not the 8 MB the Genesis One product page lists (N8R2).** The physical unit on the bench is therefore almost certainly the **Genesis Mini** (4 AX22 ports), or a 4 MB Genesis One — confirm the port count visually. **Firmware consequence: use the 4 MB layout (`esp32s3-4mb` / a 4 MB partition table), not `partitions_8mb.csv`.** The MAC is distinct from all three XIAO units, so this is a genuinely new board. Nothing has been flashed — identification only (esptool resets to bootloader and hard-resets back).
-
-AXIOMETA ([github.com/axiometa](https://github.com/axiometa), [axiometa.io](https://www.axiometa.io/pages/genesis-getting-started)) is a **modular ESP32-S3 prototyping platform — not a Linux SBC.** That single fact settles the integration shape: it is the same silicon the array has already onboarded twice — the XIAO ESP32-S3 boards ([efm-xiao-microfi.md](efm-xiao-microfi.md), [efm-xiao-microfi-1-2-3.md](efm-xiao-microfi-1-2-3.md)) and the Waveshare AMOLED boards ([efm-waveshare-amoled.md](efm-waveshare-amoled.md)). So AXIOMETA joins the same proven way: as a **MicroFi agent** (the clean-room MiNiFi C2 firmware for ESP32) under a new **`AXIOMETA` EFM agent class**, with each board capability exposed as a compile-time C++ processor. That is exactly what #315 asks for ("EFM Agent install as AXIOMETA class with Apache MiNiFi Flow and custom processors for all of the different out of the box capabilities"). The per-capability processor ladder lives in [efm-axiometa-capabilities.md](efm-axiometa-capabilities.md).
-
-## What AXIOMETA Genesis is (external research)
-
-Axiometa (Lithuania) makes the **Genesis IoT Discovery Lab** — a wire-free ESP32-S3 platform where modules plug into standardized **AX22** ports instead of a breadboard. Product line: **Genesis One** (8 AX22 ports), **Genesis Mini** (4 ports), sold as bare boards and as Starter/Extension kits. Which physical unit lands on StarlinkAI is confirmed at inspection.
-
-### Board (Genesis One — the 8-port variant)
+**Silicon** (esptool 5.3.1, StarlinkAI COM11):
 
 | | |
 |---|---|
-| SoC / module | `ESP32-S3-N8R2`, `ESP32-S3-WROOM-1` — dual-core Tensilica LX7 @ 240 MHz (vector ext for AI/ML), WiFi 4 + BLE 5, PCB antenna |
-| Flash / PSRAM | **8 MB flash, 2 MB PSRAM** (the `N8R2` suffix) |
-| Power | USB-C (power / programming / single-cell LiPo-Li-Ion charging), `TPS63001` buck-boost (1.8–5.5 V in → 3.3 V, 1.8 A), short-circuit + ESD protection |
-| Expansion | **8 × AX22 ports** + 1 × STEMMA QT / Qwiic (Adafruit / SparkFun compatible) |
-| Board | 55 × 103 mm, 4-layer, 4 mounting holes |
+| Chip | ESP32-S3 (QFN56) rev v0.2, dual core + LP core, 240 MHz, Wi-Fi + BT 5 LE |
+| Flash | 4 MB embedded, XMC (JEDEC `46 4016`), quad, 3.3 V |
+| PSRAM | 2 MB embedded (AP_3v3), quad |
+| USB | native USB-Serial/JTAG, `VID 303A PID 1001` — COM11 here, no bridge chip |
+| MAC | `a0:f2:62:eb:99:10` |
 
-> **Contrast with the XIAO** (the closest array precedent): the XIAO ESP32-S3 **Sense** is `N8R8` (8 MB PSRAM) with an onboard camera + microSD; Genesis is `N8R2` (**2 MB** PSRAM), WROOM-1, **no camera**. Flash size matches (8 MB), so the mature `partitions_8mb.csv` layout applies — but the board JSON and PSRAM config differ, so AXIOMETA needs its **own** PlatformIO board env (see "Firmware" below). Don't assume the XIAO's `seeed_xiao_esp32s3` board JSON.
+**Board definition** — official, in the Espressif Arduino core: [arduino-esp32 PR #12374](https://github.com/espressif/arduino-esp32/pull/12374) (author `Dumcius`, merged 2026-02-18): *"ESP32-S3-Mini-1-N4R2 (4MB Flash, 2MB QSPI PSRAM) … 4 modular I/O ports (shared I2C/SPI bus + 3 GPIO per port) … Addressable RGB LED."* Pin map, variant `axiometa_genesis_mini` ([pins_arduino.h](https://github.com/espressif/arduino-esp32/blob/master/variants/axiometa_genesis_mini/pins_arduino.h)):
 
-### AX22 connector standard
+| Bus / port | GPIO |
+|---|---|
+| I²C SDA / SCL | 10 / 11 |
+| SPI MOSI / MISO / SCK | 12 / 13 / 14 |
+| P1 `IO0/IO1/IO2` | 4 / 3 / 2 |
+| P2 `IO0/IO1/IO2` | 7 / 6 / 5 |
+| P3 `IO0/IO1/IO2` | 9 / 16 / 15 |
+| P4 `IO0/IO1/IO2` | 1 / 17 / 18 |
+| RGB LED | 21 |
 
-A universal keyed port carrying **I²C / SPI / UART / GPIO / analog** — modules "lock in place" for a reliable connection, no wiring. Board aggregate across the 8 ports: **12-bit ADC (up to 20 channels), 31 PWM, 45 GPIO, 15 touch**. Arduino pin naming is `P[PORT]_IO[PIN]` (e.g. `P7_IO0`). **60+ AX22 modules** exist (sensors BME280 / VL53L0X / MPU6050, buttons, switches, LEDs, buzzers, motor drivers, displays, relays, NeoPixel matrices).
+`boards.txt` defaults: flash 4 MB `dio`; partition scheme `default` (Arduino "Default 4MB with spiffs — 1.2 MB APP / 1.5 MB SPIFFS", app at `0x10000`); QSPI PSRAM enabled; USB mode default *USB-OTG (TinyUSB)*; CDC-on-boot *disabled*. (The 8-port sibling is the Genesis One, `N8R2`, [PR #12122](https://github.com/espressif/arduino-esp32/pull/12122). The Mini ships running an Axiometa Studio project — games + a music maker — reflashable from [Studio](https://studio.axiometa.io).)
 
-### Peripheral inventory (2026-09-08, partial)
+**AX22 module standard** (axiometa.io product pages; [CNX Software](https://www.cnx-software.com/2025/08/22/genesis-iot-discovery-lab-modular-wire-free-prototyping-platform-for-esp32-s3/)): 22 × 22 mm modules that plug straight into a port; ten-pin interface carrying I²C, SPI, UART, three GPIO and one analog line; every module page lists Arduino IDE, MicroPython and MicroBlocks support and 3.3 V / 5 V logic.
 
-Confirmed the physical unit is the **Genesis Mini** — **4 AX22 ports, all 4 populated** "out of the box." **4 modules are currently connected** (specific modules to be enumerated) and **8 more modules are in the box** (Steven collecting the full set — final inventory to be filled in on the TunaSurface pickup, see "Moving to TunaSurface" below). The candidate module set from the Starter Kit is below; the Phase-4 processor ladder ([efm-axiometa-capabilities.md](efm-axiometa-capabilities.md)) is scoped against it.
+**Programming paths (verified sources):**
+- **Arduino IDE** — board "Axiometa Genesis Mini" in the Espressif ESP32 core (PR above).
+- **MicroPython / MicroBlocks** — listed on every module page.
+- **[Axiometa Studio](https://studio.axiometa.io)** — browser IDE with an AI assistant ("Axie"); compiles server-side (`/api/compile` → `sketch.ino.bin`) and flashes over WebSerial from the browser; public gallery of forkable community projects; per-account "Headless" API keys. Its capabilities page lists: modular hardware, BLE (phone camera shutter), Wi-Fi web control, HomeKit/Siri, USB HID shortcuts, host webcam / mic triggers, on-screen "AI, voice & answers", live gauges, Python (scipy) analysis, generated guides, Slack/e-mail actions.
+- **[`axiometa-cli`](https://pypi.org/project/axiometa-cli/)** (PyPI 2.0.2, by Axiometa) — `boards`/`board`/`parts`/`part` (per-module pins, library, init code), `devices`, `provision` (private toolchain), `compile`, `upload`, `monitor`, and `mcp` (six MCP tools). Needs a Studio Headless key.
+- Axiometa's public GitHub org holds no Genesis firmware.
 
-### Starter-Kit modules — the "in the box" peripherals #315 asks to report
+**Kit** (Steven's order, #315): *Genesis Mini – Starter Kit* × 1 + *Sense Module Kit* × 1.
 
-The Genesis Mini Starter Kit ships these AX22 modules (finalize against the actual box at inspection):
+## 2. Peripheral inventory — 12 modules
 
-| Module | Interface (expected) | Note |
+Source: each axiometa.io product page. "On board" = the four modules currently on the ports; the other eight are in the box.
+
+| Part | Module | Chip / element | Interface | Key spec (quoted) | Where |
+|---|---|---|---|---|---|
+| AX22-0034 | IPS LCD 0.96" | ST7735S, 160×80 IPS | 4-wire SPI + CS/DC/RST | "160 × 80 RGB pixels, normally-black IPS wide view", SPI "up to ~10 MHz" | **P1** |
+| AX22-0018 | Passive buzzer | MLT-8530 | PWM on one GPIO | "2.7 kHz resonant frequency", "80 dB sound output" | **P2** |
+| AX22-0011 | Temperature & humidity | DHT11 | single-wire digital, 4.7 kΩ pull-up | "0 – 50 °C, ±2 °C", "20 – 90 % RH, ±5 % RH" | **P3** |
+| AX22-0003 | Rotary encoder | ALPS Alpine incremental + push switch | quadrature CLK/DT + SW | "Integrated Push Button" | **P4** |
+| AX22-0050 | Tactile LED button | 12 mm switch + white LED | button in (active-LOW), LED out (active-HIGH) | "Integrated hardware debounce" (RC filter) | box |
+| AX22-0028 | NeoPixel matrix 5×5 | 25 × WS2812 Mini | single data GPIO, chainable DIN/DOUT | "25-pixel canvas" | box |
+| AX22-0005 | Light sensor | photoresistor (LDR) | analog | "100 kΩ to 200 kΩ" | box |
+| AX22-0040 | IR transceiver | 940 nm LED + 38 kHz receiver | two digital GPIO | "up to 30 m indoors", IRremote-compatible (NEC, SONY, RC5/6 …) | box |
+| AX22-0026 | Temp / humidity / pressure | Bosch BME280 | I²C `0x76/0x77` or SPI | "−40 – +85 °C ±0.5 °C", "0 – 100 % RH ±3 %", "300 – 1100 hPa ±1 hPa" | box |
+| AX22-0054 | Accelerometer / IMU | LSM6DS3TR, 6-axis | I²C `0x6B` or SPI, 2 interrupts | "±16g … ±2000 dps", FIFO + pedometer | box |
+| AX22-0015 | Distance (ToF) | VL53L0CX | I²C `0x52`, XSHUT/INT | "1 mm – 4000 mm", "< ±10 mm to 2 m", 50 Hz | box |
+| AX22-0009 | Analog microphone | electret + MCP6001 op-amp | analog, gain pot | adjustable gain | box |
+
+The Starter Kit is the first eight modules; the Sense Module Kit ("four useful sensors for measuring distance, movement, environment, and sound") is the last four.
+
+## 3. Evaluation
+
+The issue asks two things: whether this becomes an EFM agent under an `AXIOMETA` class with MiNiFi flows and per-capability custom processors, and to think past that.
+
+### 3.1 EFM agent — feasible, at a cost
+
+An ESP32-S3 can run **MicroFi** (the clean-room MiNiFi C2 firmware the XIAO and AMOLED boards already use) and register in EFM as its own class — the same shape as `MicroFi-1/2/3`. For the Genesis specifically:
+
+- Every AX22 module needs its **own compile-time C++ processor** written, built and flashed — there is no scripting, no push-without-rebuild, and a class flow silently drops nodes past four ([efm-xiao-microfi.md](efm-xiao-microfi.md)). The capability→processor map is §3.2 / [efm-axiometa-capabilities.md](efm-axiometa-capabilities.md).
+- Running that firmware **replaces the Studio project** (games, music maker) — one board can't be both at once; switching back is a Studio flash.
+- Host-side plumbing already exists on StarlinkAI (the EFM C2 relay the AMOLED board uses), so registration itself is cheap; the open STARLINK Wi-Fi needs a one-line open-auth fix in MicroFi's `wifi.cpp`.
+
+So it's a *yes it works, but it turns a rich modular kit into one more headless sensor agent* — which is the least interesting thing this hardware can do. The more valuable options keep the factory workflow.
+
+### 3.2 Capability → processor map (design only)
+
+What each module is as a MiNiFi/MicroFi processor, and what already exists in the [`cldr-steven-matison/MicroFi`](https://github.com/cldr-steven-matison/MicroFi) fork:
+
+| Module | Processor | Status |
 |---|---|---|
-| DHT11 temperature + humidity | 1-wire over GPIO | |
-| 0.96" IPS LCD | SPI | |
-| LED tactile button | GPIO in + GPIO out (LED) | |
-| Rotary encoder | GPIO (A / B / switch) | |
-| 5×5 LED matrix (NeoPixel) | RMT / single-wire GPIO | |
-| Passive buzzer | PWM (LEDC) | |
-| Light sensor (LDR) | analog / ADC | |
-| IR transceiver (remote) | RMT (carrier) | |
+| Tactile LED button | `GetGPIO` + `SetGPIO` | exist |
+| LDR, analog mic | `ReadAnalog` (ADC) | new — simplest first |
+| DHT11 | `GetDHT11` (single-wire) | new |
+| BME280 | `GetBME280` (I²C) | new |
+| LSM6DS3 IMU | adapt AMOLED's `GetIMU` (different chip) | adapt |
+| VL53L0X ToF | `GetToF` (I²C) | new |
+| Rotary encoder | `GetEncoder` (PCNT) | new |
+| Passive buzzer | `PlayTone` (LEDC PWM) | new |
+| NeoPixel 5×5 | `SetNeoPixel` (RMT) | new |
+| IR transceiver | `SendIR` / `ReceiveIR` (RMT carrier) | new, heaviest |
+| ST7735S LCD | adapt AMOLED's `DisplayMessage` (different controller) | adapt |
+| Egress | `PublishMQTT`, `PublishSparkplug`, `ListenHTTP` | exist |
 
-### Programming paths
+### 3.3 Paths that keep the factory workflow
 
-Arduino IDE (Espressif ESP32 core; board "Axiometa GENESIS One / Mini"), **MicroPython**, **CircuitPython**, **MicroBlocks**, and **Axiometa Studio** (browser: describe a project → it generates ESP32 firmware and flashes a live device). The Axiometa GitHub org itself holds mostly the BrodBoost breadboard-PSU hardware designs — no firmware/SDK repo relevant to EFM.
+- **Studio-generated sketch → NiFi.** Axie writes the Arduino sketch; a sketch that POSTs JSON to a NiFi `ListenHTTP` or publishes to Mosquitto (`ConsumeMQTT` → Kafka) needs no agent at all. Community projects already do Wi-Fi + sensors + dashboards (*Room Climate Dashboard*, *Temp Light lvl And Humidity*, *Price Tracker Live*). This is the shortest road to edge data in the Cloudera stack, and the games survive a one-flash round-trip.
+- **`axiometa-cli` compile/upload + its MCP server** — firmware builds driven from a terminal or an AI agent, using Axiometa's own per-module library/pin truths. Needs the Headless key.
+- **Toit** — a community setup of this exact kit exists ([kaxori/genesis](https://github.com/kaxori/genesis)); Toit deploys code as containers over the air with no reflash — the "change logic without a rebuild" property MicroFi lacks.
+- **MicroPython / MicroBlocks** — supported per the module pages.
 
-For **our** purpose the path is none of the above by default: it's **MicroFi (ESP-IDF / PlatformIO)**, because that is what makes the board a first-class EFM agent rather than a hand-flashed device (see decision below).
+### 3.4 Out-of-the-box ideas — each grounded in something real
 
-## Bring-up log — Phases 1–3 DONE, agent live in EFM (2026-09-08)
+1. **LLM-generated firmware in the loop.** The Axiometa × Anthropic hackathon project [Grigin/AlanCartridge](https://github.com/Grigin/AlanCartridge) ("Infinite Cartridge") runs on this exact board: Claude agents generate a game, `arduino-cli` compiles it, the board reflashes on every game-over. The Cloudera version: a NiFi event (a Kafka message, a chat command, a threshold breach) → Claude → firmware → board.
+2. **AX22 modules on the array's existing agents.** Axiometa's [Genesis XIAO Shield](https://www.axiometa.io/products/axiometa-genesis-xiao-shield) ($9.99, sold out) exposes **two** AX22 ports for a Seeed XIAO — *"two universal AX22 ports allow modules to connect without breadboard wiring."* The page doesn't state which XIAO models it fits (schematic linked, unread), so whether it seats the XIAO ESP32-S3 units already running MicroFi-1/2/3 is unverified — but if it does, modules become EFM-managed sensors on boards that are already agents, and the Genesis keeps its games. (Same catalog also has an Arduino UNO AX22 shield and a cheap in-stock PIXIE M1 ESP32-S3.)
+3. **The board as a Streamers control panel.** Encoder + LED button + LCD + buzzer + 5×5 matrix is a hand-held director's console and status board (queue depth, agent health, "go live") — the tactile counterpart to the AMOLED agent monitor.
+4. **Studio Integrations as a host-side pipeline.** Slack/e-mail actions, HomeKit/Siri, host webcam/mic triggers, scipy analysis — worth a side-by-side against a NiFi flow doing the same job.
+5. **"Sense kit in a box" demo.** BME280 + IMU + ToF + mic → Sparkplug B / MQTT → Kafka → NiFi; swap a module, let Axie regenerate the sketch, and the demo changes in minutes.
+6. **Radios.** The catalog has LoRa (LR1262) and the gallery has ESP-NOW walkie-talkies — several boards to one gateway board to NiFi.
 
-The board is a **live EFM agent** as of 2026-09-08: class `AXIOMETA`, id `microfi-a0f262eb9910`, first `heartbeat #0 -> 200`, all 11 pre-existing classes confirmed untouched (EFM went 11 → 12 classes). Firmware built from the MicroFi fork `amoled-processors` branch via a new `[env:axiometa]` (extends `esp32s3-4mb`, `partitions_4mb.csv`), flashed on StarlinkAI COM11. WiFi joined `STARLINK`, got `192.168.1.41`. Manifest advertised 9 processors: `GenerateFlowFile`, `LogAttribute`, `PublishMQTT`, `UpdateAttribute`, `GetGPIO`, `ListenHTTP`, `SetGPIO`, `CaptureImage`, `PublishSparkplug` (CaptureImage is compiled in but inert — no camera on this board; a follow-up should board-gate it off).
+### 3.5 Recommendation
 
-**Three real traps hit and cleared — record for the next ESP32-S3 that isn't a XIAO/AMOLED:**
-
-1. **The board drops off USB after factory firmware boots.** The Genesis factory firmware (flashed via Axiometa Studio WebSerial) reconfigures USB, so the raw USB-Serial/JTAG port (`303A:1001`, COM11) vanishes a while after boot — a `pio ... -t upload` then fails "Could not open COM11". Fix: re-plug (ROM re-exposes the port), then **flash immediately with `esptool` directly** — esptool holds the chip in download mode through the whole write, and once *MicroFi* is running it keeps USB-Serial/JTAG up permanently, so the drop only bites the very first flash.
-2. **Flash-offset mismatch — app goes at `0x20000`, not `0x10000`.** `partitions_4mb.csv` places the factory app at `0x20000`, but the build's `flasher_args.json` said `0x10000` (and `--flash-size 2MB`, a stale/misdetected value). Flashing the app at `0x10000` gives a boot loop: *"image at 0x20000 has invalid magic byte … No bootable app."* Flash `firmware.bin` at **`0x20000`**, and pass esptool **`--flash-size detect`** (patches the bootloader header to the true 4 MB — the chip is 4 MB despite PlatformIO's "found 2MB!" warning; JEDEC `46 4016` and the boot log's `SPI Flash Size: 4MB` are authoritative). The direct esptool line that works:
-   ```
-   python -m esptool --chip esp32s3 --port COM11 --before default-reset --after hard-reset \
-     write-flash --flash-mode dio --flash-freq 80m --flash-size detect \
-     0x0 bootloader.bin 0x8000 partitions.bin 0xf000 ota_data_initial.bin 0x20000 firmware.bin
-   ```
-3. **Open-network WiFi was rejected.** MicroFi's `wifi.cpp` hardcoded `cfg.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK`, so the OPEN STARLINK AP was refused with `disconnect reason=211` (`NO_AP_FOUND_IN_AUTHMODE_THRESHOLD`). The XIAOs always joined WPA2 nets and the AMOLED board adopts Brookesia's WiFi, so this path was never exercised. **Fix (`src/wifi.cpp`):** set the threshold to `WIFI_AUTH_OPEN` when `CONFIG_MICROFI_WIFI_PASSWORD` is empty, else keep WPA2. Real fix, benefits every open-network board — **still to be committed to the fork** (currently local on the `amoled-processors` working tree on StarlinkAI).
-
-Serial capture without rebooting the board: `cap.py` in the clone (pyserial, `dtr=False`/`rts=False` before open). Next: the peripheral inventory (Phase 1, needs eyes on the board) and the Phase-4 AX22 processor ladder.
-
-## Moving to TunaSurface (2026-09-08)
-
-Per Steven, #315 and the board are **moving from StarlinkAI to a new device, `TunaSurface`** — picked up there once Claude is installed (tracked by the separate "Introduce TunaSurface" issue). The bring-up above was proven on StarlinkAI; what carries over vs. what must be re-done on TunaSurface:
-
-- **Carries over:** the whole firmware approach — `[env:axiometa]`, `partitions_4mb.csv`, the `0x20000` flash offset, and the `wifi.cpp` open-network fix. These live in the MicroFi fork clone and **must be committed/pushed to the fork** so TunaSurface can pull them (they were built on StarlinkAI's local tree; a fork commit is the handoff artifact).
-- **Re-done on TunaSurface (host-specific):** the WiFi + C2 config in `sdkconfig.defaults.local` (SSID/password for TunaSurface's network, and the C2 URL). **The StarlinkAI EFM C2 relay (`192.168.1.245:10090`) is StarlinkAI-only** — on TunaSurface, first check whether the board's network can reach EFM directly (`100.68.113.126:10090` over Tailscale, or a LAN path); if not, stand up an equivalent relay on TunaSurface (the `efm_relay.py` shape). Re-flash the board on TunaSurface's USB (its own COM/tty).
-- **Already in EFM:** the `AXIOMETA` class and agent `microfi-a0f262eb9910` persist server-side; re-homing the board keeps the same MAC-derived id, so it re-registers under the same class from the new host with no EFM change.
-
-## The onboarding decision: MicroFi, not a hand-written sketch
-
-Three candidate paths, same conclusion the XIAO evaluation reached:
-
-1. **MicroFi (recommended, and what #315 describes).** The board registers in EFM under class `AXIOMETA`, appears next to `StarlinkAI` / `AMOLED` / `MicroFi`, and takes its flow pushed from the EFM Designer. Capabilities are C++ processors compiled into a static registry. This is the established array pattern with two prior real deployments.
-2. **Hand-written Arduino/ESP-IDF sketch → MQTT.** Simpler for a one-off telemetry demo, but the device stays invisible to EFM (Mosquitto only sees a client) and every change is a reflash. Fallback only.
-3. **Axiometa Studio.** Fast for novel senses / demos, but produces a standalone sketch, not an EFM agent. Interesting for Phase 5 experimentation, not the onboarding path.
-
-MicroFi it is. The rest of this doc is the MicroFi bring-up.
-
-## How MicroFi enrollment works (confirmed on the XIAO / AMOLED boards)
-
-- **MicroFi** — [`cldr-steven-matison/MicroFi`](https://github.com/cldr-steven-matison/MicroFi) (public fork of upstream [`Christopheraburns/MicroFi`](https://github.com/Christopheraburns/MicroFi)) — is a clean-room reimplementation of the MiNiFi C2 contracts (FlowFile semantics, heartbeat/ack), **not** a fork of `nifi-minifi-cpp` (too heavy: ~3.2 MB binary, ~5 MB RAM). Processors are **compile-time-embedded C++** resolved by name against a static registry; there is **no dynamic plugin load and no Python** on the device.
-- **Enrollment needs no deployer step.** `CONFIG_MICROFI_AGENT_CLASS` (set to `AXIOMETA`) and a blank `CONFIG_MICROFI_AGENT_ID` (→ MAC-derived `microfi-<mac>`) are baked into `sdkconfig` before first boot. **EFM auto-creates the class on the first heartbeat** — different from the C++/Java MiNiFi path, which uses the deployer.
-- **First heartbeat carries the full manifest inline** (processor list + property descriptors, ~3.8 KB); later heartbeats send only the manifest hash.
-- **Ack.** The `feature/c2-ack` firmware line POSTs an explicit `/acknowledge` after each `UPDATE/configuration` apply (`FULLY_APPLIED` → EFM `DONE`), which cleared the old stale-`FAILED`-operation problem the implicit-ack builds had. Use a c2-ack build.
-- **Designer palette pin.** After the manifest exists, pin the class to it: `POST /efm/api/agent-class-manifest-config` `{"agentClassName":"AXIOMETA","agentManifestId":"<id>"}` (`PUT`, or `DELETE`+`POST`, if a mapping already exists). Re-pin after **every** manifest change (new processor), or the Designer palette won't offer the new type.
-- **`kMaxFlowNodes = 4`** — a MicroFi class flow silently drops nodes past 4 (only a `WARN`). Design AXIOMETA flows in ≤4-node chunks.
-
-Full REST mechanics and the dozen numbered gotchas: `skills/nifi-and-ai/references/minifi-efm.md` (read before building the class flow). Class-migration / flow-port mechanics: [efm-xiao-microfi-1-2-3.md](efm-xiao-microfi-1-2-3.md) §"EFM class mechanics".
-
-## Firmware (PlatformIO env AXIOMETA needs)
-
-- **4 MB layout** (confirmed by inspection — this unit is `N4R2`, 4 MB flash): a 4 MB partition table (the XIAO's `partitions_4mb.csv` / `esp32s3-4mb` env is the starting point — 4 MB app + ~2.4 MB LittleFS, OTA given up) with `CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y`. ESP-IDF defaults to 2 MB when unset and PlatformIO only *warns* on the mismatch, so set it explicitly. **Do not use `partitions_8mb.csv`** — it overflows this chip.
-- **New `axiometa` env + board JSON** — this is an `N4R2` S3 (4 MB flash, **2 MB quad PSRAM**, no camera), not `seeed_xiao_esp32s3` (8 MB octal PSRAM + camera). Set PSRAM to 2 MB quad. Per-device overlay `sdkconfig.defaults.axiometa` setting only `CONFIG_MICROFI_AGENT_CLASS="AXIOMETA"` and a blank agent id (→ `microfi-a0f262eb9910`). Overlays must live in the `sdkconfig.defaults.*` namespace (a file named `sdkconfig.<env>` gets clobbered and disables the whole defaults chain).
-- Watch flash headroom: MicroFi firmware ran ~1.04 MB on the XIAO's 2 MB-app slot at ~89% — a 4 MB layout's app slot is far roomier, but the full AX22 processor set is more sources, so track `.pio/build/axiometa/firmware.bin`.
-- WiFi creds + C2 URL go in the **untracked** `sdkconfig.defaults.local` (gitignored — holds the passphrase; entered directly on the Windows host, never through chat).
-
-## Network path on StarlinkAI (reuse the AMOLED C2 relay)
-
-The board joins WiFi on StarlinkAI's Starlink LAN (`192.168.1.x`), which **cannot reach EFM's ATT LAN** (`192.168.1.121:10090`). StarlinkAI already runs the **EFM C2 relay** `~/amoled-agent/efm_relay.py` on `:10090` (see the StarlinkAI block in [CLAUDE-CHECKIN.md](CLAUDE-CHECKIN.md)) — it forwards heartbeats/acks to EFM over Tailscale (`100.68.113.126:10090`) and rewrites EFM's tailnet IP → the relay's own LAN IP in responses so the board's flow-fetch/ack calls route back through it. **AXIOMETA points its C2 URL at the relay (`192.168.1.245:10090`)**, exactly like the Tuna Starlink AMOLED board — no new infrastructure. Each service port needs its own Windows Firewall inbound rule (`tsl-firewall.bat`). Confirm topology at inspection: if the board instead lands LAN-direct on an EFM-reachable host, skip the relay.
-
-Do **not** trust EFM's own `lastSeen` for liveness of a relayed device — EFM freezes it for a healthy agent; the relay stamps `/tmp/amoled_last_hb` on every heartbeat and the monitor derives ONLINE/STALE from that.
-
-## Bring-up phases (post-plug-in)
-
-1. **Inspect.** Windows host, native (the board is a COM port; WSL2 has no USB passthrough). `esptool --port <COM> chip-id` + `flash-id` (pin S3 / PSRAM / JEDEC flash before any assumption). Visually inventory every AX22 module connected and every one still in the box; finalize the tables above. Verify by MAC (`esptool read-mac`) if other ESP32 units are attached.
-2. **Firmware bring-up.** Build the `axiometa` env, flash + monitor in one `pio run -t upload -t monitor`, capture the first-heartbeat log verbatim (`heartbeat #0 -> 200`).
-3. **EFM registration.** Confirm class `AXIOMETA` auto-created (`GET /efm/api/agent-classes`), manifest = exactly the compiled processors, agent `microfi-<mac>` ONLINE (check EFM Postgres `agent_state`, not just the UI). **Verify `AMOLED` / `StarlinkAI` / `MicroFi` are untouched.** Pin the Designer palette.
-4. **Custom processors.** Build the [efm-axiometa-capabilities.md](efm-axiometa-capabilities.md) ladder one at a time, each its own `device:StarlinkAI` sub-task, with an independent confirmation of real data movement per processor.
-5. **Out of the box (the issue's "think out of the box").** Candidates to weigh, not build speculatively: (a) the 60+-module AX22 ecosystem as a rapid **EFM-edge sensor-kit demo**; (b) **Axiometa Studio** as a fast path to novel senses vs. hand-written C++ processors; (c) **Sparkplug B emit** (`PublishSparkplug`) → Kafka, matching MicroFi-3; (d) an **AXIOMETA tile** on the AMOLED agent-monitor.
-
-## Hard rules
-
-- **Distinct class only.** Register as `AXIOMETA` — never under `StarlinkAI` / `AMOLED` / `MicroFi`; an EFM push aimed at one agent lands on the whole class.
-- **Flash from Windows**, not WSL2. Verify the unit by MAC before flashing when others are attached.
-- **Never commit `sdkconfig.defaults.local`** (WiFi passphrase). Keep it gitignored.
-- MicroFi needs no deployer command — but the general EFM rule stands: never hand-build an agent-deployer command or reuse an `agentIdentifier` for a C++/Java install (`agent/incident-rules.md`).
-- **Publishing a flow to a class is a live push to every agent in it** — confirm first, same as any redeploy; dump the live state before editing.
-- **Never push to `Christopheraburns/MicroFi` upstream** — work lands on the `cldr-steven-matison/MicroFi` fork; anything for upstream is a PR.
-- Issue artifacts under `files/issue-315/`; verification screenshots in the #315 comment as raw GitHub URLs; link every file named. **Never close #315** — stop at `status:review`.
+Keep the factory workflow on this board. For a Cloudera edge demo, use a Studio-generated sketch that publishes to NiFi (`ListenHTTP` or MQTT) with the Sense-kit modules — no EFM agent on the Genesis. If EFM-managed modules are the goal, verify the XIAO shield (#2) and put modules on an existing MicroFi agent. Concrete next steps: a Studio Headless key so `axiometa parts genesis-mini` replaces the product-page columns with Axiometa's own data; one Studio-sketch → NiFi `ListenHTTP` proof on the STARLINK network; verify the XIAO shield's XIAO/pin compatibility.
