@@ -1,0 +1,338 @@
+{
+  "tools": [
+    {
+      "name": "efm_list_agent_classes",
+      "description": "List every agent class EFM manages (name, description, and the agent\n            manifest(s) each class is bound to). An agent class groups MiNiFi agents\n            that share one flow — the top of the edge hierarchy.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "title": "efm_list_agent_classesArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_list_agent_classesOutput"
+      }
+    },
+    {
+      "name": "efm_get_agent_class",
+      "description": "Detail for one agent class: its manifest ids, monitoring config, and\n            any Designer flow association. Start here to resolve a class to its manifest.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent_class": {
+            "title": "Agent Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_class"
+        ],
+        "title": "efm_get_agent_classArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_get_agent_classOutput"
+      }
+    },
+    {
+      "name": "efm_list_agents",
+      "description": "List enrolled MiNiFi agents with their last-heartbeat timestamp\n            (status/firstSeen/lastSeen) — the primary online/offline signal. Pass\n            agent_class to filter to one class; omit it for every agent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent_class": {
+            "default": "",
+            "title": "Agent Class",
+            "type": "string"
+          }
+        },
+        "title": "efm_list_agentsArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_list_agentsOutput"
+      }
+    },
+    {
+      "name": "efm_get_agent",
+      "description": "Full record for one agent: its class, device/host, manifest hash, and\n            heartbeat/status detail. Use to confirm which manifest an agent actually reports.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "title": "Agent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id"
+        ],
+        "title": "efm_get_agentArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_get_agentOutput"
+      }
+    },
+    {
+      "name": "efm_get_class_monitor",
+      "description": "Per-class health view: current flow version, agent counts\n            (online / missing), health status, and connection metrics. The fastest\n            answer to \"is this class healthy and how many agents are up?\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent_class": {
+            "title": "Agent Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_class"
+        ],
+        "title": "efm_get_class_monitorArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_get_class_monitorOutput"
+      }
+    },
+    {
+      "name": "efm_get_manifest",
+      "description": "The agent manifest(s) for a class: the processor, controller-service,\n            and reporting-task types that class can run. This is what tells you whether\n            a flow you want to build is even deployable to that class's agents.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent_class": {
+            "title": "Agent Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_class"
+        ],
+        "title": "efm_get_manifestArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_get_manifestOutput"
+      }
+    },
+    {
+      "name": "efm_get_manifest_by_id",
+      "description": "One agent manifest by its id (as listed on an agent class or agent record).\n            Returns the full component-type catalog with property descriptors.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "manifest_id": {
+            "title": "Manifest Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "manifest_id"
+        ],
+        "title": "efm_get_manifest_by_idArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_get_manifest_by_idOutput"
+      }
+    },
+    {
+      "name": "efm_list_flows",
+      "description": "One summary per agent class: `identifier` (the flowId), `agentClass`, and\n            `rootProcessGroupIdentifier`. This is how you map a class to the flowId that\n            efm_get_flow / efm_validate_flow take.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "title": "efm_list_flowsArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_list_flowsOutput"
+      }
+    },
+    {
+      "name": "efm_get_flow",
+      "description": "The full live Designer flow document for a flowId: process groups,\n            processors, connections, controller services, and parameters. Ground truth\n            for what an agent class is running — read this before reasoning about a flow.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "flow_id": {
+            "title": "Flow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow_id"
+        ],
+        "title": "efm_get_flowArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_get_flowOutput"
+      }
+    },
+    {
+      "name": "efm_validate_flow",
+      "description": "Validation results for a flow — the same check EFM runs before a publish.\n            Surfaces invalid/misconfigured components without changing anything.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "flow_id": {
+            "title": "Flow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow_id"
+        ],
+        "title": "efm_validate_flowArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_validate_flowOutput"
+      }
+    },
+    {
+      "name": "efm_list_resources",
+      "description": "All resources in EFM's resource manager (assets and extension bundles),\n            with names, types, and SHA-512 digests — the files EFM can push to agents.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "title": "efm_list_resourcesArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_list_resourcesOutput"
+      }
+    },
+    {
+      "name": "efm_list_class_resources",
+      "description": "Resources currently assigned to one agent class — the assets/extensions\n            EFM syncs to every agent in that class on its next heartbeat.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent_class": {
+            "title": "Agent Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_class"
+        ],
+        "title": "efm_list_class_resourcesArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "efm_list_class_resourcesOutput"
+      }
+    }
+  ]
+}

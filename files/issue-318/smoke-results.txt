@@ -1,0 +1,12 @@
+OK   | efm_list_agent_classes       | list len=1 | KubernetesPodJava
+OK   | efm_get_agent_class          | dict len=4 | 
+OK   | efm_list_agents              | list len=2 | agent 918b90b9 state=ONLINE lastSeen=1788988154831
+OK   | efm_get_agent                | dict len=18 | 
+OK   | efm_get_class_monitor        | dict len=7 | 
+OK   | efm_get_manifest             | list len=1 | minifi-java 2.24.08.0-19
+OK   | efm_get_manifest_by_id       | dict len=8 | 
+OK   | efm_list_flows               | list len=1 | flowId d714e80c v6
+OK   | efm_get_flow                 | dict len=5 | 
+OK   | efm_validate_flow            | dict len=1 | 
+OK   | efm_list_resources           | list len=0 | (empty on this EFM)
+OK   | efm_list_class_resources     | list len=0 | (empty on this EFM)
