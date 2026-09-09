@@ -1,0 +1,48 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "vllm/nvidia/Qwen3.6-35B-A3B-NVFP4",
+  "enabled_providers": ["vllm"],
+  "provider": {
+    "vllm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "vLLM (NvidiaSpark-1)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8000/v1",
+        "apiKey": "local"
+      },
+      "models": {
+        "nvidia/Qwen3.6-35B-A3B-NVFP4": {
+          "name": "Qwen3.6 35B NVFP4",
+          "limit": {
+            "context": 262144,
+            "output": 8192
+          }
+        }
+      }
+    }
+  },
+  "integrations": {
+    "github": {
+      "owner": "cldr-steven-matison",
+      "repo": "DesktopShare",
+      "token": "${GH_TOKEN:$(gh auth token 2>/dev/null)}"
+    }
+  },
+  "agents": {
+    "nvidia-spark": {
+      "name": "NvidiaSpark-1 Agent",
+      "description": "DGX Spark agent with EFM/MiNiFi/NiFi expertise. Runs DesktopShare repo on spark-dd06.",
+      "instructions": [
+        "You are running on NvidiaSpark-1 (DGX Spark GB10, hostname spark-dd06).",
+        "This is a device in the DesktopShare array — check your inbox every session.",
+        "Always run git pull before any work.",
+        "EFM is at http://192.168.1.121:10090 (LAN).",
+        "MiNiFi Java agent is running as minifi-java.service (PID 2315).",
+        "Use the nifi-and-ai skill before any NiFi/EFM work.",
+        "GitHub issues with device:NvidiaSpark-1 are your inbox."
+      ],
+      "startup": "bash $OPENCODE_PROJECT_DIR/.opencode/startup.sh",
+      "skills": ["skills/nifi-and-ai", "skills/align"]
+    }
+  }
+}
