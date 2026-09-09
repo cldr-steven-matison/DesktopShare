@@ -1,0 +1,91 @@
+INIT ok: True
+TOOL COUNT: 20
+GROUPS: ['atlas', 'cm', 'ranger', 'yarn']
+
+### cm_list_clusters  isError=False
+{
+  "items": [
+    {
+      "name": "ozone-base-cluster",
+      "displayName": "ozone-base-cluster",
+      "fullVersion": "7.3.2",
+      "maintenanceMode": false,
+      "maintenanceOwners": [],
+      "clusterUrl": "https://cm.18.223.197.58.nip.io/cmf/clusterRedirect/ozone-base-cluster",
+      "hostsUrl": "https://cm.18.223.197.58.nip.io/cmf/clusterRedirect/ozone-base-cluster/hosts",
+      "entityStatus": "BAD_HEALTH",
+      "uuid": "2f94f924-387b-4b11-ac50-5b0f0462ea07",
+      "clusterType": "BASE_CLUSTER",
+      "tags": [
+        {
+          "name": "_cldr_cluster.core_settings.service_name",
+          "value": "CORE_SETTINGS-1"
+        }
+      ],
+      "crn": "crn:cdp:pvcbase:on-premises:UN
+
+### ranger_list_services  isError=False
+[
+  {
+    "id": 2,
+    "guid": "9d4c3d30-9521-4229-bf3e-4795f2b82efb",
+    "isEnabled": true,
+    "createdBy": "Admin",
+    "updatedBy": "Admin",
+    "createTime": 1788972013543,
+    "updateTime": 1788972014481,
+    "version": 2,
+    "type": "hdfs",
+    "name": "cm_hdfs",
+    "displayName": "cm_hdfs",
+    "description": "Hdfs repo",
+    "tagService": "cm_tag",
+    "configs": {
+      "cluster.name": "ozone-base-cluster",
+      "tag.download.auth.users": "hdfs",
+      "password": "*****",
+      "policy.download.auth.users": "hdfs",
+      "hadoop.security.authentication": "kerberos",
+      "hadoop.rpc.protection": "privacy",
+      "default.policy.users": "mapred,hdfs",
+      "fs.default.name": 
+
+### atlas_list_entity_types  isError=False
+{
+  "enumDefs": [],
+  "structDefs": [],
+  "classificationDefs": [],
+  "entityDefs": [
+    {
+      "category": "ENTITY",
+      "guid": "3e549d63-06f5-4a11-8666-1c78e1598f81",
+      "createdBy": "atlas",
+      "updatedBy": "atlas",
+      "createTime": 1788972793027,
+      "updateTime": 1788972793027,
+      "version": 1,
+      "name": "trino_table_ddl",
+      "description": "trino_table_ddl",
+      "typeVersion": "1.0",
+      "serviceType": "trino",
+      "attributeDefs": [],
+      "superTypes": [
+        "ddl"
+      ],
+      "subTypes": [],
+      "relationshipAttributeDefs": [
+        {
+          "name": "meanings",
+          "typeName": "array<AtlasGlossaryTerm>",
+          "isOptional": true
+
+### yarn_cluster_metrics  isError=False
+{
+  "error": "401 Client Error: Authentication required for url: https://localhost:8090/ws/v1/cluster/metrics",
+  "status_code": 401,
+  "detail": "{\n\"servlet\":\"org.glassfish.jersey.servlet.ServletContainer-61615b4a\",\n\"message\":\"Authentication required\",\n\"url\":\"/ws/v1/cluster/metrics\",\n\"status\":\"401\"\n}",
+  "url": "https://localhost:8090/ws/v1/cluster/metrics"
+}
+
+--- stderr (banner) ---
+Starting Cloudera Manager MCP Server via transport: stdio (services: atlas, cm, ranger, yarn_rm)

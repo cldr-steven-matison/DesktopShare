@@ -126,8 +126,14 @@ ATLAS_KNOX_TOKEN=<jwt>
 ## Step 3 — Run with MCP Inspector
 
 ```bash
-npx @modelcontextprotocol/inspector uv run --directory . run-server
+npx @modelcontextprotocol/inspector@0.14.0 uv run --directory . run-server
 ```
+
+> **Pin the Inspector to the v1 line (`@0.14.0`).** This server pins `mcp<2` (the v1
+> FastMCP idiom). The current `@latest` Inspector (2.x) completes `tools/list` but its
+> Tools pane renders **empty** against a v1 server — the tool list simply doesn't show.
+> `@0.14.0` (classic **Connect → List Tools** UI) lists all tools correctly. For an ad-hoc
+> launch you may also need `DANGEROUSLY_OMIT_AUTH=true` to skip the proxy token locally.
 
 The server prints (to stderr) which services it wired up:
 
@@ -145,6 +151,13 @@ In the Inspector: **Connect** → **List Tools** → you should see one group pe
 | YARN | `yarn_cluster_metrics()` | vCore / memory totals |
 | Ranger | `ranger_list_services()` | HDFS, Hive, YARN, … |
 | Atlas | `atlas_list_entity_types()` | hive_table, hdfs_path, … |
+
+> **On a secured (Kerberos + AutoTLS) cluster**, CM, Ranger, and Atlas authenticate with
+> HTTP Basic over TLS and return live data. The **YARN RM REST endpoint enforces SPNEGO**
+> (`WWW-Authenticate: Negotiate`), which this Basic/Bearer client does not perform, so
+> `yarn_*` tools return a structured `401`. Use the **AutoTLS** ports in that case:
+> CM `:7183`, Ranger `:6182`, Atlas `:31443`, YARN RM `:8090` (the plaintext `:8088`/`:6080`/`:31000`
+> ports are disabled). Verified against CDP CE Base **7.3.2** (CM 7.13.2).
 
 ## Step 5 — Claude Desktop / Claude Code
 

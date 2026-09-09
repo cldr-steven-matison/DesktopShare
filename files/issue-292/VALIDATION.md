@@ -177,6 +177,19 @@ blind** — send the poll to background, not a foreground loop.
 > If this recurs on this run, capture the CM command log + agent log for the stuck host so the
 > next iteration of this runbook can carry a real root-cause fix instead of a manual gate.
 
+> **AS-BUILT (proving run): the 50% "stall" is a phase transition, not a dead transfer — be
+> patient.** The counter sat at `DISTRIBUTING 3200/6400` with **0 active commands**, which
+> looks identical to the killed run 2. But checking the receiving nodes showed one already had
+> the **full 20 GB parcel downloaded and unpacking** — the counter simply doesn't advance
+> across download→unpack→distribute→**activate**. It moved to `ACTIVATING` then `ACTIVATED`
+> on its own; a `startDistribution` re-trigger (idempotent) did no harm but was not the
+> decisive unblock. **Then, expect a full cluster stop→restart during first-run:** service
+> count climbs to ~11/14, drops to **0/14** (an `active=True` **Restart** command applying
+> Kerberos/AutoTLS/client-configs), then climbs back to **12/14 STARTED** (TEZ + CORE_SETTINGS
+> stay `NA`). Post-start, ZK/HDFS/Ozone show `BAD`/`CONCERNING` for a few minutes while
+> canaries settle — do not restart. Watch the CM parcels API + `services` endpoint via the SSH
+> jump; do **not** kill the deploy at the counter freeze.
+
 ---
 
 ## 4. Point the MCP server at it, from the Mac
@@ -215,11 +228,16 @@ CM → Hosts / each service's "Web UI" link:
 ssh -i steven-ce-ssh-key.pem -N \
   -o ProxyCommand="ssh -i steven-ce-ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@<gateway-public-ip>" \
   -L 7183:<cm-host-ip>:7183 \
-  -L 8088:<yarn-rm-host-ip>:8088 \
+  -L 8090:<yarn-rm-host-ip>:8090 \
   -L 6182:<ranger-host-ip>:6182 \
-  -L 31000:<atlas-host-ip>:31000 \
+  -L 31443:<atlas-host-ip>:31443 \
   ec2-user@<cm-host-ip>
 ```
+
+> **AS-BUILT ports (AutoTLS is on, so use the TLS ports — the plaintext ones are disabled):**
+> CM **7183**, YARN RM **8090** (not 8088 — `:8088` returns nothing), Ranger **6182**,
+> Atlas **31443** (not 31000). Role placement this run: CM on `manager-01`, YARN RM on a
+> `base-master`, Ranger + Atlas both on `sdx-01`. Get each host from `terraform.tfstate`.
 
 `.env` for the run (HTTP-Basic; CE uses AutoTLS so prefer the TLS ports and set `*_VERIFY_SSL=false` for the
 self-signed chain, or point it at the CE CA bundle):
@@ -230,14 +248,17 @@ CM_USER=admin
 CM_PASSWORD=<common_password>
 CM_VERIFY_SSL=false
 
-YARN_RM_URL=http://localhost:8088/ws/v1/cluster
+YARN_RM_URL=https://localhost:8090/ws/v1/cluster
+YARN_RM_USER=admin
+YARN_RM_PASSWORD=<common_password>
+YARN_RM_VERIFY_SSL=false
 
 RANGER_BASE_URL=https://localhost:6182
 RANGER_USER=admin
 RANGER_PASSWORD=<common_password>
 RANGER_VERIFY_SSL=false
 
-ATLAS_BASE_URL=https://localhost:31000/api/atlas/v2
+ATLAS_BASE_URL=https://localhost:31443/api/atlas/v2
 ATLAS_USER=admin
 ATLAS_PASSWORD=<common_password>
 ATLAS_VERIFY_SSL=false
@@ -247,11 +268,23 @@ Run it with the MCP Inspector against the **published** package (proves the publ
 
 ```bash
 set -a; source .env; set +a
-npx @modelcontextprotocol/inspector \
+DANGEROUSLY_OMIT_AUTH=true npx @modelcontextprotocol/inspector@0.14.0 \
   uvx --from 'git+https://github.com/cldr-steven-matison/cloudera-manager-mcp-server@main' run-server
 ```
 
-Expect the banner to report `services: cm, yarn, ranger, atlas`.
+Expect the banner (stderr) to report `services: atlas, cm, ranger, yarn_rm`.
+
+> **PIN the Inspector to `@0.14.0` — this cost a full detour on the proving run.** The server
+> pins `mcp<2` (v1 FastMCP). `@latest` is now the **2.x** Inspector, whose Tools pane
+> completes `tools/list` but renders **empty** against a v1 server — you connect, click Tools,
+> and see nothing (not a connection or auth failure; the protocol call succeeds). `@0.14.0`
+> is the classic **Connect → List Tools** UI and lists all 20 tools correctly.
+> `DANGEROUSLY_OMIT_AUTH=true` skips the local proxy token. Steven's blogs used this same v1
+> line back when `@latest` still pointed at it. In the UI: **Connect → Tools tab → List Tools**,
+> then pick a tool → **Run Tool**.
+
+> **NodeManager tools:** the count is **20**, not 22 — the 2 `yarn_nm_*` tools register only
+> when `YARN_NM_HOST` is set (left unset here), so the banner shows `yarn_rm`, not `yarn_nm`.
 
 ### Smoke tests — one per surface (README §4)
 
@@ -261,6 +294,15 @@ Expect the banner to report `services: cm, yarn, ranger, atlas`.
 | YARN | `yarn_cluster_metrics()` | vCore / memory totals, NM count |
 | Ranger | `ranger_list_services()` | HDFS, Hive, YARN, Kafka, Atlas, … |
 | Atlas | `atlas_list_entity_types()` | hive_table, hdfs_path, … |
+
+> **AS-BUILT RESULT (this run): 3 of 4 surfaces returned live data.** CM, Ranger, and Atlas
+> authenticate with HTTP Basic over TLS and returned real cluster data (`ozone-base-cluster`
+> 7.3.2; 17 Ranger repos incl. `cm_hdfs`/`cm_yarn`/`cm_atlas`; Atlas entity defs incl.
+> `trino_table_ddl`). **YARN RM returned a structured `401`** — the RM REST enforces SPNEGO
+> (`WWW-Authenticate: Negotiate`) on a Kerberized cluster and this server's client is
+> Basic/Bearer only. Not a bug: the tool surfaces the 401 cleanly. **Follow-up candidate for
+> the MCP server:** add SPNEGO (or a Knox-token path) for YARN. Both the stdio transcript and
+> the Inspector screenshots are attached to the issue.
 
 ### Screenshots — one per agent loop (README "Agent-loop mapping")
 
