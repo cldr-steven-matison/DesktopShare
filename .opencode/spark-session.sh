@@ -21,9 +21,5 @@ echo "Repo: cldr-steven-matison/DesktopShare"
 echo "Device: NvidiaSpark-1 (spark-dd06)"
 echo ""
 
-# Start opencode with message if provided
-if [ $# -gt 0 ]; then
-  opencode run --title "NvidiaSpark-1 Session" --dir "$proj" "$*"
-else
-  opencode --dir "$proj"
-fi
+# Start opencode with a message so it doesn't show the landing screen
+opencode run --title "NvidiaSpark-1 Session" --dir "$proj" "$*"

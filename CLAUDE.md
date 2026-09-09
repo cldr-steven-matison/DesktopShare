@@ -8,6 +8,8 @@ Steven Matison — Senior SE at Cloudera, builds CSO/CFM/CSA/CSM demos on Kubern
 
 ## Start every session with a pull
 
+*Note: startup automation (git pull + inbox) is handled by the wrapper script on launch. Sessions started via the wrapper should skip this step.*
+
 **`git pull` before any work — on every device, first thing.** This repo is worked from many
 machines; another may have committed since you last ran here, and acting on a stale tree is how
 two devices overwrite each other. Then check this device's GitHub-issue inbox (`gh issue list
