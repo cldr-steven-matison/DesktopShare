@@ -406,6 +406,7 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ### Network
 - Connection: LAN, `192.168.1.203` (same 192.168.1.x subnet as the rest of the array; `172.17.0.1` is the docker0 bridge) — static IP reservation still to do
+- **The `192.168.1.203` link is Wi-Fi (`wlP9s9`); both wired NICs (`enP7s7` 10 GbE + the USB NIC) are `carrier=0`/unplugged.** k3s advertises the API on that Wi-Fi IP, so a Wi-Fi drop makes `10.43.0.1:443` unreachable from every pod and **cainjector / flink-operator / ingress-nginx cycle and self-recover** when it returns (a 24h drop 2026-08-29→30 caused their restart counts — not probes/memory; **don't tune those pods' probes or resources**). `mynifi` and Kafka don't need the API server and ride it out. The durable fix is a wired link; restart counters only reset on pod recreation.
 - Tailscale: `100.104.155.57` (`nvidiaspark-1.tail1f447b.ts.net`, tailnet `steven.matison@gmail.com`). Peers: WindowsDesktop `100.68.113.126`, StarlinkAI `100.110.253.66`. `:8000` is bound LAN+loopback only, **not** the tailnet address (runbook §4) — a tailnet-only flow would need that bind added deliberately.
 
 ### Repo homes on this host
