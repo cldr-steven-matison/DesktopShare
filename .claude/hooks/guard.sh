@@ -76,7 +76,7 @@
 #      — issue artifacts go in files/issue-<n>/, scratch in the scratchpad (2026-09-08 #302).
 #   M. [DENY -> ASK, Edit/Write] The memory gate (#310). No proposal on file for the target
 #      path -> deny with "run files/memory-propose.sh first". PENDING proposal -> a bridged
-#      ASK to Steven carrying the fact + the #247 comment; yes = this one write, no = DENIED
+#      ASK to Steven carrying the fact + the triggering-event issue; yes = this one write, no = DENIED
 #      recorded. A DENIED row -> deny. Nothing writes a memory by default; the
 #      known-patterns `memory-dir` row carries the reminder for Bash commands.
 #   A. [RECORD] A `gh issue view/comment N` on one of this device's issues records N as
@@ -264,7 +264,7 @@ ds_bridge_ack() {
 }
 
 # ---- Memory-proposal registry helpers (rule M, #310) ----
-# .claude/.memory-proposals: slug<TAB>target-path<TAB>#247-comment-url<TAB>STATE<TAB>date<TAB>fact
+# .claude/.memory-proposals: slug<TAB>target-path<TAB>triggering-event-issue-url<TAB>STATE<TAB>date<TAB>fact
 # written by files/memory-propose.sh (PENDING) and updated here (ASKED/APPROVED/DENIED) and
 # by memory-propose.sh --index (WRITTEN). checkin.sh ages out settled rows.
 ds_mem_reg() { echo "$proj/.claude/.memory-proposals"; }
@@ -283,20 +283,20 @@ case "$tool" in
     fpath="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/null)"
     # M. The memory gate. Nothing writes into ~/.claude/projects/*/memory/ by default:
     # the harness's own "save a memory" instruction is overridden on this project (#310,
-    # 2026-09-07; recurred 2026-09-08). The only path is propose -> incident comment on
-    # #247 -> Steven's yes at write time -> this one write. MEMORY.md is maintained by
+    # 2026-09-07; recurred 2026-09-08). The only path is propose -> a new triggering-event
+    # issue -> Steven's yes at write time -> this one write. MEMORY.md is maintained by
     # memory-propose.sh --index, so a direct edit of it is gated the same way.
     if printf '%s' "$fpath" | grep -Eq '/\.claude/projects/[^/]+/memory/'; then
       mreg="$(ds_mem_reg)"; mrow=""
       [ -f "$mreg" ] && mrow="$(awk -F'\t' -v p="$fpath" '$2==p {r=$0} END{print r}' "$mreg")"
       if [ -z "$mrow" ]; then
-        emit_deny "BLOCKED: no auto-created memories (#310 — 'Stop claude default save a memory'). A memory is a device-local fact only (paths, ports, quirks), never a lesson, a correction, a quote or a rule: those go issue -> incident (agent/incident-rules.md) -> a comment on #247, and a device fact another device needs goes in CLAUDE-CHECKIN.md. If this genuinely is a device-local fact the repo cannot hold, propose it first: write the proposal file (see the header of files/memory-propose.sh for the shape: type reference|project, <=15 lines, a 'Why the repo cannot hold it:' line), then run: bash files/memory-propose.sh <slug> <proposal.md> — it posts the proposal on #247 and registers it; retry this exact write afterwards and Steven decides at that moment. Do not retry before that. Do not edit MEMORY.md by hand (memory-propose.sh --index does it after an approved write)."
+        emit_deny "BLOCKED: no auto-created memories (#310 — 'Stop claude default save a memory'). A memory is a device-local fact only (paths, ports, quirks), never a lesson, a correction, a quote or a rule: those go issue -> incident (agent/incident-rules.md) -> a new issue summarizing the triggering event (#247 was retired as the funnel 2026-09-09), and a device fact another device needs goes in CLAUDE-CHECKIN.md. If this genuinely is a device-local fact the repo cannot hold, propose it first: write the proposal file (see the header of files/memory-propose.sh for the shape: type reference|project, <=15 lines, a 'Why the repo cannot hold it:' line), then run: bash files/memory-propose.sh <slug> <proposal.md> — it opens a new triggering-event issue and registers it; retry this exact write afterwards and Steven decides at that moment. Do not retry before that. Do not edit MEMORY.md by hand (memory-propose.sh --index does it after an approved write)."
       fi
       mslug="$(printf '%s' "$mrow" | cut -f1)"; murl="$(printf '%s' "$mrow" | cut -f3)"
       mstate="$(printf '%s' "$mrow" | cut -f4)"; mdate="$(printf '%s' "$mrow" | cut -f5)"; mfact="$(printf '%s' "$mrow" | cut -f6)"
       case "$mstate" in
         DENIED)
-          emit_deny "BLOCKED: Steven declined the memory proposal '$mslug' on $mdate ($murl). The fact stays in the #247 thread and, if it belongs anywhere, in the repo doc — not in a memory. Do not retry this write."
+          emit_deny "BLOCKED: Steven declined the memory proposal '$mslug' on $mdate ($murl). The fact stays in its triggering-event issue and, if it belongs anywhere, in the repo doc — not in a memory. Do not retry this write."
           ;;
         *)
           # PENDING (fresh), ASKED (a desk decision we could not see), APPROVED (phone
@@ -304,7 +304,7 @@ case "$tool" in
           # every write to a memory is Steven's call, one at a time.
           DS_MEM_SLUG="$mslug"
           ds_mem_state "$mslug" ASKED
-          emit_ask "Memory proposal '$mslug' (#310 gate) — $mfact. Proposal + incident record: $murl. Approve = this ONE write to $fpath (frontmatter must carry 'approved: <date> $murl'; then run: bash files/memory-propose.sh --index $mslug \"<one-line hook>\"). Decline = the fact stays on #247 / in the repo doc." "memory proposal: $mslug"
+          emit_ask "Memory proposal '$mslug' (#310 gate) — $mfact. Proposal + incident record: $murl. Approve = this ONE write to $fpath (frontmatter must carry 'approved: <date> $murl'; then run: bash files/memory-propose.sh --index $mslug \"<one-line hook>\"). Decline = the fact stays in its triggering-event issue / in the repo doc." "memory proposal: $mslug"
           ;;
       esac
     fi
