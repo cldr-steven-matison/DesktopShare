@@ -124,17 +124,19 @@ The single home for these is **`live-queues.md`** — read it before touching th
 
 The Claude Code harness tells every session to save memories by default. On this project that instruction is **overridden** (the same way the no-`Co-Authored-By` rule overrides the harness commit trailer): a session never writes a memory on its own — not on a failure, not on a lesson, not on a "useful fact". Steven, 2026-09-07 (#310): "Stop claude default save a memory (it will forget or ignore later anyways)". The evidence behind it: a lesson written to memory is read as a one-line pointer or not at all (the 2026-08-25 flash-gate recurrence, the 2026-08-26 claim-rule inversion), and a wrong memory is obeyed as if verified (2026-09-08: a memory said "write PNGs under `~/Downloads`", the session did, then wrote another memory to record the correction). Between 2026-09-01 and 2026-09-08 the silo on WindowsDesktop grew back from 82 to 85 files while 14 of its rules existed nowhere in the repo.
 
-**What a memory may hold:** device-local facts this box's sessions need and no other device does — local paths, COM ports, local runbooks, hardware quirks. Terse, ≤ 15 lines, `type: reference|project`. Never a `feedback` memory, never a narrative, never a quote, never a rule. Each has `approved: <date> <#247 comment URL>` in its frontmatter; `files/memory-lint.sh` fails without it.
+**What a memory may hold:** device-local facts this box's sessions need and no other device does — local paths, COM ports, local runbooks, hardware quirks. Terse, ≤ 15 lines, `type: reference|project`. Never a `feedback` memory, never a narrative, never a quote, never a rule. Each has `approved: <date> <triggering-event issue URL>` in its frontmatter; `files/memory-lint.sh` fails without it.
+
+**#247 is retired as the funnel (2026-09-09, #310).** It stayed open too long and accreted too much to be usable. The incident report now lives in *this file*; the record of the triggering event is a *new, single-topic issue* opened per event (labeled for the device) — not another comment on one ever-growing thread.
 
 **Where everything else goes:**
-1. A lesson or a correction → this file (the incident, as cause → check) and a comment on the open `[Incident Report]` issue (#247).
+1. A lesson or a correction → this file (the incident, as cause → check) and a new issue summarizing the triggering event.
 2. A rule another device could need → `agent/`, `known-patterns.tsv`, or the topic's golden doc.
 3. A device fact another device or a fresh clone needs → that device's block in `CLAUDE-CHECKIN.md`.
 4. A concept that needs work → its own issue.
 
 At the time of a session failure the only actions are: fix the work, and file. Suggestions and rule changes come out of a session run *against* that issue, not out of the session that failed.
 
-**Writing a memory is a gated flow, never a default.** Guard rule M denies any Edit/Write into `~/.claude/projects/*/memory/` unless a proposal exists: `bash files/memory-propose.sh <slug> <proposal.md>` posts the proposal as a `[memory proposal]` comment on #247 (the incident record) and registers it; the retried write then raises a bridged ask to Steven carrying the fact and why the repo cannot hold it; only his yes lets the write through, once. An optimize sweep he asks for runs through Bash and is the only path that bypasses the per-file gate. The per-device procedure and the WindowsDesktop worked example (85 → 4 memories, 2026-09-08): `local-repo-unification.md`.
+**Writing a memory is a gated flow, never a default.** Guard rule M denies any Edit/Write into `~/.claude/projects/*/memory/` unless a proposal exists: `bash files/memory-propose.sh <slug> <proposal.md>` opens a `[memory proposal]` issue summarizing the triggering event (the incident record) and registers it; the retried write then raises a bridged ask to Steven carrying the fact and why the repo cannot hold it; only his yes lets the write through, once. An optimize sweep he asks for runs through Bash and is the only path that bypasses the per-file gate. The per-device procedure and the WindowsDesktop worked example (85 → 4 memories, 2026-09-08): `local-repo-unification.md`.
 
 ## Commits and workflow
 

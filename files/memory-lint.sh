@@ -43,12 +43,13 @@ dangle="$(grep -rhoE '\[\[[A-Za-z0-9_./-]+\]\]' *.md | sed -E 's/^\[\[//; s/\]\]
 if [ -n "$dangle" ]; then echo "HARD — dangling [[wikilinks]] (no matching memory):"; echo "$dangle" | sed 's/^/  [[/; s/$/]]/'; fail=1; fi
 
 # 3b. HARD (#310, 2026-09-08): a `type: feedback` memory. Lessons and corrections go
-#     issue -> incident (agent/incident-rules.md) -> #247 comment, never a memory.
+#     issue -> incident (agent/incident-rules.md) -> a new issue summarizing the triggering
+#     event, never a memory (#247 was retired as the funnel 2026-09-09).
 fb="$(grep -l -E '^ *type: *feedback' $(ls *.md | grep -v '^MEMORY.md$') 2>/dev/null)"
 if [ -n "$fb" ]; then echo "HARD — feedback-type memories (not allowed; file the incident instead):"; echo "$fb" | sed 's/^/  /'; fail=1; fi
 
 # 3c. HARD (#310): a body memory with no `approved:` frontmatter line — every memory is approved
-#     by Steven through files/memory-propose.sh and carries the date + #247 comment URL.
+#     by Steven through files/memory-propose.sh and carries the date + the triggering-event issue URL.
 noapp="$(for f in $(ls *.md | grep -v '^MEMORY.md$'); do grep -q '^approved:' "$f" || echo "$f"; done)"
 if [ -n "$noapp" ]; then echo "HARD — memories with no 'approved:' line (never went through memory-propose.sh):"; echo "$noapp" | sed 's/^/  /'; fail=1; fi
 

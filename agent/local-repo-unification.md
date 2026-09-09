@@ -14,22 +14,23 @@ within a week while 14 of its rules existed nowhere in the repo. #310 is the sta
   does — local paths, COM ports, local runbooks, hardware quirks, which zellij pane bites.
   Terse, ≤ 15 body lines, `type: reference | project`.
 - **Never a `feedback` memory, never a narrative, never a quote, never a rule.** A lesson or a
-  correction goes issue → incident (`incident-rules.md`, as cause → check) → a comment on the open
-  `[Incident Report]` issue (#247). A rule another device could need goes in `agent/`,
-  `known-patterns.tsv`, or the topic's golden doc. A device fact another device needs goes in that
-  device's block of `CLAUDE-CHECKIN.md`. A concept that needs work gets its own issue.
-- **Every memory is approved by Steven, one at a time, and says so**: `approved: <date> <#247 comment
-  URL>` in its frontmatter. `files/memory-lint.sh` fails on a memory without it, on any
-  `type: feedback`, and flags anything over 40 lines.
+  correction goes issue → incident (`incident-rules.md`, as cause → check) → a new issue summarizing
+  the triggering event (#247 is retired as the funnel, 2026-09-09 — it grew too long to be usable).
+  A rule another device could need goes in `agent/`, `known-patterns.tsv`, or the topic's golden
+  doc. A device fact another device needs goes in that device's block of `CLAUDE-CHECKIN.md`. A
+  concept that needs work gets its own issue.
+- **Every memory is approved by Steven, one at a time, and says so**: `approved: <date>
+  <triggering-event issue URL>` in its frontmatter. `files/memory-lint.sh` fails on a memory without
+  it, on any `type: feedback`, and flags anything over 40 lines.
 - **The harness memory instruction is overridden** (`CLAUDE.md` universal rules) the same way the
   no-`Co-Authored-By` rule overrides its commit trailer.
 
 ## Mechanism — how a memory gets written
 
 1. The session runs `bash files/memory-propose.sh <slug> <proposal.md>`. The script validates the
-   shape (type, ≤ 15 lines, a `Why the repo cannot hold it:` line, no quotes), posts the proposal as
-   a `[memory proposal] <slug>` comment on #247 — the incident record, since the trigger is the
-   harness telling a session to save something — and registers a `PENDING` row in
+   shape (type, ≤ 15 lines, a `Why the repo cannot hold it:` line, no quotes), opens a
+   `[memory proposal] <slug>` issue summarizing the triggering event — the incident record, since the
+   trigger is the harness telling a session to save something — and registers a `PENDING` row in
    `.claude/.memory-proposals`.
 2. The session writes the memory to the printed path. `guard.sh` rule M sees the PENDING row and
    raises a bridged ask (phone first, desk fallback) carrying the fact and the reason; Steven's
@@ -73,7 +74,7 @@ Back up first; local memories are not in git: `tar czf ~/.claude/backups/memory-
 ```
 # Memory Index — device-local facts only
 Rules live in the repo: CLAUDE.md → agent/ → known-patterns.tsv → this device's block in CLAUDE-CHECKIN.md.
-A lesson goes issue → incident → #247 comment, never a memory. Writes here go through files/memory-propose.sh; guard rule M denies the rest (#310).
+A lesson goes issue → incident (agent/incident-rules.md) → a new issue summarizing the triggering event, never a memory. Writes here go through files/memory-propose.sh; guard rule M denies the rest (#310).
 ```
 
 followed by one `- [Title](file.md) — hook` line per approved memory, added by `memory-propose.sh --index`.
