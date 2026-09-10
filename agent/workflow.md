@@ -36,7 +36,19 @@ Every plan that touches infra or code closes with a "when this ships, update `<t
 
 The trigger is a plan landing or an explicit wrap-up. During rapid iterative sessions (test → tweak → test), doc and session-history updates are **opt-in** — don't append changelog entries mid-iteration unless asked.
 
-For EFM-guide work specifically, that includes the master plan: whenever an issue advances a chapter, update the `Complete Guide to Edge Flow Management.md` status tracker in the same pass and keep its **Issues** column linked to the driving issue(s). The tracker is the live chapter↔issue correlation — see `device-comms.md` §"Working an issue" step 4.
+### Touch an asset, sweep all three surfaces
+
+**Whenever you change a published asset, you update its plan doc, its status tracker, and its README in the same pass — before you report the work done.** Three surfaces, every time, not the one you happened to be looking at. Steven should never be the one who notices a surface went stale.
+
+| Surface | For guide work that is |
+|---|---|
+| The plan / subplan doc | `efm-guide-humanization-plan.md`, or whichever subplan the tracker's "Subplans" list names for that chapter |
+| The status tracker | `Complete Guide to Edge Flow Management.md` — the row, the work-stream row, the status paragraph, **and the Completion Summary counts** |
+| The README | **`EdgeFlowManager/README.md`** — the published index, and itself published prose subject to `writing-style.md` §"The blog-voice band" |
+
+The tracker is the live chapter↔issue correlation, so keep its **Issues** column linked to the driving issue(s) — see `device-comms.md` §"Working an issue" step 4. The same shape applies outside the guide: an app repo's README, a Playground scenario README, and the plan doc that drove the change are one unit of work with the code.
+
+This is a rule because it failed. The #295 humanization pass rewrote all 21 guide chapters and never opened `EdgeFlowManager/README.md`, which is the guide's front door. It scored worse than any chapter had (em-dash 58.8/k, proof 17.2/k, colon 63.1/k) and only got caught because Steven asked whether the tracker and plan were updated. The same audit found the tracker still carrying a month-old Completion Summary and one chapter still marked 🟡 after he had cleared it. A pass that stops at the artifact it was editing is not finished.
 
 ## Publishing a blog post end-to-end (to the live blog repo)
 

@@ -28,6 +28,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | AMOLED app/device ships from its per-app leader repo (app + backend) | `device-comms.md` §"Closing an issue" + `amoled-app-store-plan.md` Part C | guard 13 |
 | Canvas layout pitch / pre-flight before a processor create | skill `references/layout.md` | guard 5, known-patterns |
 | Docs get updated when a plan lands | `workflow.md` §"Docs get updated when a plan lands" | — |
+| Touch an asset → sweep its plan doc, status tracker **and README** in the same pass | `workflow.md` §"Touch an asset, sweep all three surfaces" | known-patterns `guide-assets` |
 | Shipped content strips its own provenance (dates/issue#s/agent names/proof-of-work) — outbound repos too | `writing-style.md` §"Published artifacts strip their own provenance" | — |
 | Published prose stays inside the blog-voice band (em-dash ≤2/k, proof-words ≤3/k, colon-joins ≤10/k) | `writing-style.md` §"The blog-voice band" | `files/prose-lint.py`; known-patterns `humanize` |
 | Don't guess an unread source; never mutate on a guess | §"Fixes and claims" | — |

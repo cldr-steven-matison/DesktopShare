@@ -141,8 +141,11 @@ One commit per chapter in EdgeFlowManager. "After" is the lint row on the commit
 | Ch19 | `0a97248` | 2800 | 0.0 | 2.1 | 8.6 | 0.0 | 0 | cleared 2026-09-09 |
 | Ch20 | `266b372` | 1728 | 0.6 | 1.2 | 7.5 | 0.0 | 0 | re-authored under #138, trim only |
 | Ch21 | `467aff2` | 3878 | 0.0 | 1.0 | 0.5 | 1.0 | 0 | approved 2026-09-02 (#140) |
+| **README** | `98b9577` | 692 | 0.0 | 1.4 | 1.4 | 0.0 | 0 | the guide index — missed by the pass, caught on the wrap-up audit |
 
 Band: em-dash ≤2/k, proof ≤3/k, colon ≤10/k, contrast ≤1/k, meta 0, provenance 0. Every row passes.
+
+**The pass missed the front door.** `EdgeFlowManager/README.md` is published prose in an outbound repo, so the band applies to it, and 21 chapters were rewritten without it ever being opened. It scored worse than any chapter had before its own pass (em-dash 58.8/k, proof 17.2/k, colon 63.1/k) and only surfaced when Steven asked whether the tracker and plan were updated. The ToC carried the same `- **Ch1** — [Title]` shape as the Related-Chapters lists. That is now a standing rule: `agent/workflow.md` §"Touch an asset, sweep all three surfaces" — plan doc, status tracker, README, every time.
 
 \* the lint matching the Windows "Session 0" / "Session 1" term as a "Session N" provenance marker. Kept on purpose in both chapters.
 
