@@ -2,14 +2,19 @@
 
 The EFM class flow on spark-dd06 fronts four inference doors on one listener, port `8190`.
 
-> **Which address.** The recipes below use the LAN address `192.168.1.203`, and `:8190` on it is
-> currently blocked to LAN callers — `ufw` on `spark-dd06` allows the tailnet wholesale but the LAN
-> only on `22`, `8000`, `32100-32103`, `80` and `443`, so the doors and both exporters get a silent
-> drop (proven 2026-09-10 from WindowsDesktop and from the Jetson; #233 opens them). Until that lands,
-> use the Tailscale address `100.104.155.57` — same ports, same bodies; set `SPARK` once and every
-> recipe below is unchanged. A device with no tailnet route, like the Jetson, cannot reach the doors
-> by any address until #233 runs.
- Each door forwards to the serving tier on the same box and returns the upstream body unchanged, so the response shapes below are vLLM's, TEI's and whisper.cpp's. The point of this file is the "from a device that is not the DGX Spark" proof that work-stream G still owes (`nvidia-dgx-spark-efm-agent.md` §3, definition of done). Run any recipe from WindowsDesktop, StarlinkAI or the Jetson and paste the output on #239.
+> **Which address.** Both work as of 2026-09-10. The recipes below use the LAN address
+> `192.168.1.203`; the Tailscale address `100.104.155.57` takes the same ports and the same bodies,
+> so setting `SPARK` once leaves every recipe unchanged.
+>
+> Until that date the LAN address did not work for these ports. `ufw` on `spark-dd06` allows the
+> tailnet wholesale but the LAN port by port, and `:8190`, `:9936` and `:9835` were not on the list,
+> so the doors and both exporters gave every LAN caller a silent drop — which is why #324 scraped
+> over the tailnet, and why the Jetson, with no tailnet route, could not reach the doors by any
+> address at all. `files/issue-233/ufw-nodeports.sh` opened them (#233). If a recipe times out from
+> a device that used to work, check the firewall before the flow: a blocked port times out, a closed
+> one refuses.
+
+Each door forwards to the serving tier on the same box and returns the upstream body unchanged, so the response shapes below are vLLM's, TEI's and whisper.cpp's. The point of this file is the "from a device that is not the DGX Spark" proof that work-stream G still owes (`nvidia-dgx-spark-efm-agent.md` §3, definition of done). Run any recipe from WindowsDesktop, StarlinkAI or the Jetson and paste the output on #239.
 
 | Door | Forwards to | Body |
 |---|---|---|
@@ -66,7 +71,17 @@ curl -s -X POST $SPARK/reason -H 'Content-Type: application/json' -d '{
 }' | jq -r '.choices[0].message.content'
 ```
 
-In the `NvidiaNanoJava` class flow the same call is one `InvokeHTTP` after a `RouteOnAttribute` on `confidence < 0.6` (`EdgeFlowManager/files/efm/NvidiaNanoJava.json` is the export to add it to).
+**Run 2026-09-10 from the Jetson itself**, over the LAN, minutes after `files/issue-233/ufw-nodeports.sh` opened `:8190`. This is the ladder's headline path proven on the two real devices rather than simulated from the box:
+
+```
+ESCALATE. The confidence score of 0.41 is below standard acceptance thresholds (typically >=0.70),
+indicating high model uncertainty that requires human verification or additional validation before
+acting on the prediction.
+```
+
+8.4 s wall clock, 748 completion tokens of which 702 were reasoning. Full transcript, plus `/embed`, `/rerank`, `:9936`, `:9835` and `:32111` from the same shell: `files/issue-239/usecase1-from-jetson.txt`.
+
+In the `NvidiaNanoJava` class flow the same call is one `InvokeHTTP` after a `RouteOnAttribute` on `confidence < 0.6` (`EdgeFlowManager/files/efm/NvidiaNanoJava.json` is the export to add it to). That wiring is not built; this run is the manual proof that the leg answers.
 
 ## Use case 2 — MicroFi-2 camera → embed / rerank
 

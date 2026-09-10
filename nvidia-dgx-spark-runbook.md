@@ -46,7 +46,7 @@ The box sits on the array's LAN at `192.168.1.203` and on the Tailscale tailnet 
 
 **The LAN link is Wi-Fi.** `192.168.1.203` is `wlP9s9` (`f8:3d:c6:f1:12:5a`). Both wired NICs, the 10 GbE `enP7s7` (`4c:bb:47:2d:dd:06`) and the USB NIC, report `carrier=0`. k3s advertises its API on that Wi-Fi address, so a Wi-Fi drop makes `10.43.0.1:443` unreachable from every pod. During the 24-hour drop of 08-29 → 08-30 that is exactly what happened. `cainjector`, `flink-operator` and `ingress-nginx` cycled until the link returned and then recovered on their own. `mynifi` and Kafka do not need the API server and rode it out. Their restart counters are the trace of that outage, not a probe or memory problem. The durable fix is to plug in the 10 GbE port and move the reservation to it.
 
-**The static IP reservation is still owed.** It lives on the router at `192.168.1.254`, not on the box; bootstrap step 9 prints both MACs for it. Until it is done, DHCP has kept `.203` stable but nothing guarantees it.
+**The static IP reservation is still owed.** It lives on the router at `192.168.1.254`, not on the box; bootstrap step 9 prints both MACs for it. Which one to reserve was decided 2026-09-10: `wlP9s9`, `f8:3d:c6:f1:12:5a`, because that is where `.203` lives today and k3s advertises its API on it. Until the reservation is made, DHCP has kept `.203` stable but nothing guarantees it.
 
 Tailscale joined via bootstrap step 5 (`tailscale up --hostname nvidiaspark-1 --accept-routes`, the auth URL printed to `/var/log/tailscale-up.log`). The first join landed on the wrong account by picking `tunastreet@outlook.com` at the browser step; `tailscale logout` and a second `tailscale up` put it on the array's `steven.matison@gmail.com` tailnet. Peers: WindowsDesktop `100.68.113.126`, StarlinkAI `100.110.253.66`. The `:8000` endpoint is bound to loopback and the LAN address only, not the tailnet address; a tailnet-only flow would need that bind added on purpose (§6).
 
@@ -124,18 +124,21 @@ k3s binds host ports, so there is no tunnel layer on this box and no session sta
 | `:6443` | k3s API | host |
 | `32100–32103` | Kafka external listener (NodePorts) | host |
 | `:8190` `:9936` | EFM agent router (four inference doors) · Prometheus metrics | host (`nvidia-dgx-spark-efm-agent.md`) |
+| `:9835` | `dgx-spark-prometheus` host exporter | host |
 | `:32111` `:32110` | StreamerBrain `/caption` door · clip-prep (NodePorts) | host |
 
-From another device: `curl http://192.168.1.203:8000/v1/models`. Off-LAN stays Tailscale's job and is deliberately unconfigured; `tailscale serve` earns `400 Invalid SNI` without a `nifi.web.proxy.host` edit and a `mynifi` restart (#257 option C, not done).
+**Listening is not the same as reachable.** ufw allows the tailnet wholesale but the LAN only port by port, and until 2026-09-10 that list was `22`, `8000`, `32100–32103`, `80` and `443` — so `:8190`, `:9936`, `:9835`, `:32110` and `:32111` were listening on every interface and dropped for every LAN caller. A blocked port times out rather than refusing, which is why this read as a network fault twice: #324 diagnosed it as the LAN being unreachable from WindowsDesktop and routed the fleet scrape over Tailscale, and the Jetson, which has no tailnet address at all, had no route to the doors by any address. `files/issue-233/ufw-nodeports.sh` added the five (§7). Docker-published ports bypass ufw entirely and were never affected.
+
+From another device: `curl http://192.168.1.203:8000/v1/models`, or `:8190/reason` for the class flow's doors. Off-LAN stays Tailscale's job and is deliberately unconfigured; `tailscale serve` earns `400 Invalid SNI` without a `nifi.web.proxy.host` edit and a `mynifi` restart (#257 option C, not done).
 
 ## 7. Hardening
 
 Bootstrap steps 6 and 7, as built. The box has a globally routable IPv6 address, so without a firewall every listener is Internet-reachable.
 
-- **ufw**, default deny incoming, allow outgoing. Allowed: `22` and `8000` from `192.168.1.0/24`; everything on `tailscale0`; `80`, `443` and the Kafka NodePorts from the LAN; the k3s pod and service CIDRs `10.42.0.0/16`, `10.43.0.0/16`.
+- **ufw**, default deny incoming, allow outgoing. Allowed from `192.168.1.0/24`: `22`, `8000`, the Kafka NodePorts `32100–32103`, `80`, `443`, and since 2026-09-10 the service ports other devices call — `8190` (the four inference doors), `9936` and `9835` (the two exporters), `32110` and `32111` (clip-prep and the StreamerBrain `/caption` door). Everything on `tailscale0`. The k3s pod and service CIDRs `10.42.0.0/16`, `10.43.0.0/16`. The k3s API on `6443` is deliberately not open to the LAN.
 - **Docker-published ports bypass ufw.** That is why every serving script binds `127.0.0.1` and the LAN address explicitly instead of `0.0.0.0`. The two KB containers predate the rule and still bind everywhere (§3.1).
 - **`earlyoom` is not installed** and must not be; the server holds most of unified memory on purpose.
-- **The ufw NodePort rules from the first run are wrong on the box.** That run wrote prod's `31623/31850/31935/30336`; the script now carries this box's `32100–32103` plus `80/443`, but the re-run that applies it has not happened. Until it does, Kafka's external listener is reachable only because the rule for prod's ports does not block it, not because it is allowed. `sudo bash files/issue-226/spark-bootstrap.sh` is the fix (idempotent; step 3 will not restart Docker when the runtime is already registered).
+- **The ufw rules were re-applied 2026-09-10 and the first run's mistakes are gone.** That run wrote prod's Kafka NodePorts `31623/31850/31935/30336`, which are not this box's; bootstrap step 6 had been corrected to `32100–32103` long before anything re-applied it. `files/issue-233/ufw-nodeports.sh` is that step plus the deletion of the four stale rules plus the five service ports §6 describes. It is narrow on purpose: re-running the whole bootstrap for a firewall change also runs an `apt-get upgrade` and would have left the stale rules in place. The run is idempotent and the allow rules go in before `enable`, so the SSH session that runs it survives. Caller-side proof before and after is `files/issue-233/lan-reachability.txt`.
 - The NiFi admin identity is a client certificate, `nifi-admin.p12`, mode 600. Whoever holds the file is `nifi-admin`.
 
 ## 8. Reboot survival
@@ -161,20 +164,19 @@ journalctl -u nvidia-serve-boot.service        # the recreate log
 
 - Baseline recorded in `CLAUDE-CHECKIN.md` §NvidiaSpark-1. Done 08-26/09-02.
 - The lead endpoint answers `/v1/chat/completions` on the box and from another LAN device. Done 08-27; WindowsDesktop's flows target it daily.
-- Hardening applied; no serving port on `0.0.0.0` except the two KB containers noted. Done 08-27, with the ufw re-run owed.
+- Hardening applied; no serving port on `0.0.0.0` except the two KB containers noted. Done 08-27; the ufw rule set corrected and the service ports opened to the LAN 09-10.
 - Throughput measured against `nvidia-dgx-spark-landscape.md`. Done 08-27/28, §3.
 - k3s, the operators, Kafka and NiFi up on the box. Done 08-27.
 - A reboot brings everything back unattended. Mechanism in place 09-10; the proof is the next reboot's report on #322.
 
 ## Still owed
 
-- Static IP reservation for `192.168.1.203` on the router (§2).
-- Re-run `spark-bootstrap.sh` to apply the corrected ufw NodePort rules (§7).
-- Plug in the 10 GbE port and move the reservation to it (§2).
+- Static IP reservation for `192.168.1.203` on the router (§2). The MAC to reserve is `wlP9s9`'s, `f8:3d:c6:f1:12:5a`, decided 2026-09-10 — the Wi-Fi NIC, since that is where `.203` lives today and k3s advertises its API there.
+- Plug in the 10 GbE port and move the reservation to it (§2). A deliberate cutover, not a cable swap: k3s advertises on the current address.
 
 ## Resources
 
 - `nvidia-dgx-spark-landscape.md` (sizing, model lock) · `nvidia-dgx-spark-k3s-cso.md` (platform detail) · `nvidia-dgx-spark-efm-agent.md` (the `:8190` router) · `nvidia-dgx-spark-local-kb.md` (qdrant-kb, tei-kb) · `nvidia-dgx-spark-cso-demos.md` (what the endpoint feeds)
-- `files/issue-226/spark-bootstrap.sh` · `spark-operators.sh` · `*-serve.sh` · `files/issue-322/`
+- `files/issue-226/spark-bootstrap.sh` · `spark-operators.sh` · `*-serve.sh` · `files/issue-322/` · `files/issue-233/ufw-nodeports.sh` (the corrected ufw rule set) · `files/issue-233/lan-reachability.txt`
 - [NVIDIA DGX Spark vLLM playbook](https://github.com/NVIDIA/dgx-spark-playbooks/blob/main/nvidia/vllm/README.md) · [DGX Spark User Guide](https://docs.nvidia.com/dgx/dgx-spark/) · [k3s requirements](https://docs.k3s.io/installation/requirements)
 - [Red Hat, RHEL on DGX Spark](https://www.redhat.com/en/blog/supercharging-local-ai-development-rhel-nvidia-dgx-spark) · [DeepSeek-V4-Flash single-Spark recipe](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-One-DGX-Spark) · [Qwen3-27B SGLang recipe](https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark)

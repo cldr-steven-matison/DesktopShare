@@ -1,0 +1,41 @@
+# Use case 1 — Jetson → DGX Spark escalation, run end to end from NvidiaNano
+# Source recipe: files/issue-239/validate-from-remote.md, "Use case 1"
+# Caller: tunastreet (Jetson Orin Nano, aarch64), over the LAN, no Tailscale on that box
+# Target: http://192.168.1.203:8190/reason  →  127.0.0.1:8000/v1/chat/completions
+# Run:    2026-09-10T16:31:49Z, after files/issue-233/ufw-nodeports.sh opened :8190 to the LAN (#233)
+
+$ curl -s -X POST http://192.168.1.203:8190/reason -H 'Content-Type: application/json' -d '{
+    "model": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+    "messages": [{"role": "user", "content": "A Jetson image classifier reports label=cat confidence=0.41. Answer ESCALATE or ACCEPT and one reason."}],
+    "max_tokens": 2048
+  }' | jq '{model, content: .choices[0].message.content, usage}'
+
+{
+  "model": "nvidia/Qwen3.6-35B-A3B-NVFP4",
+  "content": "\n\nESCALATE. The confidence score of 0.41 is below standard acceptance thresholds (typically >=0.70), indicating high model uncertainty that requires human verification or additional validation before acting on the prediction.",
+  "usage": {
+    "prompt_tokens": 36,
+    "total_tokens": 784,
+    "completion_tokens": 748,
+    "prompt_tokens_details": null,
+    "completion_tokens_details": {
+      "reasoning_tokens": 702
+    }
+  }
+}
+
+real  0m8.418s
+
+# 702 of the 748 completion tokens were reasoning, which is why the recipe says max_tokens 2048.
+# The escalation carries the classifier's verdict as text: the lead model is a text model, so the
+# image never leaves the Jetson.
+
+# The other doors, same shell, same run:
+embed  -> 1024          (bge-m3 vector length)
+rerank -> index 0 score 0.24816957, index 1 score 0.017644463   (ordering correct: the occupied
+                         kitchen outranks the empty one by ~14x)
+:9936  -> 200           (MiNiFi flow exporter)
+:9835  -> 200           (dgx-spark-prometheus host exporter)
+:32111 -> 405           (StreamerBrain /caption is POST-only; 405 proves reachability)
+
+# Before the ufw change, every one of these timed out from this host while :8000 answered 200.

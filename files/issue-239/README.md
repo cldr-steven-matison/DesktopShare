@@ -55,4 +55,4 @@ capture works. Current state and the re-stand recipe live in `efm-observability.
 
 ## Not in this directory
 
-The `:9936` leg itself is already live on the class flow (flowVersion 5, `files/issue-226/flows/NvidiaSpark-1.designer-flow.json`); nothing on the EFM side changes for this. The ufw rules on spark-dd06 allow the LAN and the tailnet in; `:9936` and `:9835` need no new rule.
+The `:9936` leg itself is already live on the class flow (flowVersion 5, `files/issue-226/flows/NvidiaSpark-1.designer-flow.json`); nothing on the EFM side changes for this. **That sentence used to claim ufw needed no new rule on spark-dd06. It was wrong, and it is the reason the LAN address times out.** ufw allows the tailnet wholesale but the LAN only on the ports bootstrap step 6 names, which never included `:9936`, `:9835` or `:8190`. The fleet scrape works because it uses the tailnet address; a LAN-only caller such as the Jetson had no route at all. `files/issue-233/ufw-nodeports.sh` adds those three plus `:32110`/`:32111` for the LAN (#233).

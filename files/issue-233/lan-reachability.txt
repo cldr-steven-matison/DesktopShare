@@ -1,0 +1,26 @@
+# LAN reachability of spark-dd06, before and after files/issue-233/ufw-nodeports.sh
+# Prober: tunastreet (Jetson Orin Nano) — a LAN-only device, no Tailscale, so it has no
+# second address to fall back on. That is what makes it the right prober.
+# Date: 2026-09-10. ufw rules applied at 16:31:32Z.
+#
+# `ufw status numbered` prints on the terminal that runs the script as root; this file is the
+# caller-side proof, which is the stronger one — it shows what a real device on the LAN can reach.
+
+port   what                                   before        after
+-----  -------------------------------------  ------------  -----
+8000   vLLM lead model (/v1)                  200           200      (was already allowed)
+8190   EFM class-flow router, four doors      timeout       200
+9936   MiNiFi flow exporter                   timeout       200
+9835   dgx-spark-prometheus host exporter     timeout       200
+32111  StreamerBrain /caption                 not probed    405      (POST-only door; 405 = reachable)
+
+# A blocked port times out rather than refusing, which is why this looked like a network fault
+# for so long. #324 read the same symptom from WindowsDesktop and routed around it over Tailscale.
+
+# On-box state immediately after the change, nothing regressed:
+#   :8000/v1/models        200
+#   k3s pods               17 Running, 1 Completed
+#   minifi-java            active
+#   dgx-spark-prometheus   active
+#   k3s                    active
+#   the SSH session that ran the change survived (rule 22/tcp from the LAN goes in before enable)
