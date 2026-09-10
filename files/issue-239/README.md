@@ -47,10 +47,11 @@ Two corrections landed in the manifest as a result:
   needs it: that responder sends `Content-Type: text/html`, while the `:9835` Go exporter sends a
   proper `text/plain; version=0.0.4`.
 
-The fleet Prometheus stack was stood up for this validation and torn back down afterwards
-(#312 removed it to reclaim ~874 Mi). The manifests, the fleet-board merge and the proof above
-are what persists; re-standing the stack replays `helm install` from
-`efm-windowsdesktop-prometheus-grafana.md` and `kubectl apply` of the three ServiceMonitor files.
+The fleet Prometheus stack was torn down after the first validation pass and then **re-stood the
+same day at Steven's direction — it stays up until he asks for teardown**. All seven fleet targets
+are `up=1` (the five prior ones plus the two `nvidiaspark1-*` jobs), both dashboards load as sidecar
+ConfigMaps, and anonymous Viewer is on via `files/issue-324/grafana-anon-values.yaml` so headless
+capture works. Current state and the re-stand recipe live in `efm-observability.md`.
 
 ## Not in this directory
 

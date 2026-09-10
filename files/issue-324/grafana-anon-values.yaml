@@ -1,0 +1,20 @@
+# Grafana values for the cso-prod-1 kube-prometheus-stack re-stand (#324).
+#
+# efm-observability.md §"Grafana — conventions on this stack" records that anonymous Viewer is
+# enabled on this install (since 2026-09-01) so headless/scripted screenshot capture works with
+# no login flow. Admin auth is unchanged.
+#
+# The gotcha that makes this a FILE and not a --set: setting nested grafana.ini keys with helm
+# `--set` mangles the section into `anonymous = map[...]`. Pass it as values.
+#
+#   helm upgrade prometheus prometheus-community/kube-prometheus-stack \
+#     --namespace cld-streaming --reuse-values \
+#     -f files/issue-324/grafana-anon-values.yaml
+#
+# The rest of the release's values come from the verbatim install in
+# efm-windowsdesktop-prometheus-grafana.md §1; --reuse-values keeps them.
+grafana:
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer

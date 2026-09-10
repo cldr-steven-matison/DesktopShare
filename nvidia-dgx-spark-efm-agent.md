@@ -294,8 +294,8 @@ Each card carries the standard fields (name, purpose, agent, shape, files, verif
 Both carried-forward items closed 2026-09-10 from WindowsDesktop (#324). The cluster-side scrape is
 live for both ports over the tailnet, the fleet board carries a seventh heartbeat tile and a
 NvidiaSpark-1 Layer-2/3 row, and use case 3 answered from a non-Spark shell. The fleet Prometheus
-stack was stood up for the validation and torn back down after it (#312 had removed it to reclaim
-~874 Mi); the manifests and the merged board persist, so re-standing replays them.
+stack is **up and staying up** on `cso-prod-1` at Steven's direction, with all seven targets `up=1`
+(`efm-observability.md` is the live record).
 
 **What remains:**
 
