@@ -22,13 +22,21 @@ install -m 644 "$SRC/nvidia-serve-boot.service"       /etc/systemd/system/nvidia
 install -m 644 "$SRC/nvidia-post-boot-verify.service" /etc/systemd/system/nvidia-post-boot-verify.service
 
 echo "== 2. minifi-java: SysV stub -> native unit =="
-if [ ! -f /etc/systemd/system/minifi-java.service ]; then
+if [ -f /etc/init.d/minifi-java ]; then
   systemctl stop minifi-java 2>/dev/null || true          # graceful (minifi.sh stop via the generated unit)
-  update-rc.d minifi-java remove 2>/dev/null || true       # S65/K65 links gone; /etc/init.d stub left in place, inert
+  update-rc.d minifi-java remove 2>/dev/null || true       # S65/K65 links gone
+  # The stub must leave /etc/init.d, not just lose its links: while a same-named init script exists,
+  # `systemctl enable` syncs SysV state through update-rc.d, which aborts on the stub's chkconfig-only
+  # header ("Default-Start contains no runlevels") and the enable fails. The real script is
+  # /home/tunas/minifi-2.24.08.0-19/bin/minifi.sh; the stub only exec'd it.
+  mv /etc/init.d/minifi-java "/var/backups/minifi-java.init.d.$(date +%F)"
+  systemctl daemon-reload                                   # drop the generated SysV unit
 fi
 install -m 644 "$SRC/minifi-java.service" /etc/systemd/system/minifi-java.service
 systemctl daemon-reload
 systemctl enable --now minifi-java.service
+sleep 5
+systemctl is-active minifi-java.service
 systemctl enable nvidia-serve-boot.service nvidia-post-boot-verify.service
 
 echo "== enabled state =="
