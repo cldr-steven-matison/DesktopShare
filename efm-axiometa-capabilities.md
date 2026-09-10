@@ -4,6 +4,8 @@ Companion to [efm-axiometa.md](efm-axiometa.md). This is the discovery pass #315
 
 **Status: design.** Pin/bus assignments follow the `axiometa_genesis_mini` Arduino variant and the axiometa.io module pages (see [efm-axiometa.md](efm-axiometa.md) §1–2). Nothing built.
 
+**Runtime, 2026-09-10:** the board now runs [EspiFi](efm-espifi.md) on MicroPython as class `AXIOMETA`, so each rung below is a Python `run(node, session)` function copied to the board with `mpremote fs cp`, not a C++ source and a reflash. The ground rules in the next section describe the MicroFi path and stay for a MicroFi build; the ladder order still applies.
+
 ## Ground rules for every AXIOMETA processor
 
 - **C++, compile-time.** Add a `.cpp` to the [`cldr-steven-matison/MicroFi`](https://github.com/cldr-steven-matison/MicroFi) fork, register with `MICROFI_REGISTER_PROCESSOR`. No Python, no runtime load — adding a processor is a rebuild + reflash.

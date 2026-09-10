@@ -4,7 +4,7 @@
 
 Every fact below is tagged with its source. Inference is marked as such.
 
-**Status 2026-09-10.** The board is on StarlinkAI COM11 running its factory Studio image (serial banner: `Axiometa Genesis Mini Kit Demo ??? booting... Ready.`). The `AXIOMETA` EFM class from the 2026-09-08 MicroFi bring-up has been removed, and EFM lists 11 classes. The agent-without-MicroFi path this evaluation asked for is built and documented in [efm-espifi.md](efm-espifi.md). Opening COM11 from any tool resets the chip (`rst:0x15 (USB_UART_CHIP_RESET)`); it boots straight back into the demo.
+**Status 2026-09-10.** The board runs **MicroPython v1.29.0 with [EspiFi](efm-espifi.md) as EFM class `AXIOMETA`** (agent `espifi-a0f262eb9910`, on the open STARLINK network at `192.168.1.41`, through StarlinkAI's C2 relay). It shows on StarlinkAI as **COM12** (MicroPython's TinyUSB CDC, PID `4001`); the ROM bootloader and the factory image present as COM11 (PID `1001`). The factory Studio image was read out byte-for-byte before the erase: `C:\temp\axiometa-factory\genesis-factory-4MB.bin` (4,194,304 bytes, sha256 `568D3CDD3AED5139DA8BC994C9A390448F3B5F3DFBF36FD9752456A1B90700F0`; its app descriptor reads `arduino-lib-builder dd8478c`, IDF v5.5.2, partition table = Arduino default 4 MB with 1280 KB `app0`/`app1` and 1408 KB SPIFFS). Restore is `esptool.exe --chip esp32s3 --port COM12 write_flash 0 genesis-factory-4MB.bin`. The earlier `AXIOMETA` class from the MicroFi bring-up had been removed; this one is new.
 
 ## 1. The board
 

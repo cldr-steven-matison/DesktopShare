@@ -55,7 +55,20 @@ if MICROPYTHON:
         return time.ticks_diff(time.ticks_ms(), since)
 
     def mac_hex():
-        return binascii.hexlify(network.WLAN(network.STA_IF).config("mac")).decode()
+        w = network.WLAN(network.STA_IF)
+        w.active(True)
+        return binascii.hexlify(w.config("mac")).decode()
+
+    def wifi_connect(ssid, password="", timeout_ms=20000):
+        """Join the configured network; an empty password means an open AP."""
+        w = network.WLAN(network.STA_IF)
+        w.active(True)
+        if not w.isconnected():
+            w.connect(ssid, password or "")
+            t = time.ticks_ms()
+            while not w.isconnected() and time.ticks_diff(time.ticks_ms(), t) < timeout_ms:
+                time.sleep(0.2)
+        return w.isconnected()
 
     def ip_address():
         try:
@@ -119,6 +132,9 @@ else:
     def getenv(name, default):
         return os.environ.get(name, default)
 
+    def wifi_connect(ssid, password="", timeout_ms=20000):
+        return True                                   # a host is already on the network
+
     ARCH, OS_NAME = "x86_64", "CPython " + sys.version.split()[0]
 
 # ---------------------------------------------------------------- configuration
@@ -129,6 +145,8 @@ CONFIG = {
     "agent_id": getenv("ESPIFI_ID", ""),           # blank -> espifi-<mac>
     "heartbeat_ms": int(getenv("ESPIFI_HEARTBEAT_MS", "5000")),
     "tick_ms": 250,
+    "wifi_ssid": "",                                # MicroPython only; blank = already connected
+    "wifi_password": "",
     "flow_file": "espifi_flow.txt",
     "flow_id_file": "espifi_flow_id.txt",
     "verbose": False,
@@ -718,6 +736,9 @@ def main(argv=None):
     log("EspiFi %s on %s" % (VERSION, OS_NAME))
     log("agent_id=%s class=%s manifest_hash=%s" % (AGENT_ID, CONFIG["agent_class"], MANIFEST_HASH[:16]))
     log("%d processor(s): %s" % (len(REGISTRY), ", ".join(d["name"] for d in REGISTRY)))
+    if CONFIG.get("wifi_ssid"):
+        up = wifi_connect(CONFIG["wifi_ssid"], CONFIG.get("wifi_password", ""))
+        log("wifi %s -> %s ip=%s" % (CONFIG["wifi_ssid"], "up" if up else "DOWN", ip_address()))
     _restore()
     c2 = C2()
     log("heartbeating to", c2.hb_url)

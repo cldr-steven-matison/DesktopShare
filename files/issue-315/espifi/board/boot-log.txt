@@ -1,0 +1,10 @@
+# Axiometa Genesis Mini, MicroPython v1.29.0, EspiFi as class AXIOMETA, captured on COM12 after `mpremote reset` (2026-09-10).
+# The first banner lines print before the host can open the port; the rest is verbatim.
+[espifi] wifi STARLINK -> up ip=192.168.1.41
+[espifi] flow applied: 2 processor(s), 1 connection(s), flow_id=a728e9cc-10e2-4680-b5ad-670342d4b535
+[espifi] restored saved flow a728e9cc-10e2-4680-b5ad-670342d4b535
+[espifi] heartbeating to http://192.168.1.245:10090/efm/api/c2-protocol/heartbeat
+[espifi] heartbeat #0 -> 200 (sent 4610 bytes, manifest=yes)
+[espifi] espifi: FlowFile 04b9243f-69e9-4055-8943-fdfedec60429-1 attrs={"uuid": "04b9243f-69e9-4055-8943-fdfedec60429-1", "filename": "04b9243f-69e9-4055-8943-fdfedec60429-1", "espifi.agent": "espifi-a0f262eb9910"} content=b'hello from EFM via EspiFi'
+[espifi] espifi: FlowFile 3d318b60-6c1c-470c-88f8-243357dd96e5-2 attrs={"uuid": "3d318b60-6c1c-470c-88f8-243357dd96e5-2", "filename": "3d318b60-6c1c-470c-88f8-243357dd96e5-2", "espifi.agent": "espifi-a0f262eb9910"} content=b'hello from EFM via EspiFi'
+[espifi] heartbeat #1 -> 200 (sent 2131 bytes, manifest=no)

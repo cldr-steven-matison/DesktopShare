@@ -8,5 +8,8 @@
 | `manifest-as-stored-by-efm.json` | The same manifest as EFM 2.3.1.0-2 stored it (`GET /efm/api/agent-manifests/1724b5be-026b-4d9e-a1d7-105339112f2a`) |
 | `flow-pushed-by-efm.yml` | The MiNiFi Config Version 3 body EFM returned for `UPDATE/configuration` |
 | `acknowledge-example.json` | The acknowledge body shape |
+| `board/espifi_config.py` | The Genesis Mini's config: relay URL, class `AXIOMETA`, open SSID |
+| `board/main.py` | Starts EspiFi at boot on the board |
+| `board/boot-log.txt` | Serial capture from the Genesis after a reset: Wi-Fi up, saved flow restored, heartbeats, LogAttribute output |
 
 Write-up: [`efm-espifi.md`](../../../efm-espifi.md).
