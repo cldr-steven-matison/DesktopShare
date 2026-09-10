@@ -149,7 +149,7 @@ The 2026-09-08 reboot showed which services come back on their own and which do 
 | The six Docker containers | `nvidia-serve-boot.service`: waits for `nvidia-smi`, then destroys and recreates each container through its committed serve script in `files/issue-226/`, vLLM in the background while the fast ones come up. `TimeoutStartSec=5400`. Exit status is non-zero if any container is unhealthy |
 | Proof | `nvidia-post-boot-verify.service`: four minutes after the tier is up, checks all six ports, the k3s pods, `:8190` and `:32111/caption`, writes `/var/tmp/nvidia-spark-last-boot-report.txt` and posts it to #322 |
 
-The serve scripts carry what the boot path needs. `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` go on every HF-backed container, the `docker pull` tolerates having no network, and the digest falls back to the local image. One deploy command, idempotent.
+The serve scripts carry what the boot path needs. `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` go on every HF-backed container, the `docker pull` tolerates having no network, and the digest falls back to the local image. The driver pins every image by digest (`VLLM_IMAGE`, `TEI_IMAGE`, `QDRANT_IMAGE` at the top of `serve-boot.sh`), because a boot must never float on `:latest`. The first cold start on 09-10 did exactly that and pulled vLLM 0.29.0, which crash-looped 38 times on this config while the validated 0.28.0 sat on disk; qdrant moved to 1.19.1 the same way, harmlessly. Bump a pin after a validated run, never implicitly. One deploy command, idempotent.
 
 ```bash
 sudo files/issue-322/install.sh               # install + enable the three units, move the agent to the native unit

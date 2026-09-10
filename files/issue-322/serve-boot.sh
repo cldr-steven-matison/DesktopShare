@@ -30,6 +30,15 @@ SERVE=${SERVE_DIR:-/home/tunas/BrainShare/files/issue-226}
 GPU_WAIT_MAX=${GPU_WAIT_MAX:-120}
 FAILED=()
 
+# Pinned images. A boot must never float on :latest. On the 2026-09-10 cold start this driver let
+# vllm-serve.sh pull vllm/vllm-openai:latest and got v0.29.0 (c2914767…), which crash-looped 38 times
+# on this config while the validated v0.28.0 (61fc8a89…) sat on disk; qdrant moved to 1.19.1 the same
+# way (harmless, both collections intact, so that one is pinned forward). The serve scripts honour
+# these variables. Bump them on purpose after a validated run, never implicitly.
+export VLLM_IMAGE=${VLLM_IMAGE:-vllm/vllm-openai@sha256:61fc8a896b0a4fbbbdc063bc4b0dbc25ce98e02b5050c24aeb7830ac02039b14}      # vLLM 0.28.0
+export TEI_IMAGE=${TEI_IMAGE:-ghcr.io/huggingface/text-embeddings-inference@sha256:c42fb67547f6100002a0ea60e33d2ebbbcddce669314d4459f326f402bc2e84c}
+export QDRANT_IMAGE=${QDRANT_IMAGE:-qdrant/qdrant@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10}   # Qdrant 1.19.1
+
 log() { echo "[serve-boot $(date -u +%H:%M:%S)] $*"; }
 
 # rm_then <name> <script> — destroy the named container if it exists, then run its serve script.
@@ -74,10 +83,7 @@ rm_then tei-embed-bge  tei-embed-serve.sh
 rm_then tei-rerank-bge tei-rerank-serve.sh
 rm_then whisper-cpp    whisper-serve.sh
 
-if wait "$VLLM_JOB"; then
-  log "vllm-qwen36: healthy"
-else
-  log "!! vllm-qwen36: FAILED"
+if ! wait "$VLLM_JOB"; then          # the subshell already logged healthy/FAILED for vllm itself
   FAILED+=("vllm-qwen36")
 fi
 
