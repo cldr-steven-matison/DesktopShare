@@ -1,6 +1,6 @@
 # EspiFi, an EFM agent in one Python file (#315)
 
-**[Issue #315](https://github.com/cldr-steven-matison/DesktopShare/issues/315), `device:StarlinkAI`.** The array's edge boards register in EFM through MicroFi, which is compile-time C++: every new capability is a rebuild and a reflash, and a class flow silently drops nodes past four. I wanted to know what EFM actually requires from an agent, and whether a lightweight drop written in Python could register, take a flow from the Designer, and run it. It can. `files/issue-315/espifi/espifi.py` is one standard-library Python file that does exactly that against EFM 2.3.1.0-2, first from a host and then from the Genesis Mini itself under MicroPython, unchanged.
+**[Issue #315](https://github.com/cldr-steven-matison/DesktopShare/issues/315), `device:StarlinkAI`. Status: the introduction is complete; EspiFi's build as a project continues under its own issue.** The array's edge boards register in EFM through MicroFi, which is compile-time C++: every new capability is a rebuild and a reflash, and a class flow silently drops nodes past four. I wanted to know what EFM actually requires from an agent, and whether a lightweight drop written in Python could register, take a flow from the Designer, and run it. It can. `files/issue-315/espifi/espifi.py` is one standard-library Python file that does exactly that against EFM 2.3.1.0-2, first from a host and then from the Genesis Mini itself under MicroPython, unchanged.
 
 The companion device docs are [efm-axiometa.md](efm-axiometa.md) (the Genesis Mini board this was built for) and [efm-xiao-microfi.md](efm-xiao-microfi.md) (MicroFi, whose `c2_client.cpp` and `manifest.cpp` are the wire-contract source).
 
@@ -100,6 +100,8 @@ I pinned the palette (above), then built `GenerateFlowFile → LogAttribute` thr
 
 On EFM's side, `GET /efm/api/operations` shows `37e9b776…` `UPDATE configuration state=DONE target=espifi-78553609edda`, and `GET /efm/api/agents/espifi-78553609edda` reports `flowId: 2a99ebef-…` with a `flowUpdateDate`. A flow designed in EFM runs in a Python process, every 2 seconds, with no firmware involved.
 
+That host run was the proof, not the product. Once the board was up, the `EspiFi` class, its manifest pin, and `espifi-78553609edda` were deleted from EFM (`DELETE /efm/api/agents/{id}`, `DELETE /efm/api/agent-class-manifest-config/{class}`, `DELETE /efm/api/agent-classes/{class}`, three 200s; the class's Designer flow went with it). The Genesis under class `AXIOMETA` is the reference agent.
+
 ## Done, on the Genesis Mini under MicroPython (2026-09-10)
 
 The same file, copied onto the board. Every command is Windows-side because only Windows sees the board's USB port from StarlinkAI.
@@ -164,4 +166,3 @@ It has no Expression Language, controller services, provenance, back-pressure, o
 
 - AX22 module processors as Python functions, copied to the board with `mpremote fs cp`: `ReadAnalog` for the LDR, `GetTempHumidity` for the DHT11, `SetNeoPixel` for the 5×5 matrix, in the order [efm-axiometa-capabilities.md](efm-axiometa-capabilities.md) sets out.
 - The factory Studio image is one command away: `esptool.exe --chip esp32s3 --port COM12 write_flash 0 C:\temp\axiometa-factory\genesis-factory-4MB.bin` (the port name follows whichever USB stack is running; the ROM bootloader shows as COM11).
-- Decide whether the host-proof class `EspiFi` / `espifi-78553609edda` stays in EFM or gets deleted (`DELETE /efm/api/agents/espifi-78553609edda`, then the class). The host process is stopped; EFM will show it `MISSING`.
