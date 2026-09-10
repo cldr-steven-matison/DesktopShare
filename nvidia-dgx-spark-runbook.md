@@ -1,123 +1,180 @@
 # NVIDIA DGX Spark — Day-1 Setup Runbook
 
-> **Status (2026-09-09).** Work-stream **B** of the DGX Spark EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233)) — the arrival-day checklist from unbox to a hardened, LAN-reachable OpenAI-compatible endpoint. The box is up as `spark-dd06`; its as-built facts (121 GB usable, 3.7 TB NVMe, driver 580.173.02, CUDA 13.0, Docker 29.2.1, LAN `192.168.1.203`) are in `CLAUDE-CHECKIN.md` and supersede the §0/§1 expectations below. The root bootstrap — OS updates, docker group, NVIDIA runtime, Java 21, Tailscale, ufw, k3s `v1.32.13+k3s1` — ran as one idempotent script, `files/issue-226/spark-bootstrap.sh` (`kubectl`/`helm` user-local). Model lock: lead **`nvidia/Qwen3.6-35B-A3B-NVFP4`** on NVIDIA's DGX Spark vLLM playbook recipe (`files/issue-226/vllm-serve.sh`), serving on **`:8000`** — the endpoint everywhere (this draft's `:8888` is superseded); §2's SGLang recipe is retired and §3 is the stretch tier. The full narrative expansion of §1/§4/§5 is still owed. Command blocks below are the *expected* shape from the sourced recipes; verify each against the box and fill confirmed values on first run.
+> **Status (2026-09-10).** Work-stream **B** of the DGX Spark EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233)). This is the as-built record of bringing `spark-dd06` from the box to a hardened, LAN-reachable serving host with its own Kubernetes platform, written from what ran on the box (2026-08-26 → 09-10), not from the pre-arrival draft. Every root step is one idempotent script, `files/issue-226/spark-bootstrap.sh`; every serving container is one committed script under `files/issue-226/`; reboot survival is `files/issue-322/`. Still owed: the static IP reservation on the router, and a re-run of bootstrap step 6 to replace the first run's ufw NodePort rules (see §7). The guide chapters this feeds are Ch2 and Ch3 in `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
 
-## 0. Before it arrives (do on the Mac now)
+The box arrived 2026-08-26 and was serving a 35 B model to the LAN the same evening. This runbook is the order things happened in, with the values that came out, so the next DGX Spark (or a rebuild of this one) is a copy-paste job rather than a research project. Sizing and model choice are in `nvidia-dgx-spark-landscape.md`; the platform detail in `nvidia-dgx-spark-k3s-cso.md`; this file is the day itself.
 
-- [ ] Lock the demo-driver models with Steven (landscape §6): lead ~27 B NVFP4, stretch ~100 B.
-- [ ] Reserve a static LAN IP / hostname for the box; decide its device label (`device:<box>`) and add its block to `CLAUDE-CHECKIN.md` on arrival.
-- [ ] Pre-stage the recipe repos to clone on day 1 (landscape Resources).
-- [ ] Confirm a Hugging Face token is available for weight pulls (~107 GB for the stretch model).
+## 0. Decided before arrival (2026-08-24)
 
-## 1. Boot & baseline
+Nothing on this list needed the hardware, and having it settled meant arrival day was execution.
 
-- [ ] First boot, complete DGX OS setup. Confirm the OS/kernel: `uname -a` (aarch64 expected).
-- [ ] Confirm the GPU + driver + CUDA stack: `nvidia-smi` and `nvcc --version`. Record the CUDA-X / driver versions in the checkin block.
-- [ ] Confirm unified memory: `free -g` should show ~128 GB. Note actual free headroom.
-- [ ] Confirm NVMe free space: `df -h` — need ≥ ~110 GB free for the stretch model weights, more for the stunt tier.
-- [ ] Docker + NVIDIA container runtime working: `docker run --rm --gpus all <cuda-base> nvidia-smi`.
+- Device name `NvidiaSpark-1`, GitHub label `device:NvidiaSpark-1`, a placeholder block in `CLAUDE-CHECKIN.md` and a row in `CONTEXT.md`. Filled in on 08-26 and 09-02.
+- Model lock, lead tier: `nvidia/Qwen3.6-35B-A3B-NVFP4` on NVIDIA's own DGX Spark vLLM playbook recipe (`nvidia-dgx-spark-plan.md` §6, 08-27). Stretch tier `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4`, embed `BAAI/bge-m3`, rerank `BAAI/bge-reranker-v2-m3`, STT whisper.cpp `large-v3` (locked 08-28).
+- The serving port is **`:8000`** everywhere. The community recipes I drafted from default to `:8888` (MiaAI-Lab); every flow, firewall rule and doc in this repo uses `:8000`.
+- The Kubernetes substrate is k3s on the host, not minikube and not k3d (`nvidia-dgx-spark-plan.md` §6, 08-27).
+- No Hugging Face token needed. Every locked model is a public repo.
 
-> **RHEL option:** if running RHEL 10 instead of DGX OS (per the [Red Hat DGX Spark guidance](https://www.redhat.com/en/blog/supercharging-local-ai-development-rhel-nvidia-dgx-spark)), confirm the NVIDIA driver + container toolkit are installed before proceeding; the serving steps below are OS-agnostic once Docker+GPU works.
+## 1. Boot and baseline
 
-**As built, 2026-08-27 (`spark-dd06`).** Every root step of §1, §4 and §5 ran once from `files/issue-226/spark-bootstrap.sh` (`sudo bash …`, idempotent) — the user-level pieces from the Claude session. Results:
+First boot completed DGX OS setup; the box is Ubuntu 24.04.4 LTS (Noble) on the DGX OS base, aarch64. What `spark-bootstrap.sh` steps 1–3 recorded (08-27) and `CLAUDE-CHECKIN.md` carries:
 
-- Baseline unchanged from the roster: `uname -a` aarch64, kernel `6.17.0-1031-nvidia`; `nvidia-smi` driver `580.173.02` / CUDA `13.0`; `free -g` 121 GB total, ~111 GB free before serving; `df -h` 3.5 TB free. 17 DGX OS package updates applied, no reboot required.
-- GPU in a container: `docker run --rm --gpus all nvcr.io/nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi` shows the GB10 — after `nvidia-ctk runtime configure --runtime=docker` + `systemctl restart docker` (the toolkit ships preinstalled but unregistered; Docker's default runtime stays `runc`). `tunas` added to the `docker` group (`sg docker -c` until re-login).
-- Tools: `kubectl v1.32.13`, `helm v3.21.4` (user-local, `~/.local/bin`); k3s `v1.32.13+k3s1`; OpenJDK `21.0.12`; Tailscale joined as `100.104.155.57` / `nvidiaspark-1` on the array's `steven.matison@gmail.com` tailnet (a first join landed on `tunastreet@outlook.com` by picking the wrong account at the browser step — `tailscale logout` + `tailscale up` again fixed it); WindowsDesktop and StarlinkAI online as peers, EFM UP over the tailnet.
-- §4 hardening: ufw enabled, default deny incoming (the box has a public IPv6 address); allowed: 22, 8000 and the four k3s NodePorts from `192.168.1.0/24`, everything on `tailscale0`, k3s pod/service CIDRs `10.42.0.0/16`, `10.43.0.0/16`. `earlyoom` was not installed. The serving container publishes `:8000` on `127.0.0.1` and `192.168.1.203` only (Docker-published ports bypass ufw), so it is never on `0.0.0.0`.
-- Network: the box is on Wi-Fi (`wlP9s9`, `f8:3d:c6:f1:12:5a`, DHCP `192.168.1.203`); the 10 GbE port `enP7s7` (`4c:bb:47:2d:dd:06`) is unplugged. Static reservation on the router still to do.
+| | As built |
+|---|---|
+| CPU | NVIDIA GB10 Grace Blackwell, 20 cores (10× Cortex-X925 + 10× Cortex-A725), 1 thread/core |
+| GPU | GB10 (Blackwell), driver `580.173.02`, CUDA `13.0` (`nvcc` V13.0.88). `nvidia-smi` shows memory as "Not Supported" because the GPU shares the unified pool |
+| Memory | 128 GB LPDDR5x unified; `free -g` reports **121 GB total**, ~116 GB available idle, 16 GB swap |
+| Storage | 4 TB NVMe, `/dev/nvme0n1p2`, 3.7 TB usable, 3.5 TB free at check-in |
+| Kernel | `6.17.0-1031-nvidia` |
+| Docker | 29.2.1, `nvidia-container-toolkit` 1.20.0 |
+| Tools | Git 2.43.0 · Python 3.12.3 · jq 1.7 · OpenJDK 21.0.12 · `gh` 2.98.0 · `kubectl` v1.32.13 · `helm` v3.21.4 (the last three user-local in `~/.local/bin`) |
 
-## 2. Stand up the first endpoint (interactive tier — SGLang)
-
-Fastest path to a usable endpoint (landscape §3). Using the sourced Qwen3-27B SGLang recipe shape:
-
-```bash
-git clone https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark
-cd Qwen3.8-27B-SGLang-DGX-Spark
-cp .env.sample .env          # set HF token, model path, context here
-./start.sh                    # EAGLE/MTP speculative decode; OpenAI API on :8888
-# ./start-dspark.sh           # coding-optimized variant
-```
-
-- [ ] Endpoint answers: `curl http://127.0.0.1:8888/v1/models`.
-- [ ] First inference: `curl http://127.0.0.1:8888/v1/chat/completions -d '{"model":"...","messages":[{"role":"user","content":"hi"}]}'`.
-- [ ] Record actual tok/s and first-token latency (compare against landscape: ~51 tok/s single-stream expected).
-
-**As built, 2026-08-27 — the lead endpoint is vLLM, not SGLang.** `files/issue-226/vllm-serve.sh` runs NVIDIA's DGX Spark vLLM playbook recipe for `nvidia/Qwen3.6-35B-A3B-NVFP4` (weights pre-pulled to `~/hf-hub`, 22 GB, public repo, no token) on `vllm/vllm-openai@sha256:61fc8a896b0a4fbbbdc063bc4b0dbc25ce98e02b5050c24aeb7830ac02039b14` (vLLM 0.28.0), published on `127.0.0.1:8000` and `192.168.1.203:8000`. One recipe value had to change: the playbook's `--gpu-memory-utilization 0.4` crash-looped six times with `Available KV cache memory: -1.75 GiB` → `No available memory for the cache blocks`, because this vLLM enables CUDA-graph memory profiling by default (the log says so in as many words); **0.6** gives `Available KV cache memory: 23.22 GiB`, a 1,960,381-token KV cache and 7.48× concurrency at the 262,144 max context. Everything else is the recipe verbatim (fp8 KV, FlashInfer, Marlin MoE, MTP speculative decode ×3, `fastsafetensors`, qwen3 reasoning + `qwen3_xml` tool parsers).
-
-- `curl http://127.0.0.1:8000/v1/models` → `nvidia/Qwen3.6-35B-A3B-NVFP4`; same on `http://192.168.1.203:8000`.
-- First inference: the playbook's `12*17` test → `12 × 17 = **204**` (15 prompt / 367 completion tokens, 352 of them reasoning).
-- Measured (streaming, thinking off, 600-token answers, three prompts): **first token 0.09–0.11 s, decode 80–87 tok/s single-stream** — above the ~51 tok/s the landscape expected from the community SGLang recipe. Resident footprint: `free -g` 64 GB used / 57 GB available with the model loaded and idle; GPU 52 °C, 34 W during generation.
-- Start-up from cached weights to `Application startup complete`: ~4 min (weights 18 s; the rest is graph capture and MTP draft setup).
-
-### 2.5 The embed / rerank / STT tier (as built, 2026-08-28 — co-hosted with the lead)
-
-The RAG + captioning parity set, standing up alongside the live lead (`§5.5` budget in `nvidia-dgx-spark-landscape.md` — the four co-host inside ~93 GB used / ~28 GB free). Each is one idempotent serve script under `files/issue-226/`, same hardening as `vllm-serve.sh` (digest-pin, `127.0.0.1` + LAN bind, `--restart unless-stopped`).
-
-- **Embeddings — `BAAI/bge-m3` on `:8001`** (`tei-embed-serve.sh`, container `tei-embed-bge`). TEI `ghcr.io/huggingface/text-embeddings-inference:121-latest` (sm_121 prebuilt — the same image `tei-kb` proved native on the box). `curl :8001/embed` → **1024-d** vector; ~7 GB delta co-hosted. Separate from the KB's nomic-768-d `tei-kb` (`:8080`).
-- **Rerank — `BAAI/bge-reranker-v2-m3` on `:8002`** (`tei-rerank-serve.sh`, container `tei-rerank-bge`). Same TEI image, `/rerank` route. Smoke: the DGX-Spark doc scored **0.9997** vs **0.00002** for an unrelated doc; ~5 GB delta. Lead `:8000` confirmed healthy alongside both.
-- **STT — whisper.cpp `large-v3` (CUDA) on `:8003`** (`whisper-serve.sh` + `files/issue-226/whisper/`, container `whisper-cpp`). Not turnkey: a source build with `CMAKE_CUDA_ARCHITECTURES="120;121"` on `nvidia/cuda:13.0.1-devel-ubuntu24.04` (faster-whisper/CTranslate2 has no sm_121 build). Exposes `/inference` and OpenAI `/v1/audio/transcriptions` (prod-Whisper-`:8001` parity). GPU confirmed (`NVIDIA GB10, compute capability 12.1, use gpu = 1`); box-measured **RTF ~0.04 (≈20–25× realtime)** — 11 s of audio in 0.43–0.57 s. Runtime image needs `curl`/`wget` for the first-boot model download (added to the Dockerfile); here the model was pre-staged on the host at `~/whisper-models/ggml-large-v3.bin`.
-
-## 3. Stand up the capacity endpoint (stretch — NVIDIA vLLM)
-
-**Locked stretch model (2026-08-28): `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4`** via `files/issue-226/vllm-stretch-serve.sh {up|down|status}` — a **swap-in on `:8000`**, not a co-resident (landscape §5.5: it holds most of the pool). **The swap is reversible by construction:** `up` runs `docker stop` (never `rm`) on the whole co-hosted serving set — lead `vllm-qwen36`, `tei-embed-bge`, `tei-rerank-bge`, `whisper-cpp` — leaving their containers and weights on disk, then serves Nemotron in its own container `vllm-nemotron120`. `down` removes only the Nemotron container and `docker start`s the four back, waiting on the lead's `/health`. So the old models always come back with one command. NVIDIA's flagship NVFP4 MoE, ~12 B active, `vllm/vllm-openai:cu130-nightly` (pinned releases hit MoE/NVFP4 kernel errors — research §2), `--max-model-len 131072 --max-num-seqs 4`, `--gpu-memory-utilization` tuned to the freed pool. **As built, 2026-08-28 (`spark-dd06`):** weights pre-staged to `~/hf-hub` (75 GB on disk, via a `--dns 8.8.8.8` `snapshot_download` — the box's WiFi resolver drops `huggingface.co` intermittently, so a plain container pull fails `Temporary failure in name resolution`; public DNS + a retry loop fixes it). Swapped in at `--gpu-memory-utilization 0.72` → **14.79 GiB KV cache (2.35 M tokens, 17.9× concurrency)**, ~7 min load from cache. Measured: **15.5 tok/s single-stream, 41.5 tok/s at 4-way concurrency, TTFT ~0.42 s** — below the [vLLM DGX Spark benchmark](https://vllm.ai/blog/2026-06-01-vllm-dgx-spark)'s clean-box 22.7–23.7 tok/s because this ran on the shared box (k3s + KB resident) on vLLM 0.28 with no spec-decode; `cu130-nightly` + MTP is the path to close it. `down` restored the lead + three sidecars cleanly. **Sustained-load thermals (4-min, 16-client saturation, 96% GPU util, SM 2522 MHz):** idle 51 °C / 13 W → steady ~65 °C / 41 W → peak **69 °C / 43 W** (GPU rail) on the internal sensor; an IR scan of the chassis read **~114–115 °F (~46 °C)** case surface at peak — no throttling, the box runs the 120 B flat-out inside its envelope. `DeepSeek-V4-Flash` (below) stays the documented alternative / dual-Spark 1M-context path.
-
-Alternative — the DeepSeek-V4-Flash single-Spark recipe shape:
+Step 1 applied 17 DGX OS package updates with no reboot required. Step 2 added `tunas` to the `docker` group (the session used `sg docker -c` until re-login). Step 3 registered the NVIDIA runtime with Docker and ran the GPU inside a container.
 
 ```bash
-git clone https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-One-DGX-Spark
-cd DeepSeek-v4-Flash-One-DGX-Spark
-# reads config; ~107 GB weights download into ./hf-hub on first boot
-docker compose up            # NVIDIA vLLM + sparkinfer; OpenAI API on :8888
+sudo nvidia-ctk runtime configure --runtime=docker   # ships preinstalled but unregistered
+sudo systemctl restart docker                        # only on the first run; see the script for why not after
+docker run --rm --gpus all nvcr.io/nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-smi
 ```
 
-- [ ] Expect a **long first boot**: image pull + ~107 GB weight download + TP4→TP1 coalesce + draft-model build + CUDA-graph capture. Do not kill it.
-- [ ] Confirm it serves at 384K ctx (~44–47 tok/s decode expected).
+Docker's default runtime stays `runc`; the serving containers pass `--gpus all` explicitly, and k3s uses its own containerd, not Docker.
 
-## 4. Security hardening (do NOT skip — from the recipe gotchas)
+> **RHEL option.** Red Hat documents RHEL 10 on DGX Spark. Everything from §3 down is OS-agnostic once Docker plus the NVIDIA runtime work; I did not take that path.
 
-The community recipes optimize for speed, not safety. Every one of these bit us in the source docs:
+## 2. Network
 
-- [ ] **Bind to localhost / trusted LAN only.** Recipes bind `0.0.0.0` on `:8888` with **no authentication**. Restrict to `127.0.0.1`, or front with a reverse proxy + auth, or firewall `:8888` to the trusted LAN before exposing to other devices.
-- [ ] **Disable EarlyOOM.** The server intentionally holds ~94% of unified memory; an OOM-killer will reap it mid-serve.
-- [ ] **Leave load-bearing tunables alone.** `MAX_NUM_BATCHED_TOKENS` (default 8224 in the DeepSeek recipe) gates prefill budget and the locked MLA workspace — lowering it causes mid-serve assertion failures. Tune `MAX_NUM_SEQS` for concurrency vs. depth instead.
-- [ ] **Ensure ≥114 GiB free host memory at launch** for the capacity model; keep the stunt tier off the box unless deliberately demoing it.
+The box sits on the array's LAN at `192.168.1.203` and on the Tailscale tailnet at `100.104.155.57` (`nvidiaspark-1.tail1f447b.ts.net`). Two facts about that link shape everything else on the box.
 
-## 5. Expose on the LAN for NiFi / edge flows
+**The LAN link is Wi-Fi.** `192.168.1.203` is `wlP9s9` (`f8:3d:c6:f1:12:5a`). Both wired NICs, the 10 GbE `enP7s7` (`4c:bb:47:2d:dd:06`) and the USB NIC, report `carrier=0`. k3s advertises its API on that Wi-Fi address, so a Wi-Fi drop makes `10.43.0.1:443` unreachable from every pod. During the 24-hour drop of 08-29 → 08-30 that is exactly what happened. `cainjector`, `flink-operator` and `ingress-nginx` cycled until the link returned and then recovered on their own. `mynifi` and Kafka do not need the API server and rode it out. Their restart counters are the trace of that outage, not a probe or memory problem. The durable fix is to plug in the 10 GbE port and move the reservation to it.
 
-The point of the box is that flows on other devices hit it as an inference target (work-stream C).
+**The static IP reservation is still owed.** It lives on the router at `192.168.1.254`, not on the box; bootstrap step 9 prints both MACs for it. Until it is done, DHCP has kept `.203` stable but nothing guarantees it.
 
-- [x] Published on the LAN address + loopback (2026-08-27/28; ufw LAN rule, Docker bind to the LAN address only). The serving surface on `192.168.1.203`: **`:8000`** vLLM chat (`/v1`), **`:8001`** bge-m3 embeddings (`/embed`), **`:8002`** bge-reranker rerank (`/rerank`), **`:8003`** whisper.cpp STT (`/inference`, `/v1/audio/transcriptions`). (This supersedes the draft's single `:8888`.)
-- [ ] From another device, confirm reachability: `curl http://<spark-lan-ip>:8000/v1/models`.
-- [ ] Record the endpoint URL in `CLAUDE-CHECKIN.md` so NiFi `InvokeHTTP` / RAG flows can target it.
-- [ ] For the Cloudera-alignment path, note whether to also stand up the model as a **NIM microservice** (matches Cloudera AI Inference API) vs. the SGLang/vLLM OpenAI endpoint — decided in work-stream C.
+Tailscale joined via bootstrap step 5 (`tailscale up --hostname nvidiaspark-1 --accept-routes`, the auth URL printed to `/var/log/tailscale-up.log`). The first join landed on the wrong account by picking `tunastreet@outlook.com` at the browser step; `tailscale logout` and a second `tailscale up` put it on the array's `steven.matison@gmail.com` tailnet. Peers: WindowsDesktop `100.68.113.126`, StarlinkAI `100.110.253.66`. The `:8000` endpoint is bound to loopback and the LAN address only, not the tailnet address; a tailnet-only flow would need that bind added on purpose (§6).
+
+## 3. Containers and the first endpoint
+
+The lead endpoint is vLLM on `:8000`, from `files/issue-226/vllm-serve.sh`, which follows the NVIDIA DGX Spark vLLM playbook for `nvidia/Qwen3.6-35B-A3B-NVFP4` with three departures the script's header records. Weights live in `~/hf-hub` on the NVMe (23.4 GB, pulled once). Image `vllm/vllm-openai@sha256:61fc8a896b0a4fbbbdc063bc4b0dbc25ce98e02b5050c24aeb7830ac02039b14` (vLLM 0.28.0), pinned by digest at first run.
+
+```bash
+sg docker -c files/issue-226/vllm-serve.sh     # or plain ./vllm-serve.sh after re-login
+curl -s http://127.0.0.1:8000/v1/models | jq -r '.data[].id'
+```
+
+One recipe value had to change. The playbook's `--gpu-memory-utilization 0.4` crash-looped six times with `Available KV cache memory: -1.75 GiB` then `No available memory for the cache blocks`; this vLLM enables CUDA-graph memory profiling by default and the playbook's number predates it. At **0.6** the log reads `Available KV cache memory: 23.22 GiB`, a 1,960,381-token KV cache and 7.48× concurrency at the 262,144 max context. Everything else is the recipe verbatim (fp8 KV, FlashInfer, Marlin MoE, MTP speculative decode ×3, `fastsafetensors`, the qwen3 reasoning and `qwen3_xml` tool parsers).
+
+Measured on 08-27, streaming, thinking off, 600-token answers over three prompts: **first token 0.09–0.11 s, decode 80–87 tok/s single-stream**. The landscape expected ~51 tok/s from the community SGLang recipe. Resident footprint with the model loaded and idle is `free -g` 64 GB used / 57 GB available, GPU 52 °C and 34 W under generation. Start-up from cached weights to `Application startup complete` is about 4 minutes (18 s for weights, the rest graph capture and MTP draft setup).
+
+The playbook's own smoke test, `12*17`, returns `12 × 17 = **204**` (15 prompt / 367 completion tokens, 352 of them reasoning).
+
+### 3.1 The embed / rerank / STT tier (08-28, co-hosted with the lead)
+
+The RAG and captioning parity set, each one committed script under `files/issue-226/` with the same discipline as `vllm-serve.sh`: image pinned by digest, published on `127.0.0.1` and the LAN address only, `--restart unless-stopped`, a health wait, a smoke test. All four co-host inside ~93 GB used / ~28 GB free (`nvidia-dgx-spark-landscape.md` §5.5).
+
+- **Embeddings, `BAAI/bge-m3` on `:8001`** (`tei-embed-serve.sh`, container `tei-embed-bge`). Text Embeddings Inference `ghcr.io/huggingface/text-embeddings-inference:121-latest`, the sm_121 prebuilt image that `tei-kb` had already shown runs native on GB10. `/embed` returns a **1024-d** vector; ~7 GB delta co-hosted.
+- **Rerank, `BAAI/bge-reranker-v2-m3` on `:8002`** (`tei-rerank-serve.sh`, container `tei-rerank-bge`). Same image, `/rerank` route. Smoke: the DGX Spark sentence scores 0.9997 against 0.00002 for an unrelated one; ~5 GB delta.
+- **STT, whisper.cpp `large-v3` CUDA on `:8003`** (`whisper-serve.sh` + `files/issue-226/whisper/`, container `whisper-cpp`). Not turnkey. faster-whisper/CTranslate2 has no sm_121 build, so this is a source build with `CMAKE_CUDA_ARCHITECTURES="120;121"` on `nvidia/cuda:13.0.1-devel-ubuntu24.04`. Serves `/inference` and OpenAI `/v1/audio/transcriptions`. Box-measured RTF ~0.04 (≈20–25× realtime): 11 s of audio in 0.43–0.57 s. The ggml model is pre-staged at `~/whisper-models/ggml-large-v3.bin`.
+
+The local knowledge base's two containers, `qdrant-kb` (`:6333` REST, `:6334` gRPC) and `tei-kb` (`nomic-ai/nomic-embed-text-v1`, 768-d, `:8080`), are the same shape since 2026-09-10: `qdrant-serve.sh` and `tei-kb-serve.sh` in the same directory, written from `docker inspect` of the live containers. Both are published on all interfaces, as they were stood up; the bind is a separate decision because the ingest and MCP clients would need re-pointing.
+
+### 3.2 The stretch tier (08-28)
+
+`nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4` via `files/issue-226/vllm-stretch-serve.sh {up|down|status}`, a **swap-in on `:8000`**, not a co-resident. `up` runs `docker stop` (never `rm`) on the four co-hosted containers and serves Nemotron in its own container `vllm-nemotron120` on `vllm/vllm-openai:cu130-nightly` (the pinned releases hit MoE/NVFP4 kernel errors, research §2). `down` removes only the Nemotron container and starts the four back, waiting on the lead's `/health`. Weights (75 GB) pre-staged to `~/hf-hub` through a `--dns 8.8.8.8` `snapshot_download`, because the box's Wi-Fi resolver drops `huggingface.co` intermittently and a plain pull fails with `Temporary failure in name resolution`.
+
+Measured at `--gpu-memory-utilization 0.72`: 14.79 GiB KV cache (2.35 M tokens, 17.9× concurrency), ~7 min load from cache, **15.5 tok/s single-stream, 41.5 tok/s at 4-way concurrency, TTFT ~0.42 s**. Below the vLLM DGX Spark benchmark's clean-box 22.7–23.7 tok/s because this ran on the shared box (k3s and the KB resident) with no spec-decode; `cu130-nightly` plus MTP is the path to close it. Sustained load (4 min, 16 clients, 96 % GPU, SM 2522 MHz): idle 51 °C / 13 W, steady ~65 °C / 41 W, peak 69 °C / 43 W on the GPU rail, ~46 °C case surface by IR. No throttling.
+
+The DeepSeek-V4-Flash single-Spark recipe (MiaAI-Lab, `docker compose up`, ~107 GB weights on first boot, 384K context) stays the documented alternative and the dual-Spark 1M-context path. Not run here.
+
+## 4. k3s and the streaming platform
+
+Bootstrap step 8 installs k3s on the host, pinned to `v1.32.13+k3s1` because the CSA/CSM operator support window tops out at Kubernetes 1.32.
+
+```bash
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.32.13+k3s1 sh -s - --write-kubeconfig-mode 644 --disable traefik
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml     # every kubectl on the box needs this
+```
+
+k3s runs its own containerd (2.1.5) and writes the `nvidia` RuntimeClass into its config when it finds `nvidia-container-runtime` on the host, which it did. Traefik is disabled because ingress-nginx serves the NiFi UI (below). The NVIDIA device plugin (0.20.0) gives the node `nvidia.com/gpu: 1`. Detail and the version ceiling: `nvidia-dgx-spark-k3s-cso.md` §3.
+
+The operators go on from `files/issue-226/spark-operators.sh` in the canonical order. cert-manager 1.16.3 → ingress-nginx 4.13.5 (host-network, `--enable-ssl-passthrough`, owning the box's `:80` and `:443`) → Strimzi 1.6.0-b99 (memory raised to 1 Gi; the 384 Mi default OOMKills here) → CSA operator 1.5.0-b275 (`ssb.enabled=false`) → CFM operator 3.0.0-b126. Namespaces `cld-streaming` and `cfm-streaming`. §4 of the k3s-cso doc has every value.
+
+On top of them, all built on 08-27.
+
+- **Kafka `my-cluster`** in `cld-streaming` (`files/issue-226/kafka-spark.yaml`): 3 combined KRaft nodes, `local-path` 20 Gi each, and the box's **own NodePort block**, bootstrap `192.168.1.203:32100`, brokers `32101–32103`. Deliberately not prod's `31623/31850/31935/30336`, because a client on WindowsDesktop talks to both clusters. Topics `spark-inference-requests`, `spark-inference-results`, `spark-kb-documents`. §7.
+- **NiFi `mynifi`** in `cfm-streaming` (`files/issue-226/nifi-spark.yaml`): NiFi 2.6.0 / CFM 3.0.0-b126, `local-path` repos, 8 Gi, `userCertAuth` plus S2S, admin identity `nifi-admin` by client cert. §6.
+- **The NiFi UI from a browser** with no tunnel: `https://mynifi-web.mynifi.cfm-streaming.svc.cluster.local/nifi/`, routed by SNI on that exact name through the passthrough Ingress, so the client cert travels end to end. Two one-time client steps come from `files/issue-226/nifi-admin-p12.sh`, a hosts entry for that name → `192.168.1.203` and an import of `ca.crt` plus `nifi-admin.p12`. Any other hostname gets `400 Invalid SNI`. The admin cert is 90-day; cert-manager renews it 2026-10-26 and the script re-runs after each renewal.
+- **Flink on GPU and flink-agents**, both run then torn down (§8). `flink-gpu` holds the box's only `nvidia.com/gpu`, so it does not stay up.
+
+## 5. Roster, labels and tooling
+
+- `CLAUDE-CHECKIN.md` §NvidiaSpark-1 is the device block, filled from the host 08-26 and 09-02. `CONTEXT.md` names the box; `agent/device-comms.md` lists the label.
+- `gh` is authenticated as `TunaStreetTest` (2.98.0, `~/.local/bin`); `lib-device.sh` prepends `~/.local/bin` to the hooks' PATH so the guard's `gh` calls resolve.
+- The DesktopShare clone is `/home/tunas/BrainShare`, renamed from `DesktopShare` on 09-02 (#288). Claude Code keys its memory silo off that path, so the live silo is `~/.claude/projects/-home-tunas-BrainShare/memory`. Every other repo is under `/home/tunas/<repo>` unrenamed.
+- The GitHub issue inbox for this device is `gh issue list --state open --label device:NvidiaSpark-1`; the SessionStart hook prints it after `git pull`.
+
+## 6. The exposed surface
+
+k3s binds host ports, so there is no tunnel layer on this box and no session starts a `kubectl port-forward`. What listens, and to whom.
+
+| Port | What | Bound to |
+|---|---|---|
+| `:8000` | vLLM lead (`/v1`) | `127.0.0.1` + `192.168.1.203` |
+| `:8001` `:8002` `:8003` | bge-m3 embed · bge-reranker · whisper.cpp | `127.0.0.1` + `192.168.1.203` |
+| `:6333` `:6334` | qdrant-kb REST · gRPC | all interfaces |
+| `:8080` | tei-kb (KB embedder) | all interfaces |
+| `:80` `:443` | ingress-nginx (NiFi UI via SNI passthrough) | host network |
+| `:6443` | k3s API | host |
+| `32100–32103` | Kafka external listener (NodePorts) | host |
+| `:8190` `:9936` | EFM agent router (four inference doors) · Prometheus metrics | host (`nvidia-dgx-spark-efm-agent.md`) |
+| `:32111` `:32110` | StreamerBrain `/caption` door · clip-prep (NodePorts) | host |
+
+From another device: `curl http://192.168.1.203:8000/v1/models`. Off-LAN stays Tailscale's job and is deliberately unconfigured; `tailscale serve` earns `400 Invalid SNI` without a `nifi.web.proxy.host` edit and a `mynifi` restart (#257 option C, not done).
+
+## 7. Hardening
+
+Bootstrap steps 6 and 7, as built. The box has a globally routable IPv6 address, so without a firewall every listener is Internet-reachable.
+
+- **ufw**, default deny incoming, allow outgoing. Allowed: `22` and `8000` from `192.168.1.0/24`; everything on `tailscale0`; `80`, `443` and the Kafka NodePorts from the LAN; the k3s pod and service CIDRs `10.42.0.0/16`, `10.43.0.0/16`.
+- **Docker-published ports bypass ufw.** That is why every serving script binds `127.0.0.1` and the LAN address explicitly instead of `0.0.0.0`. The two KB containers predate the rule and still bind everywhere (§3.1).
+- **`earlyoom` is not installed** and must not be; the server holds most of unified memory on purpose.
+- **The ufw NodePort rules from the first run are wrong on the box.** That run wrote prod's `31623/31850/31935/30336`; the script now carries this box's `32100–32103` plus `80/443`, but the re-run that applies it has not happened. Until it does, Kafka's external listener is reachable only because the rule for prod's ports does not block it, not because it is allowed. `sudo bash files/issue-226/spark-bootstrap.sh` is the fix (idempotent; step 3 will not restart Docker when the runtime is already registered).
+- The NiFi admin identity is a client certificate, `nifi-admin.p12`, mode 600. Whoever holds the file is `nifi-admin`.
+
+## 8. Reboot survival
+
+The 2026-09-08 reboot showed which services come back on their own and which do not. k3s (`k3s.service`) and every workload on it recovered. The EFM agent recovered through a SysV init stub. Four of the six Docker containers stayed `Exited (128)`: the NVIDIA runtime was not ready when dockerd ran its restart pass, the `--gpus` containers failed their one attempt, and `docker start` of a pre-reboot container comes back with no bridge IP and no published ports. vLLM then crash-looped 21 times on a Hugging Face Hub lookup before DNS was up, with nothing to download. The WindowsDesktop caption pipeline was down for two days (#321). #322 is the fix; `files/issue-322/` holds it.
+
+| Service group | Boot mechanism |
+|---|---|
+| k3s and everything on it | `k3s.service`, systemd native, enabled |
+| EFM agent `minifi-java` | `minifi-java.service`, native unit (replaces the `/etc/init.d` stub whose S65/K65 links made `is-enabled` answer `disabled`); `Restart=on-failure` |
+| The six Docker containers | `nvidia-serve-boot.service`: waits for `nvidia-smi`, then destroys and recreates each container through its committed serve script in `files/issue-226/`, vLLM in the background while the fast ones come up. `TimeoutStartSec=5400`. Exit status is non-zero if any container is unhealthy |
+| Proof | `nvidia-post-boot-verify.service`: four minutes after the tier is up, checks all six ports, the k3s pods, `:8190` and `:32111/caption`, writes `/var/tmp/nvidia-spark-last-boot-report.txt` and posts it to #322 |
+
+The serve scripts carry what the boot path needs. `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` go on every HF-backed container, the `docker pull` tolerates having no network, and the digest falls back to the local image. One deploy command, idempotent.
+
+```bash
+sudo files/issue-322/install.sh               # install + enable the three units, move the agent to the native unit
+sudo files/issue-322/install.sh --cold-start  # also destroy all six containers and start the boot unit, no reboot
+journalctl -u nvidia-serve-boot.service        # the recreate log
+```
 
 ## Verification (definition of done)
 
-- `nvidia-smi`, `nvcc`, `free -g`, `df -h` baseline recorded in the box's `CLAUDE-CHECKIN.md` block.
-- At least the interactive endpoint answers `/v1/chat/completions` locally and from one other LAN device.
-- §4 hardening applied and confirmed (not bound to `0.0.0.0` unrestricted).
-- Actual throughput numbers recorded and compared against `nvidia-dgx-spark-landscape.md`.
+- Baseline recorded in `CLAUDE-CHECKIN.md` §NvidiaSpark-1. Done 08-26/09-02.
+- The lead endpoint answers `/v1/chat/completions` on the box and from another LAN device. Done 08-27; WindowsDesktop's flows target it daily.
+- Hardening applied; no serving port on `0.0.0.0` except the two KB containers noted. Done 08-27, with the ufw re-run owed.
+- Throughput measured against `nvidia-dgx-spark-landscape.md`. Done 08-27/28, §3.
+- k3s, the operators, Kafka and NiFi up on the box. Done 08-27.
+- A reboot brings everything back unattended. Mechanism in place 09-10; the proof is the next reboot's report on #322.
 
-## Reboot survival
+## Still owed
 
-- k3s (`k3s.service` enabled) and EFM `minifi-java` recover on their own from systemd on a cold boot — both were `active since boot` after the 09-08 reboot.
-- **Docker serving tier needs explicit boot-time recreate** (`files/issue-322/serve-boot.sh` + `nvidia-serve-boot.service`, [#322](https://github.com/cldr-steven-matison/DesktopShare/issues/322)). Deploy on the box:
-  ```bash
-  sudo cp /home/tunas/BrainShare/files/issue-322/nvidia-serve-boot.service /etc/systemd/system/
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now nvidia-serve-boot
-  ```
-  The script waits for `nvidia-smi` (GPU driver ready), then `docker rm -f` + recreate all 6 containers (vLLM, TEI embed, TEI rerank, whisper, qdrant, tei-kb). `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` baked in so vLLM never needs HF Hub egress at startup. Why `--restart unless-stopped` failed: GPU device wasn't ready when dockerd's restart pass ran, containers failed once and gave up. `docker start` does not reattach bridge IP or published ports — recreate is required.
-
-## When this ships
-
-- Add the box to `CLAUDE-CHECKIN.md` (device block, paths, the `:8888` endpoint, port-forward/firewall notes).
-- The confirmed endpoint URL unblocks work-stream **C** (Cloudera demos) and the deferred on-box `device:<box>` execution issue (D).
-- Fill the *expected* command blocks above with the *actual* commands/values used, so this becomes a true as-built runbook.
+- Static IP reservation for `192.168.1.203` on the router (§2).
+- Re-run `spark-bootstrap.sh` to apply the corrected ufw NodePort rules (§7).
+- Plug in the 10 GbE port and move the reservation to it (§2).
 
 ## Resources
 
-- [DeepSeek-V4-Flash single-Spark recipe](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-One-DGX-Spark) · [Qwen3-27B SGLang recipe](https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark)
-- [Red Hat — RHEL on DGX Spark](https://www.redhat.com/en/blog/supercharging-local-ai-development-rhel-nvidia-dgx-spark)
-- `nvidia-dgx-spark-landscape.md` (model sizing) · `nvidia-dgx-spark-cso-demos.md` (what the endpoint feeds)
+- `nvidia-dgx-spark-landscape.md` (sizing, model lock) · `nvidia-dgx-spark-k3s-cso.md` (platform detail) · `nvidia-dgx-spark-efm-agent.md` (the `:8190` router) · `nvidia-dgx-spark-local-kb.md` (qdrant-kb, tei-kb) · `nvidia-dgx-spark-cso-demos.md` (what the endpoint feeds)
+- `files/issue-226/spark-bootstrap.sh` · `spark-operators.sh` · `*-serve.sh` · `files/issue-322/`
+- [NVIDIA DGX Spark vLLM playbook](https://github.com/NVIDIA/dgx-spark-playbooks/blob/main/nvidia/vllm/README.md) · [DGX Spark User Guide](https://docs.nvidia.com/dgx/dgx-spark/) · [k3s requirements](https://docs.k3s.io/installation/requirements)
+- [Red Hat, RHEL on DGX Spark](https://www.redhat.com/en/blog/supercharging-local-ai-development-rhel-nvidia-dgx-spark) · [DeepSeek-V4-Flash single-Spark recipe](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-One-DGX-Spark) · [Qwen3-27B SGLang recipe](https://github.com/MiaAI-Lab/Qwen3.8-27B-SGLang-DGX-Spark)
