@@ -1,0 +1,21 @@
+Reboot survival built and committed; **one root command deploys it** — that step is yours, since sudo needs a password on this box and the session cannot supply it.
+
+```
+sudo files/issue-322/install.sh --cold-start && sudo files/issue-239/install-exporter.sh
+```
+
+The first installs the three units, moves the EFM agent from the SysV stub to its native unit (~30 s of agent downtime), then destroys all six containers and starts `nvidia-serve-boot.service` so the boot path is proven from nothing without a reboot (~5–10 min while vLLM reloads; watch `systemctl status nvidia-serve-boot` and `docker ps`). The second is #239's `:9835` exporter. Nothing reboots. Steven ruled the reboot out; the next real boot posts its own report here.
+
+**Commits:** [56c489b](https://github.com/cldr-steven-matison/DesktopShare/commit/56c489b) adopts the earlier session's draft as found · [ae3c92c](https://github.com/cldr-steven-matison/DesktopShare/commit/ae3c92c) the fixes · [7327283](https://github.com/cldr-steven-matison/DesktopShare/commit/7327283) runbook §8 · [49c884c](https://github.com/cldr-steven-matison/DesktopShare/commit/49c884c) CLAUDE-CHECKIN.md.
+
+**What the inherited draft would have done on a real reboot, and what changed** ([`files/issue-322/`](https://github.com/cldr-steven-matison/DesktopShare/tree/main/files/issue-322)):
+- The unit had no `TimeoutStartSec`; systemd's 90 s default would have killed the script on every cold boot (120 s GPU wait alone). Now `TimeoutStartSec=5400`, ordered after `nv-docker-gpus.service` (the unit it named before does not exist on this box).
+- [`serve-boot.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-322/serve-boot.sh) re-implemented every `docker run` inline and had drifted: qdrant-kb lost its gRPC port `6334`, the TEI images lost their digest pins, the HF cache path used the real `HF_HOME` name. It is now a thin driver that destroys each container and re-runs its committed serve script in `files/issue-226/`, vLLM in the background; non-zero exit if any container is unhealthy.
+- The serve scripts carry the boot behaviour: `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` (the #321 root cause, now in [`vllm-serve.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-226/vllm-serve.sh) itself, not only in the boot script), a `docker pull` that tolerates no DNS, a digest fallback to the local image. [`qdrant-serve.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-226/qdrant-serve.sh) and [`tei-kb-serve.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-226/tei-kb-serve.sh) are new, written from `docker inspect` of the live containers (ports `6333`+`6334`, `8080`).
+- [`minifi-java.service`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-322/minifi-java.service): native unit, `Type=forking` + `ExitType=cgroup` (a bootstrap-driven JVM restart is not read as the service exiting), `Restart=on-failure`, after `network-online`. The SysV stub's S65/K65 links are what made `is-enabled` answer `disabled` while the agent ran.
+- [`post-boot-verify.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-322/post-boot-verify.sh) + its unit: 4 min after the tier is up, checks the six containers and ports (incl. `:6334`), the k3s pods, `:8190/embed`, `:32111/caption` (GET 405 = listener alive; the POST round-trip needs ffmpeg, absent here, so it says so), writes `/var/tmp/nvidia-spark-last-boot-report.txt` and posts the result on this issue. `files/issue-322/post-boot-verify.sh --no-post` runs it by hand.
+- [`install.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-322/install.sh) is the one root command. All scripts `bash -n` clean; all three units `systemd-analyze verify` clean.
+
+**Scope items:** (1) boot-time recreate + offline vars in `vllm-serve.sh` — done · (2) `minifi-java` enablement — native unit written, install pending · (3) k3s — `enabled`/`active`, nothing to do · (4) docs — runbook §8 and CLAUDE-CHECKIN.md carry the per-service mechanism.
+
+**Acceptance state:** the mechanism is complete; installed state and the cold-start proof land when the command above runs. The real cold-boot criterion stays outstanding until the next reboot, by design.
