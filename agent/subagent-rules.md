@@ -52,6 +52,9 @@ finding; deriving what the repo already holds is not.
   "while I was in there". Never commit or push unless the prompt says so. Never create files in the
   repo root — generated artifacts go under `files/issue-<n>/`; never write under `$HOME` outside a
   repo or the scratchpad; never write incident narratives into the repo.
+- **You are handed one surface; the parent owns the sweep.** When you edit an asset that has
+  counterparts elsewhere (a chapter, a source doc, code), name in your report every other surface
+  your change implicates — tracker, README, plan/source doc, mirror — so the parent can move them.
 - **Never write into the Claude memory dir (`~/.claude/projects/*/memory/`).** Guard rule M denies
   it. A fact worth keeping goes in your report; the parent files it.
 - **A fix is verified only through the real trigger path** (the command the user types, the endpoint

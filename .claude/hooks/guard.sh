@@ -278,6 +278,34 @@ ds_mem_state() {
 # handle them here and exit. Rule B's marker is only ever non-empty after auto-claim (rule
 # A) FAILED to flip an issue this session, so it cannot false-positive on an unrelated
 # session (checkin.sh clears stale markers at start).
+
+# Rule 11 core, factored so it fires for Edit/Write too — not only Bash. $1 is the text
+# a known-patterns row is matched against: $cmd for a Bash call, $fpath for an Edit/Write.
+# Same marker, same once-per-key-per-session dedupe, same single emit_ctx (which exits).
+# #325: rule 11 used to live inline in the Bash-only tail, so a Write-tool chapter rewrite
+# — the #295/#320 sweep-surfaces failure shape — tripped no injection at all.
+ds_emit_known_patterns() {
+  local match="$1"
+  [ -n "$match" ] || return 0
+  local kp="$proj/agent/known-patterns.tsv"
+  [ -f "$kp" ] || return 0
+  command -v ds_patterns_marker >/dev/null 2>&1 || return 0
+  local pm; pm="$(ds_patterns_marker)"
+  local hits="" key rx docs note
+  while IFS=$'\t' read -r key rx docs note; do
+    case "$key" in ''|'#'*) continue ;; esac
+    [ -n "$rx" ] || continue
+    grep -qxF "$key" "$pm" 2>/dev/null && continue
+    if printf '%s' "$match" | grep -Eiq -- "$rx"; then
+      mkdir -p "$(dirname "$pm")" 2>/dev/null || true
+      echo "$key" >> "$pm" 2>/dev/null || true
+      hits="$hits"$'\n'"[$key] $note"$'\n'"  read: $(printf '%s' "$docs" | sed 's/,/ · /g')"
+    fi
+  done < "$kp"
+  [ -n "$hits" ] || return 0
+  emit_ctx "Known pattern — the repo ALREADY holds this (agent/known-patterns.tsv; CLAUDE.md 'Finding the pattern you need'). Before you derive anything, open the file(s) below — a session on 2026-08-25 built site-to-site for hours without opening one of them (#247). Paths are relative to the DesktopShare root; skills/ paths are also installed under ~/.claude/skills/. This notice fires once per pattern per session.$hits"
+}
+
 case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
     fpath="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/null)"
@@ -325,6 +353,10 @@ case "$tool" in
       # without this the bridged ask arrived with zero context (#192 audit).
       emit_ctx "Auto-claim couldn't flip issue #$nums earlier (gh offline/perms) and you're now editing files toward the work. device-comms.md: claim BEFORE working. Do it yourself as soon as gh is reachable: gh issue edit <n> --remove-label status:todo --add-label status:in-progress — then clear this marker ($marker). Allowed rather than asked on purpose: gh being offline is not a decision for Steven, and blocking your edits on it would strand the work twice."
     fi
+    # 11 (Edit/Write side). The known-pattern injection, matched on the file path — this is
+    # where a chapter/source-doc rewrite trips the linked-surfaces sweep reminder (#325).
+    # Runs last (emit_ctx exits) so it never pre-empts the deny/ask rules above.
+    ds_emit_known_patterns "$fpath"
     exit 0
     ;;
   Skill)
@@ -841,23 +873,6 @@ fi
 # row can be added without touching this script. Marker: one key per line, cleared by
 # checkin.sh at session start. Placed last on purpose: emit_ctx exits, and a ctx must
 # never pre-empt a deny/ask from the rules above. Fails open.
-kp="$proj/agent/known-patterns.tsv"
-if [ -f "$kp" ] && command -v ds_patterns_marker >/dev/null 2>&1; then
-  pm="$(ds_patterns_marker)"
-  hits=""; docs_all=""
-  while IFS=$'\t' read -r key rx docs note; do
-    case "$key" in ''|'#'*) continue ;; esac
-    [ -n "$rx" ] || continue
-    grep -qxF "$key" "$pm" 2>/dev/null && continue
-    if printf '%s' "$cmd" | grep -Eiq -- "$rx"; then
-      mkdir -p "$(dirname "$pm")" 2>/dev/null || true
-      echo "$key" >> "$pm" 2>/dev/null || true
-      hits="$hits"$'\n'"[$key] $note"$'\n'"  read: $(printf '%s' "$docs" | sed 's/,/ · /g')"
-    fi
-  done < "$kp"
-  if [ -n "$hits" ]; then
-    emit_ctx "Known pattern — the repo ALREADY holds this (agent/known-patterns.tsv; CLAUDE.md 'Finding the pattern you need'). Before you derive anything, open the file(s) below — a session on 2026-08-25 built site-to-site for hours without opening one of them (#247). Paths are relative to the DesktopShare root; skills/ paths are also installed under ~/.claude/skills/. This notice fires once per pattern per session.$hits"
-  fi
-fi
+ds_emit_known_patterns "$cmd"
 
 exit 0

@@ -145,7 +145,7 @@ One commit per chapter in EdgeFlowManager. "After" is the lint row on the commit
 
 Band: em-dash ≤2/k, proof ≤3/k, colon ≤10/k, contrast ≤1/k, meta 0, provenance 0. Every row passes.
 
-**The pass missed the front door.** `EdgeFlowManager/README.md` is published prose in an outbound repo, so the band applies to it, and 21 chapters were rewritten without it ever being opened. It scored worse than any chapter had before its own pass (em-dash 58.8/k, proof 17.2/k, colon 63.1/k) and only surfaced when Steven asked whether the tracker and plan were updated. The ToC carried the same `- **Ch1** — [Title]` shape as the Related-Chapters lists. That is now a standing rule: `agent/workflow.md` §"Touch an asset, sweep all three surfaces" — plan doc, status tracker, README, every time.
+**The pass missed the front door.** `EdgeFlowManager/README.md` is published prose in an outbound repo, so the band applies to it, and 21 chapters were rewritten without it ever being opened. It scored worse than any chapter had before its own pass (em-dash 58.8/k, proof 17.2/k, colon 63.1/k) and only surfaced when Steven asked whether the tracker and plan were updated. The ToC carried the same `- **Ch1** — [Title]` shape as the Related-Chapters lists. That is now a standing rule: `agent/workflow.md` §"Touch an asset, sweep every linked surface" — plan doc, status tracker, README, every time.
 
 \* the lint matching the Windows "Session 0" / "Session 1" term as a "Session N" provenance marker. Kept on purpose in both chapters.
 

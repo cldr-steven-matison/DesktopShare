@@ -36,19 +36,24 @@ Every plan that touches infra or code closes with a "when this ships, update `<t
 
 The trigger is a plan landing or an explicit wrap-up. During rapid iterative sessions (test → tweak → test), doc and session-history updates are **opt-in** — don't append changelog entries mid-iteration unless asked.
 
-### Touch an asset, sweep all three surfaces
+### Touch an asset, sweep every linked surface
 
-**Whenever you change a published asset, you update its plan doc, its status tracker, and its README in the same pass — before you report the work done.** Three surfaces, every time, not the one you happened to be looking at. Steven should never be the one who notices a surface went stale.
+**Whenever you change an asset that has counterparts elsewhere, you move every linked surface in the same pass — before you report the work done.** Not just the surface you were looking at. A "linked surface" is any place the same work also has to show up: a plan doc, a status tracker, a public README, the published files themselves, a mirror in another repo. An asset and its linked surfaces are one unit of work, and Steven should never be the one who notices one went stale.
 
-| Surface | For guide work that is |
-|---|---|
-| The plan / subplan doc | `efm-guide-humanization-plan.md`, or whichever subplan the tracker's "Subplans" list names for that chapter |
-| The status tracker | `Complete Guide to Edge Flow Management.md` — the row, the work-stream row, the status paragraph, **and the Completion Summary counts** |
-| The README | **`EdgeFlowManager/README.md`** — the published index, and itself published prose subject to `writing-style.md` §"The blog-voice band" |
+The families we have, each with its own mechanics (pointed to, not restated here):
 
-The tracker is the live chapter↔issue correlation, so keep its **Issues** column linked to the driving issue(s) — see `device-comms.md` §"Working an issue" step 4. The same shape applies outside the guide: an app repo's README, a Playground scenario README, and the plan doc that drove the change are one unit of work with the code.
+| A change to… | Surfaces that move together | Canon for the mechanics |
+|---|---|---|
+| Guide work (EFM, Nvidia Spark) | the plan/subplan **or work-stream source doc** the tracker row cites · the status tracker (row + work-stream row + status paragraph + Completion Summary counts) · the README · **the published chapter files themselves** | this section + `device-comms.md` §"Working an issue" step 4. EFM: tracker `Complete Guide to Edge Flow Management.md`, source `efm-guide-humanization-plan.md`, README `EdgeFlowManager/README.md`. Nvidia: tracker `Complete Developer Guide for Nvidia Spark with Cloudera.md`, source `nvidia-dgx-spark-*.md` + its work-stream row in `nvidia-dgx-spark-plan.md`, README `files/nvidia-spark-guide/README.md` (becomes the repo README when the repo is cut) |
+| App repo (cso-operator-app) | the code · the checked-in flow exports · the DesktopShare source doc · its README | `cso-operator-app/CLAUDE.md` |
+| Skill | the source in `skills/` · the public `NiFiandAi` mirror (manual `publish-skill.sh`) | `skills/README.md` |
+| Blog post | the `DesktopShare/blog/` draft · the `cldr-steven-matison.github.io` live post + assets | §"Publishing a blog post end-to-end" |
+| AMOLED app | the app package · its `backend/` — both in the per-app leader repo (check against the leader's `main`, not a clean local tree) | `device-comms.md` §"Closing an issue" |
+| **A rule** | the canon section · the `incident-rules.md` rule-canon row (statement + section pointer + Enforced-by) · the `CLAUDE.md` summary bullet · the `known-patterns.tsv` row · `subagent-rules.md` when the rule is operational for sub-agents · `guard.sh` when a guard enforces it · any multi-harness mirror (`opencode.json`, `.grok/`) that names the moved file | `incident-rules.md` §"Rule canon" |
 
-This is a rule because it failed. The #295 humanization pass rewrote all 21 guide chapters and never opened `EdgeFlowManager/README.md`, which is the guide's front door. It scored worse than any chapter had (em-dash 58.8/k, proof 17.2/k, colon 63.1/k) and only got caught because Steven asked whether the tracker and plan were updated. The same audit found the tracker still carrying a month-old Completion Summary and one chapter still marked 🟡 after he had cleared it. A pass that stops at the artifact it was editing is not finished.
+Any public README or published chapter is outbound prose — `writing-style.md` §"The blog-voice band" applies. The tracker is the live chapter↔issue correlation; keep its **Issues** column linked to the driving issue(s).
+
+This is a rule because it failed, twice. The #295 humanization pass rewrote all 21 EFM guide chapters and never opened `EdgeFlowManager/README.md`, the guide's front door — it scored worse than any chapter (em-dash 58.8/k, proof 17.2/k, colon 63.1/k) and only got caught because Steven asked. The same audit found a month-old Completion Summary and a chapter still 🟡 after he'd cleared it. Then #320 field-validated sixteen Nvidia chapters and updated the tracker but left the chapter files empty — the *published files are a surface too*. A pass that stops at the artifact it was editing is not finished.
 
 ## Publishing a blog post end-to-end (to the live blog repo)
 
