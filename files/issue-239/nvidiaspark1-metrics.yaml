@@ -1,0 +1,120 @@
+# nvidiaspark1-metrics.yaml — scrape NvidiaSpark-1 (spark-dd06, 192.168.1.203) from the fleet Prometheus.
+#
+# Apply on the cluster that runs the fleet's kube-prometheus-stack (WindowsDesktop's cld-streaming, where
+# every other device's exporter is scraped). spark-dd06's own k3s has no Prometheus. The pattern is the
+# fleet's existing one for an off-cluster device (efm-observability.md "Scraping an external device"):
+# a selector-less Service + manual Endpoints per target, one ServiceMonitor each, and
+# fallbackScrapeProtocol because the flow-level responder on :9936 sends no Content-Type.
+#
+# Two targets on the same host:
+#   :9936  the EFM agent's flow-level exporter (agent health, /proc load + meminfo)  -> job nvidiaspark1-minifi-metrics
+#   :9835  ateska/dgx-spark-prometheus host exporter (CPU/GPU/RAM/disk/net)         -> job nvidiaspark1-host-metrics
+#
+# Before applying, prove the path FROM INSIDE THE CLUSTER — the address is per-device and a test from the
+# target host proves nothing about the cluster's route (StarlinkAI scrapes over Tailscale, not LAN):
+#   kubectl run -n cld-streaming -it --rm probe --image=busybox --restart=Never -- \
+#     sh -c 'wget -qO- http://192.168.1.203:9936/metrics | head -3; wget -qO- http://192.168.1.203:9835/metrics | head -3'
+# If LAN times out, swap the Endpoints address for the Tailscale IP 100.104.155.57.
+#
+#   kubectl apply -f nvidiaspark1-metrics.yaml
+#   kubectl -n cld-streaming get servicemonitor | grep nvidiaspark1
+#   # then in Prometheus:  up{job=~"nvidiaspark1-.*"}  -> 1 for both
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nvidiaspark1-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidiaspark1-minifi-metrics
+spec:
+  clusterIP: None
+  ports:
+    - name: prometheus
+      port: 9936
+      targetPort: 9936
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nvidiaspark1-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidiaspark1-minifi-metrics
+subsets:
+  - addresses:
+      - ip: 192.168.1.203
+    ports:
+      - name: prometheus
+        port: 9936
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidiaspark1-minifi-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  jobLabel: app
+  selector:
+    matchLabels:
+      app: nvidiaspark1-minifi-metrics
+  namespaceSelector:
+    matchNames:
+      - cld-streaming
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      interval: 15s
+      # Prometheus 3 hard-fails a scrape with a blank Content-Type; the flow-level responder sends none.
+      fallbackScrapeProtocol: PrometheusText0.0.4
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nvidiaspark1-host-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidiaspark1-host-metrics
+spec:
+  clusterIP: None
+  ports:
+    - name: prometheus
+      port: 9835
+      targetPort: 9835
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nvidiaspark1-host-metrics
+  namespace: cld-streaming
+  labels:
+    app: nvidiaspark1-host-metrics
+subsets:
+  - addresses:
+      - ip: 192.168.1.203
+    ports:
+      - name: prometheus
+        port: 9835
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nvidiaspark1-host-metrics
+  namespace: cld-streaming
+  labels:
+    release: prometheus
+spec:
+  jobLabel: app
+  selector:
+    matchLabels:
+      app: nvidiaspark1-host-metrics
+  namespaceSelector:
+    matchNames:
+      - cld-streaming
+  endpoints:
+    - port: prometheus
+      path: /metrics
+      # the Go exporter recommends 5 s; 15 s matches the rest of the fleet board
+      interval: 15s
