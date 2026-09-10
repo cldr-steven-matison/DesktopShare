@@ -8,6 +8,14 @@
 # crash-looped on a HuggingFace Hub lookup before DNS was up. Fix: wait for the GPU, then recreate
 # every container from scratch. Deployed as files/issue-322/nvidia-serve-boot.service.
 #
+# 2026-09-10 reboot (the first real cold boot after this was built): 5/6 came up, vLLM was left in
+# `Created` (exit 128) on `failed to bind host port 192.168.1.203:8000: cannot assign requested
+# address`. The LAN address .203 rides WiFi (wlP9s9, DHCP); vLLM launches first (§3) at ~T+16s, before
+# the WiFi lease landed, so its LAN-published bind failed — and a never-started container is not
+# "restarting", so --restart unless-stopped never fired. network-online.target completed on the wired
+# links and did not gate on the WiFi lease. Fix: §2b waits for the LAN IP before the LAN-published
+# GPU tier. (qdrant §1 and tei-kb bind 0.0.0.0, never at risk; the other four publish on $LAN_IP.)
+#
 # This is a thin driver. It owns nothing about *how* a container runs — each one is started by its
 # committed serve script in files/issue-226/, the same script an operator runs by hand, so there is
 # one source of truth per container (the first draft of this file re-implemented every `docker run`
@@ -28,6 +36,10 @@
 set -uo pipefail
 SERVE=${SERVE_DIR:-/home/tunas/BrainShare/files/issue-226}
 GPU_WAIT_MAX=${GPU_WAIT_MAX:-120}
+# The LAN address is WiFi/DHCP and lands late in boot; four containers publish on it (§2b, §3).
+LAN_IP=${LAN_IP:-192.168.1.203}
+LAN_WAIT_MAX=${LAN_WAIT_MAX:-180}
+export LAN_IP                        # the serve scripts default to this; keep them on the same value
 FAILED=()
 
 # Pinned images. A boot must never float on :latest. On the 2026-09-10 cold start this driver let
@@ -72,6 +84,23 @@ until nvidia-smi >/dev/null 2>&1; do
   fi
 done
 log "GPU ready after ${WAIT}s"
+
+# ── 2b. Wait for the LAN address before launching the four containers that publish on it. Docker binds
+#        the published host port at `docker run`; if $LAN_IP is not on an interface yet the bind fails
+#        with EADDRNOTAVAIL and the container is stranded in `Created` (2026-09-10 reboot, vLLM). WiFi
+#        DHCP is what is slow — network-online.target does not gate on it. Warn and continue on timeout:
+#        qdrant/tei-kb (0.0.0.0) stay up regardless, and the per-container health gate still records any
+#        LAN bind that then fails, so we never trade this for a silent pass. ─────────────────────────
+log "waiting for LAN IP ${LAN_IP} (max ${LAN_WAIT_MAX}s)"
+LWAIT=0
+until ip -4 -o addr show 2>/dev/null | grep -q "inet ${LAN_IP}/"; do
+  sleep 2; LWAIT=$((LWAIT+2))
+  if [ "$LWAIT" -ge "$LAN_WAIT_MAX" ]; then
+    log "!! LAN IP ${LAN_IP} not up after ${LAN_WAIT_MAX}s — LAN-published containers may fail to bind"
+    break
+  fi
+done
+[ "$LWAIT" -lt "$LAN_WAIT_MAX" ] && log "LAN IP ${LAN_IP} up after ${LWAIT}s"
 
 # ── 3. GPU tier. vLLM takes minutes to load 23 GB of weights — run it in the background while the
 #       four fast ones come up serially, then wait for it. ─────────────────────────────────────────
