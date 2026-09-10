@@ -17,13 +17,19 @@
 #     ~72 GiB of the ~120 GiB pool, inside the ~93 GiB stable ceiling in nvidia-dgx-spark-k3s-cso.md §5.
 # The model repo is public (no HF token needed — checked 2026-08-27, 23.4 GB); HF_TOKEN is passed only if set.
 #
+# Reboot survival (#322, 2026-09-09): the weights are local, so the container runs with
+# HF_HUB_OFFLINE=1 / TRANSFORMERS_OFFLINE=1 — after the 2026-09-08 reboot vLLM crash-looped 21 times on a
+# HuggingFace Hub lookup ("Temporary failure in name resolution") before the network was up, even though
+# nothing needed downloading. The pull is tolerant for the same reason: at boot there may be no DNS yet,
+# and the image is already local. This script is what files/issue-322/serve-boot.sh runs at boot.
+#
 # Needs the docker group (files/issue-226/spark-bootstrap.sh step 2). Until re-login:  sg docker -c "$0"
 set -euo pipefail
 LAN_IP=${LAN_IP:-192.168.1.203}
 MODEL=nvidia/Qwen3.6-35B-A3B-NVFP4
 IMAGE=${VLLM_IMAGE:-vllm/vllm-openai:latest}
 NAME=vllm-qwen36
-HF_HOME_DIR=${HF_HOME_DIR:-$HOME/hf-hub}
+HF_HOME_DIR=${HF_HOME_DIR:-$HOME/hf-hub}   # deliberately not HF_HOME — that name is read by the HF libraries
 GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.6}
 mkdir -p "$HF_HOME_DIR"
 
@@ -31,12 +37,14 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   echo "container $NAME exists — 'docker start $NAME' or 'docker rm -f $NAME' first"; exit 1
 fi
 
-docker pull "$IMAGE"
-DIGEST=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')
+docker pull "$IMAGE" || echo "!! pull failed (no network yet?) — continuing with the local image"
+DIGEST=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' 2>/dev/null || true)
+[ -n "$DIGEST" ] || DIGEST=$IMAGE
 echo "pinned: $DIGEST"
 
 docker run -d --name "$NAME" --restart unless-stopped --gpus all \
   -p 127.0.0.1:8000:8000 -p "$LAN_IP:8000:8000" \
+  -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
   ${HF_TOKEN:+-e HF_TOKEN="$HF_TOKEN"} \
   -v "$HF_HOME_DIR":/root/.cache/huggingface \
   "$DIGEST" \

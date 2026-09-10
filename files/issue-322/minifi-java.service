@@ -1,0 +1,28 @@
+[Unit]
+Description=Apache MiNiFi Java 2.24.08.0-19 - EFM agent class NvidiaSpark-1 (#322)
+# Replaces the SysV stub /etc/init.d/minifi-java (an S65/K65 rc-link pair that made
+# `systemctl is-enabled` answer "disabled" while the agent was running) with a native unit:
+# a trustworthy enabled state, ordering after the network the agent heartbeats over, and
+# restart-on-crash, none of which the shim had. The agent itself is unchanged.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# minifi.sh start forks the bootstrap, which forks the MiNiFi JVM and restarts it if it dies.
+# ExitType=cgroup keeps the unit "active" as long as either JVM lives, so a bootstrap-driven
+# restart of the child is not mistaken for the service exiting.
+Type=forking
+ExitType=cgroup
+User=tunas
+Group=tunas
+WorkingDirectory=/home/tunas/minifi-2.24.08.0-19
+ExecStart=/home/tunas/minifi-2.24.08.0-19/bin/minifi.sh start
+ExecStop=/home/tunas/minifi-2.24.08.0-19/bin/minifi.sh stop
+# bootstrap.conf graceful.shutdown.seconds=20; give the stop a margin before SIGKILL
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=10
+# Logs: journalctl -u minifi-java.service (bootstrap) + /home/tunas/minifi-2.24.08.0-19/logs/
+
+[Install]
+WantedBy=multi-user.target

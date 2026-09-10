@@ -1,18 +1,24 @@
 [Unit]
-Description=DGX Spark — recreate Docker serving tier after boot (GPU-gated)
-# k3s (mynifi, Kafka, Flink operators) and EFM minifi-java recover on their own via their
-# own systemd units.  This service handles the Docker serving tier + KB containers that
-# --restart unless-stopped could not save after the 09-08 reboot.
-After=docker.service nvidia-container-runtime.service
+Description=DGX Spark: recreate the Docker serving + KB tier after boot, GPU-gated (#322)
+# k3s (mynifi, Kafka, the operators) and the EFM agent (minifi-java) recover through their own
+# native units. This one handles the six Docker containers that --restart unless-stopped could not
+# save after the 2026-09-08 reboot: the NVIDIA runtime was not ready when dockerd's restart pass ran.
+# nv-docker-gpus.service is DGX OS's own Docker/GPU wiring; network-online is wanted, not required,
+# because the serve scripts must (and do) come up with no DNS — that was the #321 root cause.
+After=docker.service nv-docker-gpus.service network-online.target
+Wants=network-online.target
 Requires=docker.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 User=tunas
-# The script waits up to 120 s for nvidia-smi, then recreates all 6 containers.
-# If nvidia-smi never comes up the script exits 0 after the timeout (no containers harmed).
+# Serial worst case: 120 s GPU wait + vLLM health wait (30 min cap, in background) + three TEI waits
+# (15 min cap each) + whisper (20 min cap, and a 10-20 min CUDA build if the image is ever missing).
+# systemd's default 90 s would kill the script mid-run on every cold boot.
+TimeoutStartSec=5400
 ExecStart=/home/tunas/BrainShare/files/issue-322/serve-boot.sh
+# Logs: journalctl -u nvidia-serve-boot.service
 
 [Install]
 WantedBy=multi-user.target

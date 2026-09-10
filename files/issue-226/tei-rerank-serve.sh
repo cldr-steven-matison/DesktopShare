@@ -11,6 +11,9 @@
 # published on 127.0.0.1 + LAN only, weights in ~/kb/tei-data, image digest pinned at first run.
 # Public repo (no HF token); HF_TOKEN passed only if set.
 #
+# Reboot survival (#322): HF_HUB_OFFLINE=1 / TRANSFORMERS_OFFLINE=1 and a tolerant pull, same reasoning as
+# tei-embed-serve.sh. Run at boot by files/issue-322/serve-boot.sh.
+#
 # Needs the docker group (files/issue-226/spark-bootstrap.sh step 2). Until re-login:  sg docker -c "$0"
 set -euo pipefail
 LAN_IP=${LAN_IP:-192.168.1.203}
@@ -25,12 +28,14 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   echo "container $NAME exists — 'docker start $NAME' or 'docker rm -f $NAME' first"; exit 1
 fi
 
-docker pull "$IMAGE"
-DIGEST=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')
+docker pull "$IMAGE" || echo "!! pull failed (no network yet?) — continuing with the local image"
+DIGEST=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' 2>/dev/null || true)
+[ -n "$DIGEST" ] || DIGEST=$IMAGE
 echo "pinned: $DIGEST"
 
 docker run -d --name "$NAME" --restart unless-stopped --gpus all \
   -p "127.0.0.1:$PORT:80" -p "$LAN_IP:$PORT:80" \
+  -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
   ${HF_TOKEN:+-e HF_TOKEN="$HF_TOKEN"} \
   -v "$TEI_DATA":/data \
   "$DIGEST" \

@@ -1,0 +1,18 @@
+[Unit]
+Description=DGX Spark: verify every service survived the boot and post the result to #322
+# Runs once the serving tier has been recreated. The k3s workloads and the EFM agent get a
+# settling delay (see ExecStartPre) — mynifi alone takes a few minutes to become Ready.
+After=nvidia-serve-boot.service k3s.service minifi-java.service network-online.target
+Wants=nvidia-serve-boot.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=tunas
+ExecStartPre=/bin/sleep 240
+ExecStart=/home/tunas/BrainShare/files/issue-322/post-boot-verify.sh
+TimeoutStartSec=900
+# Report: /var/tmp/nvidia-spark-last-boot-report.txt  |  logs: journalctl -u nvidia-post-boot-verify.service
+
+[Install]
+WantedBy=multi-user.target

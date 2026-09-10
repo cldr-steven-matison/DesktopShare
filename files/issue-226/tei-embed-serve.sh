@@ -18,6 +18,10 @@
 #   * image digest pinned at first run so the endpoint does not drift under the flows that target it.
 # bge-m3 is a public repo (no HF token); HF_TOKEN is passed only if set.
 #
+# Reboot survival (#322): weights are cached, so the container runs HF_HUB_OFFLINE=1 / TRANSFORMERS_OFFLINE=1
+# and the pull is tolerant — at boot there may be no DNS yet and the image is already local (the #321 root
+# cause was exactly this on vLLM). Run at boot by files/issue-322/serve-boot.sh.
+#
 # Needs the docker group (files/issue-226/spark-bootstrap.sh step 2). Until re-login:  sg docker -c "$0"
 set -euo pipefail
 LAN_IP=${LAN_IP:-192.168.1.203}
@@ -32,12 +36,14 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   echo "container $NAME exists — 'docker start $NAME' or 'docker rm -f $NAME' first"; exit 1
 fi
 
-docker pull "$IMAGE"
-DIGEST=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}')
+docker pull "$IMAGE" || echo "!! pull failed (no network yet?) — continuing with the local image"
+DIGEST=$(docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' 2>/dev/null || true)
+[ -n "$DIGEST" ] || DIGEST=$IMAGE
 echo "pinned: $DIGEST"
 
 docker run -d --name "$NAME" --restart unless-stopped --gpus all \
   -p "127.0.0.1:$PORT:80" -p "$LAN_IP:$PORT:80" \
+  -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 \
   ${HF_TOKEN:+-e HF_TOKEN="$HF_TOKEN"} \
   -v "$TEI_DATA":/data \
   "$DIGEST" \
