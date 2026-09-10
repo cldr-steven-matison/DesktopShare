@@ -1,0 +1,53 @@
+Pre-reboot snapshot — spark-dd06 — 2026-09-10 16:57:07 UTC
+booted 2026-09-08 17:40:59  (uptime up 1 day, 23 hours, 16 minutes)
+
+## systemd units
+docker                     active=active           enabled=enabled
+k3s                        active=active           enabled=enabled
+minifi-java                active=active           enabled=enabled
+nvidia-serve-boot          active=inactive         enabled=enabled
+nvidia-post-boot-verify    active=inactive         enabled=enabled
+dgx-spark-prometheus       active=active           enabled=enabled
+
+## failed units (pre-existing, not ours)
+  ● nvidia-dgx-sol.service loaded failed failed NVIDIA DGX Sign of Life Telemetry Service
+
+## docker containers
+qdrant-kb	Up 5 hours
+tei-embed-bge	Up 5 hours
+tei-kb	Up 5 hours
+tei-rerank-bge	Up 5 hours
+vllm-qwen36	Up 5 hours
+whisper-cpp	Up 5 hours
+
+## image pins present locally (a no-DNS boot needs these)
+  vllm/vllm-openai                                               PRESENT
+  ghcr.io/huggingface/text-embeddings-inference                  PRESENT
+  qdrant/qdrant                                                  PRESENT
+  spark-whisper-cpp:cuda13 (locally built)                       PRESENT
+
+## k3s
+  cert-manager             cert-manager-7774cff9f9-45pkx                        Running
+  cert-manager             cert-manager-cainjector-5594979f8b-j8xq9             Running
+  cert-manager             cert-manager-webhook-5645b4cfd5-95m4b                Running
+  cfm-streaming            cfm-operator-5f6cb5c444-tlz5t                        Running
+  cfm-streaming            mynifi-0                                             Running
+  cld-streaming            flink-kubernetes-operator-67b7f74575-4l595           Running
+  cld-streaming            my-cluster-combined-0                                Running
+  cld-streaming            my-cluster-combined-1                                Running
+  cld-streaming            my-cluster-combined-2                                Running
+  cld-streaming            my-cluster-entity-operator-767497f688-cj4zj          Running
+  cld-streaming            strimzi-cluster-operator-8558dc987f-77ldr            Running
+  default                  gpu-smoke                                            Completed
+  ingress-nginx            ingress-nginx-controller-7574f554b4-6f7d8            Running
+  kube-system              coredns-9fc4f469d-gkcbw                              Running
+  kube-system              local-path-provisioner-66b64f874-87lwc               Running
+  kube-system              metrics-server-65ddb7d4b5-2t9v6                      Running
+  nvidia-device-plugin     nvdp-nvidia-device-plugin-vv62m                      Running
+  streamers                clip-prep-56db767779-npz4q                           Running
+
+## mynifi live flow — drained before reboot
+  6 process groups, 144 processors, all RUNNING
+  queued FlowFiles: 0 in every PG   queued bytes: 0
+  active threads: 3 — StreamerCard/ReceiveCard + StreamerBrain/ReceiveClip (HandleHttpRequest listeners), SparkLlmBridge/ConsumeRequests (ConsumeKafka); all in=0 out=0
+  flow dumped from mynifi-0:/opt/nifi/nifi-current/data/flow.json.gz (rule 1) — structure unchanged this session, no re-export owed
