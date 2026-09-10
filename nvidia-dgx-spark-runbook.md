@@ -99,6 +99,17 @@ The point of the box is that flows on other devices hit it as an inference targe
 - §4 hardening applied and confirmed (not bound to `0.0.0.0` unrestricted).
 - Actual throughput numbers recorded and compared against `nvidia-dgx-spark-landscape.md`.
 
+## Reboot survival
+
+- k3s (`k3s.service` enabled) and EFM `minifi-java` recover on their own from systemd on a cold boot — both were `active since boot` after the 09-08 reboot.
+- **Docker serving tier needs explicit boot-time recreate** (`files/issue-322/serve-boot.sh` + `nvidia-serve-boot.service`, [#322](https://github.com/cldr-steven-matison/DesktopShare/issues/322)). Deploy on the box:
+  ```bash
+  sudo cp /home/tunas/BrainShare/files/issue-322/nvidia-serve-boot.service /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now nvidia-serve-boot
+  ```
+  The script waits for `nvidia-smi` (GPU driver ready), then `docker rm -f` + recreate all 6 containers (vLLM, TEI embed, TEI rerank, whisper, qdrant, tei-kb). `HF_HUB_OFFLINE=1`/`TRANSFORMERS_OFFLINE=1` baked in so vLLM never needs HF Hub egress at startup. Why `--restart unless-stopped` failed: GPU device wasn't ready when dockerd's restart pass ran, containers failed once and gave up. `docker start` does not reattach bridge IP or published ports — recreate is required.
+
 ## When this ships
 
 - Add the box to `CLAUDE-CHECKIN.md` (device block, paths, the `:8888` endpoint, port-forward/firewall notes).

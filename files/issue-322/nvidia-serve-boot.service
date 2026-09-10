@@ -1,0 +1,18 @@
+[Unit]
+Description=DGX Spark — recreate Docker serving tier after boot (GPU-gated)
+# k3s (mynifi, Kafka, Flink operators) and EFM minifi-java recover on their own via their
+# own systemd units.  This service handles the Docker serving tier + KB containers that
+# --restart unless-stopped could not save after the 09-08 reboot.
+After=docker.service nvidia-container-runtime.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=tunas
+# The script waits up to 120 s for nvidia-smi, then recreates all 6 containers.
+# If nvidia-smi never comes up the script exits 0 after the timeout (no containers harmed).
+ExecStart=/home/tunas/BrainShare/files/issue-322/serve-boot.sh
+
+[Install]
+WantedBy=multi-user.target
