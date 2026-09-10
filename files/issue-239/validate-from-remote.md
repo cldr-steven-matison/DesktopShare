@@ -2,11 +2,13 @@
 
 The EFM class flow on spark-dd06 fronts four inference doors on one listener, port `8190`.
 
-> **Which address.** The recipes below use the LAN address `192.168.1.203`. That works from a device
-> on the 192.168.1.x LAN; it does **not** work from WindowsDesktop, where every port on that address
-> times out (proven 2026-09-10, #324). From there, and from anything else off the LAN, substitute the
-> Tailscale address `100.104.155.57` — same ports, same bodies. Set `SPARK` once and the recipes are
-> unchanged.
+> **Which address.** The recipes below use the LAN address `192.168.1.203`, and `:8190` on it is
+> currently blocked to LAN callers — `ufw` on `spark-dd06` allows the tailnet wholesale but the LAN
+> only on `22`, `8000`, `32100-32103`, `80` and `443`, so the doors and both exporters get a silent
+> drop (proven 2026-09-10 from WindowsDesktop and from the Jetson; #233 opens them). Until that lands,
+> use the Tailscale address `100.104.155.57` — same ports, same bodies; set `SPARK` once and every
+> recipe below is unchanged. A device with no tailnet route, like the Jetson, cannot reach the doors
+> by any address until #233 runs.
  Each door forwards to the serving tier on the same box and returns the upstream body unchanged, so the response shapes below are vLLM's, TEI's and whisper.cpp's. The point of this file is the "from a device that is not the DGX Spark" proof that work-stream G still owes (`nvidia-dgx-spark-efm-agent.md` §3, definition of done). Run any recipe from WindowsDesktop, StarlinkAI or the Jetson and paste the output on #239.
 
 | Door | Forwards to | Body |
