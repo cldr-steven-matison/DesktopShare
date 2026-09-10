@@ -15,14 +15,18 @@
 #   kubectl run -n cld-streaming --rm --attach --restart=Never --image=busybox probe -- \
 #     sh -c 'wget -qO- -T 5 http://100.104.155.57:9936/metrics | head -3; wget -qO- -T 5 http://100.104.155.57:9835/metrics | head -3'
 #
-# PROVEN 2026-09-10 from WindowsDesktop (#324): 192.168.1.203:9936 and :9835 both time out — from the WSL
-# shell and from inside the cluster. The Tailscale address 100.104.155.57 answers on both from both, so the
-# Endpoints below carry the TAILSCALE IP, the same shape StarlinkAI already uses (files/issue-169).
+# The Endpoints below carry the TAILSCALE IP 100.104.155.57, the same shape StarlinkAI already uses
+# (files/issue-169). That is a deliberate choice, not a workaround — keep it that way.
 #
-# The cause is ufw on spark-dd06, not the network: its LAN allow-list is 22, 8000, 32100-32103, 80 and 443,
-# so these two ports are silently dropped for LAN callers while the tailnet is allowed wholesale (#233 opens
-# them). The host is NOT unreachable — :80, :443, :8000 and :32111 answer over the LAN from here. Keep these
-# Endpoints on Tailscale even after #233 lands: it is proven and it survives a LAN firewall change.
+# History, because the reason changed: when this was first applied on 2026-09-10 (#324), 192.168.1.203:9936
+# and :9835 timed out from the WSL shell and from inside the cluster, while the Tailscale address answered on
+# both from both. The cause was ufw on spark-dd06, not the network: its LAN allow-list was 22, 8000,
+# 32100-32103, 80 and 443, so both exporter ports were silently dropped for LAN callers while the tailnet was
+# allowed wholesale. files/issue-233/ufw-nodeports.sh opened them at 16:31Z the same day (#233), and both LAN
+# targets were then re-proven from a busybox pod in cld-streaming.
+#
+# So the LAN address would work now. Keep these Endpoints on Tailscale anyway: it is proven and it survives a
+# LAN firewall change.
 #
 #   kubectl apply -f nvidiaspark1-metrics.yaml
 #   kubectl -n cld-streaming get servicemonitor | grep nvidiaspark1

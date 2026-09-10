@@ -19,11 +19,13 @@ Work-stream G ([#239](https://github.com/cldr-steven-matison/DesktopShare/issues
    kubectl run -n cld-streaming --rm --attach --restart=Never --image=busybox probe -- \
      sh -c 'wget -qO- -T 5 http://100.104.155.57:9936/metrics | head -3; wget -qO- -T 5 http://100.104.155.57:9835/metrics | head -3'
    ```
-   **Settled 2026-09-10 (#324): it is the tailnet, not the LAN.** `192.168.1.203` times out from
-   WindowsDesktop on both ports, from the WSL shell and from inside the cluster; `100.104.155.57`
-   answers on both from both. The yaml now carries the Tailscale address, the same shape StarlinkAI
-   already uses. A device that can reach the LAN address may swap it back — re-run the probe, don't
-   assume either one.
+   **Settled 2026-09-10 (#324): the tailnet — and it stays the tailnet by choice.** `192.168.1.203`
+   timed out from WindowsDesktop on both ports, from the WSL shell and from inside the cluster, while
+   `100.104.155.57` answered on both from both, so the yaml carries the Tailscale address, the same
+   shape StarlinkAI already uses. `files/issue-233/ufw-nodeports.sh` opened both LAN ports later the
+   same day (#233) and they were re-proven from a busybox pod, so either address works now. Keep the
+   Tailscale one: it survives a LAN firewall change. Re-run the probe on a new device, don't assume
+   either one.
 3. `kubectl apply -f files/issue-239/nvidiaspark1-metrics.yaml`, then in Prometheus `up{job=~"nvidiaspark1-.*"}` → `1` for both jobs. Scrape errors of the form `connection refused` mean the host answered and the port was closed; a timeout means the path, not the port.
 4. Merge `fleet-board-nvidiaspark1.json` into the fleet dashboard, re-import, commit the dashboard JSON in EdgeFlowManager.
 5. Run use case 3 from WindowsDesktop per `validate-from-remote.md` and paste the response on #239. That closes the "§3 use case from a non-Spark device" item.
@@ -55,4 +57,4 @@ capture works. Current state and the re-stand recipe live in `efm-observability.
 
 ## Not in this directory
 
-The `:9936` leg itself is already live on the class flow (flowVersion 5, `files/issue-226/flows/NvidiaSpark-1.designer-flow.json`); nothing on the EFM side changes for this. **That sentence used to claim ufw needed no new rule on spark-dd06. It was wrong, and it is the reason the LAN address times out.** ufw allows the tailnet wholesale but the LAN only on the ports bootstrap step 6 names, which never included `:9936`, `:9835` or `:8190`. The fleet scrape works because it uses the tailnet address; a LAN-only caller such as the Jetson had no route at all. `files/issue-233/ufw-nodeports.sh` adds those three plus `:32110`/`:32111` for the LAN (#233).
+The `:9936` leg itself is already live on the class flow (flowVersion 5, `files/issue-226/flows/NvidiaSpark-1.designer-flow.json`); nothing on the EFM side changes for this. **That sentence used to claim ufw needed no new rule on spark-dd06. It was wrong, and it is why the LAN address timed out.** ufw allows the tailnet wholesale but the LAN only on the ports bootstrap step 6 names, which never included `:9936`, `:9835` or `:8190`. The fleet scrape worked because it uses the tailnet address; a LAN-only caller such as the Jetson had no route at all. `files/issue-233/ufw-nodeports.sh` opened those three plus `:32110`/`:32111` to the LAN at 16:31Z on 2026-09-10 (#233), so both addresses work now — the scrape stays on the tailnet by choice.
