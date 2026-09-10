@@ -1,0 +1,7 @@
+{
+  "operationId": "<operation identifier from requestedOperations[]>",
+  "operationState": {
+    "state": "FULLY_APPLIED",
+    "details": "flow applied"
+  }
+}

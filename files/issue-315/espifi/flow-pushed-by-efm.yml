@@ -1,0 +1,98 @@
+MiNiFi Config Version: 3
+Flow Controller:
+  name: root
+  comment: ''
+Core Properties:
+  flow controller graceful shutdown period: 10 sec
+  flow service write delay interval: 500 ms
+  administrative yield duration: 30 sec
+  bored yield duration: 10 millis
+  max concurrent threads: 1
+  variable registry properties: ''
+FlowFile Repository:
+  implementation: org.apache.nifi.controller.repository.WriteAheadFlowFileRepository
+  partitions: 256
+  checkpoint interval: 2 mins
+  always sync: false
+  Swap:
+    threshold: 20000
+    in period: 5 sec
+    in threads: 1
+    out period: 5 sec
+    out threads: 4
+Content Repository:
+  implementation: org.apache.nifi.controller.repository.FileSystemRepository
+  content claim max appendable size: 10 MB
+  content claim max flow files: 100
+  content repository archive enabled: false
+  content repository archive max retention period: 12 hours
+  content repository archive max usage percentage: 50%
+  always sync: false
+Provenance Repository:
+  provenance rollover time: 1 min
+  implementation: org.apache.nifi.provenance.WriteAheadProvenanceRepository
+  provenance index shard size: 500 MB
+  provenance max storage size: 1 GB
+  provenance max storage time: 24 hours
+  provenance buffer size: 10000
+Component Status Repository:
+  buffer size: 1440
+  snapshot frequency: 1 min
+Security Properties:
+  keystore: ''
+  keystore type: ''
+  keystore password: ''
+  key password: ''
+  truststore: ''
+  truststore type: ''
+  truststore password: ''
+  ssl protocol: ''
+  Sensitive Props:
+    key:
+    algorithm: NIFI_PBKDF2_AES_GCM_256
+Processors:
+- id: 946e2794-7b4e-44f7-83e2-793bf750add8
+  name: GenerateFlowFile
+  class: GenerateFlowFile
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 2000 ms
+  penalization period: 30000 ms
+  yield period: 1000 ms
+  run duration nanos: 0
+  auto-terminated relationships list: []
+  Properties:
+    Batch Size: '1'
+    Custom Text: hello from EFM via EspiFi
+- id: 9c6b7e1b-2549-4dc7-b827-912c9a2ee506
+  name: LogAttribute
+  class: LogAttribute
+  max concurrent tasks: 1
+  scheduling strategy: TIMER_DRIVEN
+  scheduling period: 1000 ms
+  penalization period: 30000 ms
+  yield period: 1000 ms
+  run duration nanos: 0
+  auto-terminated relationships list:
+  - success
+  Properties:
+    Log Payload: 'true'
+    Log prefix: espifi
+Controller Services: []
+Process Groups: []
+Input Ports: []
+Output Ports: []
+Funnels: []
+Connections:
+- id: 9ce97594-c35b-42fb-a3af-98ebe7ad333c
+  name: GenerateFlowFile/success/LogAttribute
+  source id: 946e2794-7b4e-44f7-83e2-793bf750add8
+  source relationship names:
+  - success
+  destination id: 9c6b7e1b-2549-4dc7-b827-912c9a2ee506
+  max work queue size: 2000
+  max work queue data size: 100 MB
+  flowfile expiration: 0 seconds
+  queue prioritizer class: ''
+Remote Process Groups: []
+NiFi Properties Overrides: {}

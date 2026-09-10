@@ -467,7 +467,7 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 
 ## TunaSurface (Microsoft Surface Pro 2, hostname tuna-Surface-Pro-2)
 
-- **Role**: Low-spec docs/planning device on the Starlink LAN, and the new home for the **AXIOMETA** board — [#315](https://github.com/cldr-steven-matison/DesktopShare/issues/315) and the Genesis Mini move here from StarlinkAI (2026-09-08, see [efm-axiometa.md](efm-axiometa.md) §"Moving to TunaSurface"). Not a cluster host: 3.7 GB RAM rules out minikube/k3s and any CSO work.
+- **Role**: Low-spec docs/planning device on the Starlink LAN. Not a cluster host: 3.7 GB RAM rules out minikube/k3s and any CSO work. **The AXIOMETA Genesis Mini is not here** — it was slated to move here 2026-09-08 ([#315](https://github.com/cldr-steven-matison/DesktopShare/issues/315)) but went back to StarlinkAI the same night ("the Surface isn't appropriate yet"); as of 2026-09-10 the board is on StarlinkAI COM11 running its factory Studio image, and the `AXIOMETA` EFM class no longer exists ([efm-axiometa.md](efm-axiometa.md), [efm-espifi.md](efm-espifi.md)).
 - **Checked in**: 2026-09-08
 - **Claude Code version**: 2.1.263
 
@@ -492,8 +492,8 @@ Not on the tailnet, but reachable from other array machines over LAN `mac-lan-ip
 ### Network
 - Connection: **Wi-Fi only** (`wlx281878d5f3f1`, a USB adapter), `192.168.1.91/24`, gateway `192.168.1.1`
 - Tailscale IP: not joined
-- **This device is on the Starlink LAN, not the ATT LAN** — verified 2026-09-08: EFM direct (`192.168.1.121:10090`) is **unreachable** (connect timeout), while StarlinkAI's EFM C2 relay (`192.168.1.245:10090`) answers **HTTP 200** and lists all 12 agent classes including `AXIOMETA`. Both LANs are numbered `192.168.1.x`, so the subnet alone tells you nothing — test the relay, don't assume. ICMP to both hosts is dropped (Windows firewall); use HTTP to test liveness, not `ping`.
-- **Consequence for the AXIOMETA move**: no new relay is needed on this host. The board can keep pointing its C2 URL at `192.168.1.245:10090`, exactly as it did on StarlinkAI — the "stand up an equivalent relay" fallback in `efm-axiometa.md` does not apply. That relay is a StarlinkAI process, so AXIOMETA on TunaSurface stays dependent on StarlinkAI being up.
+- **This device is on the Starlink LAN, not the ATT LAN** — verified 2026-09-08: EFM direct (`192.168.1.121:10090`) is **unreachable** (connect timeout), while StarlinkAI's EFM C2 relay (`192.168.1.245:10090`) answers **HTTP 200** and lists every agent class (12 at the time, including the since-removed `AXIOMETA`). Both LANs are numbered `192.168.1.x`, so the subnet alone tells you nothing — test the relay, don't assume. ICMP to both hosts is dropped (Windows firewall); use HTTP to test liveness, not `ping`.
+- **If an edge board ever does land here**: no new relay is needed — a board can point its C2 URL at StarlinkAI's relay `192.168.1.245:10090` exactly as the AMOLED board does; the relay is a StarlinkAI process, so such a board stays dependent on StarlinkAI being up. (Written for the 2026-09-08 AXIOMETA move that was then reversed — see the Role bullet.)
 
 ### Repo homes on this host
 - DesktopShare: `~/DesktopShare` (cloned 2026-09-08; no local rename, unlike StarlinkAI's `~/Brainshare` and NvidiaSpark-1's `~/BrainShare`)

@@ -1,0 +1,188 @@
+{
+  "identifier": "espifi-78553609edda-0-0",
+  "operation": "HEARTBEAT",
+  "agentInfo": {
+    "identifier": "espifi-78553609edda",
+    "agentClass": "EspiFi",
+    "agentManifestHash": "96274131ece5fce3707b29260ea7e281f59c6f0941a3fee20bb9c791377f7d61",
+    "heartbeatPeriod": 5000,
+    "status": {
+      "uptime": 0,
+      "components": {
+        "FlowController": {
+          "running": true,
+          "uuid": "e92dea30-7083-4c1c-8ecc-a966cb3a7bfa"
+        }
+      },
+      "repositories": {
+        "flowFile": {
+          "size": 0,
+          "sizeMax": null,
+          "dataSize": null,
+          "dataSizeMax": null
+        }
+      },
+      "resourceConsumption": {
+        "memoryUsage": 0,
+        "cpuUtilization": 0.0
+      },
+      "espifi": {
+        "queueDepth": 0,
+        "produced": 0,
+        "runtime": "CPython 3.14.4"
+      }
+    },
+    "agentManifest": {
+      "identifier": "96274131ece5fce3707b29260ea7e281f59c6f0941a3fee20bb9c791377f7d61",
+      "agentType": "cpp",
+      "version": "0.1.0",
+      "buildInfo": {
+        "version": "0.1.0",
+        "revision": "dev",
+        "timestamp": 0,
+        "targetArch": "x86_64",
+        "compiler": "cpython",
+        "compilerFlags": "CPython 3.14.4"
+      },
+      "bundles": [
+        {
+          "group": "org.apache.nifi",
+          "artifact": "espifi-system",
+          "version": "0.1.0",
+          "componentManifest": {
+            "processors": [
+              {
+                "group": "org.apache.nifi",
+                "artifact": "espifi-system",
+                "version": "0.1.0",
+                "type": "GenerateFlowFile",
+                "typeDescription": "Emits a FlowFile per tick; content and batch size configurable via EFM.",
+                "inputRequirement": "INPUT_FORBIDDEN",
+                "isSingleThreaded": false,
+                "supportsDynamicProperties": false,
+                "supportsDynamicRelationships": false,
+                "supportedRelationships": [
+                  {
+                    "name": "success",
+                    "description": "FlowFiles produced by this processor."
+                  }
+                ],
+                "propertyDescriptors": {
+                  "Batch Size": {
+                    "name": "Batch Size",
+                    "description": "FlowFiles emitted per invocation.",
+                    "required": false,
+                    "defaultValue": "1"
+                  },
+                  "Custom Text": {
+                    "name": "Custom Text",
+                    "description": "Content for each FlowFile; blank means a generated line.",
+                    "required": false
+                  }
+                }
+              },
+              {
+                "group": "org.apache.nifi",
+                "artifact": "espifi-system",
+                "version": "0.1.0",
+                "type": "LogAttribute",
+                "typeDescription": "Logs FlowFile id and attributes, optionally the content.",
+                "inputRequirement": "INPUT_REQUIRED",
+                "isSingleThreaded": false,
+                "supportsDynamicProperties": false,
+                "supportsDynamicRelationships": false,
+                "supportedRelationships": [
+                  {
+                    "name": "success",
+                    "description": "FlowFiles produced by this processor."
+                  }
+                ],
+                "propertyDescriptors": {
+                  "Log prefix": {
+                    "name": "Log prefix",
+                    "description": "Identifier prepended to each log line.",
+                    "required": false
+                  },
+                  "Log Payload": {
+                    "name": "Log Payload",
+                    "description": "Also log the FlowFile content.",
+                    "required": false,
+                    "defaultValue": "false",
+                    "allowableValues": [
+                      {
+                        "value": "true",
+                        "displayName": "true"
+                      },
+                      {
+                        "value": "false",
+                        "displayName": "false"
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "controllerServices": [],
+            "reportingTasks": []
+          }
+        }
+      ],
+      "schedulingDefaults": {
+        "defaultSchedulingStrategy": "TIMER_DRIVEN",
+        "defaultSchedulingPeriodMillis": 1000,
+        "defaultRunDurationNanos": 0,
+        "defaultMaxConcurrentTasks": 1,
+        "penalizationPeriodMillis": 30000,
+        "yieldDurationMillis": 1000
+      },
+      "supportedOperations": [
+        {
+          "type": "HEARTBEAT",
+          "properties": {}
+        },
+        {
+          "type": "ACKNOWLEDGE",
+          "properties": {}
+        },
+        {
+          "type": "DESCRIBE",
+          "properties": {
+            "manifest": {},
+            "configuration": {}
+          }
+        },
+        {
+          "type": "UPDATE",
+          "properties": {
+            "configuration": {}
+          }
+        }
+      ]
+    }
+  },
+  "deviceInfo": {
+    "identifier": "78553609edda",
+    "systemInfo": {
+      "machineArch": "x86_64",
+      "operatingSystem": "CPython 3.14.4",
+      "physicalMem": 0,
+      "vCores": 1
+    },
+    "networkInfo": {
+      "deviceId": "78553609edda",
+      "hostname": "espifi-78553609edda",
+      "ipAddress": "192.168.1.245"
+    }
+  },
+  "flowInfo": {
+    "flowId": "00000000-0000-0000-0000-000000000000",
+    "runStatus": "RUNNING",
+    "versionedFlowSnapshotURI": {
+      "registryUrl": "",
+      "bucketId": "default",
+      "flowId": "00000000-0000-0000-0000-000000000000"
+    },
+    "queues": {},
+    "processorStatuses": []
+  }
+}

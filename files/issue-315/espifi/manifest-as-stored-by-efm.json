@@ -1,0 +1,182 @@
+{
+    "identifier": "1724b5be-026b-4d9e-a1d7-105339112f2a",
+    "agentType": "cpp",
+    "version": "0.1.0",
+    "buildInfo": {
+        "version": "0.1.0",
+        "revision": "dev",
+        "timestamp": 0,
+        "targetArch": "x86_64",
+        "compiler": "cpython",
+        "compilerFlags": "CPython 3.14.4"
+    },
+    "bundles": [
+        {
+            "group": "org.apache.nifi",
+            "artifact": "espifi-system",
+            "version": "0.1.0",
+            "componentManifest": {
+                "apis": null,
+                "controllerServices": [],
+                "processors": [
+                    {
+                        "group": "org.apache.nifi",
+                        "artifact": "espifi-system",
+                        "version": "0.1.0",
+                        "type": "GenerateFlowFile",
+                        "typeDescription": "Emits a FlowFile per tick; content and batch size configurable via EFM.",
+                        "buildInfo": null,
+                        "providedApiImplementations": null,
+                        "tags": null,
+                        "deprecated": null,
+                        "deprecationReason": null,
+                        "propertyDescriptors": {
+                            "Batch Size": {
+                                "name": "Batch Size",
+                                "displayName": null,
+                                "description": "FlowFiles emitted per invocation.",
+                                "allowableValues": null,
+                                "defaultValue": "1",
+                                "required": false,
+                                "sensitive": false,
+                                "expressionLanguageScope": "NONE",
+                                "expressionLanguageScopeDescription": "Not Supported",
+                                "typeProvidedByValue": null,
+                                "validRegex": null,
+                                "validator": null,
+                                "dynamic": false,
+                                "dependencies": null
+                            },
+                            "Custom Text": {
+                                "name": "Custom Text",
+                                "displayName": null,
+                                "description": "Content for each FlowFile; blank means a generated line.",
+                                "allowableValues": null,
+                                "defaultValue": null,
+                                "required": false,
+                                "sensitive": false,
+                                "expressionLanguageScope": "NONE",
+                                "expressionLanguageScopeDescription": "Not Supported",
+                                "typeProvidedByValue": null,
+                                "validRegex": null,
+                                "validator": null,
+                                "dynamic": false,
+                                "dependencies": null
+                            }
+                        },
+                        "supportsDynamicProperties": false,
+                        "supportsEventDriven": false,
+                        "inputRequirement": "INPUT_FORBIDDEN",
+                        "supportedRelationships": [
+                            {
+                                "name": "success",
+                                "description": "FlowFiles produced by this processor."
+                            }
+                        ],
+                        "supportsDynamicRelationships": false
+                    },
+                    {
+                        "group": "org.apache.nifi",
+                        "artifact": "espifi-system",
+                        "version": "0.1.0",
+                        "type": "LogAttribute",
+                        "typeDescription": "Logs FlowFile id and attributes, optionally the content.",
+                        "buildInfo": null,
+                        "providedApiImplementations": null,
+                        "tags": null,
+                        "deprecated": null,
+                        "deprecationReason": null,
+                        "propertyDescriptors": {
+                            "Log prefix": {
+                                "name": "Log prefix",
+                                "displayName": null,
+                                "description": "Identifier prepended to each log line.",
+                                "allowableValues": null,
+                                "defaultValue": null,
+                                "required": false,
+                                "sensitive": false,
+                                "expressionLanguageScope": "NONE",
+                                "expressionLanguageScopeDescription": "Not Supported",
+                                "typeProvidedByValue": null,
+                                "validRegex": null,
+                                "validator": null,
+                                "dynamic": false,
+                                "dependencies": null
+                            },
+                            "Log Payload": {
+                                "name": "Log Payload",
+                                "displayName": null,
+                                "description": "Also log the FlowFile content.",
+                                "allowableValues": [
+                                    {
+                                        "value": "true",
+                                        "displayName": "true",
+                                        "description": null
+                                    },
+                                    {
+                                        "value": "false",
+                                        "displayName": "false",
+                                        "description": null
+                                    }
+                                ],
+                                "defaultValue": "false",
+                                "required": false,
+                                "sensitive": false,
+                                "expressionLanguageScope": "NONE",
+                                "expressionLanguageScopeDescription": "Not Supported",
+                                "typeProvidedByValue": null,
+                                "validRegex": null,
+                                "validator": null,
+                                "dynamic": false,
+                                "dependencies": null
+                            }
+                        },
+                        "supportsDynamicProperties": false,
+                        "supportsEventDriven": false,
+                        "inputRequirement": "INPUT_REQUIRED",
+                        "supportedRelationships": [
+                            {
+                                "name": "success",
+                                "description": "FlowFiles produced by this processor."
+                            }
+                        ],
+                        "supportsDynamicRelationships": false
+                    }
+                ],
+                "reportingTasks": []
+            }
+        }
+    ],
+    "componentManifest": null,
+    "schedulingDefaults": {
+        "defaultSchedulingStrategy": "TIMER_DRIVEN",
+        "defaultSchedulingPeriodMillis": 1000,
+        "penalizationPeriodMillis": 30000,
+        "yieldDurationMillis": 1000,
+        "defaultRunDurationNanos": 0,
+        "defaultMaxConcurrentTasks": "1"
+    },
+    "supportedOperations": [
+        {
+            "type": "DESCRIBE",
+            "properties": {
+                "configuration": {},
+                "manifest": {}
+            }
+        },
+        {
+            "type": "UPDATE",
+            "properties": {
+                "configuration": {}
+            }
+        },
+        {
+            "type": "HEARTBEAT",
+            "properties": {}
+        },
+        {
+            "type": "ACKNOWLEDGE",
+            "properties": {}
+        }
+    ]
+}
