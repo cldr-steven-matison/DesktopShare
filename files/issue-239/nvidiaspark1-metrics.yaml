@@ -12,9 +12,14 @@
 #
 # Before applying, prove the path FROM INSIDE THE CLUSTER — the address is per-device and a test from the
 # target host proves nothing about the cluster's route (StarlinkAI scrapes over Tailscale, not LAN):
-#   kubectl run -n cld-streaming -it --rm probe --image=busybox --restart=Never -- \
-#     sh -c 'wget -qO- http://192.168.1.203:9936/metrics | head -3; wget -qO- http://192.168.1.203:9835/metrics | head -3'
-# If LAN times out, swap the Endpoints address for the Tailscale IP 100.104.155.57.
+#   kubectl run -n cld-streaming --rm --attach --restart=Never --image=busybox probe -- \
+#     sh -c 'wget -qO- -T 5 http://100.104.155.57:9936/metrics | head -3; wget -qO- -T 5 http://100.104.155.57:9835/metrics | head -3'
+#
+# PROVEN 2026-09-10 from WindowsDesktop (#324): the LAN address 192.168.1.203 is NOT reachable from this
+# box at all — not from the WSL shell and not from inside the cluster; both ports time out. The Tailscale
+# address 100.104.155.57 answers on :9936 and :9835 from both. So the Endpoints below carry the TAILSCALE
+# IP, the same shape StarlinkAI already uses (files/issue-169, 100.110.253.66). A device that CAN reach
+# 192.168.1.203 on the LAN may swap it back; do not assume either address without re-running the probe.
 #
 #   kubectl apply -f nvidiaspark1-metrics.yaml
 #   kubectl -n cld-streaming get servicemonitor | grep nvidiaspark1
@@ -43,7 +48,7 @@ metadata:
     app: nvidiaspark1-minifi-metrics
 subsets:
   - addresses:
-      - ip: 192.168.1.203
+      - ip: 100.104.155.57   # Tailscale; the LAN 192.168.1.203 is unreachable from this cluster (#324)
     ports:
       - name: prometheus
         port: 9936
@@ -63,12 +68,15 @@ spec:
   namespaceSelector:
     matchNames:
       - cld-streaming
+  # Prometheus 3 hard-fails a scrape with a blank Content-Type; the flow-level responder sends none.
+  # This is a spec-level field, NOT an endpoints[] one — nesting it under endpoints[0] is rejected by
+  # the CRD with `strict decoding error: unknown field "spec.endpoints[0].fallbackScrapeProtocol"`
+  # (hit on first apply, 2026-09-10, #324). files/issue-140 has it in the right place; copy from there.
+  fallbackScrapeProtocol: PrometheusText0.0.4
   endpoints:
     - port: prometheus
       path: /metrics
       interval: 15s
-      # Prometheus 3 hard-fails a scrape with a blank Content-Type; the flow-level responder sends none.
-      fallbackScrapeProtocol: PrometheusText0.0.4
 ---
 apiVersion: v1
 kind: Service
@@ -93,7 +101,7 @@ metadata:
     app: nvidiaspark1-host-metrics
 subsets:
   - addresses:
-      - ip: 192.168.1.203
+      - ip: 100.104.155.57   # Tailscale; the LAN 192.168.1.203 is unreachable from this cluster (#324)
     ports:
       - name: prometheus
         port: 9835

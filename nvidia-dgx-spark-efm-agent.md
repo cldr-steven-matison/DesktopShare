@@ -272,7 +272,7 @@ Each card carries the standard fields (name, purpose, agent, shape, files, verif
 ## Open questions
 
 - Which VLM answers `/classify`. The corpus offers Cosmos Reason 2 8B (the VSS blueprint) and `gemma3:4b` on Ollama, neither with a measured per-image latency on GB10 (`nvidia-dgx-spark-research.md` §5).
-- Tailscale. Once `spark-dd06` joins, does the in-cluster scrape reach `:9936` over LAN or over the tailnet? Only an in-cluster test decides it.
+- ~~Tailscale. Once `spark-dd06` joins, does the in-cluster scrape reach `:9936` over LAN or over the tailnet?~~ **Answered 2026-09-10 (#324): the tailnet.** From WindowsDesktop the LAN address `192.168.1.203` times out on every port, from the WSL shell and from inside the cluster alike; `100.104.155.57` answers on `:9936`, `:9835` and `:8190` from both. The `Endpoints` in `files/issue-239/nvidiaspark1-metrics.yaml` carry the Tailscale address, matching StarlinkAI. This is per-device — a device on the 192.168.1.x LAN may still reach the LAN address, so the in-cluster probe stays mandatory rather than the answer being copied.
 
 ## Definition of done
 
@@ -281,9 +281,9 @@ Each card carries the standard fields (name, purpose, agent, shape, files, verif
 - [x] The class flow published with `HandleHttp` legs, `GET .../validate` clean before publish, and one `curl` per door returning a body from another LAN device. *(2026-08-28 — all four doors return bodies over the LAN; flowVersion 4)*
 - [x] Flow **consolidated** to one `HandleHttpRequest` + path-driven dynamic `InvokeHTTP` + one `HandleHttpResponse` (#270 §2), `/validate` clean, published flowVersion 5, all four doors on `:8190/<path>` plus metrics re-checked at 200. *(2026-08-28; 23→16 proc, 26→19 conn)*
 - [x] All `InvokeHTTP` processors carry non-default timeouts, `penaltyDuration: 0 sec`, and `Retry` routed to the terminal error response. *(malformed `/reason` → 400 in 0.078 s)*
-- [~] The `:9936` leg returns `GET :9936/metrics` → 200 with `/proc` values *(2026-08-28)*. Cluster scrape (`up{job=…}=1`, `fallbackScrapeProtocol`, fleet-board row) still to wire.
-- [ ] `dgx-spark-prometheus` on `:9835` scraped as a second target on the same host, with every memory gauge sourced from `/proc/meminfo`.
-- [ ] At least one use case from §3 running end-to-end from a device that is not the DGX Spark; use case 1 or 2 is the cheapest proof.
+- [x] The `:9936` leg returns `GET :9936/metrics` → 200 with `/proc` values *(2026-08-28)*, and the cluster scrape is wired: `up{job="nvidiaspark1-minifi-metrics"}=1`, `fallbackScrapeProtocol` at `spec` level, fleet-board row merged. *(2026-09-10, #324, WindowsDesktop)*
+- [x] `dgx-spark-prometheus` on `:9835` scraped as a second target on the same host, with every memory gauge sourced from `/proc/meminfo`. *(2026-09-10 — `up{job="nvidiaspark1-host-metrics"}=1`, `cpu_temperature_celsius 45`)*
+- [x] At least one use case from §3 running end-to-end from a device that is not the DGX Spark. *(2026-09-10 — use case 3, `POST /reason` from a WindowsDesktop shell, one-word `content` and a `usage` block; transcript in `files/issue-239/validate-from-remote.md`)*
 - [x] The class's flow definition exported and checked in under `files/` before anything republishes it. *(`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`)*
 - [x] `/transcribe` multipart reconstruction pipeline (whisper `/inference`). *(2026-08-28, flowVersion 4 — 10-processor leg cloned from StarlinkAI; 200 with transcript)*
 
@@ -291,11 +291,15 @@ Each card carries the standard fields (name, purpose, agent, shape, files, verif
 
 **As-built:** `NvidiaSpark-1` is enrolled with a server-minted `agentIdentifier`, heartbeating with `c2.full.heartbeat=false`. The class flow is published at flowVersion 5, the consolidated router, with all four doors and `:9936 /metrics` returning 200 over the LAN. Every `# expected — verify on the box` block in §1–§2 has a matching `# as-built` value.
 
+Both carried-forward items closed 2026-09-10 from WindowsDesktop (#324). The cluster-side scrape is
+live for both ports over the tailnet, the fleet board carries a seventh heartbeat tile and a
+NvidiaSpark-1 Layer-2/3 row, and use case 3 answered from a non-Spark shell. The fleet Prometheus
+stack was stood up for the validation and torn back down after it (#312 had removed it to reclaim
+~874 Mi); the manifests and the merged board persist, so re-standing replays them.
+
 **What remains:**
 
-- The cluster-side Prometheus scrape (`ServiceMonitor`, selector-less `Endpoints`, `fallbackScrapeProtocol`) for `:9936` and `:9835` on WindowsDesktop's stack; manifests, the fleet-board panels and the `:9835` exporter installer are in `files/issue-239/`.
-- At least one §3 use case run end-to-end from a non-Spark device; the `curl` recipes are `files/issue-239/validate-from-remote.md` (#239).
-- `nvidia-dgx-spark-plan.md` §4 flips G to done once the two items above close, and Phase 3's gate ("EFM shows `NvidiaSpark-1` online") closes with it.
+- `nvidia-dgx-spark-plan.md` §4 flips G to done, and Phase 3's gate ("EFM shows `NvidiaSpark-1` online") closes with it.
 - The three chapters this doc feeds still need their first content, `files/nvidia-spark-guide/ch12-efm-agent-class-nvidiaspark-1.md` (§1–§2), `files/nvidia-spark-guide/ch13-edge-ai-use-cases-jetson-to-spark.md` (§3), `files/nvidia-spark-guide/ch14-observability.md` (§4).
 - The gallery cards in §6 get filed against EFM guide Ch18 once each is validated.
 - Any canonical flow-shape change here goes back into the `nifi-and-ai` skill, `skills/nifi-and-ai/references/minifi-efm.md` for enrollment or Designer-API changes, as its own commit.
