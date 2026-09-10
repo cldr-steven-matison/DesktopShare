@@ -4,6 +4,16 @@ Tracks [#328](https://github.com/cldr-steven-matison/DesktopShare/issues/328). A
 two MCP servers to the **published EFM guide** ([EdgeFlowManager](https://github.com/cldr-steven-matison/EdgeFlowManager))
 — as *coverage*, not the main focus of any section.
 
+> **Status — done 2026-09-10 (EdgeFlowManager [`037f511`](https://github.com/cldr-steven-matison/EdgeFlowManager/commit/037f511)).** This plan was drafted against a stale
+> tree that predated `1e7451b`, so its "the section never landed / that SHA is not in history"
+> premise was **void** — the "Let the AI Drive the Flow: MCP Servers" section had already landed
+> under [#295](https://github.com/cldr-steven-matison/DesktopShare/issues/295) (both servers, tool
+> counts, CM-server build shape, What-NOT-to-Do line, closer at both live repos) and Steven cleared
+> it on re-read. No tracker "correction to reality" was needed; the tracker was already right. #328's
+> genuine remaining delta was small and is what shipped: ch14's one-line cross-link, plus ch16's EFM
+> port-forward (10090), the MCP Inspector `@0.14.0` What-NOT-to-Do line, and the NiFi MCP write path
+> tied to the `********` sensitive-property rule. Chapter re-linted, still in band.
+
 ## Scope decision
 
 Steven's scope call: **MCP stays out of the `nifi-and-ai` skill and its public

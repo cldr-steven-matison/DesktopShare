@@ -135,7 +135,7 @@ One commit per chapter in EdgeFlowManager. "After" is the lint row on the commit
 | Ch13 | `ca67b83` | 2899 | 0.0 | 1.0 | 1.4 | 0.0 | 0 | "pretty good" 2026-09-02 |
 | Ch14 | `6ac3da1` | 3383 | 0.3 | 3.0 | 4.1 | 0.0 | 0 | cleared 2026-09-09 |
 | Ch15 | `de39dbb` | 1093 | 0.0 | 2.7 | 2.7 | 0.0 | 0 | |
-| Ch16 | `84fd200` → `1e7451b` | 2389 | 0.8 | 2.5 | 6.3 | 0.4 | 3* | light on content 2026-09-09; reworked (MCP-servers section), **cleared on re-read** |
+| Ch16 | `84fd200` → `1e7451b` → `037f511` | 2513 | 0.8 | 2.4 | 6.4 | 0.4 | 3* | light on content 2026-09-09; reworked (MCP-servers section), **cleared on re-read**; #328 added port-forward + Inspector `@0.14.0` + NiFi-write sensitive-property, still in band |
 | Ch17 | `dce474f` | 1541 | 0.0 | 1.9 | 2.6 | 0.6 | 0 | |
 | Ch18 | `3de5211` | 831 | 0.0 | 1.2 | 1.2 | 0.0 | 0 | |
 | Ch19 | `0a97248` | 2800 | 0.0 | 2.1 | 8.6 | 0.0 | 0 | cleared 2026-09-09 |
