@@ -53,6 +53,15 @@ export QDRANT_IMAGE=${QDRANT_IMAGE:-qdrant/qdrant@sha256:12364fe851b9f17356fc881
 
 log() { echo "[serve-boot $(date -u +%H:%M:%S)] $*"; }
 
+# Off-switch, no sudo needed (the unit runs as tunas): `touch ~/.nvidia-serve-boot.off` and the next boot
+# leaves the tier down; `rm` it to re-arm. Added during the 2026-09-12 lockup triage, when the box froze
+# minutes after every boot and the tier had to be kept off while the cause was found.
+OFF=${SERVE_BOOT_OFF:-/home/tunas/.nvidia-serve-boot.off}
+if [ -e "$OFF" ]; then
+  log "!! off-switch $OFF present — serving tier NOT started (rm it to re-arm)"
+  exit 0
+fi
+
 # rm_then <name> <script> — destroy the named container if it exists, then run its serve script.
 # Never `docker start`: a container object from before the reboot comes back without networking.
 rm_then() {
