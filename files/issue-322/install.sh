@@ -2,6 +2,9 @@
 # install.sh — deploy #322's reboot survival on spark-dd06. Run as root:  sudo files/issue-322/install.sh [--cold-start]
 #
 # What it does (idempotent — safe to re-run):
+#   0. installs the GRUB drop-in that keeps the NVMe out of APST/ASPM (nvme-apst-off.cfg) and runs update-grub
+#      when it changed — the 2026-09-12 freeze: the controller hung in a low-power state minutes after every
+#      boot until this landed on the kernel command line. Takes effect at the next boot.
 #   1. installs nvidia-serve-boot.service + nvidia-post-boot-verify.service into /etc/systemd/system and enables them
 #      (enable only — they run at the next boot, or now with --cold-start);
 #   2. moves the EFM agent from the SysV stub (/etc/init.d/minifi-java, S65/K65 rc links — the reason
@@ -16,6 +19,17 @@ set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "run as root: sudo $0 $*"; exit 1; }
 SRC=/home/tunas/BrainShare/files/issue-322
 COLD=0; [ "${1:-}" = "--cold-start" ] && COLD=1
+
+echo "== 0. NVMe APST/ASPM off (GRUB drop-in) =="
+GRUBD=/etc/default/grub.d/nvme-apst-off.cfg
+if ! cmp -s "$SRC/nvme-apst-off.cfg" "$GRUBD"; then
+  install -m 644 "$SRC/nvme-apst-off.cfg" "$GRUBD"
+  update-grub
+  echo "  installed $GRUBD — takes effect at the next boot"
+else
+  echo "  $GRUBD already current"
+fi
+grep -q "default_ps_max_latency_us=0" /proc/cmdline && echo "  running kernel: APST off" || echo "  running kernel: APST still ON until reboot"
 
 echo "== 1. serving-tier units =="
 install -m 644 "$SRC/nvidia-serve-boot.service"       /etc/systemd/system/nvidia-serve-boot.service

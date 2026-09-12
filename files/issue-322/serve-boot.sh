@@ -55,7 +55,10 @@ log() { echo "[serve-boot $(date -u +%H:%M:%S)] $*"; }
 
 # Off-switch, no sudo needed (the unit runs as tunas): `touch ~/.nvidia-serve-boot.off` and the next boot
 # leaves the tier down; `rm` it to re-arm. Added during the 2026-09-12 lockup triage, when the box froze
-# minutes after every boot and the tier had to be kept off while the cause was found.
+# minutes after every boot and the tier had to be kept off while the cause was found. To bring the tier
+# up on the same boot after `rm`, use `systemctl restart nvidia-serve-boot` (or run this script by hand):
+# the unit is a oneshot with RemainAfterExit, so it is already `active (exited)` after the exit-0 here and
+# a plain `systemctl start` is a no-op (bit the 2026-09-12 restore).
 OFF=${SERVE_BOOT_OFF:-/home/tunas/.nvidia-serve-boot.off}
 if [ -e "$OFF" ]; then
   log "!! off-switch $OFF present — serving tier NOT started (rm it to re-arm)"
