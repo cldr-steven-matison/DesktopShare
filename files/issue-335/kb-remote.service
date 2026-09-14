@@ -1,0 +1,20 @@
+[Unit]
+Description=ds-kb remote MCP server (HTTP transport)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=tunas
+ExecStart=/home/tunas/.local/bin/uv run --with 'mcp<2' /home/tunas/DesktopShare/files/issue-335/kb_mcp_remote.py
+WorkingDirectory=/home/tunas
+Environment=KB_TEI_URL=http://127.0.0.1:8080
+Environment=KB_QDRANT_URL=http://127.0.0.1:6333
+Environment=KB_COLLECTION=desktopshare-kb
+Restart=on-failure
+RestartSec=5
+# Timeout for the mcp package startup
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target
