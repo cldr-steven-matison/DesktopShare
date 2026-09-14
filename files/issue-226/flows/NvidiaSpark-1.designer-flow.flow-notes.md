@@ -1,6 +1,6 @@
 # NvidiaSpark-1 class flow — what it does & the pattern it shows
 
-**Export:** `NvidiaSpark-1.designer-flow.json` · **Agent:** MiNiFi Java `2.24.08.0-19`, EFM class `NvidiaSpark-1`, on `spark-dd06` (DGX Spark GB10) · **Live:** flowVersion 5 (16 processors / 19 connections / 1 controller service).
+**Export:** `NvidiaSpark-1.designer-flow.json` · **Agent:** MiNiFi Java `2.24.08.0-19`, EFM class `NvidiaSpark-1`, on `spark-dd06` (DGX Spark GB10) · **Live:** flowVersion 10 (16 processors / 19 connections / 1 controller service) — v5 consolidated router (2026-08-28) + OpenAI-compatible aliases (2026-09-14, #334).
 
 ## What this flow is
 
@@ -8,7 +8,7 @@ The edge-AI **front door** for the DGX Spark: it is the thing the rest of the LA
 
 ## The pattern it demonstrates — consolidated single-handler router (path-driven dynamic InvokeHTTP)
 
-**One** `HandleHttpRequest` (`:8190`, `Allowed Paths = /(reason|embed|rerank|transcribe)`) accepts all four routes, a dynamic `InvokeHTTP` (`HTTP URL = ${target.url}`) calls the right upstream, and **one** `HandleHttpResponse` answers every route. A single `StandardHttpContextMap` pairs each response to its request by `http.context.identifier`, which is why one request/response pair can serve every path concurrently. This replaced an earlier verbose shape of four separate `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` legs on `:8190–:8193` (~12 processors → 1 listener + 1 caller + 1 responder). #270 §2.
+**One** `HandleHttpRequest` (`:8190`, `Allowed Paths = /(reason|embed|rerank|transcribe|v1/chat/completions|v1/models|v1/embeddings|v1/reranking)`, `Allow GET` on since v10) accepts every route, a dynamic `InvokeHTTP` (`HTTP URL = ${target.url}`, `HTTP Method = ${route.method}` — `GET` for `/v1/models`, `POST` otherwise) calls the right upstream, and **one** `HandleHttpResponse` answers every route. A single `StandardHttpContextMap` pairs each response to its request by `http.context.identifier`, which is why one request/response pair can serve every path concurrently. This replaced an earlier verbose shape of four separate `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` legs on `:8190–:8193` (~12 processors → 1 listener + 1 caller + 1 responder). #270 §2.
 
 **Path → target map.** Because the four doors sit on different ports *and* upstream paths, `UpdateAttribute-TargetUrl` derives `target.url` from the request path with a nested `ifElse`:
 
@@ -16,6 +16,7 @@ The edge-AI **front door** for the DGX Spark: it is the thing the rest of the LA
 - `/embed`      → `http://127.0.0.1:8001/embed` (TEI)
 - `/rerank`     → `http://127.0.0.1:8002/rerank`
 - `/transcribe` → `http://127.0.0.1:8003/inference` (whisper.cpp — `/inference` only; `/v1/audio/transcriptions` 404s)
+- `/v1/chat/completions` → same as `/reason`; `/v1/models` → `http://127.0.0.1:8000/v1/models` (GET); `/v1/embeddings` → same as `/embed`; `/v1/reranking` → same as `/rerank` — the OpenAI-compatible aliases (#334, flowVersion 10) so an `openai-compatible` client can use `:8190/v1` as its base URL. The final `ifElse` branch is `''` (never reached — `Allowed Paths` gates first); **a bare `null` there does not parse**, and v9 shipped exactly that, writing the literal expression into `target.url` and 502-ing every door until v10.
 
 (The simpler sibling of this pattern, when every door shares one host+port and only the path differs, needs no map at all — just `HTTP URL = http://localhost:PORT${http.request.uri}`, as StarlinkAI's Lemonade router does. NvidiaSpark-1 needs the map because port and upstream-path both vary.)
 
@@ -29,6 +30,6 @@ The edge-AI **front door** for the DGX Spark: it is the thing the rest of the LA
 
 A fifth listener (`HandleHttpRequest-Metrics :9936` → `ExecuteStreamCommand-ProcMetrics` → `HandleHttpResponse-Metrics-OK`/`-Error`) serves Prometheus exposition format from a base64-wrapped `sh` script over `/proc/loadavg`+`/proc/meminfo` — the fleet's standard flow-level exporter (the Java agent's built-in Prometheus endpoint is blocked on an EFM-managed headless agent). Not an HTTP proxy, so it is *not* part of the consolidation. Its OK/Error responders sit a full 600px branch pitch apart (#270 §1).
 
-## Field-validated (2026-08-28, spark-dd06, flowVersion 5)
+## Field-validated (2026-08-28, spark-dd06, flowVersion 5; re-validated 2026-09-14 at flowVersion 10 from WindowsDesktop over the tailnet — `/v1/models` 200 in 0.51 s, `/v1/chat/completions` 0.69 s, `/reason` 0.63 s, `/embed` 0.69 s, `/rerank` 0.56 s)
 
 All four doors + metrics return 200 through the single `:8190` listener (`/reason`, `/embed`, `/rerank` JSON; `/transcribe` via the multipart leg); `:8191/:8192/:8193` no longer listen. Curl each with the **correct upstream model name** — `POST :8190/reason` with an unknown `model` id 404s at vLLM, not a flow fault.

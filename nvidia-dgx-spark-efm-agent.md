@@ -1,6 +1,6 @@
 # NvidiaSpark-1 as an EFM agent — the class, the flow, and the use cases it unlocks
 
-> **Status (2026-09-10):** [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) is open, reopened by Steven. §1 is done. The agent is enrolled and heartbeating. §2 is done too. The class flow is live at **flowVersion 5**, the consolidated single-handler router (#270 §2), with one `HandleHttpRequest` on `:8190` fronting all four inference doors (`/reason`, `/embed`, `/rerank`, `/transcribe`) through a path→`target.url` map, one dynamic `InvokeHTTP`, and one `HandleHttpResponse`; `/transcribe` keeps its multipart-reconstruction sub-branch. `:9936 /metrics` is live. Export is [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json) (16 proc / 19 conn / 1 CS), prose companion [`NvidiaSpark-1.designer-flow.flow-notes.md`](files/issue-226/flows/NvidiaSpark-1.designer-flow.flow-notes.md). The earlier four-separate-legs build (flowVersion 3–4, 23 proc / 26 conn) is described in §2 as the "before"; the consolidated shape is canonical (`skills/nifi-and-ai/references/patterns.md` "Consolidated router").
+> **Status (2026-09-10):** [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) is open, reopened by Steven. §1 is done. The agent is enrolled and heartbeating. §2 is done too. The class flow is live at **flowVersion 10** (2026-09-14, [#334](https://github.com/cldr-steven-matison/DesktopShare/issues/334)), the consolidated single-handler router (#270 §2), with one `HandleHttpRequest` on `:8190` fronting the four inference doors (`/reason`, `/embed`, `/rerank`, `/transcribe`) **plus the OpenAI-compatible aliases** (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`, `/v1/reranking`) through a path→`target.url` map, one dynamic `InvokeHTTP` (method from `${route.method}`), and one `HandleHttpResponse`; `/transcribe` keeps its multipart-reconstruction sub-branch. The C2 base is now the tailnet (`100.68.113.126:10090`), not the LAN — see the #334 addendum in §2. `:9936 /metrics` is live. Export is [`files/issue-226/flows/NvidiaSpark-1.designer-flow.json`](files/issue-226/flows/NvidiaSpark-1.designer-flow.json) (16 proc / 19 conn / 1 CS), prose companion [`NvidiaSpark-1.designer-flow.flow-notes.md`](files/issue-226/flows/NvidiaSpark-1.designer-flow.flow-notes.md). The earlier four-separate-legs build (flowVersion 3–4, 23 proc / 26 conn) is described in §2 as the "before"; the consolidated shape is canonical (`skills/nifi-and-ai/references/patterns.md` "Consolidated router").
 >
 > Both of the items that reopened #239 closed 2026-09-10. The `:9835` host exporter is installed and running on the box; the cluster-side scrape of `:9936` and `:9835` is green on WindowsDesktop's fleet Prometheus and the fleet board carries the row; and use case 3 answered end-to-end from a non-Spark shell (#324). Manifests, fleet-board panels, the exporter installer and the remote `curl` recipes are in `files/issue-239/`.
 >
@@ -90,15 +90,18 @@ The class is `NvidiaSpark-1`. Device name, EFM agent class and GitHub label are 
 The Jetson's flow uses the same skeleton, `HandleHttp` legs into local daemons plus a metrics leg (`completed/nvidianano-minifi-ops.md`, `efm-observability.md`). Same skeleton here, different cargo. On the Jetson two of three legs drive a display; on the DGX Spark all four legs are inference.
 
 ```text
-NvidiaSpark-1 class flow — AS BUILT & CONSOLIDATED 2026-08-28 (spark-dd06, flowVersion 5, C2-pushed)
+NvidiaSpark-1 class flow — AS BUILT & CONSOLIDATED 2026-08-28, OpenAI aliases 2026-09-14 (spark-dd06, flowVersion 10, C2-pushed)
 
-  ONE listener, all four routes            path → target.url map           ONE dynamic caller + responder
-  :8190 /(reason|embed|rerank|transcribe)  ── UpdateAttribute-TargetUrl ── InvokeHTTP  HTTP URL=${target.url}
-    HandleHttpRequest ─→ RouteOnAttribute ─┤   /reason     → :8000/v1/chat/completions   ├─→ HandleHttpResponse
-                         (transcribe? )    │   /embed      → :8001/embed                  │   (status ${invokehttp
-                              │            │   /rerank     → :8002/rerank                 │    .status.code
-       transcribe ───────────┘            │   /transcribe → :8003/inference              │    :replaceEmpty('502')})
-         → multipart reconstruction leg ──┘   (Content-Type set per branch) ─────────────┘
+  ONE listener, all routes (GET+POST)      path → target.url map           ONE dynamic caller + responder
+  :8190 /(reason|embed|rerank|transcribe|  ── UpdateAttribute-TargetUrl ── InvokeHTTP  HTTP URL=${target.url}
+         v1/chat/completions|v1/models|      route.method = GET for            HTTP Method=${route.method}
+         v1/embeddings|v1/reranking)         /v1/models, else POST
+    HandleHttpRequest ─→ RouteOnAttribute ─┤   /reason, /v1/chat/completions → :8000/v1/chat/completions ├─→ HandleHttpResponse
+                         (transcribe? )    │   /v1/models                    → :8000/v1/models           │   (status ${invokehttp
+                              │            │   /embed, /v1/embeddings        → :8001/embed               │    .status.code
+                              │            │   /rerank, /v1/reranking        → :8002/rerank              │    :replaceEmpty('502')})
+       transcribe ───────────┘            │   /transcribe                   → :8003/inference           │
+         → multipart reconstruction leg ──┘   (Content-Type set per branch) ─────────────────────────────┘
   :9936 /metrics  → ExecuteStreamCommand → 200 (Prometheus exposition, §4 — separate, unchanged)
 ```
 
@@ -108,7 +111,9 @@ NvidiaSpark-1 class flow — AS BUILT & CONSOLIDATED 2026-08-28 (spark-dd06, flo
 > every route. The earlier build (flowVersion 3–4) used four separate
 > `HandleHttpRequest → InvokeHTTP → HandleHttpResponse` triples on `:8190–:8193` (23 proc / 26 conn);
 > the consolidated shape is flowVersion 5 (**16 proc / 19 conn**), and `:8191/:8192/:8193` no longer
-> listen. All four doors now answer on `:8190/<path>`. The canonical shape lives in
+> listen. All four doors now answer on `:8190/<path>`. flowVersion 10 (#334) added the OpenAI-compatible
+> aliases as four more `equals()` arms — same 16 proc / 19 conn — so an `@ai-sdk/openai-compatible`
+> client (opencode, #331) can use `http://100.104.155.57:8190/v1` as its `baseURL`. The canonical shape lives in
 > `skills/nifi-and-ai/references/patterns.md` ("Consolidated router"); the serving set is `:8000` Qwen
 > LLM, `:8001` bge-m3 embed, `:8002` bge-reranker rerank, `:8003` whisper.cpp (#232). A VLM `/classify`
 > route, when one lands, is one more `equals()` arm in the map, not a new leg.
@@ -121,12 +126,39 @@ The single `HandleHttpResponse-Router` takes `Response` **and** `Retry`/`No Retr
 | `/embed` | `127.0.0.1:8001/embed` — TEI `BAAI/bge-m3` | `{"inputs": "..."}` | **200** — float vectors, ~0.08 s |
 | `/rerank` | `127.0.0.1:8002/rerank` — TEI `BAAI/bge-reranker-v2-m3` | `{"query": "...", "texts": [...]}` | **200** — scored indices, ~0.04 s |
 | `/transcribe` | `127.0.0.1:8003/inference` — whisper.cpp `large-v3` | multipart `file=@…` | **200** — transcript JSON (multipart leg), ~0.8 s |
+| `/v1/chat/completions` | same target as `/reason` | chat-completions JSON | **200** — 0.69 s from WindowsDesktop over the tailnet, 2026-09-14 (#334) |
+| `/v1/models` | `127.0.0.1:8000/v1/models` — the only **GET** door (`route.method`) | none | **200** — `{"data":[{"id":"nvidia/Qwen3.6-35B-A3B-NVFP4"…}]}`, 0.51 s, 2026-09-14 |
+| `/v1/embeddings` | same target as `/embed` | `{"inputs": "..."}` | mapped 2026-09-14; not separately exercised |
+| `/v1/reranking` | same target as `/rerank` | `{"query": "...", "texts": [...]}` | mapped 2026-09-14; not separately exercised |
 
-**As built (flowVersion 5).** 16 processors, 19 connections and one shared `StandardHttpContextMap`
+**As built (flowVersion 10, 2026-09-14).** 16 processors, 19 connections and one shared `StandardHttpContextMap`
 (`aa9d85ba-…`), `/validate` clean (`validationErrors: []`) before publish. The incident-backed
 `InvokeHTTP` settings hold on the shared caller: `penaltyDuration: 0 sec`, `Retry`/`No Retry`/`Failure`
 route to the terminal response (never self-looped), and a generous read timeout (10 min) covers the
 slowest route (`/transcribe`) while the fast JSON routes still return in about 0.1 s.
+
+> **#334 addendum (2026-09-14, published from WindowsDesktop) — two regressions found on the way to the
+> OpenAI aliases, both fixed.** (1) **flowVersion 9**, published earlier that day, had a `target.url`
+> expression that did not parse (a bare `null` as the last `ifElse` branch, unbalanced closers), so
+> `UpdateAttribute` wrote the *literal expression text* as the attribute and `InvokeHTTP` failed on every
+> door in 24 ms — `Expected URL scheme 'http' or 'https' but no scheme was found for ${http...` in
+> `minifi-app.log`, surfaced to callers as **502 with the request body echoed back** (that is the
+> `Failure` → `HandleHttpResponse` path with `replaceEmpty('502')`). All doors, `/reason` included, were
+> dark from 20:28 to 23:04 UTC. v10 replaces the expression (same arms, `''` as the final branch), adds
+> `route.method`, turns on `Allow GET` for `HandleHttpRequest-Router`, and sets `InvokeHTTP-Router`'s
+> `HTTP Method` to `${route.method}` — three `PUT .../processors/{id}` calls, `/validate` clean, publish.
+> (2) v10 could not reach the agent: `bootstrap.conf` had been rewritten at 20:17 to point C2 at the
+> tailnet (`100.68.113.126:10090`, because the box's Wi-Fi had moved to a different `192.168.1.x`
+> network and the LAN path to EFM was gone) and the rewrite **dropped `c2.full.heartbeat=false`**. Full
+> beats carry the 1.19 MB manifest; over an ~875 ms DERP-relayed tailnet path with a 10 s read timeout
+> they truncate — EFM logs `JsonMappingException: Early EOF … C2Heartbeat["agentInfo"]["agentManifest"]`,
+> the agent logs `SocketTimeoutException`, `lastSeen` froze at 20:25, and the v10 `UPDATE` op timed out
+> from `DEPLOYED` to `FAILED`. Restoring the line (`bootstrap.conf.bak-20260914-334` is the before) and
+> `sudo systemctl restart minifi-java` had v10 applied in ~10 s with zero heartbeat failures after. The
+> agent's C2 base **stays on the tailnet** — the LAN address is no longer shared (see `CLAUDE-CHECKIN.md`).
+> Lesson, filed against the existing rule in §1: a `bootstrap.conf` edit is a **full** rewrite of the C2
+> block, and the flag has to be re-checked after every one; and a 502 that comes back in tens of
+> milliseconds with your own body in it is the flow, not the upstream.
 
 - **`Request Content-Type` is set per-branch on the flowfile, read as `${Content-Type}`.** A literal
   `${Content-Type}` with nothing setting that attribute resolves **empty** and a JSON upstream answers
@@ -289,7 +321,7 @@ Each card carries the standard fields (name, purpose, agent, shape, files, verif
 
 ## As-built / what remains
 
-**As-built:** `NvidiaSpark-1` is enrolled with a server-minted `agentIdentifier`, heartbeating with `c2.full.heartbeat=false`. The class flow is published at flowVersion 5, the consolidated router, with all four doors and `:9936 /metrics` returning 200 over the LAN. Every `# expected — verify on the box` block in §1–§2 has a matching `# as-built` value.
+**As-built:** `NvidiaSpark-1` is enrolled with a server-minted `agentIdentifier`, heartbeating with `c2.full.heartbeat=false` to EFM over the **tailnet** (`100.68.113.126:10090`, since 2026-09-14). The class flow is published at flowVersion 10 (#334), the consolidated router, with all four doors, the four `/v1/*` OpenAI aliases and `:9936 /metrics` returning 200 over the tailnet. Every `# expected — verify on the box` block in §1–§2 has a matching `# as-built` value.
 
 Both carried-forward items closed 2026-09-10 from WindowsDesktop (#324). The cluster-side scrape is
 live for both ports over the tailnet, the fleet board carries a seventh heartbeat tile and a
