@@ -5,4 +5,7 @@ ok   no-replay-dropped
 ok   mini-keeps-no-replay
 ok   session-list
 ok   help
+ok   start-prompt
+ok   empty-prompt
+ok   whitespace-prompt
 all checks passed

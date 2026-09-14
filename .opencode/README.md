@@ -6,7 +6,9 @@ NvidiaSpark-1 (spark-dd06) launcher. Interactive shells alias `opencode` to
 ## Commands
 
 ```bash
-opencode              # print inbox once, wait for Enter, then open the TUI
+opencode              # print inbox, then a prompt line
+                      #   Enter            → TUI, no auto-prompt
+                      #   do issue #12     → TUI starts on that prompt
 opencode resume       # continue last session; no pull, no inbox, no pause
 opencode --continue   # same as resume
 ```

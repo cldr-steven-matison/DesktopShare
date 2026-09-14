@@ -14,8 +14,8 @@ Canonical launcher: [`.opencode/spark-session.sh`](../../.opencode/spark-session
 
 | Command | Behavior |
 |---|---|
-| `opencode` | silent `git pull`, print inbox once, wait for Enter, then TUI. No `--prompt`. |
-| `opencode resume` / `opencode --continue` | skip pull, inbox, and pause; `opencode <repo> --continue` |
+| `opencode` | silent `git pull`, print inbox once, then a prompt line. Empty Enter → TUI with no `--prompt`. Typed text → TUI with `--prompt`. |
+| `opencode resume` / `opencode --continue` | skip pull, inbox, and prompt line; `opencode <repo> --continue` |
 | `opencode run` / `session` / … | pass through, no preload |
 
 `--no-replay` is dropped unless `--mini` is also present.

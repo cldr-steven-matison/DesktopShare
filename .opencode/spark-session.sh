@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # NvidiaSpark-1 opencode launcher.
-# Fresh start: silent git pull, print inbox once, wait for Enter, then TUI.
-#   The TUI takes the alternate screen, so a print-and-exec flash is invisible.
-# Resume: skip preload, continue the last session. No auto-prompt either way.
+# Fresh start: silent git pull, print inbox once, then a prompt line.
+#   Enter with no text → TUI, no --prompt.
+#   Typed text (e.g. "do issue #12") → TUI with --prompt so it starts that work.
+# Resume: skip preload, continue the last session.
 set -euo pipefail
 
 proj="/home/tunas/BrainShare"
@@ -76,11 +77,17 @@ if command -v gh >/dev/null 2>&1; then
     | python3 "$proj/.opencode/build_inbox.py" || true
 fi
 
-# TUI replaces the screen. Hold the inbox until Enter so it is actually readable.
-# Skip the pause for dry-run / non-TTY (verify.sh, scripts).
-if [[ -z "${OPENCODE_DRY_RUN:-}" && -t 0 && -t 1 ]]; then
+# TUI replaces the screen. Hold the inbox until a prompt line so it is readable.
+# OPENCODE_START_PROMPT (even empty) skips the read — used by verify.sh.
+# Skip the read for dry-run / non-TTY as well.
+prompt="${OPENCODE_START_PROMPT-}"
+if [[ -z "${OPENCODE_DRY_RUN:-}" && -z "${OPENCODE_START_PROMPT+x}" && -t 0 && -t 1 ]]; then
   echo
-  read -r -p "[Enter] start opencode  " _
+  read -r -p "prompt (or Enter): " prompt
 fi
 
-launch "$proj" "${args[@]}"
+if [[ -n "${prompt//[[:space:]]/}" ]]; then
+  launch "$proj" --prompt "$prompt" "${args[@]}"
+else
+  launch "$proj" "${args[@]}"
+fi

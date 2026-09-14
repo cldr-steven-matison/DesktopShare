@@ -10,7 +10,7 @@ check() {
   local name="$1" expect_inbox="$2" expect_exec="$3"
   shift 3
   local out
-  out="$(OPENCODE_BIN=/bin/true OPENCODE_DRY_RUN=1 bash "$launcher" "$@" 2>&1 || true)"
+  out="$(OPENCODE_BIN=/bin/true OPENCODE_DRY_RUN=1 OPENCODE_START_PROMPT="${OPENCODE_START_PROMPT-}" bash "$launcher" "$@" 2>&1 || true)"
   local inbox_lines exec_line
   inbox_lines="$(printf '%s\n' "$out" | grep -c '^  #' || true)"
   exec_line="$(printf '%s\n' "$out" | grep '^exec ' || true)"
@@ -40,6 +40,9 @@ check no-replay-dropped yes "exec /bin/true $proj" --no-replay
 check mini-keeps-no-replay yes "exec /bin/true $proj --mini --no-replay" --mini --no-replay
 check session-list no "exec /bin/true session list" session list
 check help no "exec /bin/true --help" --help
+OPENCODE_START_PROMPT='do issue #12' check start-prompt yes "exec /bin/true $proj --prompt do\\ issue\\ #12"
+OPENCODE_START_PROMPT='' check empty-prompt yes "exec /bin/true $proj"
+OPENCODE_START_PROMPT='   ' check whitespace-prompt yes "exec /bin/true $proj"
 
 if [[ $fail -ne 0 ]]; then
   echo "verify failed"
