@@ -1,0 +1,8 @@
+ok   fresh
+ok   resume
+ok   continue-flag
+ok   no-replay-dropped
+ok   mini-keeps-no-replay
+ok   session-list
+ok   help
+all checks passed

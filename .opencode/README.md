@@ -1,28 +1,26 @@
 # opencode integration for DesktopShare
 
-This directory contains the opencode-specific integration for the DesktopShare repo on NvidiaSpark-1 (DGX Spark).
+NvidiaSpark-1 (spark-dd06) launcher. Interactive shells alias `opencode` to
+`.opencode/spark-session.sh`.
+
+## Commands
+
+```bash
+opencode              # print inbox once, open the TUI in this repo
+opencode resume       # continue last session; no pull, no inbox reprint
+opencode --continue   # same as resume
+```
+
+Subcommands (`opencode run`, `opencode session list`, …) pass through to the
+real binary with no preload.
 
 ## Files
 
-- `opencode.json` — opencode configuration with GitHub integration
-- `startup.sh` — session startup script (git pull + inbox + repo context)
-- `spark-session.sh` — wrapper to start opencode with GitHub integration
+- `spark-session.sh` — the launcher
+- `startup.sh` — silent `git pull --ff-only` (fresh start only)
+- `build_inbox.py` — formats `gh issue list` JSON into the one-line inbox
+- `opencode.json` — project-local opencode config (vLLM on loopback)
 
-## Usage
-
-```bash
-# Start opencode with inbox and GitHub integration
-bash .opencode/spark-session.sh [message]
-
-# Or manually
-bash .opencode/startup.sh && opencode --dir /home/tunas/BrainShare
-```
-
-## GitHub Integration
-
-The integration uses the GitHub API via `gh` CLI (already authenticated on this box). Every session:
-1. Runs `git pull --ff-only`
-2. Lists inbox issues (`device:NvidiaSpark-1`)
-3. Shows repo snapshot (branch, head, open issues count)
-4. Checks EFM flow status
-5. Checks MiNiFi agent status
+`--no-replay` is a mini-TUI flag and is invalid without `--mini`. The launcher
+drops a stray `--no-replay` on a full TUI start so a stale wrapper cannot crash
+it with `Error: --no-replay requires --mini`.
