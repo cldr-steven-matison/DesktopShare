@@ -9,4 +9,4 @@ Fresh `opencode` now:
 
 `opencode resume` is unchanged: last session, no inbox, no pause.
 
-Launcher: [`.opencode/spark-session.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/.opencode/spark-session.sh)
+Launcher: [`.opencode/spark-session.sh`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/.opencode/spark-session.sh) ([8eea8ea](https://github.com/cldr-steven-matison/DesktopShare/commit/8eea8ea)).
