@@ -1,145 +1,121 @@
-# Monday redeploy readiness — srm-iceberg (REST Catalog + Trino VW), optimized for cost
+# srm-iceberg weekly redeploy runbook (REST Catalog + Trino VW)
 
-## Context
+The shared SE sandbox reaps `srm-iceberg-cdp-env` every Friday. This runbook rebuilds the whole
+stack from an empty account with one command: CDP env + DataLake, Impala Data Hub, seeded Iceberg
+tables, REST Catalog, external users + data share, CDW cluster + Trino Virtual Warehouse.
 
-The shared SE sandbox reaps `srm-iceberg-cdp-env` **EOD Friday**. Monday morning the whole stack
-must be rebuilt end-to-end: CDP env + DataLake → Impala Data Hub → seed → REST Catalog → CDW
-Trino VW. Cost target: **< $6.00** (last successful run $5.71; 2026-09-14 failure $7.31).
+Scripts: [`iceberg-rest-catalog-demo`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo)
+(`monday-redeploy.sh`, `teardown.sh`, `preflight.sh`, `redeploy.sh`, `common.sh`) and
+[`trino-demo`](https://github.com/cldr-steven-matison/trino-demo) (`provision-trino-vw.yml`).
 
-`monday-redeploy.sh` chains **leg 0 (teardown) → leg 1 (redeploy) → leg 2 (Trino)** as one
-background job. All three bugs that caused the 2026-09-14 failure are fixed (see § teardown).
+## Deploy host: NvidiaSpark-1 only
 
-## What's already correct — do not touch
+Terraform state for this sandbox is a local file in the deploy host's `cdp-tf-quickstarts` clone.
+Two hosts deploying the same account leave each other's resources invisible to `terraform`, so
+exactly one host runs these scripts: **spark-dd06**. The Mac keeps its clones for reading only.
 
-- `~/Documents/GitHub/cdp-tf-quickstarts/aws/terraform.tfvars`: `deployment_template="semi-private"`,
-  `datalake_scale="LIGHT_DUTY"`, `datalake_version="7.3.2"`, `enable_raz=true`. ✅
-- `redeploy.sh` (8 steps): semi-private template, seeds `poc_uc2.airlines`+`flights`, enables REST
-  via CM API, restarts HMS/Knox, creates both external users, shares both tables, validates 4-step
-  OAuth. ✅
-- `provision-trino-vw.yml`: private subnets + `private_load_balancer: true` + `overlay: true`. ✅
-- `monday-redeploy.sh`: leg 0 (teardown) + leg 1 (redeploy) + leg 2 (Trino). ✅
-- Present: `sql/seed-airlines.sql`, `sql/seed-flights.sql`, `test-rest-catalog.sh`,
-  `~/.venvs/cdpcli`, `~/.venvs/clouderacloud`, `cloudera.cloud` collection, `.workload.creds`. ✅
+## One-time setup on the deploy host
 
-## Before every Monday run — two manual prereqs
+| Item | Where / how |
+|---|---|
+| Clones | `~/Documents/GitHub/cdp-tf-quickstarts`, `~/Documents/GitHub/iceberg-rest-catalog-demo`, `~/Documents/GitHub/trino-demo` |
+| terraform ≥ 1.16 | `/snap/bin/terraform` (the scripts pin it; override with `TERRAFORM=/path`) |
+| `~/.venvs/cdpcli` | `cdpcli` + `impyla`; `cdp configure` with a CDP API key |
+| `~/.venvs/clouderacloud` | ansible + `cloudera.cloud` at git `5ad1809` (Trino support) + `cdpy` from git, collections under `~/.venvs/clouderacloud/collections`. Exact commands: `trino-demo/README.md` "Environment setup" |
+| AWS | SSO profile `cldr-se`, region `us-east-2` |
+| `cdp-tf-quickstarts/aws/terraform.tfvars` | from the template: `env_prefix="srm-iceberg"`, `aws_region="us-east-2"`, `deployment_template="semi-private"`, `datalake_version="7.3.2"`, `datalake_scale="LIGHT_DUTY"`, `enable_raz=true`, `env_tags={owner, project, enddate}` |
+| `iceberg-rest-catalog-demo/.workload.creds` | one line: the CDP workload password (gitignored) |
 
-These are interactive browser steps that cannot be scripted:
+`preflight.sh` checks every row and names the fix for any that is missing.
 
-```
-aws sso login --profile cldr-se
-```
-Then confirm `.workload.creds` is present (workload password). Only run `cdp configure` if the CDP
-API key was rotated since last session.
+## Every run
 
-Also bump `enddate` in `terraform.tfvars` to the coming Friday before running `monday-redeploy.sh`:
-```
-enddate = "2026-09-21"   # update to this coming Friday each week
-```
+1. `aws sso login --profile cldr-se` (browser; the only interactive step).
+2. Launch as one background job and watch its log:
 
-## Monday execution runbook
-
-Set levers **at session start** — a fresh session means no cache-bust penalty for a low tier:
-
-1. **Session model = Sonnet, `/effort low`.** Running fixed scripts needs no Opus.
-2. User runs interactive prereq: `! aws sso login --profile cldr-se`
-3. Bump `enddate` in `terraform.tfvars` to coming Friday.
-4. **Launch as ONE background job**, log to a file:
-   `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/monday-redeploy.sh` (run_in_background).
-   This runs leg 0 (teardown, ~10–15 min) + leg 1 (REST Catalog rebuild, ~1h40m) + leg 2 (Trino
-   VW, ~15 min) without stopping.
-5. **Add one persistent failure/terminal Monitor** on the log. Filter to terminal + crash signatures
-   only — silence must never look like success:
-   `== TEARDOWN COMPLETE|== MONDAY REDEPLOY COMPLETE|PLAY RECAP|failed=[1-9]|fatal:|Traceback|ERROR|does not exist|401|502|EntityAlreadyExists`
-6. **Go quiet until the ping.** No per-phase prose.
-7. On completion: confirm done-condition, post outcome + commit hash to issue #268.
-
-Expected model turns end-to-end: ~4 → comfortably < $6.00.
-
-## Out of scope — will NOT be restored by the redeploy
-
-- **`srm-hol-002-open-lakehouse`**: extra `srm-iceberg-hive-vw` / `srm-iceberg-impala-vw`,
-  `srm_airlines*` DBs, staged `airlines-csv/`, and `srm-hol-optimizer` Data Hub. Separate runbook.
-- **Bastion / UI access**: only re-run `bastion/bastion-up.sh` + `bastion-connect.sh` if Trino/Hue
-  UI screenshots are wanted — not required for the CLI/API done-condition.
-
-## Verification (definition of done)
-
-- **Teardown**: `teardown.sh` VERIFY block prints all clean: `CDP env gone` · `terraform state
-  empty` · `S3 buckets gone` · `VPC gone` · `bastion gone` · `IAM roles gone` · `EC2 keypair gone`.
-- **REST Catalog**: `redeploy.sh` step 7 runs `test-rest-catalog.sh poc_uc2 airlines` + `flights`
-  → 4-step OAuth green, `has_vended_creds: true`, `client.region=us-east-2`. Visible in the log.
-- **Trino VW**: playbook `PLAY RECAP … failed=0`; CDW cluster + `srm-iceberg-dbc` + `srm-trino-vw`
-  reach Running per `cdp dw list-vws`.
-- **Cost**: session lands < $6.00.
-
-## Full teardown
-
-**Script:** `~/Documents/GitHub/iceberg-rest-catalog-demo/teardown.sh`
-
-Run by hand before the Friday reaper for a true clean-slate Monday:
-```
-bash ~/Documents/GitHub/iceberg-rest-catalog-demo/teardown.sh
-```
-Or unattended (called automatically by `monday-redeploy.sh` as leg 0):
-```
-TEARDOWN_UNATTENDED=1 bash teardown.sh
+```bash
+cd ~/Documents/GitHub/iceberg-rest-catalog-demo
+bash monday-redeploy.sh        # run_in_background; log: monday-redeploy-<date>.log
 ```
 
-**Prereqs**: `aws sso login --profile cldr-se`, `cdp` authed, `~/.venvs/cdpcli` on PATH.
-The script hard-fails fast if any is missing.
+Nothing else. The wrapper sets `enddate` to the coming Friday itself.
 
-**Three bugs fixed (2026-09-14 post-mortem):**
+| Leg | Wall clock |
+|---|---|
+| teardown (empty account / live env) | 2 min / 20 to 40 min |
+| preflight | under 1 min |
+| redeploy (terraform apply 1h20m, Data Hub 18 min, seed + REST Catalog + share) | about 1h40m |
+| Trino VW (CDW activate, DBC, VW) | 15 to 20 min |
 
-1. **CDW cluster matched by `.environmentCrn`, not `.name`** (hit live 2026-09-14).
-   CDW generates its own cluster name (e.g. `env-kv9zsm`) that has nothing to do with the CDP env
-   name — so `select(.name|contains("srm-iceberg"))` silently skips Error-state orphan clusters from
-   prior sessions. The Trino playbook then collides with the stale cluster. Fixed: teardown now
-   resolves `ENV_CRN_LIVE` up front and matches all CDW clusters by `environmentCrn`; falls back to
-   the name pattern only if the env is already gone. Loops over all matching cluster IDs so multiple
-   orphans are all deleted.
+Watch the log for terminal lines only: `MONDAY REDEPLOY COMPLETE`, `PREFLIGHT FAILED`,
+`TEARDOWN INCOMPLETE`, `FAIL:`, `fatal:`, `Error:`. Silence is progress.
 
-2. **IAM + keypair pre-purge added** (hit live multiple times as `EntityAlreadyExists`).
-   When `tfstate` is empty (a prior `terraform destroy` already ran), `terraform destroy` is a no-op
-   and the IAM roles/policies/instance profiles + EC2 keypair from the last apply remain in AWS.
-   The next `terraform apply` then fails `EntityAlreadyExists` on every IAM resource. Fixed: step 6b
-   explicitly deletes all `srm-iceberg-*` IAM resources + the EC2 keypair before `terraform destroy`,
-   regardless of tfstate content. Idempotent via `|| true`.
+## Done
 
-3. **Unattended mode flag** (blocked automation — comment 14).
-   The `read -r -p` confirmation gate was unconditional, preventing `monday-redeploy.sh` from calling
-   teardown as part of the automated flow. Fixed: `TEARDOWN_UNATTENDED=1` skips the gate; default
-   (interactive, run by hand) is unchanged.
+- Log ends with `== MONDAY REDEPLOY COMPLETE`.
+- `test-rest-catalog.sh poc_uc2 airlines` and `… flights` both print `has_vended_creds: true`.
+- `cdp dw list-vws` shows `srm-trino-vw` Running (the wrapper checks this before the final line).
 
-**Delete order (and why):**
+## What each script does
 
-CDW and Data Hubs are **not** in terraform state, and the CDP control plane **blocks an env delete**
-while any is still attached — so they go via `cdp` CLI first. The bastion (also out-of-band) must be
-terminated **before** `terraform destroy` (lives in a TF-managed public subnet — wedges the subnet
-delete with `DependencyViolation`). IAM purge before destroy handles the empty-state case.
+**`teardown.sh`** (idempotent, exits 1 if anything named `srm-iceberg` remains)
+1. CDW clusters attached to the env (matched by environment CRN): VWs, connectors, non-default
+   DBCs, then the cluster. Data Hubs `srm-iceberg-impala` and `srm-hol-optimizer`. The control
+   plane refuses an environment delete while either is attached.
+2. Bastion EC2 + its SG (out of band, sits in a terraform-managed subnet).
+3. `cdp environments delete-environment --cascading --forced`, wait until gone. CDP removes its
+   own DataLake, RDS, NLBs, ENIs and EC2 with the IAM roles still in place.
+4. Drop the env / datalake / IDBroker addresses from terraform state, then `terraform destroy`
+   the AWS shell plus the CDP credential and groups it owns.
+5. Orphan sweep by name and tag, independent of state: anything inside VPC `srm-iceberg-net`
+   (EC2, load balancers, RDS, ENIs, endpoints, NAT, IGW, subnets, route tables, SGs, the VPC),
+   IAM `srm-iceberg-*`, keypair `srm-iceberg-keypair`, S3 `srm-iceberg-*`, CDP credential
+   `srm-iceberg-xaccount-cred`, CDP groups `srm-iceberg-aw-cdp-{admin,user}-group`.
+6. If nothing is live but state still lists resources, drop them from state. Remove local
+   `config.env` and `credentials*.json`.
+7. VERIFY every class above.
 
-1. Prereq check + confirmation gate (or `TEARDOWN_UNATTENDED=1`).
-2. Kill local `ssh -D 1080` SOCKS proxy.
-3. **CDW** — match all clusters for this env by `environmentCrn`. Delete each:
-   **VWs → connectors → non-default DBCs → cluster** (this exact order — each step deadlocks if out
-   of sequence). Poll VWs until none; poll non-default DBCs until none; retry `delete-cluster` up to
-   10× (it 400s for a beat after DBC delete).
-4. **Data Hubs**: delete `srm-iceberg-impala` (+ `srm-hol-optimizer` if up), poll until gone.
-5. **DataShare**: best-effort delete (env cascade covers it; CRNs from `config.env`).
-6. **Bastion**: terminate `srm-iceberg-bastion` (by Name tag), wait terminated, delete
-   `srm-iceberg-bastion-sg`.
-6b. **IAM + keypair pre-purge**: delete all `srm-iceberg-*` instance profiles, roles (detach+delete
-   all attached/inline policies first), customer-managed policies, EC2 keypair `srm-iceberg-ssh-key`.
-7. **`terraform init` + `terraform destroy -auto-approve`** — init first (`Module source has
-   changed` without it). Data bucket is `force_destroy=true` — no manual S3 pre-empty. Afterward,
-   `aws s3 rb --force` any out-of-band buckets (e.g. `srm-iceberg-emr-*`).
-8. **Local cleanup**: `rm` `config.env` + `credentials*.json`. Warn if `/etc/hosts` has stale
-   `*.dw-srm-iceberg` lines. Remind to clear FoxyProxy SOCKS entry.
-9. **Verify**: env / tfstate / S3 / VPC / bastion / IAM roles / EC2 keypair all gone.
+**`preflight.sh`** (read-only, exits 1 on the first failure): tooling and venvs, AWS + CDP auth,
+`.workload.creds`, tfvars values, terraform state empty, and zero `srm-iceberg` objects in CDP
+(env, datalake, credential, groups, Data Hubs, CDW) and AWS (VPC, IAM, keypair, S3, EC2).
 
-**Preserved on purpose**: `.workload.creds`, tooling venvs, `terraform.tfstate` (emptied, file
-kept). `redeploy.sh` regenerates `config.env` + `credentials*.json`. SSH `.pem` is a terraform
-resource — destroyed and regenerated by `terraform apply`.
+**`redeploy.sh`** (8 steps, on an empty account)
+1. `terraform apply` (env + DataLake).
+2. Wait DataLake RUNNING; write `ENV_CRN`/`DL_CRN` to `config.env`; assign resource roles.
+3. Create the Impala Data Hub, wait AVAILABLE.
+4. Seed `poc_uc2.airlines` and `poc_uc2.flights` from `sql/` via `seed-impala.py` (Knox
+   gateway host). Never hand-write the DDL: Impala needs `PARTITIONED BY SPEC` before `STORED BY
+   ICEBERG`.
+5. Enable the REST Catalog (`hive_rest_catalog_enabled`, `client.region=us-east-2`), restart
+   HMS then Knox.
+6. Create `iceberg-consumer` + `iceberg-consumer-nifi`, share both tables to both, activate,
+   write `credentials.json` + `credentials-nifi.json`, rewrite `config.env` with the share id.
+7. Validate with `test-rest-catalog.sh` (reads vended creds from `storage-credentials[]`).
+8. NiFi Parameter Context re-wire: skipped unless `NIFI_REWIRE=1`.
 
-**Fallback if `terraform destroy` stalls on the CDP env**: uncommented at the bottom of step 7 in
-`teardown.sh` — `cdp environments delete-environment --cascade`, then `terraform state rm` the
-`cdp_environment`/`cdp_datalake` resources, then re-run `terraform destroy` for the AWS infra.
+**`monday-redeploy.sh`**: bump `enddate` → teardown → preflight → redeploy → resolve `ENV_CRN`
+from `config.env` and the three private subnet IDs from AWS (`srm-iceberg-net-private-*`) →
+`ansible-playbook provision-trino-vw.yml -e {env_crn, private_subnets}` → verify VW Running +
+both vended-creds checks. Stops at the first failing leg.
+
+## When it stops
+
+| Log line | Check | Fix |
+|---|---|---|
+| `PREFLIGHT FAILED` after a `FAIL` line | the line names the missing item | do what it says, re-run the wrapper |
+| `TEARDOWN INCOMPLETE` with `REMAINS` lines | `cdp dw list-dbcs --cluster-id <id>` for a refused CDW delete; `aws ec2 describe-network-interfaces --filters Name=vpc-id,Values=<vpc>` for a refused VPC delete | re-run `teardown.sh`; it resumes from what is left |
+| `terraform apply` `EntityAlreadyExists` / `already exists` | something was created after preflight, or preflight was skipped | `teardown.sh` then the wrapper |
+| Data Hub create rejected | `cdp datalake describe-datalake --datalake-name srm-iceberg-aw-dl` must be RUNNING | wait, re-run `redeploy.sh` (steps 1 to 3 are re-entrant) |
+| `has_vended_creds: false` | Ranger can lag a minute after the share | `bash test-rest-catalog.sh poc_uc2 flights` again |
+| playbook assert on `env_crn`/`private_subnets` | `aws ec2 describe-subnets --filters Name=tag:Name,Values=srm-iceberg-net-private-*` must return 3 | fix tagging or the VPC, re-run leg 3 by hand (`trino-demo/README.md`) |
+| CDW cluster `Error` about 6 min after activate | env must be `semi-private`; LB private, subnets private | `teardown.sh`, fix tfvars, wrapper |
+| AWS SSO expired mid-run | `aws sts get-caller-identity` | `aws sso login`, re-run the leg that stopped |
+
+`redeploy.sh` step 4 drops and recreates `poc_uc2.flights`; step 6 fails on a second run because
+the external users already exist. A partial redeploy is finished by hand from the failed step, or
+by a full teardown + wrapper.
+
+## Out of scope
+
+- `srm-hol-002-open-lakehouse` (extra VWs, `srm_airlines*`, `srm-hol-optimizer`): separate runbook.
+- Bastion / UI access: `bastion/bastion-up.sh` + `bastion-connect.sh` only when screenshots are needed.

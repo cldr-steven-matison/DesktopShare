@@ -275,60 +275,12 @@ Same auto-stop / Friday-reaper mechanics as the iceberg plan — see
 3. **Bump the `enddate` tag** in tfvars each Monday redeploy and `terraform apply` to extend the
    reaper window. Use `deployment_template = "semi-private"`.
 
-### Monday full redeploy checklist
+### Monday full redeploy
 
-The reaper destroys the env EOD Friday. On Monday morning, to restore the full stack:
-
-**Step 1 — Run `redeploy.sh`** (~1h40m, unattended after interactive prereqs):
-```bash
-aws sso login --profile cldr-se      # interactive browser login
-bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh
-```
-
-**Step 2 — Re-run the CDW Trino playbook** (~15m, after `redeploy.sh` completes):
-```bash
-# Re-resolve fresh env_crn (CRN is stable for this tenant+prefix, but confirm after a destroy)
-cdp environments describe-environment --environment-name srm-iceberg-cdp-env | jq -r '.environment.crn'
-# Update env_crn in provision-trino-vw.yml if the CRN changed, then:
-source ~/.venvs/clouderacloud/bin/activate
-cd ~/Documents/GitHub/trino-demo
-ansible-playbook provision-trino-vw.yml -v
-```
-
-After Step 2, both demos are live: REST Catalog (4-step OAuth) and Trino VW on the same env.
-
-### Run it cheap (model + orchestration — do this before kicking off)
-
-This whole Monday cycle is **deterministic orchestration**: launch a tested script, watch a
-log, swap one CRN, launch the next script. It needs a low model and almost no model turns.
-Repeatedly run on the wrong tier — the cost lever, in order of impact:
-
-1. **Switch to a low model first.** `/model sonnet` (or Haiku for the pure watch-and-launch)
-   BEFORE starting. Opus buys nothing for running tested scripts; reserve it for genuine
-   diagnosis. The device's configured default is already `sonnet` — don't start these on Opus.
-2. **Don't wake the model per phase.** Background the long jobs and filter the progress
-   monitor to **terminal states only** — `== DONE`, `PLAY RECAP`, and failure signatures — not
-   every `[N/8]`/`TASK`. The raw monitor line is already visible; restating each in prose is
-   ~15 full-context model turns (several cache-cold across the 18-min Impala / CDW-activate
-   waits) for zero added information.
-3. **Chain the two legs into one command, no model in the loop.** `redeploy.sh` already writes
-   the fresh `ENV_CRN` to `config.env`; the CRN re-resolve + playbook launch is scriptable.
-   Append to `redeploy.sh` (or a wrapper) so Monday is one background job with one completion
-   ping:
-
-   ```bash
-   # after redeploy.sh's step 8, chain the Trino VW leg:
-   . "$DEMO/config.env"                       # fresh ENV_CRN written by step 2/6
-   cd "$HOME/Documents/GitHub/trino-demo"
-   sed -i '' "s|env_crn: .*|env_crn: \"$ENV_CRN\"|" provision-trino-vw.yml   # BSD sed (macOS)
-   source "$HOME/.venvs/clouderacloud/bin/activate"
-   ansible-playbook provision-trino-vw.yml -v
-   ```
-   The env CRN churns on every rebuild (`2ccc0fd0…` → `a9e62bcf…` this cycle) — always take it
-   from `config.env`, never the committed playbook default. Private subnet IDs survive the
-   reaper (`0 destroyed`), so they don't need re-resolving.
-4. **Diagnose with grep, not full-file reads.** A 592-line `guard.sh` read to answer "does it
-   ever prompt?" sits in context for every later turn. Targeted reads keep the window lean.
+The weekly rebuild (REST Catalog + this Trino VW) is one command on the deploy host; the playbook
+runs as its last leg with `env_crn` and the private subnet IDs resolved live. Runbook:
+[`cloudera-iceberg-rest-catalog-aws-plan-redeploy.md`](cloudera-iceberg-rest-catalog-aws-plan-redeploy.md).
+To run only the playbook by hand: `trino-demo/README.md` "Configure and run".
 
 ---
 

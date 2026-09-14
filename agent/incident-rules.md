@@ -41,6 +41,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | Every repo file, `files/` dir or sha named in an issue body or comment is a full-URL link | `device-comms.md` §"Link every file you name" | guard 14 |
 | Issue artifacts live in `files/issue-<n>/`; verification screenshots embed in the comment; nothing is written under `$HOME` outside a repo or the scratchpad | §"Issue hygiene" | guard 16 |
 | A background gate clearing means proceed; the completion notification is a backstop | `workflow.md` §"Model, effort & context hygiene" | — |
+| Cloud sandbox: one deploy host, state-independent teardown, preflight before apply | §"Cloud sandbox deploys" | known-patterns `srm-iceberg-redeploy`; `preflight.sh` |
 | "Move a post to the blog site" = copy + translate the draft **and its assets** into the `cldr-steven-matison.github.io` clone; DesktopShare `blog/` is not the destination | §"Publishing a blog post" | — |
 
 ## Sub-agent prompting
@@ -138,6 +139,10 @@ The Claude Code harness tells every session to save memories by default. On this
 At the time of a session failure the only actions are: fix the work, and file. Suggestions and rule changes come out of a session run *against* that issue, not out of the session that failed.
 
 **Writing a memory is a gated flow, never a default.** Guard rule M denies any Edit/Write into `~/.claude/projects/*/memory/` unless a proposal exists: `bash files/memory-propose.sh <slug> <proposal.md>` opens a `[memory proposal]` issue summarizing the triggering event (the incident record) and registers it; the retried write then raises a bridged ask to Steven carrying the fact and why the repo cannot hold it; only his yes lets the write through, once. An optimize sweep he asks for runs through Bash and is the only path that bypasses the per-file gate. The per-device procedure and the WindowsDesktop worked example (85 → 4 memories, 2026-09-08): `local-repo-unification.md`.
+
+## Cloud sandbox deploys
+
+- **Terraform state for a cloud sandbox is a local file; one deploy host per sandbox, and a teardown never depends on that state.** Two hosts applying the same `cdp-tf-quickstarts` clone each hold a state the other cannot see, so the second host's `destroy` skips what the first created and its `apply` collides with it (`EntityAlreadyExists`, orphan IAM / CDP groups / CDW clusters), and the "fix" of purging IAM before destroy removes the cross-account role while CDP is still deleting the DataLake. The check: `preflight.sh` (state count 0 and zero named leftovers) before any apply; the teardown deletes by name/tag via `cdp`/`aws` and verifies with `exit 1`. Canon: `cloudera-iceberg-rest-catalog-aws-plan-redeploy.md`; known-patterns row `srm-iceberg-redeploy`.
 
 ## Commits and workflow
 

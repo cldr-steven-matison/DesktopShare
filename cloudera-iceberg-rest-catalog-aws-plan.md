@@ -500,59 +500,16 @@ aws ec2 revoke-security-group-ingress --group-id <knox-sg> --security-group-rule
 
 ## Automated redeploy (weekly rebuild)
 
-The shared tenant reaps **EOD Friday**, so the whole stack is disposable and must be reproducible on demand — e.g. **Monday morning**. `redeploy.sh` (authoritative copy in [`iceberg-rest-catalog-demo`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo)) chains every phase end-to-end: **~1h40m, unattended after two interactive prereqs.** After it completes, run the CDW Ansible playbook to restore the Trino VW (~15m — see [`cloudera-trino-plan.md`](cloudera-trino-plan.md) Monday redeploy checklist).
+The shared tenant reaps EOD Friday, so the whole stack is disposable and rebuilt on demand from an
+empty account. The runbook is [`cloudera-iceberg-rest-catalog-aws-plan-redeploy.md`](cloudera-iceberg-rest-catalog-aws-plan-redeploy.md):
+one deploy host (NvidiaSpark-1), one manual step (`aws sso login`), one command
+(`monday-redeploy.sh` = teardown → preflight → `redeploy.sh` → Trino VW playbook), and the
+symptom → fix table. Scripts live in
+[`iceberg-rest-catalog-demo`](https://github.com/cldr-steven-matison/iceberg-rest-catalog-demo).
 
-**Interactive prereqs (once, before running):**
-```bash
-aws sso login --profile cldr-se          # SSO browser login
-cdp configure                            # only if the CDP API key was rotated/deleted
-# ~/Documents/GitHub/iceberg-rest-catalog-demo/.workload.creds must hold the workload password
-```
-
-Then: `bash ~/Documents/GitHub/iceberg-rest-catalog-demo/redeploy.sh`
-
-**What `redeploy.sh` does (8 steps):**
-1. `terraform apply` — rebuild env + DataLake (~1h20m); `deployment_template = "semi-private"` in tfvars
-2. Wait DataLake RUNNING; resolve fresh CRNs into `config.env`; assign resource roles (idempotent)
-3. Create Impala Data Hub + wait AVAILABLE (~18m) — Impala is still required for seeding (not Trino)
-4. Seed `poc_uc2.airlines` (3 rows) + `poc_uc2.flights` (120k rows, 12 monthly partitions)
-5. Enable REST Catalog (`hive_rest_catalog_enabled=true`, `client.region=us-east-2` safety valve); restart HMS then Knox
-6. Create two external users (`iceberg-consumer` + `iceberg-consumer-nifi`); share both tables to both users; activate; write fresh `credentials.json` + `credentials-nifi.json`
-7. Validate REST Catalog: `test-rest-catalog.sh poc_uc2 airlines` + `poc_uc2.flights`
-8. Best-effort NiFi re-wire: updates the Parameter Context on the surviving `iceberg-lab` minikube flow with the new `iceberg-consumer-nifi` creds; prints manual steps if the `nifi-client` pod is not running
-
-Stable across rebuilds: gateway host (`srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site`) and the MCP `.env` are fixed for this tenant + prefix. **Only the CRNs churn** — the script re-resolves them.
-
-### Run it cheap (model + orchestration — applies to the whole rollout)
-
-This entire weekly rollout — `redeploy.sh` **and** the CDW Trino leg — is *deterministic
-orchestration*: launch a tested script, watch a log, swap one CRN, launch the next script. It
-needs a low model and almost no model turns. In impact order:
-
-1. **Switch to a low model first.** `/model sonnet` (Haiku for the pure watch-and-launch) BEFORE
-   kicking off. Opus buys nothing for running tested scripts — reserve it for genuine diagnosis.
-   This device's configured default is already `sonnet`; don't start these on Opus.
-2. **Don't wake the model per phase.** Background the long jobs and filter the progress monitor to
-   **terminal states only** — `== DONE`, `PLAY RECAP`, failure signatures — not every
-   `[N/8]`/`TASK`. The raw monitor line is already visible; restating each in prose is ~15
-   full-context model turns (several cache-cold across the 18-min Impala / CDW-activate waits) for
-   zero added information.
-3. **Chain the two legs into one command, no model in the loop.** `redeploy.sh` step 2/6 writes the
-   fresh `ENV_CRN` to `config.env`; the CRN re-resolve + playbook launch is scriptable, so Monday
-   becomes one background job with one completion ping:
-   ```bash
-   # append after redeploy.sh step 8:
-   . "$DEMO/config.env"                        # fresh ENV_CRN, written by step 2/6
-   cd "$HOME/Documents/GitHub/trino-demo"
-   sed -i '' "s|env_crn: .*|env_crn: \"$ENV_CRN\"|" provision-trino-vw.yml   # BSD sed (macOS)
-   source "$HOME/.venvs/clouderacloud/bin/activate"
-   ansible-playbook provision-trino-vw.yml -v
-   ```
-   The env CRN churns every rebuild — always take it from `config.env`, never a committed default.
-   Private subnet IDs survive the reaper (`0 destroyed`), so they don't need re-resolving.
-4. **Diagnose with grep, not full-file reads** — a big read persists in every later context window.
-
-Mirrored in [`cloudera-trino-plan.md`](cloudera-trino-plan.md) "Run it cheap" — keep the two in sync.
+Stable across rebuilds: gateway host (`srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site`)
+and the MCP `.env`. Everything else (CRNs, VPC and subnet IDs, credentials) churns and is
+re-resolved by the scripts.
 
 ## Resources
 
