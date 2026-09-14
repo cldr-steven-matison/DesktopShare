@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # NvidiaSpark-1 opencode launcher.
-# Fresh start: silent git pull, print inbox once, open the TUI. No auto-prompt.
-# Resume: skip preload, continue the last session.
+# Fresh start: silent git pull, print inbox once, wait for Enter, then TUI.
+#   The TUI takes the alternate screen, so a print-and-exec flash is invisible.
+# Resume: skip preload, continue the last session. No auto-prompt either way.
 set -euo pipefail
 
 proj="/home/tunas/BrainShare"
@@ -73,6 +74,13 @@ if command -v gh >/dev/null 2>&1; then
   gh issue list --state open --label "device:NvidiaSpark-1" \
     --json number,title,labels,state 2>/dev/null \
     | python3 "$proj/.opencode/build_inbox.py" || true
+fi
+
+# TUI replaces the screen. Hold the inbox until Enter so it is actually readable.
+# Skip the pause for dry-run / non-TTY (verify.sh, scripts).
+if [[ -z "${OPENCODE_DRY_RUN:-}" && -t 0 && -t 1 ]]; then
+  echo
+  read -r -p "[Enter] start opencode  " _
 fi
 
 launch "$proj" "${args[@]}"

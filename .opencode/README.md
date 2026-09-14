@@ -6,8 +6,8 @@ NvidiaSpark-1 (spark-dd06) launcher. Interactive shells alias `opencode` to
 ## Commands
 
 ```bash
-opencode              # print inbox once, open the TUI in this repo
-opencode resume       # continue last session; no pull, no inbox reprint
+opencode              # print inbox once, wait for Enter, then open the TUI
+opencode resume       # continue last session; no pull, no inbox, no pause
 opencode --continue   # same as resume
 ```
 
