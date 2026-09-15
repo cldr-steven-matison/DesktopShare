@@ -6,7 +6,7 @@ Contributors:
 - **FTF3XR2065** (Mac, this file's origin, 2026-07-22) — CFM Operator on minikube, cso-operator-app RAG + Streamers stack.
 - **MINI-Gaming-G1** (Windows gaming PC) — full EFM/CSO minikube, WindowsDesktop MiNiFi agent, Strimzi Kafka.
 - **TunaStarlink** (Beelink SER9) — StarlinkAI MiNiFi router → Lemonade iGPU inference.
-- **nifi.sceneserver.net** (DigitalOcean droplet) — public NiFi 2.0.0, host-native + Let's Encrypt cert.
+- **DigitalOcean droplet** (host-native) — public NiFi 2.0.0, host-native + Let's Encrypt cert.
 
 If your device is not listed above, add a `## <hostname>` block at the bottom with the deltas from these defaults before you write a flow.
 
@@ -31,7 +31,7 @@ If your device is not listed above, add a `## <hostname>` block at the bottom wi
 | Shape | Where NiFi/MiNiFi lives | Auth | When to use |
 |---|---|---|---|
 | **CFM Operator on Kubernetes** | `Nifi` CR → `mynifi-0` StatefulSet in `cfm-streaming` ns | Operator issues an mTLS user cert (`mynifi-cfm-operator-user-cert`) *or* Single-User Auth with `nifi-admin-creds` secret | Every in-cluster flow (cso-operator-app RAG, Streamers PGs) |
-| **Host-native NiFi** | `/root/nifi-2.0.0`, `bin/nifi.sh start`, single-user auth, real LE cert via certbot + deploy hook | Single-user login | The public-facing `nifi.sceneserver.net` droplet only |
+| **Host-native NiFi** | `/root/nifi-2.0.0`, `bin/nifi.sh start`, single-user auth, real LE cert via certbot + deploy hook | Single-user login | The public-facing DigitalOcean droplet only |
 | **MiNiFi C++ agent (EFM-deployed)** | Windows service `Apache NiFi MiNiFi`, Linux `minifi.service`, or K8s pod running the EFM deployer script | None (agent → EFM heartbeat is unauthenticated by default on our lab boxes; `autoConfigureSecurity=false` in the deployer curl) | Every edge/desktop flow driven from EFM (`WindowsDesktop`, `StarlinkAI`, `NvidiaNano`, `KubernetesPod`) |
 
 The three overlap: **EFM in-cluster + MiNiFi agents on the edge + Kafka in the middle + NiFi doing the heavier lift** is the canonical array.
@@ -367,7 +367,7 @@ Resource Manager (script/asset upload — the correct alternative to `kubectl cp
 ## 7. Public-cert wiring (host-native NiFi)
 
 Two documented paths:
-- **Host-native** (droplet): `certbot certonly --standalone`, deploy hook rebuilds the PKCS12 keystore + restarts NiFi. Blog: `blog/How to Install a Public Certificate for NiFi.md`. Working on `nifi.sceneserver.net`.
+- **Host-native** (droplet): `certbot certonly --standalone`, deploy hook rebuilds the PKCS12 keystore + restarts NiFi. Blog: `blog/How to Install a Public Certificate for NiFi.md`. Working on the droplet.
 - **CFM Operator on Kubernetes**: flip ingress off `ssl-passthrough`, terminate the LE cert at ingress-nginx, re-encrypt to NiFi's operator-issued backend cert. Leaves the operator's node-identity chain untouched. Plan: `cfm-nifi-public-cert-plan.md`. Not yet proven live at the time of this file's origin.
 
 Never replace the operator's `security.nodeCertGen` chain with an LE cert — the same DN is both the node's server identity and the `Initial Admin Identity` in `singleUserAuth`, and replacing it means editing `authorizers.xml` + restarting on every renewal.
@@ -431,6 +431,6 @@ Each block below lists only where that host diverges from the shared playbook ab
 - `ListenHTTP :8080` + planned 8081-8084 for embeddings/reranking/TTS/transcription — all hit Lemonade on `localhost:13305`. Fire-and-forget → PublishKafka keyed on `request_id` (see §4b).
 - Windows firewall + Tailscale gotcha (§5g) hit here.
 
-### nifi.sceneserver.net (DigitalOcean droplet, 1.9GB RAM)
+### DigitalOcean droplet (host-native NiFi, 1.9GB RAM)
 - Host-native NiFi 2.0.0, real LE cert via certbot standalone (§7).
 - **Undersized** for `-Xmx1g` — OOM killer takes NiFi down under load. Either drop `-Xmx` or upsize the droplet. Watch for stuck bootstrap watchdog on JDK reinstalls (killed by hand 2026-07-21).
