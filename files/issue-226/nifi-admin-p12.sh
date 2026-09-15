@@ -62,9 +62,11 @@ cat <<EOF
    Privacy & Security -> Certificates -> View Certificates -> Authorities -> Import, tick "websites";
    Windows/macOS: the OS trust store). Skipping this only costs a warning page.
 3. import $OUT/nifi-admin.p12 as a personal/client certificate — password: $P12_PASS
-   (Firefox: same dialog, "Your Certificates" -> Import. Chrome/Edge use the OS store.)
+   (Firefox: same dialog, "Your Certificates" -> Import. Chrome/Edge on Windows/macOS
+   use the OS store; Linux Chrome uses NSS, not Firefox's store — see below.)
 4. https://$HOSTNAME_SNI/nifi/  — pick the "nifi-admin (spark-dd06)" cert when prompted.
-   The canvas menu -> "current user" reads nifi-admin.
+   The canvas menu -> "current user" reads nifi-admin. Fully quit Chrome after a
+   Linux NSS import; it loads that db at start.
 
 == from another device (WindowsDesktop / Mac / StarlinkAI) ==
 Copy just the two files to the target machine (never commit them):
@@ -77,8 +79,12 @@ Then hosts entry + import per OS:
      security add-trusted-cert -k ~/Library/Keychains/login.keychain-db ca.crt
      security import nifi-admin.p12 -k ~/Library/Keychains/login.keychain-db -P $P12_PASS
   Linux Chrome (NSS, needs libnss3-tools): sudo add the /etc/hosts line; then
-     certutil -d sql:\$HOME/.pki/nssdb -A -t "C,," -n spark-ca -i ca.crt
-     pk12util -d sql:\$HOME/.pki/nssdb -i nifi-admin.p12 -W $P12_PASS
+     # Chrome M146+ defaults to ~/.local/share/pki/nssdb. If ~/.pki/nssdb already
+     # exists, Chrome keeps using that instead — import into whichever is live.
+     NSSDB=sql:\$HOME/.local/share/pki/nssdb
+     [ -d "\$HOME/.pki/nssdb" ] && NSSDB=sql:\$HOME/.pki/nssdb
+     certutil -d "\$NSSDB" -A -t "C,," -n cfm-operator-ca -i ca.crt
+     pk12util -d "\$NSSDB" -i nifi-admin.p12 -W $P12_PASS
   Firefox any OS: import both in Settings -> Certificates (own store, ignores the OS one).
 Off-LAN: join the tailnet and put the box's tailnet IP in the hosts entry — keep the SNI name.
 
