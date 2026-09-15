@@ -9,7 +9,9 @@ is in **[`RUNBOOK-spark.md`](RUNBOOK-spark.md)** §"Why every prior pass failed"
 no Kerberos login, so it calls the **plain** `/service/plugins/policies/download/` endpoint — which sits
 outside Spring Security (no SPNEGO) and is gated only by `ranger.admin.allow.unauthenticated.download.access`
 plus a client-cert CN match against the service's `commonNameForCertificate`. Every probe hit `/secure/`.
-Execution now runs on NvidiaSpark-1 (Steven, 2026-09-15 PM); done = full enforcement.
+Execution: NvidiaSpark-1 could not run it (`cfm-operator:3.3.1-b15` is amd64-only; the box is
+aarch64 — rolled back cleanly), so the proof runs on **WindowsDesktop as child issue #338**
+([`files/issue-338/RUNBOOK.md`](../issue-338/RUNBOOK.md), self-contained); done = full enforcement.
 
 Companion facts (hosts, IPs, certs, gateway-IP rotation): `FACTS.md` in this dir.
 

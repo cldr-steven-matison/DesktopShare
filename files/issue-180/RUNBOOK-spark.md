@@ -1,5 +1,11 @@
 # #180 — Full Ranger enforcement runbook (run on NvidiaSpark-1 / spark-dd06)
 
+> **NOT RUNNABLE HERE — superseded 2026-09-15 by [`files/issue-338/RUNBOOK.md`](../issue-338/RUNBOOK.md) (WindowsDesktop).**
+> Phase 0.4 failed on this box: `cfm-operator:3.3.1-b15` is `linux/amd64` only (single-manifest image;
+> Cloudera eng confirmed the release is amd64-only), and spark-dd06 is aarch64 — `exec /manager: exec
+> format error`. Rolled back to `3.0.0-b126` (helm rev 3); `mynifi` untouched. The mechanism section
+> below is still the reference; the child issue's runbook carries it with WindowsDesktop's Phase 0.
+
 **Supersedes [`RUNBOOK-mac.md`](RUNBOOK-mac.md)** (2026-09-15 PM, Steven: "we are going to do the work
 here"). Same goal — an operator-managed NiFi delegates authorization to the CDP Base **Ranger**,
 downloads the `nifi-operator` service policies, and **enforces** them (an allowed `nifi-admin`

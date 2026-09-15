@@ -98,4 +98,5 @@ plugin never calls (no Kerberos login → `RangerAdminRESTClient` uses the plain
 `400` was `ranger.admin.allow.unauthenticated.download.access=false`, not "different params". Fix =
 that flag `true` + `ranger.service.http.enabled=false` + service config `commonNameForCertificate`
 = the plugin cert CN. Mechanism, evidence and the gate: [`RUNBOOK-spark.md`](RUNBOOK-spark.md).
-Execution moved to NvidiaSpark-1 (Steven, 2026-09-15 PM).
+Execution: NvidiaSpark-1 is aarch64 and `cfm-operator` ≥ 3.3.x is amd64-only (eng-confirmed
+2026-09-15) → child issue **#338** on WindowsDesktop, [`files/issue-338/RUNBOOK.md`](../issue-338/RUNBOOK.md).
