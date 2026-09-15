@@ -31,12 +31,16 @@ exactly one host runs these scripts: **spark-dd06**. The Mac keeps its clones fo
 ## Every run
 
 1. `aws sso login --profile cldr-se` (browser; the only interactive step).
-2. Launch as one background job and watch its log:
+2. Launch in `tmux` (never in a direct bash tool call — the tool's ~2 min timeout kills the
+   process and the redeploy must be restarted from scratch):
 
 ```bash
-cd ~/Documents/GitHub/iceberg-rest-catalog-demo
-bash monday-redeploy.sh        # run_in_background; log: monday-redeploy-<date>.log
+tmux new-session -d -s monday-redeploy "cd ~/Documents/GitHub/iceberg-rest-catalog-demo && bash monday-redeploy.sh 2>&1 | tee -a ~/Documents/GitHub/iceberg-rest-catalog-demo/monday-redeploy-$(date +%F-%H%M).log"
 ```
+
+3. Watch progress: the script writes to `monday-redeploy-<date>_<time>.log` in the repo;
+   `tail -f` that file or `tmux capture-pane -t monday-redeploy -p | tail -20`.
+   Check back every 5-10 min. The total run is ~60 min.
 
 Nothing else. The wrapper sets `enddate` to the coming Friday itself.
 
@@ -44,8 +48,9 @@ Nothing else. The wrapper sets `enddate` to the coming Friday itself.
 |---|---|
 | teardown (empty account / live env) | 2 min / 20 to 40 min |
 | preflight | under 1 min |
-| redeploy (terraform apply 1h20m, Data Hub 18 min, seed + REST Catalog + share) | about 1h40m |
-| Trino VW (CDW activate, DBC, VW) | 15 to 20 min |
+| redeploy (terraform apply ~5 min if infra exists, 1h20m if fresh; Data Hub ~22 min, seed + REST Catalog + share under 5 min) | ~25 min / ~1h40m |
+| Trino VW (CDW activate, DBC, VW) | 20 to 25 min |
+| verify | under 1 min |
 
 Watch the log for terminal lines only: `MONDAY REDEPLOY COMPLETE`, `PREFLIGHT FAILED`,
 `TEARDOWN INCOMPLETE`, `FAIL:`, `fatal:`, `Error:`. Silence is progress.
