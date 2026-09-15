@@ -42,6 +42,7 @@ Each rule has **one** canonical statement; everywhere else points here rather th
 | Issue artifacts live in `files/issue-<n>/`; verification screenshots embed in the comment; nothing is written under `$HOME` outside a repo or the scratchpad | §"Issue hygiene" | guard 16 |
 | A background gate clearing means proceed; the completion notification is a backstop | `workflow.md` §"Model, effort & context hygiene" | — |
 | Cloud sandbox: one deploy host, state-independent teardown, preflight before apply | §"Cloud sandbox deploys" | known-patterns `srm-iceberg-redeploy`; `preflight.sh` |
+| Never deploy/teardown/mutate live infrastructure without explicit permission | §"Unauthorized infra mutation" | guard 15, user confirmation |
 | "Move a post to the blog site" = copy + translate the draft **and its assets** into the `cldr-steven-matison.github.io` clone; DesktopShare `blog/` is not the destination | §"Publishing a blog post" | — |
 
 ## Sub-agent prompting
@@ -143,6 +144,10 @@ At the time of a session failure the only actions are: fix the work, and file. S
 ## Cloud sandbox deploys
 
 - **Terraform state for a cloud sandbox is a local file; one deploy host per sandbox, and a teardown never depends on that state.** Two hosts applying the same `cdp-tf-quickstarts` clone each hold a state the other cannot see, so the second host's `destroy` skips what the first created and its `apply` collides with it (`EntityAlreadyExists`, orphan IAM / CDP groups / CDW clusters), and the "fix" of purging IAM before destroy removes the cross-account role while CDP is still deleting the DataLake. The check: `preflight.sh` (state count 0 and zero named leftovers) before any apply; the teardown deletes by name/tag via `cdp`/`aws` and verifies with `exit 1`. Canon: `cloudera-iceberg-rest-catalog-aws-plan-redeploy.md`; known-patterns row `srm-iceberg-redeploy`.
+
+## Unauthorized infra mutation
+
+- **Never deploy/teardown/mutate live infrastructure without explicit permission.** An explicit permission is Steven saying yes to the specific action and its cost, in the same turn. Announcing the action, assuming it's what Steven wants, or deciding "fixing a problem" justifies an unapproved operation is not permission. The guard rule 15 on this device blocks destructive commands (deploy, teardown, restart) behind a bridge ask; the session must honor that block and not override it. This covers every irreversible or expensive operation: redeploying a NiFi/MiNiFi flow, tearing down a CDP/AWS sandbox, restarting a live service, or any terraform/ansible/runbook that changes the state of a running system. If the operation has a dollar cost or cannot be undone without data loss, it is live infrastructure, not a local experiment. The session's job is to check what is running, report the state, and ask before doing anything that changes it. (2026-09-15: on this device, a session started the `srm-iceberg` teardown script (`teardown.sh` → `monday-redeploy.sh`) against a CloudFormation-managed CDP environment without any authorization. The script was partway through when Steven killed it; the CDP environment was already deleted by the time it stopped, but the terraform state was left in a broken half-state. The trigger was a Ch 19 connectivity validation task: the session identified the sandbox was down, the redeploy script was present on the box, and the session assumed rebuilding it was "helpful" and within scope. It was not. The session had no explicit permission, no ask, no mention of the 3-hour wall-clock cost or $45/day financial cost, and no acknowledgment that this was destructive infrastructure work. It crossed the cardinal line that every incident rule here is trying to prevent.)
 
 ## Commits and workflow
 
