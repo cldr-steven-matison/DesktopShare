@@ -29,7 +29,7 @@ docs); `spark-dd06` for the local half and the comparison numbers.
 |---|---|---|---|
 | `steven-ce` | CDP Base CE on AWS, CM 7.13.2 / Runtime 7.3.2, `cloudera-ce-aws` v1.0.0 (2026-09-14 build) | none — topology is `t3a`/`r5a` | Mac |
 | `srm-iceberg` | CDP Public Cloud on AWS, Runtime 7.3.2, `LIGHT_DUTY` Data Lake | none; **AWS G-instance quota** is a known gate | Mac |
-| `goes01` | Cloudera Anywhere (AWC) on EKS; Cloudera AI, Data Engineering (×4), Lakehouse Engine, Object Store all `deployed` | **unknown** — GPU node group not yet checked | Mac only (certs imported, Knox `hadoop-jwt` via `awc-env.sh`). From the box, checked 2026-09-15: DNS resolves to `10.80.155.x`, no route or VPN (default gateway), no goes CA installed, connect fails. Every goes01 step below runs on the Mac (#343). |
+| `goes01` | Cloudera Anywhere (AWC) on EKS; Cloudera AI, Data Engineering (×4), Lakehouse Engine, Object Store all `deployed` | **unknown** — GPU node group not yet checked | Mac **and the box** since #347 (2026-09-15 evening): corp VPN via `gpclient`, goes01 CA imported, `hadoop-jwt` in `~/.awc.creds`, `files/issue-347/awc-env.sh` — the four proofs pass from `spark-dd06` and every goes01 subnet is reachable (incl. `csm`, which the Mac can't reach). The goes01 steps below can run from either. |
 
 **Docs state, researched 2026-09-15** (public sources; internal docs can move any of these):
 

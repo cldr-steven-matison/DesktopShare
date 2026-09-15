@@ -163,7 +163,7 @@ The shape: AWC is a containerized Cloudera platform, so the DGX Spark reaches it
 
 **Field validation still owed (all `[TO-VERIFY]`):**
 
-- Box→`goes01` reachability — the private network is VPN-only (`10.80.x`); confirm the box can reach the endpoints before anything else. This is the gating open item.
+- Box→`goes01` reachability — the private network is VPN-only (`10.80.x`). **Done (#347, 2026-09-15):** the box is on the corp VPN with the goes01 CA imported; every goes01 subnet answers, the four API proofs pass from `spark-dd06` (`cloudera-anywhere-getting-started.md` §"From Linux").
 - The AWC Cloudera AI endpoint answers the same OpenAI-compatible request as the desk and CDP Public Cloud (the ch24 arc's third backend).
 - Trino (Lakehouse Engine) and Ozone (Object Store) reachable from a Spark-hosted NiFi with AWC auth.
 

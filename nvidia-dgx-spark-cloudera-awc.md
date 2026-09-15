@@ -26,7 +26,7 @@ What all three columns share is unchanged here: **the DGX Spark never joins the 
 
 The full mechanism is in `cloudera-anywhere-getting-started.md` (#284) and is not repeated here. The three facts that gate everything downstream:
 
-- **Network.** `goes01` hosts are private `10.80.x`; the goes01 internal CA chain must be trusted (the `goes-certs` repo installs it once), and the caller must be on-network or on VPN. Whether `spark-dd06` on the home LAN can be put on that network at all is the first open question — the reverse-tunnel trick from the CE shape does not apply, because AWC is the far end we must reach, not a cluster to publish into. `[TO-VERIFY]`
+- **Network.** `goes01` hosts are private `10.80.x`; the goes01 internal CA chain must be trusted (the `goes-certs` repo installs it once), and the caller must be on-network or on VPN. Whether `spark-dd06` on the home LAN can be put on that network at all was the first open question — the reverse-tunnel trick from the CE shape does not apply, because AWC is the far end we must reach, not a cluster to publish into. **Answered (#347, 2026-09-15): yes.** The box runs the corp GlobalProtect client (`gpclient`, full tunnel), the goes01 CA is imported, and `cloudera-anywhere-getting-started.md` §"From Linux" holds the mechanics; every goes01 subnet is reachable from it, `csm` and the Ozone gateways included.
 - **Credential.** One `hadoop-jwt` session cookie (issued by Knox SSO `knox-cdpsso`) authenticates every `*.demos.cloudera-labs.com` service host, as a `Cookie` or a `Bearer` header. It expires; refresh on 401/302. The token stays out of the transcript via the `awc-demo` helpers (`awc-env.sh` sources gitignored `~/.awc.creds`; `awc-cookie.sh` extracts the cookie from the browser store) — the same discipline the box must follow.
 - **Discovery.** The Console API (`files/awc-console.yaml`) is the automation entry: `GET /experiences`, `/engines`, `/blueprints`, `/flavors`. That is how the box finds the Cloudera AI endpoint and the Lakehouse Engine coordinator rather than hard-coding them.
 
@@ -89,7 +89,7 @@ Extends the ten-row catalogue in `nvidia-dgx-spark-cloudera-aws.md` §6 with the
 
 ## Open questions
 
-- **Can `spark-dd06` reach `goes01` at all?** It is a home-LAN box; `goes01` is private `10.80.x`, VPN-only. Whether the box can be put on that network — and whether the goes01 CA chain installs cleanly on aarch64 — is the gating question for every row above.
+- **Can `spark-dd06` reach `goes01` at all?** **Yes — answered 2026-09-15 (#347).** The corp GlobalProtect client runs on the box (full tunnel) and the goes01 CA chain installs cleanly on aarch64 (`update-ca-certificates`, 12 roots); every goes01 subnet is reachable and the four API proofs pass. Mechanics in `cloudera-anywhere-getting-started.md` §"From Linux".
 - What the Cloudera AI on AWC inference endpoint URL pattern is, whether it fronts through Knox, and whether the `hadoop-jwt` `Bearer` pattern binds to it.
 - The catalog-add mechanism on Lakehouse Engine Basic — admin UI vs `trino-engine-governed` — needed before any AWC Iceberg/Trino query returns data (carried from #284).
 - Whether an on-subnet relay (a small VPC-internal host, or the CDF Inbound-style path) is needed for Ozone and CSM Kafka, and if so where it lives.
