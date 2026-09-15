@@ -136,11 +136,25 @@ fi
 # Emit for BOTH audiences:
 #   - additionalContext -> injected into the model's context (Claude reads it).
 #   - systemMessage      -> printed to the user's terminal (Steven reads it).
-# Same text to both, so the on-screen check-in matches what the model acted on.
-# Fall back to plain stdout if jq is absent (that path is model-context only).
+# Same text to both on Claude, so the on-screen check-in matches what the model
+# acted on. Fall back to plain stdout if jq is absent (model-context only).
+#
+# Grok exception: the TUI clips SessionStart annotations at 256 chars and
+# renders the rest as `… [+N chars]`, which hid the inbox (#336 follow-on).
+# Under GROK_SESSION_ID, systemMessage is a one-line count so the banner is
+# not truncated; additionalContext still carries the full list for the model.
+# Interactive `grok` on this box is aliased to `.grok/spark-session.sh`, which
+# prints the complete inbox on the real terminal before the TUI starts.
 if command -v jq >/dev/null 2>&1; then
-  jq -nc --arg c "$out" \
-    '{systemMessage:$c, hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
+  if [ -n "${GROK_SESSION_ID:-}" ]; then
+    n="$(printf '%s\n' "$out" | grep -cE '^[0-9]+[[:space:]]' || true)"
+    short="inbox: ${n} open — full list printed before TUI (Grok clips this annotation at 256 chars)"
+    jq -nc --arg c "$out" --arg s "$short" \
+      '{systemMessage:$s, hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
+  else
+    jq -nc --arg c "$out" \
+      '{systemMessage:$c, hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
+  fi
 else
   printf '%s\n' "$out"
 fi

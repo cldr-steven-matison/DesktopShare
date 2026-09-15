@@ -19,11 +19,15 @@ Local inference on this box is vLLM at `http://127.0.0.1:8000/v1` (`nvidia/Qwen3
 
 ## Inbox — NvidiaSpark-1
 
-336  DGX Spark Opencode Startup Adjustment  [OPEN]  status:todo, device:NvidiaSpark-1
-335  NvidiaSpark-1: make ds-kb (desktopshare-kb) queryable from other array devices — remote transport (follow-up from #331)  [OPEN]  status:in-progress, device:NvidiaSpark-1
-334  NvidiaSpark-1: add OpenAI-compatible passthrough route to the EFM AI router (:8190) — unblocks opencode LLM for #331  [OPEN]  device:WindowsDesktop, status:in-progress, device:NvidiaSpark-1
-333  srm-iceberg redeploy test — prove teardown.sh + monday-redeploy.sh hands-off  [OPEN]  status:todo, device:NvidiaSpark-1
+344  Unauthorized srm-iceberg teardown — 2026-09-15 PM  [OPEN]  status:todo, device:NvidiaSpark-1
+343  Ch20: Cloudera AWC on AWS — establish goes01 reachability + verify all [TO-VERIFY] claims  [OPEN]  status:blocked, device:NvidiaSpark-1
+342  Ch19: CDP Public Cloud — Iceberg REST Catalog + CDF Inbound Connections from the box  [OPEN]  status:todo, device:NvidiaSpark-1
+341  Ch18: CDP Base CE on AWS — establish reverse SSH tunnel + NiFi→NIM integration  [OPEN]  status:todo, device:NvidiaSpark-1
+340  Ch18: CDP Base CE on AWS — establish reverse SSH tunnel + NiFi→NIM integration  [OPEN]  status:todo, device:NvidiaSpark-1
+336  DGX Spark Opencode Startup Adjustment  [OPEN]  status:review, device:NvidiaSpark-1
+333  srm-iceberg redeploy test — prove teardown.sh + monday-redeploy.sh hands-off  [OPEN]  status:in-progress, device:NvidiaSpark-1
 304  [Streamers] KB input mechanism  [OPEN]  status:todo, device:NvidiaSpark-1
 242  [DGX Spark] · J — Complete Developer Guide for Nvidia Spark with Cloudera: tracker + skeleton  [OPEN]  device:FTF3XR2065, status:review, device:NvidiaSpark-1
+180  Test CFM Operator NiFi -> CDP Ranger (CDP Base and CDP Public Cloud)  [OPEN]  device:FTF3XR2065, status:blocked, device:NvidiaSpark-1
 
 <!-- GORK-INBOX-END -->

@@ -108,7 +108,7 @@ On top of them, all built on 08-27.
 - `CLAUDE-CHECKIN.md` §NvidiaSpark-1 is the device block, filled from the host 08-26 and 09-02. `CONTEXT.md` names the box; `agent/device-comms.md` lists the label.
 - `gh` is authenticated as `TunaStreetTest` (2.98.0, `~/.local/bin`); `lib-device.sh` prepends `~/.local/bin` to the hooks' PATH so the guard's `gh` calls resolve.
 - The DesktopShare clone is `/home/tunas/BrainShare`, renamed from `DesktopShare` on 09-02 (#288). Claude Code keys its memory silo off that path, so the live silo is `~/.claude/projects/-home-tunas-BrainShare/memory`. Every other repo is under `/home/tunas/<repo>` unrenamed.
-- The GitHub issue inbox for this device is `gh issue list --state open --label device:NvidiaSpark-1`; the SessionStart hook prints it after `git pull`.
+- The GitHub issue inbox for this device is `gh issue list --state open --label device:NvidiaSpark-1`. Claude's SessionStart hook prints it after `git pull`. Grok's TUI clips that annotation at 256 chars, so interactive `grok` is aliased to `.grok/spark-session.sh` and prints the full inbox on the real terminal before the TUI starts.
 
 ## 6. The exposed surface
 

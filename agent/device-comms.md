@@ -84,6 +84,15 @@ that runs `.claude/hooks/checkin.sh` on every session start:
 3. Maps the host to its `device:*` label(s) via the case block in the script and
    lists that inbox with `gh issue list --state open`.
 
+   **Grok Build TUI:** SessionStart `systemMessage` is clipped at 256 characters
+   (`… [+N chars]`), so the full inbox cannot live in that annotation. Interactive
+   `grok` on NvidiaSpark-1 is aliased to `.grok/spark-session.sh`: it prints the
+   complete device inbox on the real terminal, then a prompt line, then starts
+   the TUI. `checkin.sh` under `GROK_SESSION_ID` sends a one-line count as
+   `systemMessage` and still puts the full list in `additionalContext` for the
+   model. `grok -c` / `--continue` / `--resume` skip the inbox, same as
+   `opencode resume` (#336).
+
 Claiming itself is no longer nagged at session start — it is done **mechanically**, from
 the prompt. The old **CLAIM-FIRST banner** was removed 2026-07-31 (issue #51): six-plus
 repetitions plus two "ask"-style guard triggers still didn't stop a 7th claim-skip, because
