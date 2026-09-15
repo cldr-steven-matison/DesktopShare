@@ -37,6 +37,8 @@ ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml \
 
 Four playbooks, four stages: Terraform provisions VPC + security groups + 11 EC2 nodes, Ansible configures FreeIPA/PostgreSQL/Caddy TLS, Cloudera Manager installs and licenses, then CM builds the cluster. Only the gateway node gets a public IP; everything else is private and reached through the Caddy reverse proxy on a `nip.io` hostname. The topology is selectable — Ozone, Kafka, Flink, NiFi, CSA or ECS ([cloudera-ce-aws](https://cloudera-labs.github.io/cloudera-ce-aws/)) — and **the NiFi and Kafka topologies are the ones this work-stream cares about.**
 
+> **Ranger authz note (from #180, this Base deploy).** Integrating the **CFM NiFi operator** with this cluster's Ranger surfaced a Kerberos fact worth carrying: on a Kerberized CDP Base cluster the **Ranger plugin authenticates policy download via SPNEGO/Kerberos, not its mTLS client cert** (`clientAuth=want` only secures the channel — the cert is sent and CERT-verified but Ranger logs `loginId=null` → 401; `kinit` + `--negotiate` → 200). The operator's `spec.security.ranger` is cert-oriented (no keytab), so a Kerberized Ranger needs the NiFi pod itself Kerberized (`spec.security.kerberos` + `krb5confSecret`). Full evidence + the recommended co-located-in-VPC follow-on: `files/issue-180/VALIDATION.md`.
+
 ### 2.2 The amd64 fact, and why it does not matter
 
 CE on AWS is x86_64 top to bottom. Two independent confirmations, and neither is a doc-site statement — this closes the architecture question `nvidia-dgx-spark-research.md` §8 leaves open:

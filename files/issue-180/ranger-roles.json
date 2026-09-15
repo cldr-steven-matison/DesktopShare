@@ -1,0 +1,181 @@
+{
+  "items" : [ {
+    "healthChecks" : [ {
+      "name" : "RANGER_ADMIN_CANARY",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_FILE_DESCRIPTOR",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_HOST_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_LOG_DIRECTORY_FREE_SPACE",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_OTELCOL_HEALTH",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_SCM_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_SWAP_MEMORY_USAGE",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_SWAP_MEMORY_USAGE_RATE",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_ADMIN_UNEXPECTED_EXITS",
+      "summary" : "GOOD",
+      "suppressed" : false
+    } ],
+    "maintenanceOwners" : [ ],
+    "name" : "ranger-RANGER_ADMIN-809d89196fa56fc5c6ef9f46ded2b361",
+    "type" : "RANGER_ADMIN",
+    "serviceRef" : {
+      "clusterName" : "ozone-base-cluster",
+      "serviceName" : "ranger",
+      "serviceDisplayName" : "ranger",
+      "serviceType" : "RANGER"
+    },
+    "hostRef" : {
+      "hostId" : "1abb7fad-7db2-4f7c-a823-21463ca7721b",
+      "hostname" : "steven-ce-sdx-01.cldr.internal"
+    },
+    "roleUrl" : "https://cm.13.58.196.190.nip.io/cmf/roleRedirect/ranger-RANGER_ADMIN-809d89196fa56fc5c6ef9f46ded2b361",
+    "roleState" : "STARTED",
+    "healthSummary" : "GOOD",
+    "configStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "commissionState" : "COMMISSIONED",
+    "roleConfigGroupRef" : {
+      "roleConfigGroupName" : "ranger-RANGER_ADMIN-BASE"
+    },
+    "entityStatus" : "GOOD_HEALTH",
+    "tags" : [ ]
+  }, {
+    "healthChecks" : [ {
+      "name" : "RANGER_RANGER_USERSYNC_FILE_DESCRIPTOR",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_HOST_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_LOG_DIRECTORY_FREE_SPACE",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_OTELCOL_HEALTH",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_SCM_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_SWAP_MEMORY_USAGE",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_SWAP_MEMORY_USAGE_RATE",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_USERSYNC_UNEXPECTED_EXITS",
+      "summary" : "GOOD",
+      "suppressed" : false
+    } ],
+    "maintenanceOwners" : [ ],
+    "name" : "ranger-RANGER_USERSYNC-809d89196fa56fc5c6ef9f46ded2b361",
+    "type" : "RANGER_USERSYNC",
+    "serviceRef" : {
+      "clusterName" : "ozone-base-cluster",
+      "serviceName" : "ranger",
+      "serviceDisplayName" : "ranger",
+      "serviceType" : "RANGER"
+    },
+    "hostRef" : {
+      "hostId" : "1abb7fad-7db2-4f7c-a823-21463ca7721b",
+      "hostname" : "steven-ce-sdx-01.cldr.internal"
+    },
+    "roleUrl" : "https://cm.13.58.196.190.nip.io/cmf/roleRedirect/ranger-RANGER_USERSYNC-809d89196fa56fc5c6ef9f46ded2b361",
+    "roleState" : "STARTED",
+    "healthSummary" : "GOOD",
+    "configStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "commissionState" : "COMMISSIONED",
+    "roleConfigGroupRef" : {
+      "roleConfigGroupName" : "ranger-RANGER_USERSYNC-BASE"
+    },
+    "entityStatus" : "GOOD_HEALTH",
+    "tags" : [ ]
+  }, {
+    "healthChecks" : [ {
+      "name" : "RANGER_RANGER_TAGSYNC_FILE_DESCRIPTOR",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_HOST_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_LOG_DIRECTORY_FREE_SPACE",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_OTELCOL_HEALTH",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_SCM_HEALTH",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_SWAP_MEMORY_USAGE",
+      "summary" : "GOOD",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_SWAP_MEMORY_USAGE_RATE",
+      "summary" : "DISABLED",
+      "suppressed" : false
+    }, {
+      "name" : "RANGER_RANGER_TAGSYNC_UNEXPECTED_EXITS",
+      "summary" : "GOOD",
+      "suppressed" : false
+    } ],
+    "maintenanceOwners" : [ ],
+    "name" : "ranger-RANGER_TAGSYNC-809d89196fa56fc5c6ef9f46ded2b361",
+    "type" : "RANGER_TAGSYNC",
+    "serviceRef" : {
+      "clusterName" : "ozone-base-cluster",
+      "serviceName" : "ranger",
+      "serviceDisplayName" : "ranger",
+      "serviceType" : "RANGER"
+    },
+    "hostRef" : {
+      "hostId" : "1abb7fad-7db2-4f7c-a823-21463ca7721b",
+      "hostname" : "steven-ce-sdx-01.cldr.internal"
+    },
+    "roleUrl" : "https://cm.13.58.196.190.nip.io/cmf/roleRedirect/ranger-RANGER_TAGSYNC-809d89196fa56fc5c6ef9f46ded2b361",
+    "roleState" : "STARTED",
+    "healthSummary" : "GOOD",
+    "configStalenessStatus" : "FRESH",
+    "maintenanceMode" : false,
+    "commissionState" : "COMMISSIONED",
+    "roleConfigGroupRef" : {
+      "roleConfigGroupName" : "ranger-RANGER_TAGSYNC-BASE"
+    },
+    "entityStatus" : "GOOD_HEALTH",
+    "tags" : [ ]
+  } ]
+}

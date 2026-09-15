@@ -1,0 +1,2 @@
+subject=C=US, ST=CA, CN=steven-ce-sdx-01.cldr.internal
+issuer=C=US, ST=CA, CN=SCM Local CA on steven-ce-manager-01.cldr.internal

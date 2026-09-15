@@ -1,0 +1,4 @@
+== #180 capture Tue Sep 15 07:35:37 EDT 2026 ==
+== 0. reachability (expect 'succeeded' with VPN OFF) ==
+nc: connectx to 3.140.195.142 port 22 (tcp) failed: Operation timed out
+!! gateway:22 unreachable — is GlobalProtect really disconnected? Aborting.

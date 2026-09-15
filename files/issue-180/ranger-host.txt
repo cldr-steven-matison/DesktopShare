@@ -1,0 +1,1 @@
+host=steven-ce-sdx-01.cldr.internal ip=10.10.1.169 port=6182 service=ranger

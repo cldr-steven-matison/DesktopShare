@@ -1,0 +1,4 @@
+# NEVER commit private keys / keystores
+*
+!.gitignore
+!README.md
