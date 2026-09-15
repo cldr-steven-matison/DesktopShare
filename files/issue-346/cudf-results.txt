@@ -1,0 +1,9 @@
+# cuDF benchmark — issue #346 — 2026-09-15T20:49:46Z — rapidsai/notebooks:26.06-cuda13-py3.14
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.download.nvidia.com/licenses/NVIDIA_Deep_Learning_Container_License.pdf
+
+=== cuDF CPU (stock pandas) ===
+{"backend": "cpu(pandas)", "label": "cpu", "rows": 10000000, "build_s": 1.4934, "groupby_s": 0.0822, "string_s": 1.4562, "join_s": 0.9201, "sort_s": 1.8888, "total_s": 5.8407}
+=== cuDF GPU (cudf.pandas) ===
+{"backend": "gpu(cudf.pandas)", "label": "gpu", "rows": 10000000, "build_s": 0.2697, "groupby_s": 0.1145, "string_s": 0.0111, "join_s": 0.1613, "sort_s": 0.7016, "total_s": 1.2582}

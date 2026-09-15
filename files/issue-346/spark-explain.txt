@@ -1,0 +1,19 @@
+# Avenue 2 — Spark 4.0.4 + rapids-4-spark_2.13-26.08.1 on GB10 (aarch64) — issue #346
+# run 2026-09-15T21:02:47Z
+
+## VERDICT: BLOCKED on aarch64 — plugin classes load, native cuDF JNI is x86_64-only
+
+## Plugin init (from executor log):
+  26/09/15 21:01:32 WARN RapidsPluginUtils: RAPIDS Accelerator 26.08.1 using cudf 26.08.0, private revision 66a861f882708b110e097671373df2e33412b3b5
+  26/09/15 21:01:32 WARN RapidsShuffleInternalManagerBase: Rapids Shuffle Plugin enabled. Multi-threaded shuffle mode (write threads=20, read threads=20). To disable the RAPIDS Shuffle Manager set `spark.rapids.shuffle.enabled` to false
+
+## Root cause:
+  26/09/15 21:01:34 ERROR NativeDepsLoader: Could not load cudf jni library...
+  Caused by: java.util.concurrent.ExecutionException: java.io.FileNotFoundException: Could not locate native dependency aarch64/Linux/libcudf.so
+  Caused by: java.io.FileNotFoundException: Could not locate native dependency aarch64/Linux/libcudf.so
+  java.lang.UnsatisfiedLinkError: 'int com.nvidia.spark.rapids.jni.Hash.getMaxStackDepth()'
+  26/09/15 21:01:34 INFO RapidsExecutorPlugin: Halting after 40 seconds
+
+## Native libs actually bundled in the jar (amd64 only, no aarch64):
+  1491824968  2026-08-25 12:04   amd64/Linux/libcudf.so
+      15272  2026-08-25 12:04   amd64/Linux/libcudfjni.so

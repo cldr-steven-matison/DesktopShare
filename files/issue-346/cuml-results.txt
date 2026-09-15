@@ -1,0 +1,6 @@
+# cuML benchmark — issue #346 — 2026-09-15T20:50:16Z — rapidsai/notebooks:26.06-cuda13-py3.14
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.download.nvidia.com/licenses/NVIDIA_Deep_Learning_Container_License.pdf
+
+{"n_samples": 200000, "n_features": 50, "models": {"random_forest": {"cpu_s": 6.0671, "gpu_s": 4.0181, "speedup": 1.51, "cpu_acc": 0.9042, "gpu_acc": 0.9011}, "knn": {"cpu_s": 0.0052, "gpu_s": 0.0056, "speedup": 0.93, "cpu_acc": 0.9469, "gpu_acc": 0.9469}, "umap_gpu_only": {"gpu_s": 0.4812, "n": 50000}}}

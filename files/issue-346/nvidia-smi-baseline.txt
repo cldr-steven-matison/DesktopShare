@@ -1,0 +1,46 @@
+# nvidia-smi + host baseline — issue #346 pre-flight
+# captured 2026-09-15T20:37:31Z on spark-dd06 (NvidiaSpark-1)
+
+=== nvidia-smi ===
+Tue Sep 15 20:37:31 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GB10                    On  |   0000000F:01:00.0  On |                  N/A |
+| N/A   43C    P0             12W /  N/A  | Not Supported          |     11%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            5913      C   text-embeddings-router                  504MiB |
+|    0   N/A  N/A            9792      G   /usr/lib/xorg/Xorg                      151MiB |
+|    0   N/A  N/A           13732      G   /usr/bin/gnome-shell                    184MiB |
+|    0   N/A  N/A           19317      G   ...exec/xdg-desktop-portal-gnome         21MiB |
+|    0   N/A  N/A           29326      C   text-embeddings-router                 1370MiB |
+|    0   N/A  N/A           44677      C   text-embeddings-router                 1370MiB |
+|    0   N/A  N/A           48734      C   ./build/bin/whisper-server             3968MiB |
+|    0   N/A  N/A           48914      C   VLLM::EngineCore                      57270MiB |
+|    0   N/A  N/A         3571952    C+G   ...7147/usr/bin/telegram-desktop         57MiB |
+|    0   N/A  N/A         3894967      G   .../8862/usr/lib/firefox/firefox        142MiB |
++-----------------------------------------------------------------------------------------+
+
+=== free -h ===
+               total        used        free      shared  buff/cache   available
+Mem:           121Gi       102Gi       1.6Gi       317Mi        18Gi        19Gi
+Swap:           15Gi       7.7Gi       8.3Gi
+
+=== df -h / ===
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p2  3.7T  274G  3.3T   8% /
+
+=== nproc / uname ===
+20
+aarch64
