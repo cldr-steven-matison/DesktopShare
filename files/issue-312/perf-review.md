@@ -44,6 +44,8 @@ ValueError: To serve at least one request with the model's max seq len (32000),
 
 Qwen2.5-3B with bitsandbytes at `--gpu-memory-utilization 0.75` needs ~6.1 GB of the 8.2 GB card. After the last host reboot whisper-large-v3 and the Windows compositor (`dwm`, 1.2 GB VRAM) were resident first, so vLLM could not get its budget and looped. It is the order-of-start fragility the check-in doc already records, and it recurs on every reboot until the restore order is run: whisper→0, vLLM 0→1, wait Ready, whisper→1.
 
+**The gate for the last step is `/v1/models` → 200, never `nvidia-smi` free memory (2026-09-15).** Once vLLM is up alone on the cleared card it takes its full 0.75 budget and `nvidia-smi` reads ~300 MiB free; that number says nothing about whether whisper→1 will fit, and a session that stops there leaves whisper down. WSL2's GPU is WDDM: the Windows video-memory manager evicts a *running* process's idle allocator blocks to host RAM instead of failing the new allocation, so whisper-large-v3 loads on a "full" card — used went 7637 → 7384 MiB as it came up, the §6 reading reproduced — and both serve (`/transcribe` 200 in 5 s, a chat completion in 2 s, back to back). Only vLLM's startup profiling refuses to over-commit, which is the whole reason the order is vLLM first, then whisper. Do not "make room" by lowering `--gpu-memory-utilization`: 0.75 is the compromise. The 2026-09-15 reboot reproduced the crash (`0.9 GiB < 1.1`) with no change to any manifest, image or model, and the order alone restored it.
+
 While it was down: `127.0.0.1:8000` answered nothing, so every Telegram `/bash` reply was failing silently (the documented bridge failure mode). Captions were unaffected: `BRAIN_DOOR_URL=http://192.168.1.203:32111/caption` (the Spark brain, promoted 2026-09-01); the only other local-vLLM caller in the app is the RAG `/query` route, whose store is empty.
 
 Steven's call on this pass: vLLM stays local (the bridge's model does not move to the Spark). For the record, it *could*: OpenClaw's provider is a plain OpenAI-compatible `baseUrl` (`~/.openclaw/openclaw.json` → `providers.custom-127-0-0-1-8000`), and the Spark's `192.168.1.203:8000/v1` answered 200 from this box on the LAN today. Cutover ladder R1 in `nvidia-dgx-spark-k3s-cso.md` §9 still governs if that is ever wanted.
@@ -80,7 +82,7 @@ Kept on purpose: `WindowsDesktop-MiNiFi-AutoStart`; `BrowserLauncherListener`, `
 |---|---|
 | Prometheus stack | `files/issue-140/observability-restand-cso-prod-1.yaml` + the verbatim `helm install` in `efm-windowsdesktop-prometheus-grafana.md`; re-add the `prometheus-grafana:3000` pane (`kube-service-ports-efm.kdl.bak-312` keeps the old layout) |
 | Any scaled deployment | `kubectl -n <ns> scale deploy/<name> --replicas=1` (`schema-registry` was 2) |
-| vLLM order | whisper→0 first, then vLLM 0→1, wait Ready, whisper→1 |
+| vLLM order | whisper→0 first, then vLLM 0→1, wait for `/v1/models` 200, whisper→1 — gate the last step on `/v1/models`, not on `nvidia-smi` free (§2) |
 | Windows appx | Microsoft Store reinstall (Phone Link, Widgets) |
 
 ## 6. Result (same day, ~40 min after the before snapshot)
