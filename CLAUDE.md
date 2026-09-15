@@ -1,6 +1,6 @@
 # DesktopShare — session start
 
-This repo is worked on from every device in `CLAUDE-CHECKIN.md` — a Mac, the WindowsDesktop gaming PC, the StarlinkAI Beelink, a DigitalOcean droplet, and whatever gets added next. Everything below applies on every device. Anything device-specific lives in that device's block in `CLAUDE-CHECKIN.md`; anything app-specific lives in that app's own `CLAUDE.md`.
+This repo is worked on from every device in `CLAUDE-CHECKIN.md` — a Mac, the WindowsDesktop gaming PC, the StarlinkAI Beelink, the DGX Spark, and whatever gets added next. Everything below applies on every device. Anything device-specific lives in that device's block in `CLAUDE-CHECKIN.md`; anything app-specific lives in that app's own `CLAUDE.md`.
 
 ## Who's asking
 
@@ -19,7 +19,7 @@ rules, plus the full cross-device protocol and label taxonomy, live in `agent/de
 ## Read before you touch anything
 
 - **`CONTEXT.md`** — the shared-language glossary. The device names, Cloudera-stack acronyms (CSO/CFM/CSA/CSM/EFM), namespaces, repos, and workflow terms used everywhere in this repo. Skim it first so you read the rest in the right terms and don't re-derive them.
-- **`CLAUDE-CHECKIN.md`** — the device roster. Confirms what host you're on, what services are running there, and what per-device paths and port-forwards apply. If you're about to name a specific host or port, check this first.
+- **`CLAUDE-CHECKIN.md`** — the device roster. Confirms what host you're on, what services are running there, and what per-device paths and port-forwards apply. If you're about to name a specific host or port, check this first. It is a **device register** (versions, paths, ports, ceilings, quirks with their check), never an incident log — what happened and how it was recovered goes in the issue thread. Canon: `agent/incident-rules.md` §"Device register" (#339).
 - **`agent/`** — the working rules every session follows. Short files: `device-comms.md`, `workflow.md`, `incident-rules.md`, `live-queues.md`, `writing-style.md`, plus two the hooks read for you: `subagent-rules.md` (injected into every sub-agent) and `known-patterns.tsv` (topic → the docs that already solve it). Read `device-comms.md`, `workflow.md`, and `incident-rules.md` at least once per session; the other two only when the task calls for them.
 - **Skills in `skills/`** — install is **automatic** (the SessionStart hook runs `skills/sync-skills.sh` after each pull; an uncommitted skill edit needs a manual `bash skills/sync-skills.sh`). Current skills: `nifi-and-ai` (the NiFi/MiNiFi/EFM playbook — load it before any work on those systems) and `align` (user-invoked `/align`). **Skill changes always get their own commit.** Sync mechanics, public publishing, and the policy-vs-technique split: `skills/README.md`.
 - **This device's memory dir** — holds a handful of device-local facts only (paths, COM ports, local runbooks). It is not a rule source and a session never writes to it on its own: `agent/incident-rules.md` §"Memories are not the instrument".
