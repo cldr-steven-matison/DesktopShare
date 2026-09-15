@@ -1,0 +1,21 @@
+# #180 — resolve the CDP Base Ranger FQDN inside k3s to the SSH tunnel on the node IP.
+# k3s CoreDNS imports /etc/coredns/custom/*.server, so this adds a zone block for cldr.internal
+# (a second `hosts` plugin cannot be added to the main server block via *.override).
+# Apply, then `kubectl -n kube-system rollout restart deploy/coredns`.
+# Remove when the tunnel is gone: `kubectl -n kube-system delete cm coredns-custom`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  ranger.server: |
+    cldr.internal:53 {
+      errors
+      hosts {
+        192.168.1.144 steven-ce-sdx-01.cldr.internal
+        192.168.1.144 steven-ce-manager-01.cldr.internal
+        fallthrough
+      }
+      forward . /etc/resolv.conf
+    }

@@ -1,5 +1,12 @@
 # #180 — Full Ranger enforcement runbook (run on FTF3XR2065)
 
+> **SUPERSEDED 2026-09-15 PM by [`RUNBOOK-spark.md`](RUNBOOK-spark.md)** — execution moved to
+> NvidiaSpark-1, and this file's Step 1 gate probes the wrong endpoint: `/secure/policies/download/`
+> is Ranger's **Kerberos** endpoint, which the operator's (non-Kerberized) plugin never calls. The
+> plugin uses the plain `/policies/download/`, gated by `ranger.admin.allow.unauthenticated.download.access`
+> and the service's `commonNameForCertificate` — see the new runbook's first section. Kept for the
+> cluster facts and the Ranger-policy lockout notes, which still hold.
+
 **Goal:** an operator-managed NiFi (`mynifi`, CFM operator `3.3.1-b15`, ns `cfm-streaming`) delegates
 authorization to the CDP Base **Ranger**, downloads the `nifi-operator` service policies, and
 **enforces** them against a NiFi login — an allowed `nifi-admin` session plus a captured **deny** in

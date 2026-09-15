@@ -90,3 +90,12 @@ this Kerberized cluster:**
 - **Decision pending with Steven** (2026-09-15): (A) Kerberize pod + tunnel to KDC; (C) co-locate
   NiFi in the VPC where Kerberos/DNS/certs work natively; (D) document this evidence-backed partial
   and defer the enforcement proof to a co-located runtime.
+
+#### Corrected 2026-09-15 late PM (source-verified) — none of A/C/D is needed
+The finding above is about `/service/plugins/**secure**/policies/download/`, which the operator's
+plugin never calls (no Kerberos login → `RangerAdminRESTClient` uses the plain
+`/service/plugins/policies/download/`, `security="none"` in Spring, no SPNEGO). The plain endpoint's
+`400` was `ranger.admin.allow.unauthenticated.download.access=false`, not "different params". Fix =
+that flag `true` + `ranger.service.http.enabled=false` + service config `commonNameForCertificate`
+= the plugin cert CN. Mechanism, evidence and the gate: [`RUNBOOK-spark.md`](RUNBOOK-spark.md).
+Execution moved to NvidiaSpark-1 (Steven, 2026-09-15 PM).

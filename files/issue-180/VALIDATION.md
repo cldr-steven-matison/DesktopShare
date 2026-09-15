@@ -1,13 +1,15 @@
 # #180 — CFM Operator NiFi → CDP Base Ranger: validation (partial, evidence-backed)
 
-**Status:** Ranger integration **prepared**; the download-auth probe results below are real, but the
-2026-09-15 morning conclusion drawn from them ("operator Ranger mode is cert-only / can't work on a
-Kerberized Ranger") was **wrong** — corrected the same afternoon against the authoritative operator doc
-[`cfm-operator-ranger-authorization.md`](cfm-operator-ranger-authorization.md). The operator supports
-**two** structured download-auth paths (mTLS *or* SPNEGO); the probe completed neither correctly. The
-full-enforcement build now has a path and an execution runbook — **[`RUNBOOK-mac.md`](RUNBOOK-mac.md)** —
-handed to the Mac (FTF3XR2065), which holds the cluster access to run it (decisions taken with Steven
-2026-09-15: bring-up on the Mac, done = full enforcement).
+**Status:** Ranger integration **prepared**; the download-auth probe results below are real, but every
+conclusion drawn from them was about the wrong endpoint. Three readings in one day: (morning) "operator
+Ranger mode is cert-only, can't work on a Kerberized Ranger"; (afternoon, NvidiaSpark-1) "two structured
+paths, mTLS or SPNEGO via `spec.security.kerberos`"; (Mac PM) "plugin is mTLS-only, so de-Kerberize
+Ranger". The **source-verified** reading (2026-09-15 late PM, Apache Ranger `master` + the operator PDF)
+is in **[`RUNBOOK-spark.md`](RUNBOOK-spark.md)** §"Why every prior pass failed": the operator's plugin has
+no Kerberos login, so it calls the **plain** `/service/plugins/policies/download/` endpoint — which sits
+outside Spring Security (no SPNEGO) and is gated only by `ranger.admin.allow.unauthenticated.download.access`
+plus a client-cert CN match against the service's `commonNameForCertificate`. Every probe hit `/secure/`.
+Execution now runs on NvidiaSpark-1 (Steven, 2026-09-15 PM); done = full enforcement.
 
 Companion facts (hosts, IPs, certs, gateway-IP rotation): `FACTS.md` in this dir.
 
@@ -50,27 +52,29 @@ but **only 6182 (HTTPS) listens** (6080 disabled under AutoTLS). Secure download
 | **mTLS client cert** (worker-04) | `401`, `curl -v` shows cert **sent + CERT-verified** in handshake, Ranger logs `loginId=null` | **cert only secures the channel — it does NOT authenticate the caller** |
 | **Kerberos SPNEGO** (`kinit -kt yarn.keytab …` + `curl --negotiate -u :`) | **`200` with real policy JSON** | **this is the working plugin-auth mechanism** |
 
-## The probe result, and the correct reading of it
+## The probe result, and the correct reading of it (source-verified 2026-09-15 late PM)
 
-The `curl` outcomes above are real. What was wrong was the *conclusion* — that the mTLS `401` proved
-the operator's Ranger mode cannot authenticate. The authoritative operator doc
-([`cfm-operator-ranger-authorization.md`](cfm-operator-ranger-authorization.md)) shows why:
+The `curl` outcomes above are real — and they say nothing about the operator, because every one of
+them targeted `/service/plugins/**secure**/policies/download/`, Ranger's **Kerberos** endpoint.
+From Apache Ranger source (`RangerAdminRESTClient`, `ServiceREST`, `ServiceUtil`, `RangerBizUtil`,
+`security-applicationContext.xml`) and the operator PDF (`krb5confSecret` "does not enable Kerberos
+based authentication"):
 
-- `spec.security.ranger` is an **authorizer**, **orthogonal to authentication** — combinable with
-  `kerberos`, LDAP, OIDC, cert, or single-user. The plugin downloads policies over **mTLS**
-  (`xasecure.policymgr.clientssl.*` from `tls.secretName`); `adminIdentity` is the Ranger **server**
-  DN written into `authorizers.xml`. There is no keytab in the `ranger` block because a keytab belongs
-  to `spec.security.kerberos`, not to the authorizer — the two compose.
-- So there are **two** structured download-auth paths on a Kerberized Ranger: **(1) mTLS**, with the
-  plugin cert's CN registered in `policy.download.auth.users`; or **(2) SPNEGO**, by also setting
-  `spec.security.kerberos` so the pod holds a Kerberos identity.
-- The probe tested **neither** correctly: it presented **worker-04's** host cert (CN never added to
-  `policy.download.auth.users`) and authorized only the `yarn` *Kerberos* principal for the SPNEGO leg.
-  The `401 loginId=null` means "this caller isn't a registered user," not "mTLS can't authenticate."
+- The plugin chooses the endpoint by whether it has a Kerberos (UGI) login. The operator's pod has
+  none — `spec.security.kerberos` is NiFi *user* authentication, not a plugin login — so it calls the
+  **plain** `/service/plugins/policies/download/<svc>`, presenting the `tls.secretName` client cert.
+- The plain endpoint is `security="none"` in Spring Security: **no SPNEGO filter**. Its gates are
+  (a) `ranger.admin.allow.unauthenticated.download.access=true` (default false → **400
+  "Unauthenticated access not allowed"** — the "plain endpoint = 400, needs different params" seen
+  above) and (b) with `ranger.service.http.enabled=false`, client-cert **SAN/CN == the service config
+  `commonNameForCertificate`**.
+- So the Mac PM reading ("plugin is mTLS-only") was right about the plugin and wrong about the fix:
+  nothing needs de-Kerberizing. The afternoon reading's "Path 2 — SPNEGO via `spec.security.kerberos`"
+  does not exist. `policy.download.auth.users` only governs the `secure` endpoint and is irrelevant.
 
-**Next action: the Mac runs [`RUNBOOK-mac.md`](RUNBOOK-mac.md).** Its Step 1 is the gate — register
-the plugin CN and re-probe: `200` → Path 1 (mTLS, pod not Kerberized); still `401` with a *registered*
-CN → Path 2 (add `spec.security.kerberos`). Then CR + Ranger policies + the enforcement capture.
+**Next action: run [`RUNBOOK-spark.md`](RUNBOOK-spark.md) on NvidiaSpark-1.** Its Phase 1.5 gate is
+one curl against the plain endpoint with the plugin cert; `200` there means the operator's unmodified
+mTLS path is open.
 
 ## Fallback if the tunnel proves too fragile — co-locate NiFi in the VPC
 
@@ -85,12 +89,12 @@ it up. CDP Public Cloud RAZ Ranger is a separate follow-on (token/Knox auth mode
 Ranger service `nifi-operator` (id 19) left in place on the cluster for the follow-on.
 
 ## Reusable lessons
-- **The operator's Ranger authorizer and Kerberos authentication compose — mTLS-vs-SPNEGO for policy
-  download is a *choice*, not a wall.** `spec.security.ranger` downloads over mTLS; add
-  `spec.security.kerberos` if the download endpoint is SPNEGO-gated. A `401 loginId=null` on the
-  `/service/plugins/secure/policies/download` endpoint means the caller identity isn't in
-  `policy.download.auth.users` — register the exact plugin CN (mTLS) or principal (SPNEGO) and re-probe
-  before concluding anything about the mechanism.
+- **Ranger has two policy-download endpoints and the plugin picks by whether it holds a Kerberos
+  login.** A non-Kerberized plugin (the CFM operator's) uses the plain `/service/plugins/policies/download/`,
+  which bypasses SPNEGO and authenticates by client-cert CN against the service's
+  `commonNameForCertificate` — after `ranger.admin.allow.unauthenticated.download.access=true`
+  and `ranger.service.http.enabled=false`. Probing `/secure/` with a cert tells you nothing about it.
+  Before concluding from a probe, find which URL the client actually calls — in source, not in a doc.
 - **Read the authoritative operator doc before drawing an architecture conclusion from a probe.**
   `cfm-operator-ranger-authorization.md` (internal `github.infra.cloudera.com/CDF/cfm-operator`, now
   committed in this dir) settled in one read what a probe misread all morning.
