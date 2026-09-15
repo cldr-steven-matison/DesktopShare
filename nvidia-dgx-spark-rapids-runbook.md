@@ -1,23 +1,24 @@
-# Field runbook: RAPIDS on the DGX Spark · cuDF/cuML works, the Spark plugin doesn't
+# Field runbook: RAPIDS on the DGX Spark · cuDF/cuML and the Spark plugin both run on GB10
 
 > **Field-run 2026-09-15 on `spark-dd06` (NvidiaSpark-1), issue [#346](https://github.com/cldr-steven-matison/DesktopShare/issues/346).**
 > GB10 Grace Blackwell, compute capability `sm_121`, CUDA 13.0, driver 580.173.02, aarch64,
-> Ubuntu 24.04. The live serving stack (vLLM Qwen3.6-35B on `:8000`, TEI embed/rerank on
-> `:8001`/`:8002`, whisper.cpp on `:8003`) stayed up the whole run. RAPIDS ran alongside it and
-> nothing was restarted.
+> Ubuntu 24.04, Java 21. The live serving stack (vLLM Qwen3.6-35B on `:8000`, TEI embed/rerank on
+> `:8001`/`:8002`, whisper.cpp on `:8003`) stayed up the whole run. RAPIDS shared the GPU with it
+> and nothing was restarted.
 
 I wanted to know two things on the box. First, does GPU-accelerated Python RAPIDS (cuDF, cuML) run
-on GB10. Second, can I prototype the "RAPIDS Accelerator for Apache Spark" story locally before it
-shows up on a Cloudera cluster. The first works and is worth the trouble. The second is blocked on
-this architecture, and the reason is worth writing down so nobody burns an afternoon on it again.
+on GB10. Second, can I run the RAPIDS Accelerator for Apache Spark locally, so the same job I will
+show on a Cloudera cluster has a desk-side dev loop. Both work. The Spark plugin cost me a wrong
+artifact and two config traps first, and those are the useful part of this doc.
 
 ## The box, and the memory budget
 
 The serving stack owns most of the 128 GB unified memory. vLLM alone holds 57 GB of GPU memory,
 whisper 4 GB, the two TEI tiers around 3 GB. `free -h` shows 19 GB available and 1.6 GB truly free
-with 8 GB of swap headroom. The GPU has roughly 60 GB of unified headroom. So the constraint is host
-RAM, not the GPU. I kept the datasets modest (10M-row DataFrames, 200k-sample models) and watched
-`nvidia-smi`. Nothing came close to evicting the serving stack.
+with 8 GB of swap headroom. The Spark plugin's own view is the number that matters for Avenue 2. It
+reports `gpu.total` 74,766 MiB and `gpu.free` about 1,400 MiB with serving resident. So the
+constraint is the shared GPU, not the box. I kept the datasets modest (10M-row DataFrames, 200k-sample
+models) and watched `nvidia-smi`. Nothing came close to evicting the serving stack.
 
 ## Avenue 1 · Python RAPIDS in a container works
 
@@ -87,47 +88,33 @@ is nothing to accelerate. `nvidia-smi` during the run peaked at 96% GPU against 
 reports `Memory-Usage: Not Supported`, so use `utilization.gpu` and `power.draw` as the live signal
 that RAPIDS is on the GPU.
 
-## Avenue 2 · the Spark RAPIDS plugin, blocked on aarch64
+## Avenue 2 · the Spark RAPIDS plugin runs on aarch64, once you pull the right jar
 
-This is the one that fails, and the failure is the finding.
+Spark 4.0.4 with Scala 2.13 and Java 21 is the right matrix. The 26.08.1 plugin supports Spark
+4.0.0 through 4.0.4 on Scala 2.13, and Spark 4.0 runs on Java 21, so I skip the Java 17 the older
+Spark lines want. Local mode only, so I dropped the `spark.executor.resource.gpu.amount` and
+`spark.task.resource.gpu.amount` confs from the issue's example, because a single-JVM `local[*]` has
+no executor resource negotiation and those confs need a GPU discovery script.
+
+### Trap 1 · the default Maven jar is amd64-only
+
+I pulled the obvious artifact first:
 
 ```bash
 # ~/rapids-test, disposable, not committed
 curl -O https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.13/26.08.1/rapids-4-spark_2.13-26.08.1.jar
-curl -O https://archive.apache.org/dist/spark/spark-4.0.4/spark-4.0.4-bin-hadoop3.tgz
-tar xzf spark-4.0.4-bin-hadoop3.tgz
-
-spark-4.0.4-bin-hadoop3/bin/spark-submit --master 'local[8]' \
-  --jars ~/rapids-test/rapids-4-spark_2.13-26.08.1.jar \
-  --conf spark.plugins=com.nvidia.spark.SQLPlugin \
-  --conf spark.rapids.sql.enabled=true \
-  --conf spark.rapids.sql.explain=ALL \
-  files/issue-346/scripts/spark_rapids_job.py
 ```
 
-Spark 4.0.4 with Scala 2.13 and Java 21 is the right matrix. The 26.08.1 plugin supports Spark
-4.0.0 through 4.0.4 on Scala 2.13, and Spark 4.0 runs on Java 21, so I skip the Java 17 the older
-Spark lines want. Local mode only. I dropped the `spark.executor.resource.gpu.amount` and
-`spark.task.resource.gpu.amount` confs from the issue's example, because a single-JVM `local[*]` has
-no executor resource negotiation and those confs need a GPU discovery script.
-
-The plugin's JVM half loads:
-
-```
-WARN RapidsPluginUtils: RAPIDS Accelerator 26.08.1 using cudf 26.08.0
-WARN RapidsShuffleInternalManagerBase: Rapids Shuffle Plugin enabled
-```
-
-Then the executor dies before the first task:
+The plugin's JVM half loads (`RAPIDS Accelerator 26.08.1 using cudf 26.08.0`), then the executor
+dies before the first task:
 
 ```
 ERROR NativeDepsLoader: Could not load cudf jni library...
 Caused by: java.io.FileNotFoundException: Could not locate native dependency aarch64/Linux/libcudf.so
 java.lang.UnsatisfiedLinkError: 'int com.nvidia.spark.rapids.jni.Hash.getMaxStackDepth()'
-INFO RapidsExecutorPlugin: Halting after 40 seconds
 ```
 
-The Maven Central jar ships the wrong architecture's native library. Look inside it:
+Look inside the jar and the reason is plain:
 
 ```bash
 unzip -l rapids-4-spark_2.13-26.08.1.jar | grep -E 'libcudf.so|libcudfjni.so'
@@ -135,33 +122,109 @@ unzip -l rapids-4-spark_2.13-26.08.1.jar | grep -E 'libcudf.so|libcudfjni.so'
 #      15272  amd64/Linux/libcudfjni.so
 ```
 
-`amd64/Linux/libcudf.so` and nothing else. On `os.arch=aarch64` the JNI loader builds the path
-`aarch64/Linux/libcudf.so`, that file is not in the jar, and it halts. The released `rapids-4-spark`
-plugin carries x86_64 natives only. The RAPIDS Python libraries ship arm64, as Avenue 1 shows. The
-Spark plugin does not.
+`amd64/Linux/libcudf.so` and nothing else. The no-classifier jar carries x86_64 natives only. The
+arm64 build is a different file in the same directory:
 
-There is an arm64 path, it is just not a download. `NVIDIA/spark-rapids-jni` has an arm64 build
-Dockerfile and a `cuda-aarch64` classifier, so you can compile `libcudf.so`, `libcudfjni.so`, and the
-plugin natives for aarch64 from source, with GDS and the profiler auto-disabled on ARM. That is a
-heavy CMake and CUDA build, and I did not take it on for this test.
+```bash
+B=https://repo1.maven.org/maven2/com/nvidia/rapids-4-spark_2.13/26.08.1
+curl -O $B/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar     # 537 MB; a -cuda12-arm64 jar (944 MB) is there too
+unzip -l rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar | grep -E 'libcudf.so|libcudfjni.so'
+#  762878896  aarch64/Linux/libcudf.so
+#     200640  aarch64/Linux/libcudfjni.so
+```
 
-## What this means for the guide
+NVIDIA published both arm64 classifiers on 2026-08-28. The request for them is
+[NVIDIA/cudf-spark#6881](https://github.com/NVIDIA/cudf-spark/issues/6881), opened in 2022 and closed
+in 2023 on build plumbing; the jars themselves landed with the 26.08 release. The plugin jar bundles
+the natives, so there is no separate `spark-rapids-jni` jar to add. GB10 (`sm_121`) is not in
+NVIDIA's tested list (V100 through GB100); it ran anyway.
 
-- **ch06 (efficiency on GB10)** gains a data-science capability. cuDF and cuML accelerate pandas and
-  scikit-learn workloads on the box, with the numbers above.
-- **ch18 (CDP Base CE + RAPIDS Accelerator for Apache Spark)**: the Cloudera-side Spark plugin story
-  cannot be prototyped locally on the DGX Spark with the stock artifact. The box is a Python-RAPIDS
-  workstation, not a local Spark-RAPIDS one. When the guide shows RAPIDS-for-Spark, that runs on the
-  Cloudera cluster with amd64 GPU nodes, and the box's contribution is the cuDF/cuML half.
+### Trap 2 · a GPU shared with a 35B model
+
+With the arm64 jar the natives load, the GPU is found, and RMM refuses to start:
+
+```
+IllegalArgumentException: The pool allocation of 265 MiB (gpu.free: 905 MiB, ... reserve: 640 MiB)
+was less than allocation of 18691 MiB (gpu.total: 74766 MiB, spark.rapids.memory.gpu.minAllocFraction: 0.25)
+```
+
+The plugin wants at least 25% of `gpu.total` free for its pool, and vLLM leaves about 1.4 GB.
+`spark.rapids.memory.gpu.pool=NONE` does not skip that check, I tried. Lowering the floor does:
+
+```bash
+--conf spark.rapids.memory.gpu.minAllocFraction=0.005    # floor ~374 MiB; pool ends up ~816 MiB
+```
+
+That plus a 2 GB pinned host pool is enough for a 10M-row job. On a GPU that is not serving, leave
+the default alone and give the plugin the memory.
+
+### Trap 3 · reading `Gpu*` from a plan that has not executed
+
+The job ran, `spark.rapids.sql.explain=ALL` said every exec and expression "will run on GPU", and my
+own check read the DataFrame's `executedPlan()` after `count()` and found no `Gpu*` node at all.
+Under AQE (the Spark 4 default) a DataFrame's plan is `isFinalPlan=false` until *that* plan executes,
+and `count()` is its own query. So I was reading the un-executed CPU tree and calling it a fallback.
+The fix is to execute the DataFrame's own plan and then read it:
+
+```python
+qe = joined._jdf.queryExecution()
+qe.executedPlan().execute().count()      # finalizes AQE for this plan
+plan = qe.executedPlan().toString()      # isFinalPlan=true, Gpu* nodes present
+```
+
+`explain=ALL` is the truth at planning time. The final plan is the truth after execution. Use both.
+
+### The run
+
+```bash
+EXTRA_CONF="--conf spark.rapids.memory.gpu.minAllocFraction=0.005" ROWS=10000000 \
+PLUGIN_JAR=~/rapids-test/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar \
+  bash files/issue-346/scripts/run-spark-rapids.sh files/issue-346/spark-explain-arm64-gpu.txt
+```
+
+Final plan, plugin on:
+
+```
+GpuRange, GpuProject, GpuFilter, GpuFileGpuScan, GpuBroadcastExchange,
+GpuBroadcastHashJoin, GpuBuildRight, GpuCoalesceBatches, GpuColumnarToRow
+```
+
+Same job with `RAPIDS_ENABLED=false` for the CPU side, 10M rows, `local[8]`:
+
+| Plugin | Wall-clock (s) | Gpu* operators | Peak GPU util |
+|---|---|---|---|
+| on | 3.091 | 9 | 19% |
+| off | 2.695 | 0 | 6% |
+
+No speedup at this size, and I am not going to dress that up. The job is startup-dominated at 3 s
+end to end, the plugin had an 816 MiB pool, and `local[8]` is not where RAPIDS wins. The result that
+matters is functional. The plugin plans and executes the whole job on GB10 arm64 while a 35B model
+serves next to it. The speedup number comes from a GPU that is not serving and a job sized for it,
+which is the Cloudera cluster in Part 3, or this box with vLLM paused and `ROWS` in the hundreds of
+millions.
+
+## What this means for the integration test
+
+- Python cuDF/cuML give GPU acceleration on the box with no code change. The "same code, GPU or
+  CPU" story holds for pandas and scikit-learn workloads, with the numbers above.
+- The Spark RAPIDS plugin runs on Grace Blackwell arm64 from NVIDIA's published `-cuda13-arm64` jar.
+  The box is a desk-side Spark-RAPIDS dev loop. `spark_rapids_job.py` and its confs promote unchanged
+  to a Cloudera cluster, where the GPU is dedicated and the data is big enough to show the gain.
+  Part 3 is where that gets exercised; the plan is
+  [`files/issue-346/part3-cloudera-plan.md`](files/issue-346/part3-cloudera-plan.md).
 
 ## What NOT to do
 
-- Don't reach for conda first. The RAPIDS container is one `docker pull`, disposable, and leaves the
-  base env alone. Conda on top of a box already at 102/121 GB RAM is asking for trouble.
+- Don't pull the default `rapids-4-spark_2.13-26.08.1.jar` on an ARM box. It carries
+  `amd64/Linux/libcudf.so` and only that. Pull the `-cuda13-arm64` (or `-cuda12-arm64`) classifier.
+- Don't leave `spark.rapids.memory.gpu.minAllocFraction` at 0.25 on a GPU that is also serving. The
+  plugin refuses to start with less than 25% free. Lower it and size `ROWS` to the pool.
+- Don't read `Gpu*` nodes from a DataFrame's plan before that plan has executed under AQE. You will
+  see CPU nodes and call it a fallback. Check `explain=ALL`, then the final plan.
 - Don't pass `spark.task.resource.gpu.amount` in `local` mode. It needs a discovery script and fails
   for a reason that has nothing to do with the GPU.
-- Don't assume "RAPIDS runs on ARM" covers the Spark plugin. cuDF and cuML Python do. The
-  `rapids-4-spark` Maven jar does not, because it carries `amd64/Linux/libcudf.so` and only that.
-- Don't run the demos as `--user root` in the container. The image entrypoint expects its own
+- Don't reach for conda first. The RAPIDS container is one `docker pull`, disposable, and leaves the
+  base env alone. Conda on top of a box already at 102/121 GB RAM is asking for trouble.
+- Don't run the demos as `--user root` in the RAPIDS container. The image entrypoint expects its own
   `rapids` user. Write results to stdout and capture them host-side instead of mounting a writable
   output dir.

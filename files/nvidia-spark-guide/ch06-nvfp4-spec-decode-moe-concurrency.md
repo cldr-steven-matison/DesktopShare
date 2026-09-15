@@ -9,8 +9,6 @@
 - Speculative decoding: measured token/s gain on spark-dd06
 - MoE vs dense model behavior at the 273 GB/s bandwidth ceiling
 - Measured concurrency limits from 2026-08-28 benchmark runs
-- Python RAPIDS (cuDF/cuML) on GB10: zero-code DataFrame + ML acceleration alongside the serving stack. Field-validated 2026-09-15 (#346) via `rapidsai/notebooks:26.06-cuda13`: cuDF 4.6× overall / 131× on strings @10M rows, cuML RandomForest 1.5× with accuracy parity. Runbook [`nvidia-dgx-spark-rapids-runbook.md`](../../nvidia-dgx-spark-rapids-runbook.md), results [`files/issue-346/results.md`](../issue-346/results.md).
-
 ## Before you start
 - Inference stacks running (Chapter 04 complete)
 - Familiarity with vLLM serving configuration

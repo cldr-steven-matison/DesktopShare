@@ -1,0 +1,942 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+26/09/15 21:49:18 WARN Utils: Your hostname, spark-dd06, resolves to a loopback address: 127.0.0.1; using 192.168.1.144 instead (on interface wlP9p1s0)
+26/09/15 21:49:18 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+26/09/15 21:49:18 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+26/09/15 21:49:18 INFO SparkContext: Running Spark version 4.0.4
+26/09/15 21:49:18 INFO SparkContext: OS info Linux, 6.17.0-1032-nvidia, aarch64
+26/09/15 21:49:18 INFO SparkContext: Java version 21.0.12
+26/09/15 21:49:19 INFO ResourceUtils: ==============================================================
+26/09/15 21:49:19 INFO ResourceUtils: No custom resources configured for spark.driver.
+26/09/15 21:49:19 INFO ResourceUtils: ==============================================================
+26/09/15 21:49:19 INFO SparkContext: Submitted application: issue346-rapids-smoke
+26/09/15 21:49:19 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 1, script: , vendor: , memory -> name: memory, amount: 1024, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0)
+26/09/15 21:49:19 INFO ResourceProfile: Limiting resource is cpu
+26/09/15 21:49:19 INFO ResourceProfileManager: Added ResourceProfile id: 0
+26/09/15 21:49:19 INFO SecurityManager: Changing view acls to: tunas
+26/09/15 21:49:19 INFO SecurityManager: Changing modify acls to: tunas
+26/09/15 21:49:19 INFO SecurityManager: Changing view acls groups to: tunas
+26/09/15 21:49:19 INFO SecurityManager: Changing modify acls groups to: tunas
+26/09/15 21:49:19 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: tunas groups with view permissions: EMPTY; users with modify permissions: tunas; groups with modify permissions: EMPTY; RPC SSL disabled
+26/09/15 21:49:19 INFO Utils: Successfully started service 'sparkDriver' on port 35635.
+26/09/15 21:49:19 INFO SparkEnv: Registering MapOutputTracker
+26/09/15 21:49:19 INFO SparkEnv: Registering BlockManagerMaster
+26/09/15 21:49:19 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+26/09/15 21:49:19 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+26/09/15 21:49:19 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+26/09/15 21:49:19 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-59e905cd-58a5-4674-bb23-45907a410ebe
+26/09/15 21:49:19 INFO SparkEnv: Registering OutputCommitCoordinator
+26/09/15 21:49:19 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+26/09/15 21:49:19 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+26/09/15 21:49:19 INFO SparkContext: Added JAR file:///home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar at spark://192.168.1.144:35635/jars/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar with timestamp 1789508958987
+26/09/15 21:49:19 INFO ShimLoader: Loading shim for Spark version: 4.0.4
+26/09/15 21:49:19 INFO ShimLoader: Complete Spark build info: 4.0.4, https://github.com/apache/spark, HEAD, c7d67e3f5d4c9d88a480367b44fc54d26adf99ab, 2026-07-12T04:41:54Z
+26/09/15 21:49:19 INFO ShimLoader: Scala version: version 2.13.16
+26/09/15 21:49:19 INFO ShimLoader: findURLClassLoader found a URLClassLoader org.apache.spark.util.MutableURLClassLoader@1bc425e7
+26/09/15 21:49:19 INFO ShimLoader: Updating spark classloader org.apache.spark.util.MutableURLClassLoader@1bc425e7 with the URLs: jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar!/spark-shared/, jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar!/spark404/
+26/09/15 21:49:19 INFO ShimLoader: Spark classLoader org.apache.spark.util.MutableURLClassLoader@1bc425e7 updated successfully
+26/09/15 21:49:19 INFO ShimLoader: Updating spark classloader org.apache.spark.util.MutableURLClassLoader@1bc425e7 with the URLs: jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar!/spark-shared/, jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar!/spark404/
+26/09/15 21:49:19 INFO ShimLoader: Spark classLoader org.apache.spark.util.MutableURLClassLoader@1bc425e7 updated successfully
+26/09/15 21:49:19 INFO RapidsPluginUtils: RAPIDS Accelerator build: HashMap(url -> https://github.com/NVIDIA/cudf-spark.git, branch -> HEAD, date -> 2026-08-25T10:58:50Z, cudf_version -> 26.08.0, user -> root, revision -> 1253310626da939c5924017d1c21e94d0932e0c1, version -> 26.08.1)
+26/09/15 21:49:19 INFO RapidsPluginUtils: RAPIDS Accelerator JNI build: HashMap(url -> https://github.com/NVIDIA/cudf-spark-jni.git, branch -> HEAD, gpu_architectures -> 100;110;120;75;80;86;89;90, date -> 2026-08-06T04:05:53Z, user -> root, revision -> 761c184ff0a0dc5b678b1f5f163c579068beb133, version -> 26.08.0)
+26/09/15 21:49:19 INFO RapidsPluginUtils: cudf build: HashMap(url -> https://github.com/rapidsai/cudf.git, branch -> HEAD, gpu_architectures -> 100;120;75;80;86;90, date -> 2026-08-06T04:05:48Z, user -> root, revision -> ff5b362d7c06ae5837fd7a7337e2ae20895f324d, version -> 26.08.0)
+26/09/15 21:49:19 INFO RapidsPluginUtils: RAPIDS Accelerator Private HashMap(url -> https://gitlab-master.nvidia.com/nvspark/cudf-spark-private.git, branch -> HEAD, date -> 2026-08-14T03:45:38Z, user -> root, revision -> 66a861f882708b110e097671373df2e33412b3b5, version -> 26.08.1)
+26/09/15 21:49:19 WARN RapidsPluginUtils: RAPIDS Accelerator 26.08.1 using cudf 26.08.0, private revision 66a861f882708b110e097671373df2e33412b3b5
+26/09/15 21:49:19 WARN RapidsPluginUtils: RAPIDS Accelerator is enabled, to disable GPU support set `spark.rapids.sql.enabled` to false.
+26/09/15 21:49:19 WARN RapidsPluginUtils: spark.rapids.sql.explain is set to `ALL`. Set it to 'NONE' to suppress the diagnostics logging about the query placement on the GPU.
+26/09/15 21:49:19 INFO DriverPluginContainer: Initialized driver component for plugin com.nvidia.spark.SQLPlugin.
+26/09/15 21:49:19 INFO SecurityManager: Changing view acls to: tunas
+26/09/15 21:49:19 INFO SecurityManager: Changing modify acls to: tunas
+26/09/15 21:49:19 INFO SecurityManager: Changing view acls groups to: tunas
+26/09/15 21:49:19 INFO SecurityManager: Changing modify acls groups to: tunas
+26/09/15 21:49:19 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: tunas groups with view permissions: EMPTY; users with modify permissions: tunas; groups with modify permissions: EMPTY; RPC SSL disabled
+26/09/15 21:49:19 WARN RapidsShuffleInternalManagerBase: Rapids Shuffle Plugin enabled. Multi-threaded shuffle mode (write threads=20, read threads=20). To disable the RAPIDS Shuffle Manager set `spark.rapids.shuffle.enabled` to false
+26/09/15 21:49:19 INFO Executor: Starting executor ID driver on host 192.168.1.144
+26/09/15 21:49:19 INFO Executor: OS info Linux, 6.17.0-1032-nvidia, aarch64
+26/09/15 21:49:19 INFO Executor: Java version 21.0.12
+26/09/15 21:49:19 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''
+26/09/15 21:49:19 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@5a2485a4 for default.
+26/09/15 21:49:19 INFO Executor: Fetching spark://192.168.1.144:35635/jars/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar with timestamp 1789508958987
+26/09/15 21:49:19 INFO TransportClientFactory: Successfully created connection to /192.168.1.144:35635 after 18 ms (0 ms spent in bootstraps)
+26/09/15 21:49:19 INFO Utils: Fetching spark://192.168.1.144:35635/jars/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar to /tmp/spark-912d76a5-c4f7-4318-8626-c31caf5ff388/userFiles-e2ac571c-4c6f-4965-997a-47913d9e6df1/fetchFileTemp10695956084078935806.tmp
+26/09/15 21:49:20 INFO Executor: Adding file:/tmp/spark-912d76a5-c4f7-4318-8626-c31caf5ff388/userFiles-e2ac571c-4c6f-4965-997a-47913d9e6df1/rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar to class loader default
+26/09/15 21:49:20 INFO RapidsPluginUtils: Estimated number of cores is 8
+26/09/15 21:49:23 INFO RapidsExecutorPlugin: Initializing memory from Executor Plugin
+26/09/15 21:49:23 INFO GpuDeviceManager: Initializing pinned memory pool (2048.0 MiB)
+26/09/15 21:49:24 INFO MemoryCheckerImpl: Trying to detect available CPU memory
+26/09/15 21:49:24 INFO MemoryCheckerImpl: attempting to read /sys/fs/cgroup/memory/memory.limit_in_bytes
+26/09/15 21:49:24 INFO MemoryCheckerImpl: attempting to read /proc/meminfo
+26/09/15 21:49:24 INFO MemoryCheckerImpl: no process limits detected; using system limit of 23978020864
+26/09/15 21:49:24 WARN GpuDeviceManager: spark.rapids.memory.host.offHeapLimit.size is not set; we used memory limit derived from (0.8 * (estimated available host memory / device count) - spark.executor.memory - spark.executor.pyspark.memory - spark.memory.offHeap.size) = (0.8 * (9591208345 / 1) - 1073741824 - 0 - 0) = 6813973216
+26/09/15 21:49:24 INFO GpuDeviceManager: Setting MT read memory limit to 5848.4794921875 MiB (90% of 6498.310546875 MiB total off-heap)
+26/09/15 21:49:24 INFO GpuDeviceManager: availableGpuTotal: 74765.9296875 MiB
+26/09/15 21:49:24 INFO GpuDeviceManager: availableGpuFree: 2363.984375 MiB
+26/09/15 21:49:24 INFO GpuDeviceManager: Initializing RMM ASYNC pool size = 1723.984375 MB on gpuId 0
+26/09/15 21:49:24 INFO GpuDeviceManager: Using per-thread default stream
+26/09/15 21:49:24 INFO ShimDiskBlockManager: Created local directory at /tmp/blockmgr-d4b22d92-0dea-4ac0-8e80-0891177e4f4c
+26/09/15 21:49:24 INFO SpillFramework: Initialized SpillFramework. Host spill store max size is: 3221225472 B.
+26/09/15 21:49:24 INFO GpuShuffleEnv: MultithreadedShuffleBufferCatalog disabled - spark.rapids.shuffle.multithreaded.skipMerge is false
+26/09/15 21:49:24 INFO AwsStorageExecutorPlugin: Initializing S3 Plugin on the Executor driver
+26/09/15 21:49:24 WARN PerfIOConf: PerfIO: no HTTP client available on classpath; falling back to S3A
+26/09/15 21:49:24 WARN PerfIOConf: PerfIO: google-cloud-storage classes not found on classpath; falling back to GCS connector
+26/09/15 21:49:24 INFO ExecutorPluginContainer: Initialized executor component for plugin com.nvidia.spark.SQLPlugin.
+26/09/15 21:49:24 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 41743.
+26/09/15 21:49:24 INFO NettyBlockTransferService: Server created on 192.168.1.144:41743
+26/09/15 21:49:24 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+26/09/15 21:49:24 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, 192.168.1.144, 41743, None)
+26/09/15 21:49:24 INFO BlockManagerMasterEndpoint: Registering block manager 192.168.1.144:41743 with 3.4 GiB RAM, BlockManagerId(driver, 192.168.1.144, 41743, None)
+26/09/15 21:49:24 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, 192.168.1.144, 41743, None)
+26/09/15 21:49:24 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, 192.168.1.144, 41743, None)
+[info] Spark 4.0.4  master=local[8]
+26/09/15 21:49:25 INFO SharedState: Setting hive.metastore.warehouse.dir ('null') to the value of spark.sql.warehouse.dir.
+26/09/15 21:49:25 INFO SharedState: Warehouse path is 'file:/home/tunas/BrainShare/spark-warehouse'.
+[info] spark.rapids.sql.enabled=true  plugins=com.nvidia.spark.SQLPlugin
+[info] rows=10000000
+26/09/15 21:49:26 WARN GpuOverrides: 
+*Exec <DataWritingCommandExec> will run on GPU
+  *Output <InsertIntoHadoopFsRelationCommand> will run on GPU
+  *Exec <WriteFilesExec> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> avg(val#2) will run on GPU
+        *Expression <Average> avg(val#2) will run on GPU
+      *Expression <AggregateExpression> sum(amt#3) will run on GPU
+        *Expression <Sum> sum(amt#3) will run on GPU
+      *Expression <AggregateExpression> count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Expression <Alias> avg(val#2)#12 AS val_mean#4 will run on GPU
+      *Expression <Alias> sum(amt#3)#13 AS amt_sum#5 will run on GPU
+      *Expression <Alias> count(1)#11L AS n#6L will run on GPU
+      *Exec <ShuffleExchangeExec> will run on GPU
+        *Partitioning <HashPartitioning> will run on GPU
+        *Exec <HashAggregateExec> will run on GPU
+          *Expression <AggregateExpression> partial_avg(val#2) will run on GPU
+            *Expression <Average> avg(val#2) will run on GPU
+          *Expression <AggregateExpression> partial_sum(amt#3) will run on GPU
+            *Expression <Sum> sum(amt#3) will run on GPU
+          *Expression <AggregateExpression> partial_count(1) will run on GPU
+            *Expression <Count> count(1) will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (rand(2) * 100.0) AS amt#3 will run on GPU
+              *Expression <Multiply> (rand(2) * 100.0) will run on GPU
+                *Expression <Rand> rand(2) will run on GPU
+            *Exec <ProjectExec> will run on GPU
+              *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Expression <Alias> rand(1) AS val#2 will run on GPU
+                *Expression <Rand> rand(1) will run on GPU
+              *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:26 INFO GpuOverrides: Plan conversion to the GPU took 132.54 ms
+26/09/15 21:49:26 WARN GpuOverrides: 
+*Exec <DataWritingCommandExec> will run on GPU
+  *Output <InsertIntoHadoopFsRelationCommand> will run on GPU
+  *Exec <WriteFilesExec> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> avg(val#2) will run on GPU
+        *Expression <Average> avg(val#2) will run on GPU
+      *Expression <AggregateExpression> sum(amt#3) will run on GPU
+        *Expression <Sum> sum(amt#3) will run on GPU
+      *Expression <AggregateExpression> count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Expression <Alias> avg(val#2)#12 AS val_mean#4 will run on GPU
+      *Expression <Alias> sum(amt#3)#13 AS amt_sum#5 will run on GPU
+      *Expression <Alias> count(1)#11L AS n#6L will run on GPU
+      *Exec <ShuffleExchangeExec> will run on GPU
+        *Partitioning <HashPartitioning> will run on GPU
+        *Exec <HashAggregateExec> will run on GPU
+          *Expression <AggregateExpression> partial_avg(val#2) will run on GPU
+            *Expression <Average> avg(val#2) will run on GPU
+          *Expression <AggregateExpression> partial_sum(amt#3) will run on GPU
+            *Expression <Sum> sum(amt#3) will run on GPU
+          *Expression <AggregateExpression> partial_count(1) will run on GPU
+            *Expression <Count> count(1) will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (rand(2) * 100.0) AS amt#3 will run on GPU
+              *Expression <Multiply> (rand(2) * 100.0) will run on GPU
+                *Expression <Rand> rand(2) will run on GPU
+            *Exec <ProjectExec> will run on GPU
+              *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Expression <Alias> rand(1) AS val#2 will run on GPU
+                *Expression <Rand> rand(1) will run on GPU
+              *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:26 INFO GpuOverrides: Plan conversion to the GPU took 5.50 ms
+26/09/15 21:49:26 INFO GpuOverrides: Plan conversion to the GPU took 0.70 ms
+26/09/15 21:49:26 WARN GpuOverrides: 
+*Exec <DataWritingCommandExec> will run on GPU
+  *Output <InsertIntoHadoopFsRelationCommand> will run on GPU
+  *Exec <WriteFilesExec> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> avg(val#2) will run on GPU
+        *Expression <Average> avg(val#2) will run on GPU
+      *Expression <AggregateExpression> sum(amt#3) will run on GPU
+        *Expression <Sum> sum(amt#3) will run on GPU
+      *Expression <AggregateExpression> count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Expression <Alias> avg(val#2)#12 AS val_mean#4 will run on GPU
+      *Expression <Alias> sum(amt#3)#13 AS amt_sum#5 will run on GPU
+      *Expression <Alias> count(1)#11L AS n#6L will run on GPU
+      *Exec <ShuffleExchangeExec> will run on GPU
+        *Partitioning <HashPartitioning> will run on GPU
+        *Exec <HashAggregateExec> will run on GPU
+          *Expression <AggregateExpression> partial_avg(val#2) will run on GPU
+            *Expression <Average> avg(val#2) will run on GPU
+          *Expression <AggregateExpression> partial_sum(amt#3) will run on GPU
+            *Expression <Sum> sum(amt#3) will run on GPU
+          *Expression <AggregateExpression> partial_count(1) will run on GPU
+            *Expression <Count> count(1) will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (rand(2) * 100.0) AS amt#3 will run on GPU
+              *Expression <Multiply> (rand(2) * 100.0) will run on GPU
+                *Expression <Rand> rand(2) will run on GPU
+            *Exec <ProjectExec> will run on GPU
+              *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Expression <Alias> rand(1) AS val#2 will run on GPU
+                *Expression <Rand> rand(1) will run on GPU
+              *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:26 INFO GpuOverrides: Plan conversion to the GPU took 4.63 ms
+26/09/15 21:49:26 INFO GpuOverrides: GPU plan transition optimization took 6.56 ms
+26/09/15 21:49:26 WARN GpuOverrides: 
+*Exec <ShuffleExchangeExec> will run on GPU
+  *Partitioning <HashPartitioning> will run on GPU
+  *Exec <HashAggregateExec> will run on GPU
+    *Expression <AggregateExpression> partial_avg(val#2) will run on GPU
+      *Expression <Average> avg(val#2) will run on GPU
+    *Expression <AggregateExpression> partial_sum(amt#3) will run on GPU
+      *Expression <Sum> sum(amt#3) will run on GPU
+    *Expression <AggregateExpression> partial_count(1) will run on GPU
+      *Expression <Count> count(1) will run on GPU
+    *Exec <ProjectExec> will run on GPU
+      *Expression <Alias> (rand(2) * 100.0) AS amt#3 will run on GPU
+        *Expression <Multiply> (rand(2) * 100.0) will run on GPU
+          *Expression <Rand> rand(2) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+          *Expression <Remainder> (id#0L % 50) will run on GPU
+        *Expression <Alias> rand(1) AS val#2 will run on GPU
+          *Expression <Rand> rand(1) will run on GPU
+        *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:26 INFO GpuOverrides: Plan conversion to the GPU took 3.92 ms
+26/09/15 21:49:26 INFO GpuOverrides: GPU plan transition optimization took 3.77 ms
+26/09/15 21:49:26 INFO DAGScheduler: Registering RDD 14 (RDD at GpuExec.scala:59) as input to shuffle 0
+26/09/15 21:49:26 INFO DAGScheduler: Got map stage job 0 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) with 8 output partitions
+26/09/15 21:49:26 INFO DAGScheduler: Final stage: ShuffleMapStage 0 (RDD at GpuExec.scala:59)
+26/09/15 21:49:26 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:26 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:26 INFO DAGScheduler: Submitting ShuffleMapStage 0 (GpuOpTimeTrackingRDD[14] at RDD at GpuExec.scala:59), which has no missing parents
+26/09/15 21:49:26 INFO MemoryStore: MemoryStore started with capacity 3.4 GiB
+26/09/15 21:49:26 INFO MemoryStore: Block broadcast_0 stored as values in memory (estimated size 40.6 KiB, free 3.4 GiB)
+26/09/15 21:49:26 INFO MemoryStore: Block broadcast_0_piece0 stored as bytes in memory (estimated size 17.7 KiB, free 3.4 GiB)
+26/09/15 21:49:26 INFO SparkContext: Created broadcast 0 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:26 INFO DAGScheduler: Submitting 8 missing tasks from ShuffleMapStage 0 (GpuOpTimeTrackingRDD[14] at RDD at GpuExec.scala:59) (first 15 tasks are for partitions Vector(0, 1, 2, 3, 4, 5, 6, 7))
+26/09/15 21:49:26 INFO TaskSchedulerImpl: Adding task set 0.0 with 8 tasks resource profile 0
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 0.0 in stage 0.0 (TID 0) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 1.0 in stage 0.0 (TID 1) (192.168.1.144,executor driver, partition 1, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 2.0 in stage 0.0 (TID 2) (192.168.1.144,executor driver, partition 2, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 3.0 in stage 0.0 (TID 3) (192.168.1.144,executor driver, partition 3, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 4.0 in stage 0.0 (TID 4) (192.168.1.144,executor driver, partition 4, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 5.0 in stage 0.0 (TID 5) (192.168.1.144,executor driver, partition 5, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 6.0 in stage 0.0 (TID 6) (192.168.1.144,executor driver, partition 6, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 7.0 in stage 0.0 (TID 7) (192.168.1.144,executor driver, partition 7, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:27 INFO Executor: Running task 2.0 in stage 0.0 (TID 2)
+26/09/15 21:49:27 INFO Executor: Running task 3.0 in stage 0.0 (TID 3)
+26/09/15 21:49:27 INFO Executor: Running task 4.0 in stage 0.0 (TID 4)
+26/09/15 21:49:27 INFO Executor: Running task 1.0 in stage 0.0 (TID 1)
+26/09/15 21:49:27 INFO Executor: Running task 7.0 in stage 0.0 (TID 7)
+26/09/15 21:49:27 INFO Executor: Running task 6.0 in stage 0.0 (TID 6)
+26/09/15 21:49:27 INFO Executor: Running task 0.0 in stage 0.0 (TID 0)
+26/09/15 21:49:27 INFO Executor: Running task 5.0 in stage 0.0 (TID 5)
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO RapidsShuffleInternalManagerBase: Registering shuffle 0
+26/09/15 21:49:27 INFO SecurityManager: Changing view acls to: tunas
+26/09/15 21:49:27 INFO SecurityManager: Changing modify acls to: tunas
+26/09/15 21:49:27 INFO SecurityManager: Changing view acls groups to: tunas
+26/09/15 21:49:27 INFO SecurityManager: Changing modify acls groups to: tunas
+26/09/15 21:49:27 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: tunas groups with view permissions: EMPTY; users with modify permissions: tunas; groups with modify permissions: EMPTY; RPC SSL disabled
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO Executor: Finished task 1.0 in stage 0.0 (TID 1). 6335 bytes result sent to driver
+26/09/15 21:49:27 INFO Executor: Finished task 6.0 in stage 0.0 (TID 6). 6335 bytes result sent to driver
+26/09/15 21:49:27 INFO Executor: Finished task 5.0 in stage 0.0 (TID 5). 6335 bytes result sent to driver
+26/09/15 21:49:27 INFO Executor: Finished task 2.0 in stage 0.0 (TID 2). 6335 bytes result sent to driver
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 2.0 in stage 0.0 (TID 2) in 377 ms on 192.168.1.144 (executor driver) (1/8)
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 6.0 in stage 0.0 (TID 6) in 378 ms on 192.168.1.144 (executor driver) (2/8)
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 5.0 in stage 0.0 (TID 5) in 378 ms on 192.168.1.144 (executor driver) (3/8)
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 1.0 in stage 0.0 (TID 1) in 379 ms on 192.168.1.144 (executor driver) (4/8)
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO Executor: Finished task 0.0 in stage 0.0 (TID 0). 6292 bytes result sent to driver
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 0.0 in stage 0.0 (TID 0) in 391 ms on 192.168.1.144 (executor driver) (5/8)
+26/09/15 21:49:27 INFO Executor: Finished task 4.0 in stage 0.0 (TID 4). 6292 bytes result sent to driver
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 4.0 in stage 0.0 (TID 4) in 387 ms on 192.168.1.144 (executor driver) (6/8)
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO Executor: Finished task 3.0 in stage 0.0 (TID 3). 6292 bytes result sent to driver
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 3.0 in stage 0.0 (TID 3) in 408 ms on 192.168.1.144 (executor driver) (7/8)
+26/09/15 21:49:27 INFO GpuMergeAggregateIterator: The reduction ratio in first pass is not high enough to skip second and third pass aggregation: peek.numRows: 50, localInputRowsCount.value: 1250000
+26/09/15 21:49:27 INFO Executor: Finished task 7.0 in stage 0.0 (TID 7). 6292 bytes result sent to driver
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 7.0 in stage 0.0 (TID 7) in 419 ms on 192.168.1.144 (executor driver) (8/8)
+26/09/15 21:49:27 INFO DAGScheduler: ShuffleMapStage 0 (RDD at GpuExec.scala:59) finished in 506 ms
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Removed TaskSet 0.0 whose tasks have all completed, from pool 
+26/09/15 21:49:27 INFO DAGScheduler: looking for newly runnable stages
+26/09/15 21:49:27 INFO DAGScheduler: running: HashSet()
+26/09/15 21:49:27 INFO DAGScheduler: waiting: HashSet()
+26/09/15 21:49:27 INFO DAGScheduler: failed: HashSet()
+26/09/15 21:49:27 WARN GpuOverrides: 
+*Exec <DataWritingCommandExec> will run on GPU
+  *Output <InsertIntoHadoopFsRelationCommand> will run on GPU
+  *Exec <WriteFilesExec> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> avg(val#2) will run on GPU
+        *Expression <Average> avg(val#2) will run on GPU
+      *Expression <AggregateExpression> sum(amt#3) will run on GPU
+        *Expression <Sum> sum(amt#3) will run on GPU
+      *Expression <AggregateExpression> count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Expression <Alias> avg(val#2)#12 AS val_mean#4 will run on GPU
+      *Expression <Alias> sum(amt#3)#13 AS amt_sum#5 will run on GPU
+      *Expression <Alias> count(1)#11L AS n#6L will run on GPU
+
+26/09/15 21:49:27 INFO GpuOverrides: Plan conversion to the GPU took 1.85 ms
+26/09/15 21:49:27 INFO ShufflePartitionsUtil: For shuffle(0, advisory target size: 67108864, actual target size 1048576, minimum partition size: 1048576
+26/09/15 21:49:27 WARN GpuOverrides: 
+*Exec <DataWritingCommandExec> will run on GPU
+  *Output <InsertIntoHadoopFsRelationCommand> will run on GPU
+  *Exec <WriteFilesExec> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> avg(val#2) will run on GPU
+        *Expression <Average> avg(val#2) will run on GPU
+      *Expression <AggregateExpression> sum(amt#3) will run on GPU
+        *Expression <Sum> sum(amt#3) will run on GPU
+      *Expression <AggregateExpression> count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Expression <Alias> avg(val#2)#12 AS val_mean#4 will run on GPU
+      *Expression <Alias> sum(amt#3)#13 AS amt_sum#5 will run on GPU
+      *Expression <Alias> count(1)#11L AS n#6L will run on GPU
+      *Exec <AQEShuffleReadExec> will run on GPU
+
+26/09/15 21:49:27 INFO GpuOverrides: Plan conversion to the GPU took 3.75 ms
+26/09/15 21:49:27 INFO GpuOverrides: GPU plan transition optimization took 1.28 ms
+26/09/15 21:49:27 INFO GpuParquetFileFormat: Using default output committer for Parquet: org.apache.parquet.hadoop.ParquetOutputCommitter
+26/09/15 21:49:27 INFO FileOutputCommitter: File Output Committer Algorithm version is 1
+26/09/15 21:49:27 INFO FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+26/09/15 21:49:27 INFO SQLHadoopMapReduceCommitProtocol: Using user defined output committer class org.apache.parquet.hadoop.ParquetOutputCommitter
+26/09/15 21:49:27 INFO FileOutputCommitter: File Output Committer Algorithm version is 1
+26/09/15 21:49:27 INFO FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+26/09/15 21:49:27 INFO SQLHadoopMapReduceCommitProtocol: Using output committer class org.apache.parquet.hadoop.ParquetOutputCommitter
+26/09/15 21:49:27 INFO SparkContext: Starting job: runColumnar at GpuDataWritingCommandExec.scala:125
+26/09/15 21:49:27 INFO DAGScheduler: Got job 1 (runColumnar at GpuDataWritingCommandExec.scala:125) with 1 output partitions
+26/09/15 21:49:27 INFO DAGScheduler: Final stage: ResultStage 2 (runColumnar at GpuDataWritingCommandExec.scala:125)
+26/09/15 21:49:27 INFO DAGScheduler: Parents of final stage: List(ShuffleMapStage 1)
+26/09/15 21:49:27 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:27 INFO DAGScheduler: Submitting ResultStage 2 (MapPartitionsRDD[24] at runColumnar at GpuDataWritingCommandExec.scala:125), which has no missing parents
+26/09/15 21:49:27 INFO MemoryStore: Block broadcast_1 stored as values in memory (estimated size 292.7 KiB, free 3.4 GiB)
+26/09/15 21:49:27 INFO MemoryStore: Block broadcast_1_piece0 stored as bytes in memory (estimated size 108.2 KiB, free 3.4 GiB)
+26/09/15 21:49:27 INFO SparkContext: Created broadcast 1 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:27 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 2 (MapPartitionsRDD[24] at runColumnar at GpuDataWritingCommandExec.scala:125) (first 15 tasks are for partitions Vector(0))
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Adding task set 2.0 with 1 tasks resource profile 0
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 0.0 in stage 2.0 (TID 8) (192.168.1.144,executor driver, partition 0, NODE_LOCAL, 9844 bytes) 
+26/09/15 21:49:27 INFO Executor: Running task 0.0 in stage 2.0 (TID 8)
+26/09/15 21:49:27 INFO RapidsShuffleBlockFetcherIterator: Getting 8 (26.8 KiB) non-empty blocks including 8 (26.8 KiB) local and 0 (0.0 B) host-local and 0 (0.0 B) push-merged-local and 0 (0.0 B) remote blocks
+26/09/15 21:49:27 INFO RapidsShuffleBlockFetcherIterator: Started 0 remote fetches in 7 ms
+26/09/15 21:49:27 INFO FileOutputCommitter: File Output Committer Algorithm version is 1
+26/09/15 21:49:27 INFO FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+26/09/15 21:49:27 INFO SQLHadoopMapReduceCommitProtocol: Using user defined output committer class org.apache.parquet.hadoop.ParquetOutputCommitter
+26/09/15 21:49:27 INFO FileOutputCommitter: File Output Committer Algorithm version is 1
+26/09/15 21:49:27 INFO FileOutputCommitter: FileOutputCommitter skip cleanup _temporary folders under output directory:false, ignore cleanup failures: false
+26/09/15 21:49:27 INFO SQLHadoopMapReduceCommitProtocol: Using output committer class org.apache.parquet.hadoop.ParquetOutputCommitter
+26/09/15 21:49:27 INFO CodecConfig: Compression: SNAPPY
+26/09/15 21:49:27 INFO FileOutputCommitter: Saved output of task 'attempt_202609152149273527536452052573738_0002_m_000000_8' to file:/tmp/issue346_parquet/_temporary/0/task_202609152149273527536452052573738_0002_m_000000
+26/09/15 21:49:27 INFO SparkHadoopMapRedUtil: attempt_202609152149273527536452052573738_0002_m_000000_8: Committed. Elapsed time: 0 ms.
+26/09/15 21:49:27 INFO Executor: Finished task 0.0 in stage 2.0 (TID 8). 10272 bytes result sent to driver
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 0.0 in stage 2.0 (TID 8) in 196 ms on 192.168.1.144 (executor driver) (1/1)
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Removed TaskSet 2.0 whose tasks have all completed, from pool 
+26/09/15 21:49:27 INFO DAGScheduler: ResultStage 2 (runColumnar at GpuDataWritingCommandExec.scala:125) finished in 241 ms
+26/09/15 21:49:27 INFO DAGScheduler: Job 1 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Canceling stage 2
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Killing all running tasks in stage 2: Stage finished
+26/09/15 21:49:27 INFO DAGScheduler: Job 1 finished: runColumnar at GpuDataWritingCommandExec.scala:125, took 254.7402 ms
+26/09/15 21:49:27 INFO GpuFileFormatWriter: Write Job fb7b68dd-c383-4e3e-88f8-519398fbfe9e committed. Elapsed time: 8 ms.
+26/09/15 21:49:27 INFO GpuFileFormatWriter: Finished processing stats for write job fb7b68dd-c383-4e3e-88f8-519398fbfe9e.
+26/09/15 21:49:27 INFO SparkContext: Starting job: $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768
+26/09/15 21:49:27 INFO DAGScheduler: Got job 2 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) with 1 output partitions
+26/09/15 21:49:27 INFO DAGScheduler: Final stage: ResultStage 3 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768)
+26/09/15 21:49:27 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:27 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:27 INFO DAGScheduler: Submitting ResultStage 3 (MapPartitionsRDD[28] at $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768), which has no missing parents
+26/09/15 21:49:27 INFO MemoryStore: Block broadcast_2 stored as values in memory (estimated size 10.2 KiB, free 3.4 GiB)
+26/09/15 21:49:27 INFO MemoryStore: Block broadcast_2_piece0 stored as bytes in memory (estimated size 5.0 KiB, free 3.4 GiB)
+26/09/15 21:49:27 INFO SparkContext: Created broadcast 2 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:27 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 3 (MapPartitionsRDD[28] at $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) (first 15 tasks are for partitions Vector(0))
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Adding task set 3.0 with 1 tasks resource profile 0
+26/09/15 21:49:27 INFO TaskSetManager: Starting task 0.0 in stage 3.0 (TID 9) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 9924 bytes) 
+26/09/15 21:49:27 INFO Executor: Running task 0.0 in stage 3.0 (TID 9)
+26/09/15 21:49:27 INFO CodeGenerator: Code generated in 75.709591 ms
+26/09/15 21:49:27 INFO Executor: Finished task 0.0 in stage 3.0 (TID 9). 3562 bytes result sent to driver
+26/09/15 21:49:27 INFO TaskSetManager: Finished task 0.0 in stage 3.0 (TID 9) in 100 ms on 192.168.1.144 (executor driver) (1/1)
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Removed TaskSet 3.0 whose tasks have all completed, from pool 
+26/09/15 21:49:27 INFO DAGScheduler: ResultStage 3 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) finished in 109 ms
+26/09/15 21:49:27 INFO DAGScheduler: Job 2 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Canceling stage 3
+26/09/15 21:49:27 INFO TaskSchedulerImpl: Killing all running tasks in stage 3: Stage finished
+26/09/15 21:49:27 INFO DAGScheduler: Job 2 finished: $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768, took 111.343706 ms
+26/09/15 21:49:28 INFO InMemoryFileIndex: It took 11 ms to list leaf files for 1 paths.
+26/09/15 21:49:28 INFO SparkContext: Starting job: parquet at NativeMethodAccessorImpl.java:0
+26/09/15 21:49:28 INFO DAGScheduler: Got job 3 (parquet at NativeMethodAccessorImpl.java:0) with 1 output partitions
+26/09/15 21:49:28 INFO DAGScheduler: Final stage: ResultStage 4 (parquet at NativeMethodAccessorImpl.java:0)
+26/09/15 21:49:28 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:28 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:28 INFO DAGScheduler: Submitting ResultStage 4 (MapPartitionsRDD[30] at parquet at NativeMethodAccessorImpl.java:0), which has no missing parents
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_3 stored as values in memory (estimated size 116.8 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_3_piece0 stored as bytes in memory (estimated size 42.3 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 3 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:28 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 4 (MapPartitionsRDD[30] at parquet at NativeMethodAccessorImpl.java:0) (first 15 tasks are for partitions Vector(0))
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Adding task set 4.0 with 1 tasks resource profile 0
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 0.0 in stage 4.0 (TID 10) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 10051 bytes) 
+26/09/15 21:49:28 INFO Executor: Running task 0.0 in stage 4.0 (TID 10)
+26/09/15 21:49:28 INFO Executor: Finished task 0.0 in stage 4.0 (TID 10). 2134 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 0.0 in stage 4.0 (TID 10) in 96 ms on 192.168.1.144 (executor driver) (1/1)
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Removed TaskSet 4.0 whose tasks have all completed, from pool 
+26/09/15 21:49:28 INFO DAGScheduler: ResultStage 4 (parquet at NativeMethodAccessorImpl.java:0) finished in 104 ms
+26/09/15 21:49:28 INFO DAGScheduler: Job 3 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Canceling stage 4
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Killing all running tasks in stage 4: Stage finished
+26/09/15 21:49:28 INFO DAGScheduler: Job 3 finished: parquet at NativeMethodAccessorImpl.java:0, took 107.15516 ms
+
+===== INITIAL PHYSICAL PLAN (pre-AQE, before execution) =====
+26/09/15 21:49:28 INFO FileSourceStrategy: Pushed Filters: IsNotNull(cat)
+26/09/15 21:49:28 INFO FileSourceStrategy: Post-Scan Filters: Set(isnotnull(cat#132L))
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <ProjectExec> will run on GPU
+  *Exec <BroadcastHashJoinExec> will run on GPU
+    *Exec <FilterExec> will run on GPU
+      *Expression <IsNotNull> isnotnull(cat#1L) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+          *Expression <Remainder> (id#0L % 50) will run on GPU
+        *Expression <Alias> rand(1) AS val#2 will run on GPU
+          *Expression <Rand> rand(1) will run on GPU
+        *Exec <RangeExec> will run on GPU
+    *Exec <BroadcastExchangeExec> will run on GPU
+      *Exec <FilterExec> will run on GPU
+        *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+        *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 18.89 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <ProjectExec> will run on GPU
+  *Exec <BroadcastHashJoinExec> will run on GPU
+    *Exec <FilterExec> will run on GPU
+      *Expression <IsNotNull> isnotnull(cat#1L) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+          *Expression <Remainder> (id#0L % 50) will run on GPU
+        *Expression <Alias> rand(1) AS val#2 will run on GPU
+          *Expression <Rand> rand(1) will run on GPU
+        *Exec <RangeExec> will run on GPU
+    *Exec <BroadcastExchangeExec> will run on GPU
+      *Exec <FilterExec> will run on GPU
+        *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+        *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.85 ms
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 0.09 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <ProjectExec> will run on GPU
+  *Exec <BroadcastHashJoinExec> will run on GPU
+    *Exec <FilterExec> will run on GPU
+      *Expression <IsNotNull> isnotnull(cat#1L) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+          *Expression <Remainder> (id#0L % 50) will run on GPU
+        *Expression <Alias> rand(1) AS val#2 will run on GPU
+          *Expression <Rand> rand(1) will run on GPU
+        *Exec <RangeExec> will run on GPU
+    *Exec <BroadcastExchangeExec> will run on GPU
+      *Exec <FilterExec> will run on GPU
+        *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+        *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.16 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 0.06 ms
+== Physical Plan ==
+AdaptiveSparkPlan (9)
++- Project (8)
+   +- BroadcastHashJoin Inner BuildRight (7)
+      :- Filter (3)
+      :  +- Project (2)
+      :     +- Range (1)
+      +- BroadcastExchange (6)
+         +- Filter (5)
+            +- Scan parquet  (4)
+
+
+(1) Range
+Output [1]: [id#0L]
+Arguments: Range (0, 10000000, step=1, splits=Some(8))
+
+(2) Project
+Output [3]: [id#0L, (id#0L % 50) AS cat#1L, rand(1) AS val#2]
+Input [1]: [id#0L]
+
+(3) Filter
+Input [3]: [id#0L, cat#1L, val#2]
+Condition : isnotnull(cat#1L)
+
+(4) Scan parquet 
+Output [2]: [cat#132L, amt_sum#134]
+Batched: true
+Location: InMemoryFileIndex [file:/tmp/issue346_parquet]
+PushedFilters: [IsNotNull(cat)]
+ReadSchema: struct<cat:bigint,amt_sum:double>
+
+(5) Filter
+Input [2]: [cat#132L, amt_sum#134]
+Condition : isnotnull(cat#132L)
+
+(6) BroadcastExchange
+Input [2]: [cat#132L, amt_sum#134]
+Arguments: HashedRelationBroadcastMode(List(input[0, bigint, false]),false), [plan_id=235]
+
+(7) BroadcastHashJoin
+Left keys [1]: [cat#1L]
+Right keys [1]: [cat#132L]
+Join type: Inner
+Join condition: None
+
+(8) Project
+Output [4]: [id#0L, cat#1L, val#2, amt_sum#134]
+Input [5]: [id#0L, cat#1L, val#2, cat#132L, amt_sum#134]
+
+(9) AdaptiveSparkPlan
+Output [4]: [id#0L, cat#1L, val#2, amt_sum#134]
+Arguments: isFinalPlan=false
+
+
+
+===== ACTION (count) =====
+26/09/15 21:49:28 INFO FileSourceStrategy: Pushed Filters: IsNotNull(cat)
+26/09/15 21:49:28 INFO FileSourceStrategy: Post-Scan Filters: Set(isnotnull(cat#132L))
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <HashAggregateExec> will run on GPU
+  *Expression <AggregateExpression> count(1) will run on GPU
+    *Expression <Count> count(1) will run on GPU
+  *Expression <Alias> count(1)#142L AS count#137L will run on GPU
+  *Exec <ShuffleExchangeExec> will run on GPU
+    *Partitioning <SinglePartition$> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> partial_count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Exec <BroadcastHashJoinExec> will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+              *Expression <Remainder> (id#0L % 50) will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull((id#0L % 50)) will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Exec <RangeExec> will run on GPU
+          *Exec <BroadcastExchangeExec> will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+              *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 3.29 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <HashAggregateExec> will run on GPU
+  *Expression <AggregateExpression> count(1) will run on GPU
+    *Expression <Count> count(1) will run on GPU
+  *Expression <Alias> count(1)#142L AS count#137L will run on GPU
+  *Exec <ShuffleExchangeExec> will run on GPU
+    *Partitioning <SinglePartition$> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> partial_count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Exec <BroadcastHashJoinExec> will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+              *Expression <Remainder> (id#0L % 50) will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull((id#0L % 50)) will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Exec <RangeExec> will run on GPU
+          *Exec <BroadcastExchangeExec> will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+              *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 2.50 ms
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 0.08 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <HashAggregateExec> will run on GPU
+  *Expression <AggregateExpression> count(1) will run on GPU
+    *Expression <Count> count(1) will run on GPU
+  *Expression <Alias> count(1)#142L AS count#137L will run on GPU
+  *Exec <ShuffleExchangeExec> will run on GPU
+    *Partitioning <SinglePartition$> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> partial_count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Exec <BroadcastHashJoinExec> will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+              *Expression <Remainder> (id#0L % 50) will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull((id#0L % 50)) will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Exec <RangeExec> will run on GPU
+          *Exec <BroadcastExchangeExec> will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+              *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.21 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 0.06 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <BroadcastExchangeExec> will run on GPU
+  *Exec <FilterExec> will run on GPU
+    *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+    *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 0.51 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 2.82 ms
+26/09/15 21:49:28 INFO GpuFileSourceScanExec: Planning scan with bin packing, max size: 4194304 bytes, open cost is considered as scanning 4194304 bytes.
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_4 stored as values in memory (estimated size 217.5 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_4_piece0 stored as bytes in memory (estimated size 39.6 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 4 from internalDoExecuteColumnar at GpuExec.scala:354
+26/09/15 21:49:28 INFO SparkContext: Starting job: $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84
+26/09/15 21:49:28 INFO DAGScheduler: Got job 4 ($anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84) with 1 output partitions
+26/09/15 21:49:28 INFO DAGScheduler: Final stage: ResultStage 5 ($anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84)
+26/09/15 21:49:28 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:28 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:28 INFO DAGScheduler: Submitting ResultStage 5 (MapPartitionsRDD[41] at $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84), which has no missing parents
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_5 stored as values in memory (estimated size 21.8 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_5_piece0 stored as bytes in memory (estimated size 10.0 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 5 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:28 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 5 (MapPartitionsRDD[41] at $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84) (first 15 tasks are for partitions Vector(0))
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Adding task set 5.0 with 1 tasks resource profile 0
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 0.0 in stage 5.0 (TID 11) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 10983 bytes) 
+26/09/15 21:49:28 INFO Executor: Running task 0.0 in stage 5.0 (TID 11)
+26/09/15 21:49:28 INFO GpuParquetMultiFilePartitionReaderFactory: Using the coalesce multi-file Parquet reader, files: file:///tmp/issue346_parquet/part-00000-e59dd7eb-4518-419e-9c4d-05daf692b289-c000.snappy.parquet task attemptid: 11
+26/09/15 21:49:28 INFO FilterCompat: Filtering using predicate: noteq(cat, null)
+26/09/15 21:49:28 INFO Executor: Finished task 0.0 in stage 5.0 (TID 11). 4959 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 0.0 in stage 5.0 (TID 11) in 125 ms on 192.168.1.144 (executor driver) (1/1)
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Removed TaskSet 5.0 whose tasks have all completed, from pool 
+26/09/15 21:49:28 INFO DAGScheduler: ResultStage 5 ($anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84) finished in 130 ms
+26/09/15 21:49:28 INFO DAGScheduler: Job 4 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Canceling stage 5
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Killing all running tasks in stage 5: Stage finished
+26/09/15 21:49:28 INFO DAGScheduler: Job 4 finished: $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84, took 134.526409 ms
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_6 stored as values in memory (estimated size 253.3 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_6_piece0 stored as bytes in memory (estimated size 551.0 B, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 6 from $anonfun$relationFuture$7 at NvtxRangeWithDoc.scala:84
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <HashAggregateExec> will run on GPU
+  *Expression <AggregateExpression> count(1) will run on GPU
+    *Expression <Count> count(1) will run on GPU
+  *Expression <Alias> count(1)#142L AS count#137L will run on GPU
+  *Exec <ShuffleExchangeExec> will run on GPU
+    *Partitioning <SinglePartition$> will run on GPU
+    *Exec <HashAggregateExec> will run on GPU
+      *Expression <AggregateExpression> partial_count(1) will run on GPU
+        *Expression <Count> count(1) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Exec <BroadcastHashJoinExec> will run on GPU
+          *Exec <ProjectExec> will run on GPU
+            *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+              *Expression <Remainder> (id#0L % 50) will run on GPU
+            *Exec <FilterExec> will run on GPU
+              *Expression <IsNotNull> isnotnull((id#0L % 50)) will run on GPU
+                *Expression <Remainder> (id#0L % 50) will run on GPU
+              *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.97 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <ShuffleExchangeExec> will run on GPU
+  *Partitioning <SinglePartition$> will run on GPU
+  *Exec <HashAggregateExec> will run on GPU
+    *Expression <AggregateExpression> partial_count(1) will run on GPU
+      *Expression <Count> count(1) will run on GPU
+    *Exec <ProjectExec> will run on GPU
+      *Exec <BroadcastHashJoinExec> will run on GPU
+        *Exec <ProjectExec> will run on GPU
+          *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+            *Expression <Remainder> (id#0L % 50) will run on GPU
+          *Exec <FilterExec> will run on GPU
+            *Expression <IsNotNull> isnotnull((id#0L % 50)) will run on GPU
+              *Expression <Remainder> (id#0L % 50) will run on GPU
+            *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.39 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 0.65 ms
+26/09/15 21:49:28 INFO DAGScheduler: Registering RDD 66 (RDD at GpuExec.scala:59) as input to shuffle 1
+26/09/15 21:49:28 INFO DAGScheduler: Got map stage job 5 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) with 8 output partitions
+26/09/15 21:49:28 INFO DAGScheduler: Final stage: ShuffleMapStage 6 (RDD at GpuExec.scala:59)
+26/09/15 21:49:28 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:28 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:28 INFO DAGScheduler: Submitting ShuffleMapStage 6 (GpuOpTimeTrackingRDD[66] at RDD at GpuExec.scala:59), which has no missing parents
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_7 stored as values in memory (estimated size 58.8 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_7_piece0 stored as bytes in memory (estimated size 25.0 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 7 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:28 INFO DAGScheduler: Submitting 8 missing tasks from ShuffleMapStage 6 (GpuOpTimeTrackingRDD[66] at RDD at GpuExec.scala:59) (first 15 tasks are for partitions Vector(0, 1, 2, 3, 4, 5, 6, 7))
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Adding task set 6.0 with 8 tasks resource profile 0
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 0.0 in stage 6.0 (TID 12) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 1.0 in stage 6.0 (TID 13) (192.168.1.144,executor driver, partition 1, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 2.0 in stage 6.0 (TID 14) (192.168.1.144,executor driver, partition 2, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 3.0 in stage 6.0 (TID 15) (192.168.1.144,executor driver, partition 3, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 4.0 in stage 6.0 (TID 16) (192.168.1.144,executor driver, partition 4, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 5.0 in stage 6.0 (TID 17) (192.168.1.144,executor driver, partition 5, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 6.0 in stage 6.0 (TID 18) (192.168.1.144,executor driver, partition 6, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 7.0 in stage 6.0 (TID 19) (192.168.1.144,executor driver, partition 7, PROCESS_LOCAL, 9959 bytes) 
+26/09/15 21:49:28 INFO Executor: Running task 0.0 in stage 6.0 (TID 12)
+26/09/15 21:49:28 INFO Executor: Running task 5.0 in stage 6.0 (TID 17)
+26/09/15 21:49:28 INFO Executor: Running task 6.0 in stage 6.0 (TID 18)
+26/09/15 21:49:28 INFO Executor: Running task 1.0 in stage 6.0 (TID 13)
+26/09/15 21:49:28 INFO Executor: Running task 2.0 in stage 6.0 (TID 14)
+26/09/15 21:49:28 INFO Executor: Running task 7.0 in stage 6.0 (TID 19)
+26/09/15 21:49:28 INFO Executor: Running task 3.0 in stage 6.0 (TID 15)
+26/09/15 21:49:28 INFO Executor: Running task 4.0 in stage 6.0 (TID 16)
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO Executor: Finished task 7.0 in stage 6.0 (TID 19). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO Executor: Finished task 0.0 in stage 6.0 (TID 12). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 0.0 in stage 6.0 (TID 12) in 69 ms on 192.168.1.144 (executor driver) (1/8)
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 7.0 in stage 6.0 (TID 19) in 68 ms on 192.168.1.144 (executor driver) (2/8)
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO Executor: Finished task 3.0 in stage 6.0 (TID 15). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO Executor: Finished task 5.0 in stage 6.0 (TID 17). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 3.0 in stage 6.0 (TID 15) in 81 ms on 192.168.1.144 (executor driver) (3/8)
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 5.0 in stage 6.0 (TID 17) in 81 ms on 192.168.1.144 (executor driver) (4/8)
+26/09/15 21:49:28 INFO Executor: Finished task 4.0 in stage 6.0 (TID 16). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO Executor: Finished task 6.0 in stage 6.0 (TID 18). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 4.0 in stage 6.0 (TID 16) in 87 ms on 192.168.1.144 (executor driver) (5/8)
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 6.0 in stage 6.0 (TID 18) in 85 ms on 192.168.1.144 (executor driver) (6/8)
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO RapidsShuffleInternalManagerBase: Registering shuffle 1
+26/09/15 21:49:28 INFO Executor: Finished task 1.0 in stage 6.0 (TID 13). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO Executor: Finished task 2.0 in stage 6.0 (TID 14). 9100 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 2.0 in stage 6.0 (TID 14) in 100 ms on 192.168.1.144 (executor driver) (7/8)
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 1.0 in stage 6.0 (TID 13) in 101 ms on 192.168.1.144 (executor driver) (8/8)
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Removed TaskSet 6.0 whose tasks have all completed, from pool 
+26/09/15 21:49:28 INFO DAGScheduler: ShuffleMapStage 6 (RDD at GpuExec.scala:59) finished in 109 ms
+26/09/15 21:49:28 INFO DAGScheduler: looking for newly runnable stages
+26/09/15 21:49:28 INFO DAGScheduler: running: HashSet()
+26/09/15 21:49:28 INFO DAGScheduler: waiting: HashSet()
+26/09/15 21:49:28 INFO DAGScheduler: failed: HashSet()
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <HashAggregateExec> will run on GPU
+  *Expression <AggregateExpression> count(1) will run on GPU
+    *Expression <Count> count(1) will run on GPU
+  *Expression <Alias> count(1)#142L AS count#137L will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.37 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <HashAggregateExec> will run on GPU
+  *Expression <AggregateExpression> count(1) will run on GPU
+    *Expression <Count> count(1) will run on GPU
+  *Expression <Alias> count(1)#142L AS count#137L will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 0.73 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 0.40 ms
+26/09/15 21:49:28 INFO SparkContext: Starting job: $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768
+26/09/15 21:49:28 INFO DAGScheduler: Got job 6 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) with 1 output partitions
+26/09/15 21:49:28 INFO DAGScheduler: Final stage: ResultStage 8 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768)
+26/09/15 21:49:28 INFO DAGScheduler: Parents of final stage: List(ShuffleMapStage 7)
+26/09/15 21:49:28 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:28 INFO DAGScheduler: Submitting ResultStage 8 (MapPartitionsRDD[76] at $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768), which has no missing parents
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_8 stored as values in memory (estimated size 76.7 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_8_piece0 stored as bytes in memory (estimated size 32.3 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 8 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:28 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 8 (MapPartitionsRDD[76] at $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) (first 15 tasks are for partitions Vector(0))
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Adding task set 8.0 with 1 tasks resource profile 0
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 0.0 in stage 8.0 (TID 20) (192.168.1.144,executor driver, partition 0, NODE_LOCAL, 9844 bytes) 
+26/09/15 21:49:28 INFO Executor: Running task 0.0 in stage 8.0 (TID 20)
+26/09/15 21:49:28 INFO RapidsShuffleBlockFetcherIterator: Getting 8 (640.0 B) non-empty blocks including 8 (640.0 B) local and 0 (0.0 B) host-local and 0 (0.0 B) push-merged-local and 0 (0.0 B) remote blocks
+26/09/15 21:49:28 INFO RapidsShuffleBlockFetcherIterator: Started 0 remote fetches in 0 ms
+26/09/15 21:49:28 INFO CodeGenerator: Code generated in 9.722648 ms
+26/09/15 21:49:28 INFO Executor: Finished task 0.0 in stage 8.0 (TID 20). 11485 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 0.0 in stage 8.0 (TID 20) in 42 ms on 192.168.1.144 (executor driver) (1/1)
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Removed TaskSet 8.0 whose tasks have all completed, from pool 
+26/09/15 21:49:28 INFO DAGScheduler: ResultStage 8 ($anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768) finished in 50 ms
+26/09/15 21:49:28 INFO DAGScheduler: Job 6 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Canceling stage 8
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Killing all running tasks in stage 8: Stage finished
+26/09/15 21:49:28 INFO DAGScheduler: Job 6 finished: $anonfun$withThreadLocalCaptured$2 at CompletableFuture.java:1768, took 54.679537 ms
+[result] rows=10000000  elapsed_s=3.091
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <BroadcastExchangeExec> will run on GPU
+  *Exec <FilterExec> will run on GPU
+    *Expression <IsNotNull> isnotnull(cat#132L) will run on GPU
+    *Exec <FileSourceScanExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.48 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 0.70 ms
+26/09/15 21:49:28 INFO GpuFileSourceScanExec: Planning scan with bin packing, max size: 4194304 bytes, open cost is considered as scanning 4194304 bytes.
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_9 stored as values in memory (estimated size 217.5 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_9_piece0 stored as bytes in memory (estimated size 39.6 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 9 from internalDoExecuteColumnar at GpuExec.scala:354
+26/09/15 21:49:28 INFO SparkContext: Starting job: $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84
+26/09/15 21:49:28 INFO DAGScheduler: Got job 7 ($anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84) with 1 output partitions
+26/09/15 21:49:28 INFO DAGScheduler: Final stage: ResultStage 9 ($anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84)
+26/09/15 21:49:28 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:28 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:28 INFO DAGScheduler: Submitting ResultStage 9 (MapPartitionsRDD[87] at $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84), which has no missing parents
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_10 stored as values in memory (estimated size 21.8 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_10_piece0 stored as bytes in memory (estimated size 10.0 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 10 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:28 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 9 (MapPartitionsRDD[87] at $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84) (first 15 tasks are for partitions Vector(0))
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Adding task set 9.0 with 1 tasks resource profile 0
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 0.0 in stage 9.0 (TID 21) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 10983 bytes) 
+26/09/15 21:49:28 INFO Executor: Running task 0.0 in stage 9.0 (TID 21)
+26/09/15 21:49:28 INFO GpuParquetMultiFilePartitionReaderFactory: Using the coalesce multi-file Parquet reader, files: file:///tmp/issue346_parquet/part-00000-e59dd7eb-4518-419e-9c4d-05daf692b289-c000.snappy.parquet task attemptid: 21
+26/09/15 21:49:28 INFO FilterCompat: Filtering using predicate: noteq(cat, null)
+26/09/15 21:49:28 INFO Executor: Finished task 0.0 in stage 9.0 (TID 21). 5378 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 0.0 in stage 9.0 (TID 21) in 27 ms on 192.168.1.144 (executor driver) (1/1)
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Removed TaskSet 9.0 whose tasks have all completed, from pool 
+26/09/15 21:49:28 INFO DAGScheduler: ResultStage 9 ($anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84) finished in 31 ms
+26/09/15 21:49:28 INFO DAGScheduler: Job 7 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Canceling stage 9
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Killing all running tasks in stage 9: Stage finished
+26/09/15 21:49:28 INFO DAGScheduler: Job 7 finished: $anonfun$relationFuture$2 at NvtxRangeWithDoc.scala:84, took 33.059064 ms
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_11 stored as values in memory (estimated size 253.8 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_11_piece0 stored as bytes in memory (estimated size 1024.0 B, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 11 from $anonfun$relationFuture$7 at NvtxRangeWithDoc.scala:84
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <ProjectExec> will run on GPU
+  *Exec <BroadcastHashJoinExec> will run on GPU
+    *Exec <FilterExec> will run on GPU
+      *Expression <IsNotNull> isnotnull(cat#1L) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+          *Expression <Remainder> (id#0L % 50) will run on GPU
+        *Expression <Alias> rand(1) AS val#2 will run on GPU
+          *Expression <Rand> rand(1) will run on GPU
+        *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 2.02 ms
+26/09/15 21:49:28 WARN GpuOverrides: 
+*Exec <ProjectExec> will run on GPU
+  *Exec <BroadcastHashJoinExec> will run on GPU
+    *Exec <FilterExec> will run on GPU
+      *Expression <IsNotNull> isnotnull(cat#1L) will run on GPU
+      *Exec <ProjectExec> will run on GPU
+        *Expression <Alias> (id#0L % 50) AS cat#1L will run on GPU
+          *Expression <Remainder> (id#0L % 50) will run on GPU
+        *Expression <Alias> rand(1) AS val#2 will run on GPU
+          *Expression <Rand> rand(1) will run on GPU
+        *Exec <RangeExec> will run on GPU
+
+26/09/15 21:49:28 INFO GpuOverrides: Plan conversion to the GPU took 1.97 ms
+26/09/15 21:49:28 INFO GpuOverrides: GPU plan transition optimization took 1.06 ms
+26/09/15 21:49:28 INFO SparkContext: Starting job: count at NativeMethodAccessorImpl.java:0
+26/09/15 21:49:28 INFO DAGScheduler: Got job 8 (count at NativeMethodAccessorImpl.java:0) with 8 output partitions
+26/09/15 21:49:28 INFO DAGScheduler: Final stage: ResultStage 10 (count at NativeMethodAccessorImpl.java:0)
+26/09/15 21:49:28 INFO DAGScheduler: Parents of final stage: List()
+26/09/15 21:49:28 INFO DAGScheduler: Missing parents: List()
+26/09/15 21:49:28 INFO DAGScheduler: Submitting ResultStage 10 (MapPartitionsRDD[108] at mapPartitions at GpuColumnarToRowExec.scala:427), which has no missing parents
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_12 stored as values in memory (estimated size 44.5 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO MemoryStore: Block broadcast_12_piece0 stored as bytes in memory (estimated size 19.1 KiB, free 3.4 GiB)
+26/09/15 21:49:28 INFO SparkContext: Created broadcast 12 from broadcast at DAGScheduler.scala:1676
+26/09/15 21:49:28 INFO DAGScheduler: Submitting 8 missing tasks from ResultStage 10 (MapPartitionsRDD[108] at mapPartitions at GpuColumnarToRowExec.scala:427) (first 15 tasks are for partitions Vector(0, 1, 2, 3, 4, 5, 6, 7))
+26/09/15 21:49:28 INFO TaskSchedulerImpl: Adding task set 10.0 with 8 tasks resource profile 0
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 0.0 in stage 10.0 (TID 22) (192.168.1.144,executor driver, partition 0, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 1.0 in stage 10.0 (TID 23) (192.168.1.144,executor driver, partition 1, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 2.0 in stage 10.0 (TID 24) (192.168.1.144,executor driver, partition 2, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 3.0 in stage 10.0 (TID 25) (192.168.1.144,executor driver, partition 3, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 4.0 in stage 10.0 (TID 26) (192.168.1.144,executor driver, partition 4, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 5.0 in stage 10.0 (TID 27) (192.168.1.144,executor driver, partition 5, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 6.0 in stage 10.0 (TID 28) (192.168.1.144,executor driver, partition 6, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO TaskSetManager: Starting task 7.0 in stage 10.0 (TID 29) (192.168.1.144,executor driver, partition 7, PROCESS_LOCAL, 9970 bytes) 
+26/09/15 21:49:28 INFO Executor: Running task 3.0 in stage 10.0 (TID 25)
+26/09/15 21:49:28 INFO Executor: Running task 4.0 in stage 10.0 (TID 26)
+26/09/15 21:49:28 INFO Executor: Running task 2.0 in stage 10.0 (TID 24)
+26/09/15 21:49:28 INFO Executor: Running task 5.0 in stage 10.0 (TID 27)
+26/09/15 21:49:28 INFO Executor: Running task 0.0 in stage 10.0 (TID 22)
+26/09/15 21:49:28 INFO Executor: Running task 7.0 in stage 10.0 (TID 29)
+26/09/15 21:49:28 INFO Executor: Running task 6.0 in stage 10.0 (TID 28)
+26/09/15 21:49:28 INFO Executor: Running task 1.0 in stage 10.0 (TID 23)
+26/09/15 21:49:28 INFO CodeGenerator: Code generated in 8.035793 ms
+26/09/15 21:49:28 INFO Executor: Finished task 6.0 in stage 10.0 (TID 28). 6537 bytes result sent to driver
+26/09/15 21:49:28 INFO TaskSetManager: Finished task 6.0 in stage 10.0 (TID 28) in 65 ms on 192.168.1.144 (executor driver) (1/8)
+26/09/15 21:49:29 INFO Executor: Finished task 2.0 in stage 10.0 (TID 24). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 2.0 in stage 10.0 (TID 24) in 95 ms on 192.168.1.144 (executor driver) (2/8)
+26/09/15 21:49:29 INFO Executor: Finished task 3.0 in stage 10.0 (TID 25). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 3.0 in stage 10.0 (TID 25) in 118 ms on 192.168.1.144 (executor driver) (3/8)
+26/09/15 21:49:29 INFO Executor: Finished task 5.0 in stage 10.0 (TID 27). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 5.0 in stage 10.0 (TID 27) in 142 ms on 192.168.1.144 (executor driver) (4/8)
+26/09/15 21:49:29 INFO Executor: Finished task 7.0 in stage 10.0 (TID 29). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 7.0 in stage 10.0 (TID 29) in 152 ms on 192.168.1.144 (executor driver) (5/8)
+26/09/15 21:49:29 INFO Executor: Finished task 4.0 in stage 10.0 (TID 26). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 4.0 in stage 10.0 (TID 26) in 188 ms on 192.168.1.144 (executor driver) (6/8)
+26/09/15 21:49:29 INFO Executor: Finished task 0.0 in stage 10.0 (TID 22). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO Executor: Finished task 1.0 in stage 10.0 (TID 23). 6537 bytes result sent to driver
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 0.0 in stage 10.0 (TID 22) in 217 ms on 192.168.1.144 (executor driver) (7/8)
+26/09/15 21:49:29 INFO TaskSetManager: Finished task 1.0 in stage 10.0 (TID 23) in 216 ms on 192.168.1.144 (executor driver) (8/8)
+26/09/15 21:49:29 INFO TaskSchedulerImpl: Removed TaskSet 10.0 whose tasks have all completed, from pool 
+26/09/15 21:49:29 INFO DAGScheduler: ResultStage 10 (count at NativeMethodAccessorImpl.java:0) finished in 221 ms
+26/09/15 21:49:29 INFO DAGScheduler: Job 8 is finished. Cancelling potential speculative or zombie tasks for this job
+26/09/15 21:49:29 INFO TaskSchedulerImpl: Canceling stage 10
+26/09/15 21:49:29 INFO TaskSchedulerImpl: Killing all running tasks in stage 10: Stage finished
+26/09/15 21:49:29 INFO DAGScheduler: Job 8 finished: count at NativeMethodAccessorImpl.java:0, took 224.000473 ms
+
+===== FINAL PHYSICAL PLAN (post-execution) =====
+AdaptiveSparkPlan isFinalPlan=true
++- == Final Plan ==
+   ResultQueryStage 1
+   +- GpuColumnarToRow false
+      +- GpuProject [id#0L, cat#1L, val#2, amt_sum#134], true
+         +- GpuBroadcastHashJoin [cat#1L], [cat#132L], Inner, GpuBuildRight, false
+            :- GpuCoalesceBatches targetsize(1073741824)
+            :  +- GpuFilter gpuisnotnull(cat#1L)
+            :     +- GpuProject [id#0L, (id#0L % 50) AS cat#1L, gpurand(1, false) AS val#2], true
+            :        +- GpuRange (0, 10000000, step=1, splits=8)
+            +- BroadcastQueryStage 0
+               +- GpuBroadcastExchange HashedRelationBroadcastMode(List(input[0, bigint, false]),false), [plan_id=682]
+                  +- GpuCoalesceBatches targetsize(1073741824)
+                     +- GpuFilter gpuisnotnull(cat#132L)
+                        +- GpuFileGpuScan parquet [cat#132L,amt_sum#134] Batched: true, DataFilters: [isnotnull(cat#132L)], Eager_IO_Prefetch: false, Format: Parquet, Location: InMemoryFileIndex[file:/tmp/issue346_parquet], PartitionFilters: [], PushedFilters: [IsNotNull(cat)], ReadSchema: struct<cat:bigint,amt_sum:double>
++- == Initial Plan ==
+   Project [id#0L, cat#1L, val#2, amt_sum#134]
+   +- BroadcastHashJoin [cat#1L], [cat#132L], Inner, BuildRight, false
+      :- Filter isnotnull(cat#1L)
+      :  +- Project [id#0L, (id#0L % 50) AS cat#1L, rand(1) AS val#2]
+      :     +- Range (0, 10000000, step=1, splits=8)
+      +- BroadcastExchange HashedRelationBroadcastMode(List(input[0, bigint, false]),false), [plan_id=235]
+         +- Filter isnotnull(cat#132L)
+            +- FileScan parquet [cat#132L,amt_sum#134] Batched: true, DataFilters: [isnotnull(cat#132L)], Format: Parquet, Location: InMemoryFileIndex(1 paths)[file:/tmp/issue346_parquet], PartitionFilters: [], PushedFilters: [IsNotNull(cat)], ReadSchema: struct<cat:bigint,amt_sum:double>
+
+[result] gpu_operators_found=9: ['GpuBroadcastExchange', 'GpuBroadcastHashJoin', 'GpuBuildRight,', 'GpuCoalesceBatches', 'GpuColumnarToRow', 'GpuFileGpuScan', 'GpuFilter', 'GpuProject', 'GpuRange']
+[verdict] GPU-ACCELERATED (Gpu* operators present)
+26/09/15 21:49:29 INFO SparkContext: SparkContext is stopping with exitCode 0 from stop at NativeMethodAccessorImpl.java:0.
+26/09/15 21:49:29 INFO SparkUI: Stopped Spark web UI at http://192.168.1.144:4040
+26/09/15 21:49:29 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+26/09/15 21:49:29 INFO MemoryStore: MemoryStore cleared
+26/09/15 21:49:29 INFO BlockManager: BlockManager stopped
+26/09/15 21:49:29 INFO BlockManagerMaster: BlockManagerMaster stopped
+26/09/15 21:49:29 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+26/09/15 21:49:30 INFO AwsStorageExecutorPlugin: Shutting down S3 Plugin ... 
+26/09/15 21:49:30 INFO SparkContext: Successfully stopped SparkContext
+26/09/15 21:49:30 INFO FileCacheLocalDirsManager: Shutdown hook called
+26/09/15 21:49:30 INFO ShimDiskBlockManager: Shutdown hook called
+26/09/15 21:49:30 INFO ShutdownHookManager: Shutdown hook called
+26/09/15 21:49:30 INFO ShutdownHookManager: Deleting directory /tmp/spark-912d76a5-c4f7-4318-8626-c31caf5ff388
+26/09/15 21:49:30 INFO ShutdownHookManager: Deleting directory /tmp/spark-912d76a5-c4f7-4318-8626-c31caf5ff388/pyspark-d2d23c0d-4dc6-4597-8792-8113bfa23f82
+26/09/15 21:49:30 INFO ShutdownHookManager: Deleting directory /tmp/spark-54a21f6b-ae35-42d4-97ad-f1ee30722047
+26/09/15 21:49:30 INFO ShutdownHookManager: Deleting directory /tmp/artifacts-1f8aadf5-0f3e-4972-a80d-dd0b151c3d4d

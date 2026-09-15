@@ -9,8 +9,6 @@
 - The amd64-only constraint for Base CE on AWS
 - Reverse tunnel from AWS inbound to a Spark-hosted NiFi
 - Role boundary: the box feeds Base CE, never runs it
-- RAPIDS Accelerator for Apache Spark: runs on Cloudera amd64 GPU nodes, not locally on the DGX Spark. Tested 2026-09-15 (#346): the stock `rapids-4-spark_2.13-26.08.1.jar` bundles `amd64/Linux/libcudf.so` only and fails on aarch64 with `Could not locate native dependency aarch64/Linux/libcudf.so`. The box contributes the Python cuDF/cuML half (ch06); the Spark-plugin half stays cluster-side. Runbook [`nvidia-dgx-spark-rapids-runbook.md`](../../nvidia-dgx-spark-rapids-runbook.md).
-
 ## Before you start
 - AWS account with CDP Base CE entitlement
 - DGX Spark inference stack running (Chapter 04 complete)

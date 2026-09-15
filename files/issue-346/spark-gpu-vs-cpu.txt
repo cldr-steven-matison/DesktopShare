@@ -1,0 +1,14 @@
+# Spark 4.0.4 + rapids-4-spark_2.13-26.08.1-cuda13-arm64 on GB10 (sm_121), local[8], ROWS=10000000, GPU shared with live vLLM/TEI
+# 2026-09-15T21:49:17Z
+=== gpu (spark.rapids.sql.enabled=true) exit=0 ===
+[info] rows=10000000
+[result] rows=10000000  elapsed_s=3.091
+[result] gpu_operators_found=9: ['GpuBroadcastExchange', 'GpuBroadcastHashJoin', 'GpuBuildRight,', 'GpuCoalesceBatches', 'GpuColumnarToRow', 'GpuFileGpuScan', 'GpuFilter', 'GpuProject', 'GpuRange']
+[verdict] GPU-ACCELERATED (Gpu* operators present)
+gpu util (max, 1s samples): 19 %, 12.98 W
+=== cpu (spark.rapids.sql.enabled=false) exit=0 ===
+[info] rows=10000000
+[result] rows=10000000  elapsed_s=2.695
+[result] gpu_operators_found=0: []
+[verdict] CPU-ONLY (no Gpu* operators — plugin off or unsupported)
+gpu util (max, 1s samples): 6 %, 12.50 W

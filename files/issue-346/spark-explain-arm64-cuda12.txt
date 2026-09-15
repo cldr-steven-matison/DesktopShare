@@ -1,0 +1,118 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+26/09/15 21:44:40 WARN Utils: Your hostname, spark-dd06, resolves to a loopback address: 127.0.0.1; using 192.168.1.144 instead (on interface wlP9p1s0)
+26/09/15 21:44:40 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+26/09/15 21:44:40 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+26/09/15 21:44:40 INFO SparkContext: Running Spark version 4.0.4
+26/09/15 21:44:40 INFO SparkContext: OS info Linux, 6.17.0-1032-nvidia, aarch64
+26/09/15 21:44:40 INFO SparkContext: Java version 21.0.12
+26/09/15 21:44:40 INFO ResourceUtils: ==============================================================
+26/09/15 21:44:40 INFO ResourceUtils: No custom resources configured for spark.driver.
+26/09/15 21:44:40 INFO ResourceUtils: ==============================================================
+26/09/15 21:44:40 INFO SparkContext: Submitted application: issue346-rapids-smoke
+26/09/15 21:44:40 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 1, script: , vendor: , memory -> name: memory, amount: 1024, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0)
+26/09/15 21:44:40 INFO ResourceProfile: Limiting resource is cpu
+26/09/15 21:44:40 INFO ResourceProfileManager: Added ResourceProfile id: 0
+26/09/15 21:44:40 INFO SecurityManager: Changing view acls to: tunas
+26/09/15 21:44:40 INFO SecurityManager: Changing modify acls to: tunas
+26/09/15 21:44:40 INFO SecurityManager: Changing view acls groups to: tunas
+26/09/15 21:44:40 INFO SecurityManager: Changing modify acls groups to: tunas
+26/09/15 21:44:40 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: tunas groups with view permissions: EMPTY; users with modify permissions: tunas; groups with modify permissions: EMPTY; RPC SSL disabled
+26/09/15 21:44:40 INFO Utils: Successfully started service 'sparkDriver' on port 35731.
+26/09/15 21:44:40 INFO SparkEnv: Registering MapOutputTracker
+26/09/15 21:44:40 INFO SparkEnv: Registering BlockManagerMaster
+26/09/15 21:44:40 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+26/09/15 21:44:40 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+26/09/15 21:44:40 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+26/09/15 21:44:40 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-0fdfd460-40ad-43e5-8904-2d6f6d5b3d73
+26/09/15 21:44:40 INFO SparkEnv: Registering OutputCommitCoordinator
+26/09/15 21:44:40 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+26/09/15 21:44:41 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+26/09/15 21:44:41 INFO SparkContext: Added JAR file:///home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar at spark://192.168.1.144:35731/jars/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar with timestamp 1789508680729
+26/09/15 21:44:41 INFO ShimLoader: Loading shim for Spark version: 4.0.4
+26/09/15 21:44:41 INFO ShimLoader: Complete Spark build info: 4.0.4, https://github.com/apache/spark, HEAD, c7d67e3f5d4c9d88a480367b44fc54d26adf99ab, 2026-07-12T04:41:54Z
+26/09/15 21:44:41 INFO ShimLoader: Scala version: version 2.13.16
+26/09/15 21:44:41 INFO ShimLoader: findURLClassLoader found a URLClassLoader org.apache.spark.util.MutableURLClassLoader@1bc425e7
+26/09/15 21:44:41 INFO ShimLoader: Updating spark classloader org.apache.spark.util.MutableURLClassLoader@1bc425e7 with the URLs: jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar!/spark-shared/, jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar!/spark404/
+26/09/15 21:44:41 INFO ShimLoader: Spark classLoader org.apache.spark.util.MutableURLClassLoader@1bc425e7 updated successfully
+26/09/15 21:44:41 INFO ShimLoader: Updating spark classloader org.apache.spark.util.MutableURLClassLoader@1bc425e7 with the URLs: jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar!/spark-shared/, jar:file:/home/tunas/rapids-test/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar!/spark404/
+26/09/15 21:44:41 INFO ShimLoader: Spark classLoader org.apache.spark.util.MutableURLClassLoader@1bc425e7 updated successfully
+26/09/15 21:44:41 INFO RapidsPluginUtils: RAPIDS Accelerator build: HashMap(url -> https://github.com/NVIDIA/cudf-spark.git, branch -> HEAD, date -> 2026-08-25T10:58:50Z, cudf_version -> 26.08.0, user -> root, revision -> 1253310626da939c5924017d1c21e94d0932e0c1, version -> 26.08.1)
+26/09/15 21:44:41 INFO RapidsPluginUtils: RAPIDS Accelerator JNI build: HashMap(url -> https://github.com/NVIDIA/cudf-spark-jni.git, branch -> HEAD, gpu_architectures -> 100;101;120;70;75;80;86;89;90, date -> 2026-08-06T04:04:18Z, user -> root, revision -> 761c184ff0a0dc5b678b1f5f163c579068beb133, version -> 26.08.0)
+26/09/15 21:44:41 INFO RapidsPluginUtils: cudf build: HashMap(url -> https://github.com/rapidsai/cudf.git, branch -> HEAD, gpu_architectures -> 100;120;70;75;80;86;90, date -> 2026-08-06T04:04:13Z, user -> root, revision -> ff5b362d7c06ae5837fd7a7337e2ae20895f324d, version -> 26.08.0)
+26/09/15 21:44:41 INFO RapidsPluginUtils: RAPIDS Accelerator Private HashMap(url -> https://gitlab-master.nvidia.com/nvspark/cudf-spark-private.git, branch -> HEAD, date -> 2026-08-14T03:45:38Z, user -> root, revision -> 66a861f882708b110e097671373df2e33412b3b5, version -> 26.08.1)
+26/09/15 21:44:41 WARN RapidsPluginUtils: RAPIDS Accelerator 26.08.1 using cudf 26.08.0, private revision 66a861f882708b110e097671373df2e33412b3b5
+26/09/15 21:44:41 WARN RapidsPluginUtils: RAPIDS Accelerator is enabled, to disable GPU support set `spark.rapids.sql.enabled` to false.
+26/09/15 21:44:41 WARN RapidsPluginUtils: spark.rapids.sql.explain is set to `ALL`. Set it to 'NONE' to suppress the diagnostics logging about the query placement on the GPU.
+26/09/15 21:44:41 INFO DriverPluginContainer: Initialized driver component for plugin com.nvidia.spark.SQLPlugin.
+26/09/15 21:44:41 INFO SecurityManager: Changing view acls to: tunas
+26/09/15 21:44:41 INFO SecurityManager: Changing modify acls to: tunas
+26/09/15 21:44:41 INFO SecurityManager: Changing view acls groups to: tunas
+26/09/15 21:44:41 INFO SecurityManager: Changing modify acls groups to: tunas
+26/09/15 21:44:41 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: tunas groups with view permissions: EMPTY; users with modify permissions: tunas; groups with modify permissions: EMPTY; RPC SSL disabled
+26/09/15 21:44:41 WARN RapidsShuffleInternalManagerBase: Rapids Shuffle Plugin enabled. Multi-threaded shuffle mode (write threads=20, read threads=20). To disable the RAPIDS Shuffle Manager set `spark.rapids.shuffle.enabled` to false
+26/09/15 21:44:41 INFO Executor: Starting executor ID driver on host 192.168.1.144
+26/09/15 21:44:41 INFO Executor: OS info Linux, 6.17.0-1032-nvidia, aarch64
+26/09/15 21:44:41 INFO Executor: Java version 21.0.12
+26/09/15 21:44:41 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''
+26/09/15 21:44:41 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@d21e0c2 for default.
+26/09/15 21:44:41 INFO Executor: Fetching spark://192.168.1.144:35731/jars/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar with timestamp 1789508680729
+26/09/15 21:44:41 INFO TransportClientFactory: Successfully created connection to /192.168.1.144:35731 after 19 ms (0 ms spent in bootstraps)
+26/09/15 21:44:41 INFO Utils: Fetching spark://192.168.1.144:35731/jars/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar to /tmp/spark-4c6bb278-2c5b-4cab-8362-73bcf96e2798/userFiles-98850197-cdb8-4563-9d26-81e2d2dd88c6/fetchFileTemp9755987692991080951.tmp
+26/09/15 21:44:43 INFO Executor: Adding file:/tmp/spark-4c6bb278-2c5b-4cab-8362-73bcf96e2798/userFiles-98850197-cdb8-4563-9d26-81e2d2dd88c6/rapids-4-spark_2.13-26.08.1-cuda12-arm64.jar to class loader default
+26/09/15 21:44:43 INFO RapidsPluginUtils: Estimated number of cores is 8
+26/09/15 21:44:50 INFO RapidsExecutorPlugin: Initializing memory from Executor Plugin
+26/09/15 21:44:50 INFO GpuDeviceManager: Initializing pinned memory pool (2048.0 MiB)
+26/09/15 21:44:51 INFO MemoryCheckerImpl: Trying to detect available CPU memory
+26/09/15 21:44:51 INFO MemoryCheckerImpl: attempting to read /sys/fs/cgroup/memory/memory.limit_in_bytes
+26/09/15 21:44:51 INFO MemoryCheckerImpl: attempting to read /proc/meminfo
+26/09/15 21:44:51 INFO MemoryCheckerImpl: no process limits detected; using system limit of 24267165696
+26/09/15 21:44:51 WARN GpuDeviceManager: spark.rapids.memory.host.offHeapLimit.size is not set; we used memory limit derived from (0.8 * (estimated available host memory / device count) - spark.executor.memory - spark.executor.pyspark.memory - spark.memory.offHeap.size) = (0.8 * (9706866278 / 1) - 1073741824 - 0 - 0) = 6906499563
+26/09/15 21:44:51 INFO GpuDeviceManager: Setting MT read memory limit to 5927.8955078125 MiB (90% of 6586.55078125 MiB total off-heap)
+26/09/15 21:44:51 INFO GpuDeviceManager: availableGpuTotal: 74765.9296875 MiB
+26/09/15 21:44:51 INFO GpuDeviceManager: availableGpuFree: 916.91015625 MiB
+26/09/15 21:44:51 ERROR RapidsExecutorPlugin: Exception in the executor plugin, shutting down!
+java.lang.IllegalArgumentException: The pool allocation of 276.91015625 MiB (gpu.free: 916.91015625,spark.rapids.memory.gpu.allocFraction: (=1.0,spark.rapids.memory.gpu.reserve: 671088640 => (gpu.free - reserve) * allocFraction = 276.91015625) was less than allocation of 18691.482421875 MiB (gpu.total: 74765.9296875 MiB, spark.rapids.memory.gpu.minAllocFraction: 0.25 => gpu.total *minAllocFraction = 18691.482421875 MiB). Please ensure that the GPU has enough free memory, or adjust configuration accordingly.
+	at com.nvidia.spark.rapids.GpuDeviceManager$.$anonfun$computeRmmPoolSize$3(GpuDeviceManager.scala:293)
+	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.scala:17)
+	at scala.Option.getOrElse(Option.scala:201)
+	at com.nvidia.spark.rapids.GpuDeviceManager$.computeRmmPoolSize(GpuDeviceManager.scala:267)
+	at com.nvidia.spark.rapids.GpuDeviceManager$.initializeRmmGpuPool(GpuDeviceManager.scala:413)
+	at com.nvidia.spark.rapids.GpuDeviceManager$.initializeMemory(GpuDeviceManager.scala:670)
+	at com.nvidia.spark.rapids.GpuDeviceManager$.initializeGpuAndMemory(GpuDeviceManager.scala:192)
+	at com.nvidia.spark.rapids.RapidsExecutorPlugin.init(Plugin.scala:702)
+	at org.apache.spark.internal.plugin.ExecutorPluginContainer.$anonfun$executorPlugins$1(PluginContainer.scala:125)
+	at scala.collection.StrictOptimizedIterableOps.flatMap(StrictOptimizedIterableOps.scala:118)
+	at scala.collection.StrictOptimizedIterableOps.flatMap$(StrictOptimizedIterableOps.scala:105)
+	at scala.collection.immutable.ArraySeq.flatMap(ArraySeq.scala:35)
+	at org.apache.spark.internal.plugin.ExecutorPluginContainer.<init>(PluginContainer.scala:113)
+	at org.apache.spark.internal.plugin.PluginContainer$.apply(PluginContainer.scala:214)
+	at org.apache.spark.internal.plugin.PluginContainer$.apply(PluginContainer.scala:202)
+	at org.apache.spark.executor.Executor.$anonfun$plugins$1(Executor.scala:350)
+	at org.apache.spark.util.Utils$.withContextClassLoader(Utils.scala:186)
+	at org.apache.spark.executor.Executor.<init>(Executor.scala:350)
+	at org.apache.spark.scheduler.local.LocalEndpoint.<init>(LocalSchedulerBackend.scala:66)
+	at org.apache.spark.scheduler.local.LocalSchedulerBackend.start(LocalSchedulerBackend.scala:136)
+	at org.apache.spark.scheduler.TaskSchedulerImpl.start(TaskSchedulerImpl.scala:237)
+	at org.apache.spark.SparkContext.<init>(SparkContext.scala:622)
+	at org.apache.spark.api.java.JavaSparkContext.<init>(JavaSparkContext.scala:59)
+	at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:75)
+	at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:53)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:486)
+	at py4j.reflection.MethodInvoker.invoke(MethodInvoker.java:247)
+	at py4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)
+	at py4j.Gateway.invoke(Gateway.java:238)
+	at py4j.commands.ConstructorCommand.invokeConstructor(ConstructorCommand.java:80)
+	at py4j.commands.ConstructorCommand.execute(ConstructorCommand.java:69)
+	at py4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:184)
+	at py4j.ClientServerConnection.run(ClientServerConnection.java:108)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+26/09/15 21:44:51 INFO RapidsExecutorPlugin: Halting after 40 seconds
+26/09/15 21:44:51 INFO DiskBlockManager: Shutdown hook called
+26/09/15 21:44:51 INFO ShutdownHookManager: Shutdown hook called
+26/09/15 21:44:51 INFO ShutdownHookManager: Deleting directory /tmp/spark-4c6bb278-2c5b-4cab-8362-73bcf96e2798/userFiles-98850197-cdb8-4563-9d26-81e2d2dd88c6
+26/09/15 21:44:51 INFO ShutdownHookManager: Deleting directory /tmp/spark-1f0d431f-b984-4f55-afc7-56fe3eacd6bd
+26/09/15 21:44:51 INFO ShutdownHookManager: Deleting directory /tmp/spark-4c6bb278-2c5b-4cab-8362-73bcf96e2798

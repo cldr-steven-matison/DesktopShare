@@ -2,7 +2,7 @@
 
 Run 2026-09-15 on `spark-dd06` (NvidiaSpark-1), NVIDIA GB10, compute capability `sm_121`,
 CUDA 13.0, driver 580.173.02, aarch64. The live serving stack (vLLM Qwen3.6-35B + TEI
-embed/rerank + whisper) stayed up for the whole run; GPU work ran alongside it.
+embed/rerank + whisper) stayed up for the whole run; every GPU job below shared the GPU with it.
 
 ## Avenue 1 — Python RAPIDS: WORKS
 
@@ -37,34 +37,64 @@ GPU utilization mid-run peaked at **96%** and **62%** (baseline idle 3–9%) —
 faster with no code change. cuML helps most on heavier estimators (RandomForest 1.5×); trivial
 fits (kNN just stores the data) are a wash because kernel-launch overhead dominates.
 
-## Avenue 2 — Spark RAPIDS plugin: BLOCKED on aarch64
+## Avenue 2 — Spark RAPIDS plugin: WORKS on aarch64 (with the right jar)
 
-Spark 4.0.4 (Scala 2.13) + `rapids-4-spark_2.13-26.08.1.jar`, `local[8]`, Java 21. The plugin's
-JVM classes load (`RAPIDS Accelerator 26.08.1 using cudf 26.08.0`), then the executor dies:
+Spark 4.0.4 (Scala 2.13) + `rapids-4-spark_2.13-26.08.1-cuda13-arm64.jar`, `local[8]`, Java 21.
+The final physical plan of the smoke job (range → groupBy/agg → Parquet round-trip → join → count)
+runs on the GPU:
 
 ```
-ERROR NativeDepsLoader: Could not load cudf jni library...
-Caused by: java.io.FileNotFoundException: Could not locate native dependency aarch64/Linux/libcudf.so
-java.lang.UnsatisfiedLinkError: 'int com.nvidia.spark.rapids.jni.Hash.getMaxStackDepth()'
+GpuRange, GpuProject, GpuFilter, GpuFileGpuScan, GpuBroadcastExchange,
+GpuBroadcastHashJoin, GpuBuildRight, GpuCoalesceBatches, GpuColumnarToRow
 ```
 
-The Maven Central jar bundles `amd64/Linux/libcudf.so` (1.49 GB) only — there is no
-`aarch64/Linux/libcudf.so` inside it. On `os.arch=aarch64` the JNI loader looks for the arm64
-native, doesn't find it, and halts. Full evidence in [`spark-explain.txt`](spark-explain.txt).
+`spark.rapids.sql.explain=ALL` reports every exec and expression in the job — including `rand()`,
+the aggregates, the shuffle, the Parquet write and scan, and the broadcast join — as "will run on
+GPU", with zero "cannot run on GPU" entries. Plans in [`spark-explain-arm64-gpu.txt`](spark-explain-arm64-gpu.txt)
+(plugin on) and [`spark-explain-arm64-cpu.txt`](spark-explain-arm64-cpu.txt) (plugin off).
 
-**Read:** zero-code Spark acceleration is not available on the DGX Spark from the stock artifact.
-The RAPIDS Python libraries ship arm64 wheels/conda packages (Avenue 1 proves it), but the
-released `rapids-4-spark` plugin ships x86_64 natives only. Running it on GB10 would need an
-aarch64 source build of `spark-rapids-jni` (NVIDIA provides an arm64 build Dockerfile; GDS and the
-profiler are auto-disabled on ARM), which is a heavy CMake/CUDA build not attempted here. So the
-Cloudera-side "RAPIDS Accelerator for Apache Spark" story (ch18) cannot be prototyped locally on
-the box with the stock plugin — only the Python cuDF/cuML path promotes cleanly.
+### Timing, 10,000,000 rows, GPU shared with the serving stack
+
+| `spark.rapids.sql.enabled` | Wall-clock (s) | Gpu* operators | Peak GPU util |
+|---|---|---|---|
+| `true` (plugin on) | 3.091 | 9 | 19% |
+| `false` (plugin off) | 2.695 | 0 | 6% |
+
+**Read:** no speedup at this size on this box, and that is the expected shape. The job is
+startup-dominated (3 s end to end), the plugin's GPU pool was capped at ~816 MiB because vLLM holds
+57 GB of the unified memory, and `local[8]` is not where RAPIDS wins. The functional result is the
+one that matters for the integration test: the plugin plans and executes the whole job on GB10 arm64.
+A speedup number needs a GPU that is not serving a 35B model and a job sized for it — the Part 3
+(Cloudera cluster) case, or this box with vLLM paused and `ROWS` in the hundreds of millions.
+Raw output: [`spark-gpu-vs-cpu.txt`](spark-gpu-vs-cpu.txt).
+
+### The three things that had to be fixed to get there
+
+1. **The default Maven jar is amd64-only.** `rapids-4-spark_2.13-26.08.1.jar` bundles
+   `amd64/Linux/libcudf.so` and nothing else; on aarch64 the JNI loader dies with
+   `Could not locate native dependency aarch64/Linux/libcudf.so`. That was the first run, kept as
+   the trap evidence in [`spark-explain.txt`](spark-explain.txt). NVIDIA publishes classifier jars:
+   `-cuda13-arm64` (537 MB, contains `aarch64/Linux/libcudf.so` 763 MB + `libcudfjni.so`) and
+   `-cuda12-arm64` (944 MB). Same Maven directory, published 2026-08-28.
+2. **The plugin refuses to start with less than 25% of the GPU free.** With serving resident the
+   plugin sees `gpu.total` 74,766 MiB and `gpu.free` ~1,400 MiB; the default
+   `spark.rapids.memory.gpu.minAllocFraction=0.25` demands 18,691 MiB. `pool=NONE` does not skip
+   that check. `spark.rapids.memory.gpu.minAllocFraction=0.005` does, and leaves an ~816 MiB pool
+   plus a 2 GB pinned host pool.
+3. **Under AQE, a DataFrame's plan only finalizes when that plan executes.** Reading
+   `executedPlan()` after `count()` shows `isFinalPlan=false` with CPU nodes, because `count()` is
+   its own query. Executing the DataFrame's own plan (`qe.executedPlan().execute().count()`) and then
+   reading it gives the `isFinalPlan=true` tree with the `Gpu*` nodes.
 
 ## Artifacts
 
 - `scripts/cudf_bench.py`, `scripts/cuml_bench.py`, `scripts/spark_rapids_job.py`, `scripts/run-spark-rapids.sh`
-- `cudf-results.txt`, `cuml-results.txt` — raw JSON output
-- `nvidia-smi-baseline.txt`, `nvidia-smi-cuml-midrun.txt` — GPU state
-- `spark-explain.txt` — Avenue 2 plugin failure evidence
-- Disposable installs (not committed): `~/rapids-test/spark-4.0.4-bin-hadoop3`, the plugin jar,
-  and the `rapidsai/notebooks:26.06-cuda13-py3.14` image.
+- `cudf-results.txt`, `cuml-results.txt` — raw JSON output (Avenue 1)
+- `spark-gpu-vs-cpu.txt` — Avenue 2 timing, plugin on vs off
+- `spark-explain-arm64-gpu.txt`, `spark-explain-arm64-cpu.txt` — full Spark logs incl. `explain=ALL` and final plans
+- `spark-explain.txt` — the default (amd64) jar failure, kept as the trap evidence
+- `spark-explain-arm64-cuda12.txt` — the arm64 jar refusing to start under the 25% `minAllocFraction` floor (Trap 2 evidence)
+- `nvidia-smi-baseline.txt`, `nvidia-smi-cuml-midrun.txt`, `nvidia-smi-spark-gpu-midrun.txt`, `nvidia-smi-spark-cpu-midrun.txt` — GPU state
+- `part3-cloudera-plan.md` — the plan for Part 3 (Cloudera)
+- Disposable installs (not committed): `~/rapids-test/spark-4.0.4-bin-hadoop3`, the three plugin
+  jars, and the `rapidsai/notebooks:26.06-cuda13-py3.14` image.

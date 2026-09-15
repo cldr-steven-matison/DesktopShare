@@ -15,10 +15,13 @@ export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-arm64}"
   --master 'local[8]' \
   --jars "$PLUGIN_JAR" \
   --conf spark.plugins=com.nvidia.spark.SQLPlugin \
-  --conf spark.rapids.sql.enabled=true \
+  --conf spark.rapids.sql.enabled="${RAPIDS_ENABLED:-true}" \
   --conf spark.rapids.sql.explain=ALL \
   --conf spark.rapids.memory.pinnedPool.size=2G \
   --conf spark.rapids.sql.concurrentGpuTasks=2 \
   --conf spark.sql.shuffle.partitions=32 \
   --driver-memory 6g \
+  ${EXTRA_CONF:-} \
   "$JOB" 2>&1 | tee "$OUT"
+# EXTRA_CONF: extra `--conf k=v` pairs, e.g. for a GPU shared with a serving stack:
+#   EXTRA_CONF="--conf spark.rapids.memory.gpu.pool=NONE" ROWS=5000000 bash run-spark-rapids.sh
