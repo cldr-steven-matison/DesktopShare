@@ -63,7 +63,6 @@ host is responsible for:
 | StarlinkAI (`TunaStarlink`, Beelink) | `device:StarlinkAI` |
 | FTF3XR2065 (Mac) | `device:FTF3XR2065` |
 | Stevens-MacBook-Pro (personal Mac) | `device:macbook` |
-| DigitalOcean droplet | (none yet) |
 | NvidiaSpark-1 (`spark-dd06`, DGX Spark) | `device:NvidiaSpark-1` |
 | TunaSurface (`tuna-Surface-Pro-2`, Surface Pro 2) | `device:TunaSurface` |
 

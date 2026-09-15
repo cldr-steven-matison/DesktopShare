@@ -1,12 +1,12 @@
 # NiFi with a Real SSL Cert (Let's Encrypt, no browser warning)
 
-Public NiFi is at `https://nifi.sceneserver.net:8443/nifi/` — Apache NiFi 2.0.0 (build 2f13b60, branch NIFI-13915-RC2), open-source, installed directly on the host (not Kubernetes). Serving a self-signed cert today, browser throws NET::ERR_CERT_AUTHORITY_INVALID. This plan swaps that keystore for a Let's Encrypt cert on `nifi.sceneserver.net` so the padlock goes solid.
+Public NiFi is at `https://www.domain.com:8443/nifi/` — Apache NiFi 2.0.0 (build 2f13b60, branch NIFI-13915-RC2), open-source, installed directly on the host (not Kubernetes). Serving a self-signed cert today, browser throws NET::ERR_CERT_AUTHORITY_INVALID. This plan swaps that keystore for a Let's Encrypt cert on `www.domain.com` so the padlock goes solid.
 
 The cert goes directly into NiFi's own keystore. NiFi keeps serving on `:8443`; nothing sits in front of it. certbot handles issuance and renewal on the host, a deploy hook rebuilds the PKCS12 and restarts NiFi.
 
 ## Identity implications — read before starting
 
-The server cert's DN becomes `CN=nifi.sceneserver.net`. That DN becomes:
+The server cert's DN becomes `CN=www.domain.com`. That DN becomes:
 - The node identity (single-node NiFi is fine — no cluster mTLS to break)
 - Possibly the Initial Admin Identity, if there's no separate user auth configured
 
@@ -14,7 +14,7 @@ Confirm during Step 0 which auth NiFi uses. If browser users log in with OIDC / 
 
 ## Step 0 — Inventory the host
 
-Run on `nifi.sceneserver.net` itself. Everything downstream reads from what this returns.
+Run on `www.domain.com` itself. Everything downstream reads from what this returns.
 
 ```bash
 # 0.1 — OS + NiFi install location
@@ -40,8 +40,8 @@ keytool -list -v -keystore $NIFI_CONF/keystore.<jks|p12> -storepass <pass> 2>/de
 grep -E "^nifi\.security\.user\.(oidc|ldap|login\.identity|authorizer)" $NIFI_CONF/nifi.properties
 cat $NIFI_CONF/authorizers.xml | grep -E "Initial Admin|Node Identity"
 
-# 0.6 — DNS provider for sceneserver.net (drives certbot plugin choice)
-dig +short NS sceneserver.net
+# 0.6 — DNS provider for domain.com (drives certbot plugin choice)
+dig +short NS domain.com
 
 # 0.7 — Port 8443 exposure — confirm nothing else is bound, and firewall lets us keep it
 ss -tlnp | grep 8443
@@ -90,7 +90,7 @@ Credentials file (Cloudflare shown — swap block for the actual provider):
 ```bash
 sudo mkdir -p /root/.secrets
 sudo tee /root/.secrets/cloudflare.ini >/dev/null <<'EOF'
-dns_cloudflare_api_token = <token-with-DNS-edit-on-sceneserver.net-only>
+dns_cloudflare_api_token = <token-with-DNS-edit-on-domain.com-only>
 EOF
 sudo chmod 600 /root/.secrets/cloudflare.ini
 ```
@@ -100,24 +100,24 @@ sudo chmod 600 /root/.secrets/cloudflare.ini
 sudo certbot certonly \
   --dns-cloudflare \
   --dns-cloudflare-credentials /root/.secrets/cloudflare.ini \
-  -d nifi.sceneserver.net \
+  -d www.domain.com \
   --staging \
   --agree-tos -m <your-email> --non-interactive
 ```
 
-Confirm cert lands at `/etc/letsencrypt/live/nifi.sceneserver.net/` and the chain is signed by "(STAGING) Let's Encrypt". Then re-run for real:
+Confirm cert lands at `/etc/letsencrypt/live/www.domain.com/` and the chain is signed by "(STAGING) Let's Encrypt". Then re-run for real:
 ```bash
 sudo certbot certonly \
   --dns-cloudflare \
   --dns-cloudflare-credentials /root/.secrets/cloudflare.ini \
-  -d nifi.sceneserver.net \
+  -d www.domain.com \
   --agree-tos -m <your-email> --non-interactive \
   --force-renewal
 ```
 
 Cert files:
-- `/etc/letsencrypt/live/nifi.sceneserver.net/fullchain.pem`
-- `/etc/letsencrypt/live/nifi.sceneserver.net/privkey.pem`
+- `/etc/letsencrypt/live/www.domain.com/fullchain.pem`
+- `/etc/letsencrypt/live/www.domain.com/privkey.pem`
 
 ## Step 4 — Build the PKCS12 keystore
 
@@ -128,8 +128,8 @@ KEYSTORE_PASS='<value from nifi.security.keystorePasswd>'
 NIFI_CONF=/opt/nifi/nifi-current/conf
 
 sudo openssl pkcs12 -export \
-  -in  /etc/letsencrypt/live/nifi.sceneserver.net/fullchain.pem \
-  -inkey /etc/letsencrypt/live/nifi.sceneserver.net/privkey.pem \
+  -in  /etc/letsencrypt/live/www.domain.com/fullchain.pem \
+  -inkey /etc/letsencrypt/live/www.domain.com/privkey.pem \
   -name nifi \
   -out $NIFI_CONF/keystore.p12 \
   -password pass:"$KEYSTORE_PASS"
@@ -158,8 +158,8 @@ Only if the current setup uses the self-signed CN as an identity (Step 0.5 tells
 
 ```xml
 <!-- authorizers.xml, inside the file-user-group-provider or equivalent -->
-<property name="Initial User Identity 1">CN=nifi.sceneserver.net</property>
-<property name="Node Identity 1">CN=nifi.sceneserver.net</property>
+<property name="Initial User Identity 1">CN=www.domain.com</property>
+<property name="Node Identity 1">CN=www.domain.com</property>
 ```
 
 Keep existing user identities in place — don't delete OIDC/LDAP-provisioned users. Only the machine identity DN changes.
@@ -184,19 +184,19 @@ Startup can take 60–120s. First browser hit after startup can 502 briefly — 
 
 External TLS:
 ```bash
-openssl s_client -connect nifi.sceneserver.net:8443 -servername nifi.sceneserver.net </dev/null 2>&1 \
+openssl s_client -connect www.domain.com:8443 -servername www.domain.com </dev/null 2>&1 \
   | openssl x509 -noout -issuer -subject -dates
 # Issuer: C=US, O=Let's Encrypt, CN=R11 (or current intermediate)
-# Subject: CN=nifi.sceneserver.net
+# Subject: CN=www.domain.com
 # Not After: ~90 days from now
 
-curl -v https://nifi.sceneserver.net:8443/nifi-api/access/config 2>&1 | grep -E "HTTP/|subject|issuer"
+curl -v https://www.domain.com:8443/nifi-api/access/config 2>&1 | grep -E "HTTP/|subject|issuer"
 # No -k needed. HTTP/2 200.
 ```
 
 Browser — fresh incognito window (kills the TLS session cache that would otherwise hold the old cert):
 - Padlock solid, no "Not secure" chip
-- Certificate viewer → Issued by Let's Encrypt → Subject `nifi.sceneserver.net`
+- Certificate viewer → Issued by Let's Encrypt → Subject `www.domain.com`
 - Log in, load a canvas, poke a flow — auth still works
 
 ## Step 9 — Renewal
@@ -208,7 +208,7 @@ sudo tee /etc/letsencrypt/renewal-hooks/deploy/nifi-reload.sh >/dev/null <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
-DOMAIN="nifi.sceneserver.net"
+DOMAIN="www.domain.com"
 LIVE="/etc/letsencrypt/live/$DOMAIN"
 NIFI_CONF="/opt/nifi/nifi-current/conf"
 NIFI_USER="nifi"
@@ -259,5 +259,5 @@ sudo certbot renew --dry-run
 ## Open questions to answer before Step 3
 
 1. Step 0 output — NIFI_HOME, user, keystore path/type, current DN, auth mode
-2. DNS provider for sceneserver.net (drives which certbot-dns-* plugin to install)
+2. DNS provider for domain.com (drives which certbot-dns-* plugin to install)
 3. Is the current keystore password stored plain in `nifi.properties`, or encrypted via `bootstrap.conf` sensitive props?
