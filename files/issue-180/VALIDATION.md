@@ -1,8 +1,13 @@
 # #180 — CFM Operator NiFi → CDP Base Ranger: validation (partial, evidence-backed)
 
-**Status:** Ranger integration **prepared and the auth mechanism proven**; the end-to-end
-enforcement proof is **deferred** — blocked by a real architectural finding (below), not by effort.
-Decision to document-and-defer taken with Steven 2026-09-15.
+**Status:** Ranger integration **prepared**; the download-auth probe results below are real, but the
+2026-09-15 morning conclusion drawn from them ("operator Ranger mode is cert-only / can't work on a
+Kerberized Ranger") was **wrong** — corrected the same afternoon against the authoritative operator doc
+[`cfm-operator-ranger-authorization.md`](cfm-operator-ranger-authorization.md). The operator supports
+**two** structured download-auth paths (mTLS *or* SPNEGO); the probe completed neither correctly. The
+full-enforcement build now has a path and an execution runbook — **[`RUNBOOK-mac.md`](RUNBOOK-mac.md)** —
+handed to the Mac (FTF3XR2065), which holds the cluster access to run it (decisions taken with Steven
+2026-09-15: bring-up on the Mac, done = full enforcement).
 
 Companion facts (hosts, IPs, certs, gateway-IP rotation): `FACTS.md` in this dir.
 
@@ -45,31 +50,34 @@ but **only 6182 (HTTPS) listens** (6080 disabled under AutoTLS). Secure download
 | **mTLS client cert** (worker-04) | `401`, `curl -v` shows cert **sent + CERT-verified** in handshake, Ranger logs `loginId=null` | **cert only secures the channel — it does NOT authenticate the caller** |
 | **Kerberos SPNEGO** (`kinit -kt yarn.keytab …` + `curl --negotiate -u :`) | **`200` with real policy JSON** | **this is the working plugin-auth mechanism** |
 
-## ⚠️ Blocking finding — why the local-minikube+tunnel design can't complete the proof
+## The probe result, and the correct reading of it
 
-**Base Ranger authenticates plugin policy-download via Kerberos/SPNEGO, not the mTLS cert** the plan
-(and the operator's structured Ranger config) assume. Concretely:
+The `curl` outcomes above are real. What was wrong was the *conclusion* — that the mTLS `401` proved
+the operator's Ranger mode cannot authenticate. The authoritative operator doc
+([`cfm-operator-ranger-authorization.md`](cfm-operator-ranger-authorization.md)) shows why:
 
-- The operator's `spec.security.ranger` exposes only TLS fields — `serviceName`, `adminURL`,
-  `adminIdentity`, `tls.secretName`, `audit.solr`, `configSecretName`, `policyPollIntervalMs`.
-  **No keytab.** So structured mode = cert-based plugin auth = will get `401` on this cluster.
-- Making it work requires **Kerberizing the NiFi pod itself** (`spec.security.kerberos` +
-  `krb5confSecret`) pointed at the FreeIPA KDC (`steven-ce-services-01` 10.10.1.251, realm
-  `CLDR.INTERNAL`) **over the SSH tunnel**, a `nifi` principal/keytab authorized in
-  `policy.download.auth.users`, matching forward/reverse DNS, clock sync, and almost certainly the
-  `configSecretName` escape hatch to hand-wire the plugin's SPNEGO REST client (the operator does
-  not expose it). Kerberos + DNS + clock over a tunnel is high-risk, and operator support for
-  plugin SPNEGO is unproven.
+- `spec.security.ranger` is an **authorizer**, **orthogonal to authentication** — combinable with
+  `kerberos`, LDAP, OIDC, cert, or single-user. The plugin downloads policies over **mTLS**
+  (`xasecure.policymgr.clientssl.*` from `tls.secretName`); `adminIdentity` is the Ranger **server**
+  DN written into `authorizers.xml`. There is no keytab in the `ranger` block because a keytab belongs
+  to `spec.security.kerberos`, not to the authorizer — the two compose.
+- So there are **two** structured download-auth paths on a Kerberized Ranger: **(1) mTLS**, with the
+  plugin cert's CN registered in `policy.download.auth.users`; or **(2) SPNEGO**, by also setting
+  `spec.security.kerberos` so the pod holds a Kerberos identity.
+- The probe tested **neither** correctly: it presented **worker-04's** host cert (CN never added to
+  `policy.download.auth.users`) and authorized only the `yarn` *Kerberos* principal for the SPNEGO leg.
+  The `401 loginId=null` means "this caller isn't a registered user," not "mTLS can't authenticate."
 
-## Recommended follow-on (documented, not built) — co-locate NiFi in the VPC
+**Next action: the Mac runs [`RUNBOOK-mac.md`](RUNBOOK-mac.md).** Its Step 1 is the gate — register
+the plugin CN and re-probe: `200` → Path 1 (mTLS, pod not Kerberized); still `401` with a *registered*
+CN → Path 2 (add `spec.security.kerberos`). Then CR + Ranger policies + the enforcement capture.
 
-Run the operator NiFi on a small in-VPC k8s runtime (k3s/kind on an AWS node inside the cluster's
-subnet + Kerberos domain), where the KDC, DNS, AutoTLS certs, and Ranger are all natively reachable.
-That is the environment this integration is designed for and removes every tunnel-induced failure
-mode at once. Then: `spec.security.kerberos` for the pod, a FreeIPA `nifi` principal authorized in
-`nifi-operator`'s `policy.download.auth.users`, `spec.security.ranger` for adminURL/serviceName/
-audit, and (if needed) `configSecretName` for the SPNEGO plugin XML. CDP Public Cloud RAZ Ranger is
-a separate follow-on (token/Knox auth model differs again).
+## Fallback if the tunnel proves too fragile — co-locate NiFi in the VPC
+
+Kerberos/DNS/clock over an SSH tunnel is the known-fragile part. If Path 2 + tunnel won't hold, the
+durable answer is a small in-VPC k8s runtime (k3s/kind on an AWS node inside the cluster subnet), where
+KDC, DNS, AutoTLS and Ranger are all native — spark-dd06 holds the AWS + terraform toolchain to stand
+it up. CDP Public Cloud RAZ Ranger is a separate follow-on (token/Knox auth model differs again).
 
 ## As-built artifacts (this dir)
 `FACTS.md` (cluster + finding), `cm-*.json`, `ranger-*` cert/DN captures, `scm-local-ca.pem`,
@@ -77,10 +85,14 @@ a separate follow-on (token/Knox auth model differs again).
 Ranger service `nifi-operator` (id 19) left in place on the cluster for the follow-on.
 
 ## Reusable lessons
-- **On a Kerberized CDP cluster, a Ranger plugin authenticates policy download via SPNEGO, not its
-  mTLS cert** — `clientAuth=want` only requests the cert for the channel. Verify with:
-  cert sent but `loginId=null` → cert isn't the authenticator; `kinit`+`--negotiate` → 200 = SPNEGO.
-- The CFM operator's `spec.security.ranger` is **cert-oriented** (no keytab); Kerberized Ranger needs
-  the pod Kerberized (`spec.security.kerberos`) + likely `configSecretName`.
+- **The operator's Ranger authorizer and Kerberos authentication compose — mTLS-vs-SPNEGO for policy
+  download is a *choice*, not a wall.** `spec.security.ranger` downloads over mTLS; add
+  `spec.security.kerberos` if the download endpoint is SPNEGO-gated. A `401 loginId=null` on the
+  `/service/plugins/secure/policies/download` endpoint means the caller identity isn't in
+  `policy.download.auth.users` — register the exact plugin CN (mTLS) or principal (SPNEGO) and re-probe
+  before concluding anything about the mechanism.
+- **Read the authoritative operator doc before drawing an architecture conclusion from a probe.**
+  `cfm-operator-ranger-authorization.md` (internal `github.infra.cloudera.com/CDF/cfm-operator`, now
+  committed in this dir) settled in one read what a probe misread all morning.
 - Deploy-day gateway public IP **rotates on every overnight stop/start** — re-resolve before SSH
   (`FACTS.md`). The internal FQDNs used by adminURL are stable.
