@@ -1,0 +1,80 @@
+captured 2026-09-16 15:33:32Z on srm-cloudera-ce-base-base-master-01.cldr.internal
+-- SCM process dir /var/run/cloudera-scm-agent/process/1546339462-ozone-STORAGE_CONTAINER_MANAGER
+-- hdds.grpc.tls.enabled occurrences in ozone-site.xml (valve first, generated second; the valve is final):
+<name>hdds.grpc.tls.enabled</name><value>false</value><final>true</final>--<name>hdds.grpc.tls.enabled</name><value>true</value></property>
+-- since restart (log line 51076): 'Setting TLS' = 0; 'No name matching' = 0; 'Invalid domain' = 0
+2026-09-16 15:31:19,138 INFO [1f66e59e-9b93-484a-930b-7065a307b31f-groupManagement]-org.apache.ratis.server.RaftServerConfigKeys: raft.server.leaderelection.member.majority-add = false (default)
+SCM SafeMode Status | StateMachineReadyRule (waiting) Refreshed SCM State Machine after leader ready: false
+SCM SafeMode Status | StateMachineReadyRule (waiting) Refreshed SCM State Machine after leader ready: false
+2026-09-16 15:31:20,848 INFO [1f66e59e-9b93-484a-930b-7065a307b31f-impl-thread1]-org.apache.ratis.server.RaftServer$Division: 1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90: changes role from
+-- kinit admin ok
+-- ozone admin scm roles
+srm-cloudera-ce-base-base-master-01.cldr.internal:9894:LEADER:1f66e59e-9b93-484a-930b-7065a307b31f:10.10.1.146
+srm-cloudera-ce-base-base-master-03.cldr.internal:9894:FOLLOWER:6eec357f-8f32-454f-b476-60d0e352fb8a:10.10.1.222
+srm-cloudera-ce-base-base-master-02.cldr.internal:9894:FOLLOWER:e08b8457-1b0c-4013-aec5-e2e0b9a06486:10.10.1.35
+-- ozone admin om roles
+om1546337895 : FOLLOWER (srm-cloudera-ce-base-base-master-03.cldr.internal)
+om1546337982 : FOLLOWER (srm-cloudera-ce-base-base-master-02.cldr.internal)
+om1546337853 : LEADER (srm-cloudera-ce-base-base-master-01.cldr.internal)
+-- datanodes registered: 4
+-- write smoke
+-- read back: 
+
+-- write smoke on srm-cloudera-ce-base-sdx-01.cldr.internal at 15:35:31Z (Ozone GATEWAY host)
+kinit admin ok
+VOLUME_ALREADY_EXISTS Volume already exists
+BUCKET_ALREADY_EXISTS Bucket already exist
+read back: KEY_NOT_FOUND Key:hello.txt not found
+   ranger STARTED GOOD
+   tez NA GOOD
+   hbase STOPPED DISABLED
+   solr STARTED GOOD
+   hive STOPPED DISABLED
+   atlas STOPPED DISABLED
+   hive_on_tez STOPPED DISABLED
+   nifiregistry STARTED NOT_AVAILABLE
+   knox STARTED GOOD
+   zookeeper STARTED GOOD
+   hdfs STARTED BAD
+   CORE_SETTINGS-1 NA GOOD
+   kafka STARTED GOOD
+   yarn STOPPED DISABLED
+   nifi STARTED NOT_AVAILABLE
+   ozone STARTED GOOD
+  cluster ozone-base-cluster BAD_HEALTH
+
+-- pipelines + key put retry on srm-cloudera-ce-base-sdx-01.cldr.internal at 15:37:39Z
+safemode: srm-cloudera-ce-base-base-master-01.cldr.internal:9860 [node1]: out of safe mode
+pipelines:
+Pipeline{ Id: ec1bf47c-ebb1-43a6-a17a-fd807b3b98e2, Nodes: [ {9bc3088f-bcff-4853-a564-89afc86ad519(srm-cloudera-ce-base-base-worker-04.cldr.internal/10.10.1.174), ReplicaIndex: 0}, {72027544-7c9a-4f47
+Pipeline{ Id: 95488271-b28f-4406-a569-64f4904b153e, Nodes: [ {aa247ab8-977f-4ee7-8019-3f795c04e037(srm-cloudera-ce-base-base-worker-02.cldr.internal/10.10.1.4), ReplicaIndex: 0},], ReplicationConfig: 
+container report: 3
+key put:
+key list:
+read back: KEY_NOT_FOUND Key:hello.txt not found
+-- client config on srm-cloudera-ce-base-sdx-01:
+-rw-r--r--. 1 root root 7417 Sep 16 11:35 /etc/ozone/conf/ozone-site.xml
+<name>hdds.grpc.tls.enabled</name><value>true</value></property>
+1546339446-ozone-OZONE_RECON
+1546339458-ozone-S3_GATEWAY
+1546339375-ozone-S3_GATEWAY
+
+-- key put via the OM process config on srm-cloudera-ce-base-base-master-01 at 15:40:42Z
+conf: /var/run/cloudera-scm-agent/process/1546339456-ozone-OZONE_MANAGER/ozone-conf
+<name>hdds.grpc.tls.enabled</name><value>false</value><final>true</final>--<name>hdds.grpc.tls.enabled</name><value>true</value></property>
+kinit ok
+key put rc:
+	at org.apache.hadoop.ozone.shell.OzoneShell.<init>(OzoneShell.java:46)
+	at org.apache.hadoop.ozone.shell.OzoneShell.main(OzoneShell.java:49)
+log4j:ERROR Could not instantiate appender named "redactorForRootLogger".
+rc=0
+key list:
+  "name" : "hello.txt",
+  "dataSize" : 35,
+    "replicationFactor" : "THREE",
+read back: hello from the DGX Spark 15:40:42Z
+-- hdfs
+Safe mode is OFF
+	Blocks with corrupt replicas: 1
+	Missing blocks: 0
+	Missing blocks (with replication factor 1): 0

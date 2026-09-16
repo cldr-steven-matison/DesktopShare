@@ -1,0 +1,2 @@
+   153 ch18 llm bridge topic (issue 341) {'topic': ['ch18-*']} [(['nifi', 'admin'], ['publish', 'consume', 'describe', 'create', 'configure', 'describe_configs'])]
+   154 ch18 llm bridge consumergroup (issue 341) {'consumergroup': ['ch18-*']} [(['nifi', 'admin'], ['consume', 'describe'])]

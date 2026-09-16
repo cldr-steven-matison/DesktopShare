@@ -1,0 +1,2 @@
+ozone DN heap ozone-OZONE_DATANODE-BASE {'ozone_datanode_heap_size': '2048'}
+nifi heap nifi-NIFI_NODE-BASE {'java.arg.2': '-Xms2048m', 'java.arg.3': '-Xmx2048m'}

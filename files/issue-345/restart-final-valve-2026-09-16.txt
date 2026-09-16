@@ -1,0 +1,15 @@
+15:31:27 Restart OK
+== ozone roles
+   OZONE_DATANODE srm-cloudera-ce-base-base-worker-01 STARTED GOOD
+   OZONE_DATANODE srm-cloudera-ce-base-base-worker-04 STARTED GOOD
+   OZONE_DATANODE srm-cloudera-ce-base-base-worker-02 STARTED GOOD
+   OZONE_RECON srm-cloudera-ce-base-sdx-01 STARTED GOOD
+   STORAGE_CONTAINER_MANAGER srm-cloudera-ce-base-base-master-02 STARTED GOOD
+   OZONE_DATANODE srm-cloudera-ce-base-base-worker-03 STARTED GOOD
+   OZONE_MANAGER srm-cloudera-ce-base-base-master-02 STARTED GOOD
+   OZONE_MANAGER srm-cloudera-ce-base-base-master-03 STARTED GOOD
+   GATEWAY srm-cloudera-ce-base-sdx-01 NA GOOD
+   S3_GATEWAY srm-cloudera-ce-base-sdx-01 STARTED GOOD
+   OZONE_MANAGER srm-cloudera-ce-base-base-master-01 STARTED GOOD
+   STORAGE_CONTAINER_MANAGER srm-cloudera-ce-base-base-master-03 STARTED GOOD
+   STORAGE_CONTAINER_MANAGER srm-cloudera-ce-base-base-master-01 STARTED GOOD

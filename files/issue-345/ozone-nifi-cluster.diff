@@ -1,5 +1,5 @@
 --- playbooks/ozone-cluster.yml	2026-08-26 20:15:09.391580786 +0000
-+++ playbooks/ozone-nifi-cluster.yml	2026-09-16 11:35:36.599402281 +0000
++++ playbooks/ozone-nifi-cluster.yml	2026-09-16 15:42:37.724510281 +0000
 @@ -13,7 +13,8 @@
  # See the License for the specific language governing permissions and
  # limitations under the License.
@@ -103,7 +103,26 @@
            # zookeeper_service: "{{ __zookeeper.service.name }}"
          role_config_groups:
            - type: DATANODE
-@@ -643,6 +678,51 @@
+@@ -466,6 +501,18 @@
+           # hdfs_service: "{{ __hdfs.service.name }}"
+           # ranger_service: "{{ __ranger.service.name }}"
+           solr_service: "{{ __solr.service.name }}"
++          # NIFI GRAFT edit 12 (#345, 2026-09-16): AutoTLS sets ssl_enabled on the SCM/OM/DN roles and CM then
++          # generates hdds.grpc.tls.enabled=true. Ozone's CSR builder drops the DNS SAN for any *.cldr.internal
++          # name (commons-validator has no `internal` TLD), the SCM certs carry an IP-only SAN, and Ratis verifies
++          # the FQDN peer address against that cert, so the SCM ring never forms. Ring TLS off keeps everything
++          # else (Kerberos RPC, HTTPS UIs) as is. The valve is emitted BEFORE the generated value, so it needs
++          # <final>true</final> or the generated true wins. Proven live on srm-cloudera-ce-base 15:31 UTC.
++          ozone-conf/ozone-site.xml_service_safety_valve: >-
++            <property>
++              <name>hdds.grpc.tls.enabled</name>
++              <value>false</value>
++              <final>true</final>
++            </property>
+         role_config_groups:
+           - type: STORAGE_CONTAINER_MANAGER
+             config:
+@@ -643,6 +690,51 @@
        register: __knox
        # notify: Services updated # Always returns TRUE until we have the suppress_redacted flag enabled
  
@@ -155,7 +174,7 @@
      - name: Enable AutoTLS on the cluster (post-services configuration)
        tags:
          - cluster
-@@ -749,6 +829,10 @@
+@@ -749,6 +841,10 @@
              type: SERVER
            - service: "{{ __kafka.service.name }}"
              type: KRAFT
@@ -166,7 +185,7 @@
        notify: Services updated
  
      - name: Establish Worker host template
-@@ -768,6 +852,8 @@
+@@ -768,6 +864,8 @@
              type: OZONE_DATANODE
            - service: "{{ __yarn.service.name }}"
              type: NODEMANAGER

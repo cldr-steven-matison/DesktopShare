@@ -1,0 +1,35 @@
+# Worker sizing evidence, srm-cloudera-ce-base, captured 2026-09-16 14:45-14:55 UTC from the DGX Spark
+
+## Shape (tf_cluster_aws/hosts_base.tf defaults, config-template.yml `infra.nodes`)
+gateway t3a.medium (2/4G) | services t3a.large (2/8G) | masters 3x t3a.xlarge (4/16G)
+workers 4x t3a.xlarge (4/16G) | cms r5a.xlarge (4/32G) | sdx t3a.xlarge (4/16G)
+CPU credits: unlimited mode; worker balance 380-455 declining ~20/h, CPU 31-38 % avg/h (baseline 40 %) -> not the constraint.
+
+## Worker-02 (the only worker still answering), live JVMs
+rss_MB  role                        Xmx
+ 4498   hdfs DATANODE               4 GB   (restarted 14:20 after the OOM kill below)
+ 2418   nifi NIFI_NODE              4 GB   (CSD default java.arg.2/3 = -Xms4096m/-Xmx4096m)
+  764   kafka KAFKA_BROKER          2 GB   (98 % CPU, spinning on lost peers)
+  667   hbase REGIONSERVER          4 GB
+  607   yarn NODEMANAGER            1 GB   (+ yarn.nodemanager.resource.memory-mb 8192 advertised)
+  (ozone OZONE_DATANODE, 4 GB heap, not resident: role BAD since the SCM ring never formed)
+free -m: total 15571, used 10044, free 230, available 5526, no swap. 15-min load 27.2 at 14:46.
+dmesg 14:20:39 UTC: Out of memory: Killed process 36120 (java) uid 39998 (hdfs) anon-rss 4625864 kB -> the HDFS DataNode.
+
+## CM heap defaults that land on one worker
+DATANODE 4096 + NIFI_NODE 4096 (Xms=Xmx) + REGIONSERVER 4096 + OZONE_DATANODE 4096 + KAFKA_BROKER 2048 + NODEMANAGER 1024 = 19.4 GB heap
+on a 16 GB host, before JVM native/metaspace, YARN containers (8 GB advertised), CM agent and the page cache.
+Stock ozone-cluster.yml without NiFi is already 15.4 GB of heap on the same host.
+
+## Masters (t3a.xlarge, 16 GB)
+master-01: NAMENODE 4096 + OZONE_MANAGER 4096 + SCM 4096 + HBase MASTER + ZK 1024 = 13+ GB heap
+master-03 adds KRAFT 2048 + NIFI_REGISTRY_SERVER. sdx-01: HIVEMETASTORE 8192 (if placed there) + ATLAS 2048 + SOLR 1024 + RANGER 1024 + KNOX 1024 + RECON 1024 + S3G 1024.
+
+## State of the workers at 14:49 UTC
+EC2 instance status: worker-01/03/04 `impaired` (system ok), worker-02 ok.
+CM last heartbeat: worker-01 12:35, worker-03 12:24, worker-04 13:38 UTC; SSH to them times out at banner exchange.
+NiFi cluster: worker-02 CONNECTED (Primary + Coordinator), the other three DISCONNECTED.
+Timeline: NiFi 4/4 stable at 11:45 (wrap-up); first worker lost 12:24, i.e. within 40 min of the full stack plus NiFi at Xms 4 GB being resident.
+
+## On-demand, us-east-2, Linux (aws pricing, 2026-09-16)
+t3a.xlarge 0.1504 (4/16G) | r5a.xlarge 0.2260 (4/32G) | m5a.2xlarge 0.3440 (8/32G) | r5a.2xlarge 0.4520 (8/64G) | m6a.2xlarge 0.3456 | r6a.2xlarge 0.4536

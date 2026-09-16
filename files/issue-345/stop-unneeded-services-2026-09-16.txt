@@ -1,0 +1,27 @@
+atlas: cmd 1546339180 Stop active
+hive_on_tez: cmd 1546339184 Stop active
+hive: cmd 1546339187 Stop active
+yarn: cmd 1546339189 Stop active
+hbase: cmd 1546339191 HBaseStop active
+Stop OK
+Stop OK
+Stop OK
+Stop OK
+HBaseStop OK
+== services now
+   ranger STARTED GOOD
+   tez NA GOOD
+   hbase STOPPED DISABLED
+   solr STARTED GOOD
+   hive STOPPED DISABLED
+   atlas STOPPED DISABLED
+   hive_on_tez STOPPED DISABLED
+   nifiregistry STARTED NOT_AVAILABLE
+   knox STARTED GOOD
+   zookeeper STARTED GOOD
+   hdfs STARTED BAD
+   CORE_SETTINGS-1 NA GOOD
+   kafka STARTED BAD
+   yarn STOPPED DISABLED
+   ozone STARTED BAD
+   nifi STARTED NOT_AVAILABLE

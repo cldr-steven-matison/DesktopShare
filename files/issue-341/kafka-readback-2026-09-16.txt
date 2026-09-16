@@ -1,0 +1,8 @@
+kinit admin: ok
+-- topic describe
+Topic: ch18-llm-responses	TopicId: lAHFpGIjTE6bUjtbRsbXfg	PartitionCount: 1	ReplicationFactor: 1	Configs: min.insync.replicas=1,segment.bytes=1073741824,retention.ms=604800000,max.message.bytes=1000000,min.cleanable.dirty.ratio=0.5,unclean.leader.election.enable=false,retention.bytes=-1,delete.retention.ms=604800000
+	Topic: ch18-llm-responses	Partition: 0	Leader: 1546338102	Replicas: 1546338102	Isr: 1546338102	Elr: 	LastKnownElr: 
+-- consume from beginning (max 3, 40 s)
+CreateTime:1789572591911	{"id":"chatcmpl-86bbfaf989c55cf0","object":"chat.completion","created":1789572584,"model":"nvidia/Qwen3.6-35B-A3B-NVFP4","choices":[{"index":0,"message":{"role":"assistant","content":"\n\nApache NiFi is an open-source data integration platform that automates the routing, processing, and management of data flows between diverse software systems using a visual, web-based int
+CreateTime:1789572652422	{"id":"chatcmpl-b7a2654b9b98c1d3","object":"chat.completion","created":1789572644,"model":"nvidia/Qwen3.6-35B-A3B-NVFP4","choices":[{"index":0,"message":{"role":"assistant","content":"\n\nApache NiFi is an open-source data integration platform that automates the routing, transformation, and distribution of data between systems using a visual, web-based interface.","refusal
+CreateTime:1789572707612	{"id":"chatcmpl-b37a87ffb94ac2ea","object":"chat.completion","created":1789572704,"model":"nvidia/Qwen3.6-35B-A3B-NVFP4","choices":[{"index":0,"message":{"role":"assistant","content":"\n\nApache NiFi is an open-source data integration platform that automates the flow of data between systems by providing a visual interface for designing, monitoring, and managing real-time d

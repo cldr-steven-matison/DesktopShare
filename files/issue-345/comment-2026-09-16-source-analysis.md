@@ -1,0 +1,24 @@
+**Source-level answer to the `name_prefix` question, from the DGX Spark. Live checks are blocked on gateway ingress (bottom).**
+
+The 09-16 wrap-up's validator claim holds, and the prefix cannot be the discriminator. From the Ozone 2.x source of the exact classes that wrote the lines in [`ozone-cert-10.10.1.146.txt`](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-345/ozone-cert-10.10.1.146.txt):
+
+1. **SAN.** `CertificateSignRequest.Builder.addInetAddresses()` adds the IP SAN unconditionally and the DNS SAN only when `DomainValidator.getInstance().isValid(ip.getCanonicalHostName())` passes. In commons-validator 1.10.1 (the parcel's jar) `LOCAL_TLDS` is `{localdomain, localhost}` and `internal` appears in no TLD table, and `getInstance()` is the strict instance anyway. Every `*.cldr.internal` name is rejected: `steven-ce-…`, `cm-mcp-ce-…` and `srm-…` alike. A short prefix produces the same IP-only certificate.
+2. **Peer authority.** `NodeDetails.getRatisHostPortStr()` is `getRpcAddress().getHostName() + ":" + ratisPort`, so every SCM Ratis peer is addressed by the FQDN from `ozone.scm.address.*`. Ratis 3.1's `GrpcClientProtocolClient` and `GrpcServerProtocolClient` build the channel with `NettyChannelBuilder.forTarget(address)` plus the SslContext and never call `overrideAuthority`, so grpc-netty's default HTTPS endpoint identification checks that FQDN against the cert. With no dNSName SAN the JDK falls back to the CN, which is `scm-sub@<fqdn>`, no match, hence the exact message `No name matching <fqdn> found`.
+3. **Gate.** `HASecurityUtils.createSCMRatisTLSConfig` turns ring TLS on iff `ozone.security.enabled && hdds.grpc.tls.enabled`. Both are `true` in this cluster's SCM process config.
+
+Consequence: with this Ozone build, this domain and ring TLS on, the SCM ring cannot form under any prefix. A short-prefix redeploy on the same CM and parcel would reproduce the failure. I recommend not spending the 3.5 h on it.
+
+So the 09-14 GOOD cluster (`cm-mcp-ce`) had one of two things: ring TLS off in its SCM process config (`hdds.grpc.tls.enabled` unset or false), or a different CM build generating that key. Everything else is identical and now verified from here: same parcel pin `p10000.82216952`; same AMI (RHEL 9.6 built 2026-08-11, still the newest match for the Terraform filter today, so 09-14 got it too); same domain; same validator. `cloudera_manager_version` is pinned only to `7.13.2`, so each run installs whatever the archive serves that day; this cluster got `7.13.2.10000-82229633` (built 2026-08-21). **The 09-14 CM build is the one number we never recorded.** It is in the Mac's `cloudera-ce-aws/ansible-navigator.log` or `runs/` from 09-14 (`grep -o 'cloudera-manager-server-7.13.2[^ ]*'`), or in the #292 CM UI if a screenshot shows the build. That one value confirms or kills the CM-build discriminator, and it costs nothing.
+
+`steven-ce` going BAD after the overnight stop/start fits the same picture only if its SCMs first started without ring TLS and picked it up on restart; #180's record cannot separate that from ordinary restart trouble.
+
+Fix candidates, all deploy-shape, ranked:
+1. `dns_domain` on an IANA TLD (e.g. `cldr.cloud`) plus the Knox dispatch whitelist edit. The CSR keeps its DNS SAN, ring TLS stays on. Needs a redeploy.
+2. Ozone gRPC TLS off (`hdds.grpc.tls.enabled=false` through CM). The ring forms on IP-only certs. Testable on the running BAD cluster in minutes (an Ozone restart, your go). Loses TLS on Ozone's gRPC paths only; RPC stays Kerberos.
+3. IP-literal overrides for `ozone.scm.address.*`. The peer authority becomes the IP, the IP SAN matches, TLS stays on. Untested; Kerberos `_HOST` resolution on the OM→SCM side would need checking.
+
+**Blocker: gateway ingress, not Ozone.** The 22/443/8443 SG rules take the deployment's ingress prefix list, which holds a single /32: the corp-VPN NAT address the deploy ran from. The box now egresses a different address from the same NAT pool, so SSH to the gateway and the CM proxy both time out. The auto-mode classifier denied me the prefix-list change and the SSM fallback. The two `aws ec2 modify-managed-prefix-list` commands (raise max-entries to 2, add the new /32) are in the session transcript on the box for you to run; a /24 on the NAT pool is the alternative if you would rather not chase it (it rotated once already between 02:32 and 13:50 UTC today).
+
+Once in, in this order: master-01's Ratis peer list and `ozone.scm.address.*` as written by CM; master-02's full `getRootCASignedSCMCert` failure cause, to settle whether the follower cert fetch dies because the ring is dead or is a second defect; then, on your go, fix 2 on the live cluster as the cheap ring test. #341 is not waiting on Ozone (NiFi is 4/4); it waits on the same ingress rule.
+
+Analysis from `spark-dd06`; nothing live was touched, the cluster is still up and billing.

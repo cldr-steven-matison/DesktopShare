@@ -1,0 +1,146 @@
+parameter context aac4f5ad-01a0-1000-ffff-ffffaa0bd41b
+pg aac4f973-01a0-1000-ffff-ffff8997ab31 at x 700.0
+service CM AutoTLS CA (PEM) aac4fa3e-01a0-1000-0000-00004d07a5b0
+  ssl descriptors: ['Certificate Authorities', 'Certificate Authorities Source', 'Certificate Chain', 'Certificate Chain Location', 'Private Key', 'Private Key Location', 'Private Key Source', 'TLS Protocol']
+  ssl props: {'Private Key Source': 'UNDEFINED', 'Certificate Authorities Source': 'FILES'}
+service NiFi service keytab (per node) aac4fd02-01a0-1000-ffff-ffff951f5129
+  krb descriptors: {'Kerberos Principal': 'Environment variables defined at JVM level and system properties', 'Kerberos Keytab': 'Environment variables defined at JVM level and system properties'}
+service CE Kafka (SASL_SSL GSSAPI) aac4ffed-01a0-1000-0000-00003255d1a7
+  kafka descriptors: ['SSL Context Service', 'ack.wait.time', 'bootstrap.servers', 'default.api.timeout.ms', 'isolation.level', 'kerberos-user-service', 'max.block.ms', 'max.poll.records', 'sasl.kerberos.service.name', 'sasl.mechanism', 'sasl.password', 'sasl.username', 'security.protocol']
+  kafka props: {'bootstrap.servers': '#{Kafka Bootstrap}', 'security.protocol': 'SASL_SSL', 'sasl.mechanism': 'GSSAPI', 'kerberos-user-service': 'aac4fd02-01a0-1000-ffff-ffff951f5129', 'SSL Context Service': 'aac4fa3e-01a0-1000-0000-00004d07a5b0', 'sasl.kerberos.service.name': 'kafka'}
+processor AskTheModel aac50444-01a0-1000-0000-000075d5e58a
+processor InvokeLLM aac5052c-01a0-1000-ffff-ffffe4f00d14
+processor PublishResponse aac505eb-01a0-1000-0000-00003c1cfe24
+processor LogPublished aac50688-01a0-1000-0000-000016a4ea94
+processor LogFailure aac506fc-01a0-1000-ffff-ffff895d0521
+connection ['success'] -> InvokeLLM
+connection ['Response'] -> PublishResponse
+connection ['Retry'] -> InvokeLLM
+connection ['Failure', 'No Retry'] -> LogFailure
+connection ['success'] -> LogPublished
+connection ['failure'] -> LogFailure
+service CM AutoTLS CA (PEM) ENABLING INVALID ["'Certificate Authorities Source' validated against 'FILES' is invalid because Given value not found in allowed set 'PROPERTIES, SYSTEM'"]
+service NiFi service keytab (per node) ENABLED VALID []
+service CE Kafka (SASL_SSL GSSAPI) ENABLING INVALID ["'SSL Context Service' validated against 'aac4fa3e-01a0-1000-0000-00004d07a5b0' is invalid because Controller Service [SSL Context Service] Identifier [aac4fa3e-01a0-1000-0000-00004d07a5b0] state is Enabling"]
+processor AskTheModel VALID []
+processor InvokeLLM VALID []
+processor PublishResponse INVALID ["'Kafka Connection Service' validated against 'aac4ffed-01a0-1000-0000-00003255d1a7' is invalid because Controller Service [Kafka Connection Service] Identifier [aac4ffed-01a0-1000-0000-00003255d1a7] state is Enabling", "'Delivery Guarantee' validated against '1' is invalid because 'Delivery Guarantee' is not a supported property or has no Validator associated with it"]
+processor LogPublished VALID []
+processor LogFailure VALID []
+BUILD DONE pg aac4f973-01a0-1000-ffff-ffff8997ab31
+PublishKafka descriptors: ['Delivery Guarantee', 'Failure Strategy', 'FlowFile Attribute Header Pattern', 'Header Encoding', 'Kafka Connection Service', 'Kafka Key', 'Kafka Key Attribute Encoding', 'Message Demarcator', 'Message Key Field', 'Publish Strategy', 'Record Key Writer', 'Record Metadata Strategy', 'Record Reader', 'Record Writer', 'Topic Name', 'Transactional ID Prefix', 'Transactions Enabled', 'acks', 'compression.type', 'max.request.size', 'partition', 'partitioner.class']
+service NiFi service keytab (per node) ENABLED VALID []
+service CM AutoTLS CA (PEM) ENABLED VALID []
+service CE Kafka (SASL_SSL GSSAPI) ENABLING VALID []
+processor InvokeLLM VALID []
+processor PublishResponse INVALID ["'Kafka Connection Service' validated against 'aac4ffed-01a0-1000-0000-00003255d1a7' is invalid because Controller Service [Kafka Connection Service] Identifier [aac4ffed-01a0-1000-0000-00003255d1a7] state is Enabling"]
+processor LogPublished VALID []
+processor LogFailure VALID []
+processor AskTheModel VALID []
+services: {'NiFi service keytab (per node)': 'ENABLED', 'CM AutoTLS CA (PEM)': 'ENABLED', 'CE Kafka (SASL_SSL GSSAPI)': 'ENABLING'}
+15:12:43 starting
+GET /process-groups/root/process-groups -> 500: <html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/>
+<title>Error 500 javax.servlet.ServletException: javax.servlet.ServletException: org.apache.shiro.subject.ExecutionException: java.security.PrivilegedActionException: java.io.IOException: java.io.IOException: Service connectivity error.</title>
+</head>
+<body><h2>HTTP ERROR 500 javax.servlet.ServletException: javax.servlet.ServletException: org.apache.shiro.subject.ExecutionException: java.security.PrivilegedActionException: java.io.IOException: java.io.IOException: Service connectivity error.</h2>
+<table>
+<t
+15:18:22 nifi nodes: [('srm-cloudera-ce-base-base-worker-01', 'CONNECTED'), ('srm-cloudera-ce-base-base-worker-03', 'CONNECTED'), ('srm-cloudera-ce-base-base-worker-04', 'CONNECTED'), ('srm-cloudera-ce-base-base-worker-02', 'CONNECTED')]
+services: {'NiFi service keytab (per node)': 'ENABLED', 'CM AutoTLS CA (PEM)': 'ENABLED', 'CE Kafka (SASL_SSL GSSAPI)': 'ENABLING'}
+15:19:26 starting
+RUNNING aac4f973-01a0-1000-ffff-ffff8997ab31
+15:21:57 status after 150 s
+PG Ch18LlmBridge in 0 out 0 queued 0 (0 (0 bytes))
+  InvokeLLM        Running  in   3 out   3
+  LogFailure       Running  in   3 out   0
+  PublishResponse  Invalid  in   0 out   0
+  LogPublished     Running  in   0 out   0
+  AskTheModel      Running  in   0 out   3
+  bulletin InvokeLLM ERROR InvokeHTTP[id=aac5052c-01a0-1000-ffff-ffffe4f00d14] Request Processing failed: FlowFile[filename=487dd2e6-c453-43ed-a30d-1d25ae3a5318]: java.lang.IllegalArgumentException: Unexpected char 0x20 at 6 in
+  bulletin InvokeLLM ERROR InvokeHTTP[id=aac5052c-01a0-1000-ffff-ffffe4f00d14] Request Processing failed: FlowFile[filename=30760e13-62bd-4771-9338-33b42ef5b54c]: java.lang.IllegalArgumentException: Unexpected char 0x20 at 6 in
+  bulletin PublishResponse ERROR PublishKafka[id=aac505eb-01a0-1000-0000-00003c1cfe24] Encountering difficulty starting. (Validation State is INVALID: ['Kafka Connection Service' validated against 'aac4ffed-01a0-1000-0000-00003255d1a
+  bulletin LogFailure WARNING LogAttribute[id=aac506fc-01a0-1000-ffff-ffff895d0521] logging for flow file StandardFlowFileRecord[uuid=487dd2e6-c453-43ed-a30d-1d25ae3a5318,claim=StandardContentClaim [resourceClaim=StandardResourceC
+  bulletin LogFailure WARNING LogAttribute[id=aac506fc-01a0-1000-ffff-ffff895d0521] logging for flow file StandardFlowFileRecord[uuid=30760e13-62bd-4771-9338-33b42ef5b54c,claim=StandardContentClaim [resourceClaim=StandardResourceC
+STOPPED aac4f973-01a0-1000-ffff-ffff8997ab31
+InvokeHTTP descriptors: ['Connection Timeout', 'HTTP Method', 'HTTP URL', 'HTTP/2 Disabled', 'Request Body Enabled', 'Request Chunked Transfer-Encoding Enabled', 'Request Content-Encoding', 'Request Content-Type', 'Request Date Header Enabled', 'Request Digest Authentication Enabled', 'Request Failure Penalization Enabled', 'Request Header Attributes Pattern', 'Request Multipart Form-Data Filename Enabled', 'Request Multipart Form-Data Name', 'Request OAuth2 Access Token Provider', 'Request Password', 'Request User-Agent', 'Request Username', 'Response Body Attribute Name', 'Response Body Attribute Size', 'Response Body Ignored', 'Response Cache Enabled', 'Response Cache Size', 'Response Cookie Strategy', 'Response FlowFile Naming Strategy', 'Response Generation Required', 'Response Header Request Attributes Enabled', 'Response Header Request Attributes Prefix', 'Response Redirects Enabled', 'SSL Context Service', 'Socket Idle Connections', 'Socket Idle Timeout', 'Socket Read Timeout', 'Socket Write Timeout', 'proxy-configuration-service']
+dynamic (bogus header) props: ['Socket Connect Timeout']
+applying: {'Socket Connect Timeout': None, 'Socket Read Timeout': '300 secs', 'Connection Timeout': '10 secs'}
+InvokeLLM VALID []
+service NiFi service keytab (per node) ENABLED VALID []
+service CM AutoTLS CA (PEM) ENABLED VALID []
+service CE Kafka (SASL_SSL GSSAPI) ENABLING VALID []
+   bulletin ERROR StandardControllerServiceNode[service=Kafka3ConnectionService[id=aac4ffed-01a0-1000-0000-00003255d1a7], name=CE Kafka (SASL_SSL GSSAPI), active=true] Failed to invoke @OnEnabled method: java.lang.IllegalArgumentException: Controller Service with identifier aac4fa3e-01a0-1000-0000-00004d07a5b0 is of type class jdk.proxy14.$Proxy208 and cannot be cast to interface org.apache.nifi.ssl.SSLContextServi
+   bulletin ERROR StandardControllerServiceNode[service=Kafka3ConnectionService[id=aac4ffed-01a0-1000-0000-00003255d1a7], name=CE Kafka (SASL_SSL GSSAPI), active=true] Failed to invoke @OnEnabled method: java.lang.IllegalArgumentException: Controller Service with identifier aac4fa3e-01a0-1000-0000-00004d07a5b0 is of type class jdk.proxy14.$Proxy208 and cannot be cast to interface org.apache.nifi.ssl.SSLContextServi
+   bulletin ERROR StandardControllerServiceNode[service=Kafka3ConnectionService[id=aac4ffed-01a0-1000-0000-00003255d1a7], name=CE Kafka (SASL_SSL GSSAPI), active=true] Failed to invoke @OnEnabled method: java.lang.IllegalArgumentException: Controller Service with identifier aac4fa3e-01a0-1000-0000-00004d07a5b0 is of type class jdk.proxy14.$Proxy208 and cannot be cast to interface org.apache.nifi.ssl.SSLContextServi
+truststore password read from ssl-client.xml: len 43
+parameter context updated with sensitive Truststore Password
+ssl descriptors: ['Keystore Filename', 'Keystore Password', 'Keystore Type', 'SSL Protocol', 'Truststore Filename', 'Truststore Password', 'Truststore Type', 'key-password']
+PUT /controller-services/aac4ffed-01a0-1000-0000-00003255d1a7 -> 409: Node srm-cloudera-ce-base-base-worker-03.cldr.internal:8444 is unable to fulfill this request due to: Cannot modify configuration of StandardControllerServiceNode[service=Kafka3ConnectionService[id=aac4ffed-01a0-1000-0000-00003255d1a7], name=CE Kafka (SASL_SSL GSSAPI), active=false] because it is currently still disabling. Please wait for the service to fully disable before attempting to modify it.
+PEM provider removed
+services: {'NiFi service keytab (per node)': ('ENABLED', 'VALID'), 'CM AutoTLS truststore (JKS)': ('ENABLING', 'INVALID'), 'CE Kafka (SASL_SSL GSSAPI)': ('ENABLING', 'INVALID')}
+   bulletin CE Kafka (SASL_SSL GSSAPI) ERROR StandardControllerServiceNode[service=Kafka3ConnectionService[id=aac4ffed-01a0-1000-0000-00003255d1a7], name=CE Kafka (SASL_SSL GSSAPI), active=true] Failed to invoke @OnEnabled method: java.lang.IllegalArgumentException: Controller Service with identifier aac4fa3e-01a0-1000-0000-00004d07a5b0 is of 
+15:25:19 starting
+PUT /flow/process-groups/aac4f973-01a0-1000-ffff-ffff8997ab31 -> 409: Node srm-cloudera-ce-base-base-worker-03.cldr.internal:8444 is unable to fulfill this request due to: PublishKafka[id=aac505eb-01a0-1000-0000-00003c1cfe24] cannot be started because it is not stopped. Current state is STARTING
+STOPPED aac4f973-01a0-1000-ffff-ffff8997ab31
+SERVICE NiFi service keytab (per node) ENABLED VALID
+SERVICE CM AutoTLS truststore (JKS) ENABLING INVALID
+    err: 'Truststore Password' is invalid because Property references Parameter 'Truststore Password' but the currently selected Parameter Context does not have a Parameter with that name
+    props: {'Keystore Filename': None, 'Keystore Password': None, 'key-password': None, 'Keystore Type': None, 'Truststore Filename': '<set>', 'Truststore Password': '<set>', 'Truststore Type': '<set>', 'SSL Protocol': '<set>'}
+SERVICE CE Kafka (SASL_SSL GSSAPI) ENABLING INVALID
+    err: 'SSL Context Service' validated against 'aad0d09e-01a0-1000-ffff-ffffcd7c9dba' is invalid because Controller Service [SSL Context Service] Identifier [aad0d09e-01a0-1000-ffff-ffffcd7c9dba] state is En
+    SSL Context Service = aad0d09e-01a0-1000-ffff-ffffcd7c9dba | kerberos-user-service = aac4fd02-01a0-1000-ffff-ffff951f5129
+PROC InvokeLLM STOPPED VALID
+PROC PublishResponse STOPPED INVALID
+PROC LogPublished STOPPED VALID
+PROC LogFailure STOPPED VALID
+PROC AskTheModel STOPPED VALID
+both disabled
+params before: ['Kafka Topic', 'Kafka Bootstrap', 'LLM Base URL', 'LLM Model']
+update complete; failure: Failed to update Parameter Context due to org.apache.nifi.web.util.LifecycleManagementException: Failed to update Flow on all nodes in cluster due to The ID of the Parameter Context must be specified
+params after: [('Kafka Topic', False), ('LLM Base URL', False), ('LLM Model', False), ('Kafka Bootstrap', False)]
+service CM AutoTLS truststore (JKS) ENABLING INVALID ["'Truststore Password' is invalid because Property references Parameter 'Truststore Password' but the currently selected Parameter Context does not have a Parameter with that name"]
+service CE Kafka (SASL_SSL GSSAPI) ENABLING INVALID ["'SSL Context Service' validated against 'aad0d09e-01a0-1000-ffff-ffffcd7c9dba' is invalid because Controller Service [SSL Context Service] Identifier [aad0d09e-01a0-1000-ffff-ffffcd7c9dba] state is Enabling"]
+PROC InvokeLLM VALID []
+PROC PublishResponse INVALID ["'Kafka Connection Service' validated against 'aac4ffed-01a0-1000-0000-00003255d1a7' is invalid because Controller Service [Kafka Connection Service] Identifier [aac4ffed-01a0-1000-0000-00003255d1a7] state is Enabling"]
+PROC LogPublished VALID []
+PROC LogFailure VALID []
+PROC AskTheModel VALID []
+15:28:54 starting
+PUT /flow/process-groups/aac4f973-01a0-1000-ffff-ffff8997ab31 -> 409: Node srm-cloudera-ce-base-base-worker-03.cldr.internal:8444 is unable to fulfill this request due to: PublishKafka[id=aac505eb-01a0-1000-0000-00003c1cfe24] cannot be started because it is not stopped. Current state is STARTING
+STOPPED aac4f973-01a0-1000-ffff-ffff8997ab31
+update complete; failure: None
+params after: [('Kafka Bootstrap', False), ('LLM Base URL', False), ('Kafka Topic', False), ('Truststore Password', True), ('LLM Model', False)]
+service CM AutoTLS truststore (JKS) ENABLED VALID []
+service CE Kafka (SASL_SSL GSSAPI) ENABLED VALID []
+PROC InvokeLLM STOPPED VALID []
+PROC PublishResponse RUNNING VALID []
+PROC LogPublished STOPPED VALID []
+PROC LogFailure STOPPED VALID []
+PROC AskTheModel STOPPED VALID []
+15:29:44 starting
+RUNNING aac4f973-01a0-1000-ffff-ffff8997ab31
+15:32:14 status after 150 s
+PG Ch18LlmBridge in 0 out 0 queued 0 (0 (0 bytes))
+  InvokeLLM        Running  in   3 out   3
+  LogFailure       Running  in   1 out   0
+  PublishResponse  Running  in   3 out   3
+  LogPublished     Running  in   3 out   0
+  AskTheModel      Running  in   0 out   3
+  bulletin PublishResponse ERROR PublishKafka[id=aac505eb-01a0-1000-0000-00003c1cfe24] Encountering difficulty starting. (Validation State is INVALID: ['Kafka Connection Service' validated against 'aac4ffed-01a0-1000-0000-00003255d1a
+  bulletin LogFailure WARNING LogAttribute[id=aac506fc-01a0-1000-ffff-ffff895d0521] logging for flow file StandardFlowFileRecord[uuid=c3c1a014-cfdb-4ca0-955f-edf73367b257,claim=StandardContentClaim [resourceClaim=StandardResourceC
+LogFailure bulletin: 15:29:44 UTC LogAttribute[id=aac506fc-01a0-1000-ffff-ffff895d0521] logging for flow file StandardFlowFileRecord[uuid=c3c1a014-cfdb-4ca0-955f-edf73367b257,claim=StandardContentClaim [resourceClaim=StandardResourceClaim[id=1789571966877-1, container=default, section=1], offset=558, length=186],offset=0,name=c3c1a014-cfdb-4ca0-955f-edf73367b257,size=186] | -------------------------------------------------- | FlowFile Properties | Key: 'entryDate' | 	Value: 'Wed Sep 16 15:22:26 UTC 2026' | Key: 'lineageStartDate' | 	Value: 'Wed Sep 16 15:22:26 UTC 2026' | Key: 'fileSize' | 	Value: '186' | FlowFile Attribute Map Content | Key: 'filename' | 	Value: 'c3c1a014-cfdb-4ca0-955f-edf73367b257' | Key: 'invokehttp.java.exception.class' | 	Value
+15:32:51 final status before stop
+PG Ch18LlmBridge in 0 out 0 queued 1 (1 (186 bytes))
+  InvokeLLM        Running  in   3 out   3
+  LogFailure       Running  in   1 out   0
+  PublishResponse  Running  in   3 out   3
+  LogPublished     Running  in   3 out   0
+  AskTheModel      Running  in   0 out   4
+  queued 1 on success
+  bulletin PublishResponse ERROR PublishKafka[id=aac505eb-01a0-1000-0000-00003c1cfe24] Encountering difficulty starting. (Validation State is INVALID: ['Kafka Connection Service' validated against 'aac4ffed-01a0-1000-0000-00003255d1a
+  bulletin LogFailure WARNING LogAttribute[id=aac506fc-01a0-1000-ffff-ffff895d0521] logging for flow file StandardFlowFileRecord[uuid=c3c1a014-cfdb-4ca0-955f-edf73367b257,claim=StandardContentClaim [resourceClaim=StandardResourceC
+STOPPED aac4f973-01a0-1000-ffff-ffff8997ab31
+exported /home/tunas/BrainShare/files/issue-341/Ch18LlmBridge.flow.json
+export: 5 processors, 6 connections, 3 services; params: [('LLM Model', 'nvidia/Qwen3.6-35B-A3B-NVFP4'), ('Kafka Topic', 'ch18-llm-responses'), ('Kafka Bootstrap', 'srm-cloudera-ce-base-base-worker-01.cldr.internal:9093,srm-cloudera-ce-base-base-worker-02.cldr.internal:9093,srm-cloudera-ce-base-base-worker-03.cldr.internal:9093,srm-cloudera-ce-base-base-worker-04.cldr.internal:9093'), ('LLM Base URL', 'http://127.0.0.1:8000'), ('Truststore Password', '<sensitive: None>')]

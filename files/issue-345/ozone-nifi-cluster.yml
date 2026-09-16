@@ -501,6 +501,18 @@
           # hdfs_service: "{{ __hdfs.service.name }}"
           # ranger_service: "{{ __ranger.service.name }}"
           solr_service: "{{ __solr.service.name }}"
+          # NIFI GRAFT edit 12 (#345, 2026-09-16): AutoTLS sets ssl_enabled on the SCM/OM/DN roles and CM then
+          # generates hdds.grpc.tls.enabled=true. Ozone's CSR builder drops the DNS SAN for any *.cldr.internal
+          # name (commons-validator has no `internal` TLD), the SCM certs carry an IP-only SAN, and Ratis verifies
+          # the FQDN peer address against that cert, so the SCM ring never forms. Ring TLS off keeps everything
+          # else (Kerberos RPC, HTTPS UIs) as is. The valve is emitted BEFORE the generated value, so it needs
+          # <final>true</final> or the generated true wins. Proven live on srm-cloudera-ce-base 15:31 UTC.
+          ozone-conf/ozone-site.xml_service_safety_valve: >-
+            <property>
+              <name>hdds.grpc.tls.enabled</name>
+              <value>false</value>
+              <final>true</final>
+            </property>
         role_config_groups:
           - type: STORAGE_CONTAINER_MANAGER
             config:

@@ -42,6 +42,10 @@ Deploy and teardown are each an explicit go from Steven, with the cost stated. *
 in the same session** unless told to keep it. Exits are in §6. The 09-16 cluster was kept running at
 the end of the session on Steven's call; the teardown and its three zeros are still owed.
 
+**Size the nodes before the next run (§2a).** The stock `t3a.xlarge` workers (16 GB, no swap) carry
+19 GB of default JVM heap once NiFi is grafted in; three of four wedged within two hours of the full
+stack running on 09-16 and had to be rebooted from EC2.
+
 ---
 
 ## 1. Prereqs on the DGX Spark
@@ -124,6 +128,33 @@ cloudera_parcels:                     # archive moved from p0.77083870 to p10000
 `gateway_dispatch_whitelist` in the template hard-codes `cldr\.internal`, so changing the domain is a
 template edit too, not just a config knob.
 
+**The ingress prefix list is pinned to the deployer's public IP at infra time** (`vpc_ingress_cidr`
+in `tf_cluster_aws/terraform.tfvars`, one `/32`). From the box that IP is the corp-VPN NAT address,
+and the NAT pool hands out a different one per connection day; SSH to the gateway and the CM proxy
+then time out. Check `curl -4 ifconfig.me` against the prefix list and add the new `/32`
+(`aws ec2 modify-managed-prefix-list --max-entries N+1`, then `--current-version <v> --add-entries`)
+before diagnosing anything on the cluster.
+
+## 2a. Node sizing (evidence: [`files/issue-345/worker-sizing-2026-09-16.txt`](files/issue-345/worker-sizing-2026-09-16.txt))
+
+The config file cannot override instance types: `infra.nodes` in `config-template.yml` is commented and
+`tf_cluster_aws.tfvars.j2` renders only `infra_region`. Edit `instance_type` in
+`tf_cluster_aws/hosts_base.tf` (masters line 108, workers line 148, sdx line 68) before `infrastructure.yml`.
+
+| Group | Stock | CM heap defaults that land there | Next run |
+|---|---|---|---|
+| workers ×4 | `t3a.xlarge` 4 vCPU / 16 GB, $0.150/h | DATANODE 4 + NIFI_NODE 4 (`-Xms` = `-Xmx`) + REGIONSERVER 4 + OZONE_DATANODE 4 + KAFKA_BROKER 2 + NODEMANAGER 1 = 19 GB, plus 8 GB advertised to YARN containers | `r5a.2xlarge` 8 vCPU / 64 GB, $0.452/h (`m5a.2xlarge` 32 GB is borderline) |
+| masters ×3 | `t3a.xlarge` | NAMENODE 4 + OZONE_MANAGER 4 + SCM 4 + HBase MASTER + ZK 1 on master-01; KRAFT 2 + Registry on master-03 | `r5a.xlarge` 4 vCPU / 32 GB, $0.226/h (CPU sat at 5 to 13 %) |
+| sdx ×1 | `t3a.xlarge` | HIVEMETASTORE 8 + ATLAS 2 + SOLR 1 + RANGER 1 + KNOX 1 + RECON 1 + S3G 1 | `r5a.xlarge` |
+
+That takes the cluster from about $2/h to about $3.5/h. CPU credits were never the constraint
+(unlimited mode, 31 to 38 % average on the workers); memory was: worker-02 OOM-killed its DataNode at
+14:20 UTC with 230 MB free, the other three workers stopped heartbeating between 12:24 and 13:38 and
+EC2 reported them `impaired`. What kept the 09-16 cluster alive afterwards on 16 GB: Atlas, Hive,
+Hive-on-Tez, YARN and HBase stopped in CM (none needed for the streaming validation), NiFi
+`java.arg.2/3` at `-Xms2048m/-Xmx2048m`, `ozone_datanode_heap_size` 2048, and an EC2 reboot of the
+three wedged instances.
+
 > **`common_password` must be letters and digits only.** Cloudera's automation sets service admin
 > passwords via basic-auth URLs (`https://admin:PASSWORD@host/...`). An `@`, `#`, `/`, or `:` inside
 > the password corrupts the URL and enrollment dies on a `no_log` (censored) task. The clean fix is
@@ -189,6 +220,8 @@ the first run of the graft:
 | 9 | `Worker` host template | `__nifi` `NIFI_NODE` (all four workers) |
 | 10 | ZooKeeper `SERVER` role config | `zookeeper_enable_client_port: true`. AutoTLS plus `enableSecurity` turn the plaintext client port off (`clientPort=0`, TLS-only on 2182); the CFM 4.10 NiFi CSD start script pre-checks the quorum with a plaintext `zkCli.sh ls /` on 2181 ("Checking ZK quorum non secure connection", `control.sh` line 467) and exits 1 without it, so CM's First Run fails on `0 NiFi Node roles running`. NiFi itself keeps `nifi.zookeeper.client.secure=true` on 2182. Evidence: [`files/issue-345/nifi-first-start-failure.txt`](files/issue-345/nifi-first-start-failure.txt). On the 09-16 run the knob was applied to the running cluster through the CM API, ZooKeeper restarted, and all four NiFi nodes started |
 | 11 | HDFS service config | `core_site_safety_valve` with `hadoop.security.crypto.codec.classes.aes.ctr.nopadding = org.apache.hadoop.crypto.JceAesCtrCryptoCodec`. With `dfs.encrypt.data.transfer=true` (AES/CTR 256, the template default) NiFi's first HDFS write (the Ranger plugin's audit file) goes through the `libhadoop` bundled inside `nifi-ranger-nar-2.3.0.4.10.0.0-154.nar`, which calls OpenSSL's ENGINE path and segfaults in the AMI's `openssl-libs-3.5.8-1.el9_8` (`SIGSEGV` in `libcrypto.so.3` `ENGINE_get_cipher`, `hs_err_pid*.log`). All four JVMs died ~4 min after start; CM kept showing STARTED. The pure-Java codec avoids the native path for every HDFS client; CDH's own `libhadoop.so.1.0.0` was not the crashing library (Hive's encrypted writes worked). Evidence: [`files/issue-345/nifi-crash-openssl.txt`](files/issue-345/nifi-crash-openssl.txt). Applied on the running cluster via the HDFS service config + Deploy Client Configuration + NiFi restart |
+
+| 12 | Ozone service config | `ozone-conf/ozone-site.xml_service_safety_valve` with `hdds.grpc.tls.enabled=false` marked `<final>true</final>`. AutoTLS sets `ssl_enabled` on the SCM/OM/DataNode roles and CM generates `hdds.grpc.tls.enabled=true` from it; with this domain the SCM ring cannot form under ring TLS (§4.1). The valve is emitted before the generated value in `ozone-site.xml`, so without `final` the generated `true` wins, which is exactly what the first live attempt showed. Applied through the CM API on the running cluster, Ozone restarted 15:30 UTC, ring formed |
 
 Do **not** copy `nifi2.0-cluster.yml`'s hard-coded `parcel_list` vars block; it pins CDH back to
 `7.3.1-1.cdh7.3.1.p0.60371244` and silently discards the config pin.
@@ -303,9 +336,34 @@ for c in $(find /var/lib/hadoop-ozone/scm -path "*sub-ca/certs/*.crt"); do opens
   Ozone `2.2.0.7.3.2.10000-317`, commons-validator 1.10.1, CM `7.13.2.10000-82229633` (built 2026-08-21).
 - `DomainValidator.getInstance().isValid()` from the parcel's own commons-validator jar rejects every
   `*.cldr.internal` name, including the `steven-ce-…` shape of the earlier successful builds, and
-  accepts `x.cldr.cloud`. So the IP-only SAN is not specific to this `name_prefix`; what decides
-  whether the SCM ring survives it is still open (Steven has deployed the same recipe three or four
-  times without this failure). Treat the domain change as a candidate fix, not a confirmed one.
+  accepts `x.cldr.cloud`. The 1.10.1 source confirms it: `LOCAL_TLDS` is `localdomain` and
+  `localhost` only, `internal` is in no TLD table, and the strict instance is the one Ozone calls.
+  So the IP-only SAN is not specific to this `name_prefix`.
+- Why the ring then fails, from the Ozone source (same classes as the log lines): the Ratis peer
+  address is `NodeDetails.getRatisHostPortStr()`, the configured FQDN from `ozone.scm.address.*`;
+  Ratis builds the gRPC channel on that FQDN with no authority override, so grpc-netty's default
+  HTTPS endpoint identification checks it against the certificate, and with no DNS SAN the JDK falls
+  back to the CN `scm-sub@<fqdn>`, which does not match. Ring TLS is on whenever
+  `ozone.security.enabled` and `hdds.grpc.tls.enabled` are both true
+  (`HASecurityUtils.createSCMRatisTLSConfig`). With those two true and this domain, the ring cannot
+  form under any prefix, so a short-prefix redeploy is not a useful experiment. The earlier GOOD
+  builds must have run with ring TLS off or with a CM build that generated that key differently; the
+  parcel pin, AMI and domain were identical. The 09-14 CM build was never recorded and is the one
+  value that settles it. Detail:
+  [`files/issue-345/comment-2026-09-16-source-analysis.md`](files/issue-345/comment-2026-09-16-source-analysis.md).
+- **Confirmed live 2026-09-16 15:31 UTC** ([`files/issue-345/ozone-after-tls-off-2026-09-16.txt`](files/issue-345/ozone-after-tls-off-2026-09-16.txt)):
+  with the §3.1 edit 12 valve in place and Ozone restarted, the SCM log shows zero `Setting TLS`, zero
+  `No name matching` and zero `Invalid domain` lines, `ozone admin scm roles` lists master-01 LEADER with
+  master-02 and master-03 FOLLOWER, `om roles` the same three, four DataNodes registered, safemode off,
+  and a key written to `o3://o3service1/ch18/smoke/hello.txt` with replication THREE and read back.
+  The follower cert fetch (`getRootCASignedSCMCert`, `RAFT is closed`) was a consequence of the dead ring,
+  not a second defect. Two things to know: the first attempt without `<final>` changed nothing because
+  the generated `true` sits after the valve in the file; and `hdds.grpc.tls.enabled` is not a CM
+  parameter you can PUT, it is derived from the roles' `ssl_enabled`. After the valve, run **Deploy
+  Client Configuration** on the cluster or `ozone sh` from the GATEWAY host (sdx-01) keeps trying TLS
+  against the DataNodes and hangs; until then use `OZONE_CONF_DIR=<OM process dir>/ozone-conf`.
+- The alternative that keeps ring TLS is a `dns_domain` on an IANA TLD (e.g. `cldr.cloud`) plus the
+  Knox whitelist edit, which needs a redeploy and is not field-run.
 
 ### 4.2 Cluster health and the streaming surfaces
 
@@ -341,7 +399,9 @@ outside the VPC needs a hosts entry plus a tunnel to reach the login form; the A
 run for that reason.
 | Ranger | `https://<sdx-01>:6182` | 19 repos incl. `ozone_base_cluster_nifi`, `ozone_base_cluster_nifiregistry`, `cm_kafka`, `cm_hive`, `cm_ozone` |
 | Kafka / Hive-Iceberg | `kafka-topics` / `kafka-console-producer` / `-consumer` with SASL_SSL + the CM truststore; `beeline` over Knox `cdp-proxy-api/hive` | [`files/issue-345/smoke-kafka-hive.txt`](files/issue-345/smoke-kafka-hive.txt) |
-| Ozone | `ozone admin scm roles` | fails while the SCM ring is down (§4.1) |
+| Ozone | `ozone admin scm roles`, `ozone admin om roles --service-id=o3service1`, `ozone sh key put/cat o3://o3service1/...` | Ring formed after edit 12 (15:31 UTC): SCM LEADER + 2 FOLLOWER, OM LEADER + 2 FOLLOWER, 4 DataNodes, key written at replication THREE and read back. All Ozone roles GOOD in CM |
+| Stopped for the validation (Steven, 15:00 UTC) | Atlas, Hive, Hive-on-Tez, YARN, HBase | `STOPPED` in CM; they are not needed for the streaming surfaces and free 5 GB of heap per worker (§2a) |
+| DGX Spark model through the tunnel | `ssh -N -R 127.0.0.1:8000:127.0.0.1:8000` to each NiFi worker, then `curl http://127.0.0.1:8000/v1/models` on the worker | `nvidia/Qwen3.6-35B-A3B-NVFP4` from all four workers; the Ch18 flow published three chat completions to `ch18-llm-responses` ([`files/issue-341/`](files/issue-341/)) |
 
 ---
 
@@ -383,7 +443,8 @@ not the host `--profile`.
 ## What must be shown
 
 - `ozone-base-cluster` at GOOD_HEALTH with Ozone, Hive (Iceberg-capable), Kafka, NiFi and NiFi
-  Registry present. Open after the 09-16 run: Ozone (§4.1).
+  Registry present. Ozone closed 2026-09-16 15:31 UTC (§4.1); Hive/Atlas/YARN/HBase were stopped
+  afterwards for the validation, so the cluster rollup reads BAD on HDFS canary and NiFi health only.
 - The §4 smoke tests succeed; the Ozone certificate evidence is captured either way.
 - As-built values filled where field-run; `# expected — verify on the box` everywhere not yet run.
 - Teardown proven: EC2, EBS and VPC counts at 0 for `deployment=srm-cloudera-ce-base`.

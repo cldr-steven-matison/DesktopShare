@@ -48,7 +48,7 @@ CE on AWS is x86_64 top to bottom. Two independent confirmations, and neither is
 
 That is a real constraint and it costs us nothing, because **Base was never going to run *on* the DGX Spark.** The EE is an orchestration controller that drives Terraform and SSHes to nodes; it does no local compute, so even running it emulated here is a non-issue. The demo statement is: *Base runs on AWS at customer shape; the DGX Spark feeds it and serves inference to it.* Anything that promises "CDP Base on the desk" is a promise we cannot keep, and ch18 has to say so in its first paragraph.
 
-> The corollary for this box specifically: the EE image has no `arm64` tag published, so driving a CE deploy *from* `spark-dd06` means the same emulation the Mac used. Untested here. If it stalls, drive CE from WindowsDesktop and keep `spark-dd06` on the data side.
+> The corollary for this box, as built 2026-09-16 (#345): the deploy runs from `spark-dd06` on the native `1.0.0-arm64` image in 3 h 40 min, no emulation and no hand-off to WindowsDesktop. The cluster it builds is still x86_64.
 
 ### 2.3 Inbound paths for a Spark-hosted NiFi
 
@@ -63,13 +63,20 @@ CE has **no Inbound Connections equivalent**. The cluster is sealed behind SSH a
 The reverse tunnel is the one to build first, because it inverts the direction that actually blocks us — the home LAN has no inbound path, so the connection must originate here:
 
 ```bash
-# expected — verify on the box
-# From spark-dd06: publish the local OpenAI-compatible endpoint on the CE gateway node.
-ssh -N -R 8000:127.0.0.1:8000 -i ~/.ssh/ce-aws.pem ec2-user@cm.<gateway-public-ip>.nip.io
-# On the gateway, NiFi and Apache Spark jobs then reach it at
-#   http://127.0.0.1:8000/v1/chat/completions
-# For other cluster nodes to reach it, sshd needs GatewayPorts clientspecified and the
-# forward bound to the node's private IP instead of loopback — confirm before promising it.
+# as-built 2026-09-16 (#341). NiFi runs on the four base workers, not on the gateway, and the
+# gateway sshd has GatewayPorts no, so the forward goes to each worker through the gateway as a
+# jump. Each NiFi node then sees the box's model at http://127.0.0.1:8000. No SG change, nothing
+# exposed; the tunnels die with the shell.
+CFG=~/cloudera-ce-aws/srm-cloudera-ce-base-ssh.config
+O="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes"
+for ip in 10.10.1.165 10.10.1.4 10.10.1.235 10.10.1.174; do
+  ssh -F $CFG $O -o ProxyCommand="ssh -F $CFG $O -W %h:%p jump" \
+      -N -R 127.0.0.1:8000:127.0.0.1:8000 ec2-user@$ip &
+done
+# proof from every worker: curl -s http://127.0.0.1:8000/v1/models -> nvidia/Qwen3.6-35B-A3B-NVFP4
+# (files/issue-341/tunnel-probe-2026-09-16.txt). The gateway's 22/443 rules are pinned to the
+# deploy-time egress IP; from the box that is a corp-VPN NAT address, so add the current /32 to
+# the deployment's ingress prefix list when the gateway stops answering.
 ```
 
 Site-to-Site NiFi→NiFi is the *right* shape once the tunnel exists, and it is a package deal: `userCertAuth` set at CR creation, one CA signing every cert, identity mapped by SAN not DN, peers declared as `User` CRs and never hand-POSTed policies — all of it in `skills/nifi-and-ai/references/site-to-site.md` and proven on our own cluster in `files/cso-prod-1/VALIDATION.md`. On CE the CA is Cloudera Manager's Auto-TLS rather than cert-manager, so the trust join is the unknown leg, not the flow.
@@ -97,6 +104,8 @@ One demo, four moving parts, nothing invented:
 4. On the CE cluster, a **new** Process Group — never inline in a running one — of `GenerateFlowFile → InvokeHTTP (POST /v1/chat/completions) → PublishKafka`, following the `StreamTovLLM` shape documented in `completed/how-to-nifi-and-ai.md`. `InvokeHTTP`'s `HTTP Method` persists as `GET` unless the field is explicitly set, and its `Retry` relationship self-loops; both traps are in that reference.
 
 What it shows a customer: their own on-prem-shaped cluster calling a private, desk-side model, with no token leaving the tunnel. Feeds ch18.
+
+**As built 2026-09-16 (#341, #345).** All four parts ran on `srm-cloudera-ce-base`: CE with the Ozone base and NiFi 2.3 grafted in (`cloudera-ce-aws-runbook.md`), the box's `nvidia/Qwen3.6-35B-A3B-NVFP4` on `:8000`, one tunnel per NiFi worker, and the `Ch18LlmBridge` PG built through Knox by `files/issue-341/build-flow.py` (GenerateFlowFile on the primary node every 60 s → InvokeHTTP POST → PublishKafka over SASL_SSL/GSSAPI with the per-node keytab at `${CONF_DIR}/nifi.keytab`). Three chat completions landed on `ch18-llm-responses` and were read back by the console consumer on sdx-01 (`files/issue-341/kafka-readback-2026-09-16.txt`); export `files/issue-341/Ch18LlmBridge.flow.json`. Two build traps worth the sentence: the CFM 4.10 `Kafka3ConnectionService` needs `StandardSSLContextService` (the PEM provider fails the cast at enable), and an InvokeHTTP property name that does not exist becomes a request header, which OkHttp rejects for the space in it. The Ozone ring on that cluster needed `hdds.grpc.tls.enabled=false` marked `final` in the service safety valve; the reason is in the runbook §4.1 and ch18.
 
 ## 3. CDP Public Cloud on AWS
 
