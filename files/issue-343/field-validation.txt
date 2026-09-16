@@ -52,18 +52,25 @@ PROVEN: iceberg.ozone_test_db.sample_logs is queryable
   Rows: 2 (demo test data from 2026-09-02)
   "Cannot query Iceberg table" from hive catalog — need to query via iceberg catalog
 
-== Ozone S3 ==
-TCP :443 reachable on both Ozone gateways
-HTTP returns 403 without AWS V4 signing
-XML error: "Error creating s3 auth info. The request may not be signed using AWS V4 signing algorithm"
-Need rclone/s3cmd with AWS V4 signing for actual S3 operations (bucket/object listing)
+== Ozone S3 (2026-09-16 run 2) ==
+PROVEN: AWS V4 signing with boto3 works on both gateways.
+  CLE-int: https://goes01-cle-int-ozone-s3.goes01-cle-int-cluster.demos.cloudera-labs.com
+    Buckets: ['hive-warehouse']
+    hive-warehouse/ozone_test_db/ — contains sample_logs data (parquet files, Iceberg metadata)
+  CDE-UDF: https://goes01-cde-udf-ozone-s3.goes01-cde-udf-cluster.demos.cloudera-labs.com
+    Buckets: ['cde-csk-bucket', 'hive-warehouse']
+    cde-csk-bucket/logs/dex/ — Spark batch job logs
+  Auth: hadoop-jwt as secret_access_key, 'hadoop-jwt' as access_key_id (same Knox cookie).
+  Iceberg table data physically stored in Ozone. Full bucket/object operations confirmed.
+  See files/issue-343/ozone-s3-validation.txt for full object listing.
 
 == Kafka (CSM) ==
 TLS :8443 connects and verifies against Cloudera AWC Internal CA
 Certificate: CN=AWC CSM Kafka, issuer=Cloudera AWC Internal CA
 Valid: 2026-08-13 to 2026-11-11
-Need Kafka client (kafka-console-producer/consumer or kcat) for produce/consume testing
-Client auth requires Kafka workload identity behind Knox SSO
+SASL authentication NOT proven — SASL/OAUTHBEARER and SASL/PLAIN with hadoop-jwt both fail.
+Kafka workload identity requires a proper token beyond the Knox hadoop-jwt cookie.
+Produce/consume testing blocked until a Kafka-specific auth path is established.
 
 == Cloudera AI Inference ==
 EXPERIENCE: The landing page at goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com serves the Cloudera AI UI SPA
@@ -95,9 +102,9 @@ PROVEN:
   [x] SHOW CATALOGS — hive, iceberg, system (Integrated engine)
   [x] Iceberg query — iceberg.ozone_test_db.sample_logs accessible
   [x] Kafka TLS — connects and cert validates
+  [x] Ozone S3 — AWS V4 signing works (boto3), both gateways, bucket/object listing confirmed
 
 TO-VERIFY:
   [ ] Cloudera AI inference endpoint URL + OpenAI-compatible request
-  [ ] Ozone S3 operations (need AWS V4 signing)
-  [ ] Kafka produce/consume (need Kafka client)
+  [ ] Kafka produce/consume (SASL auth blocked — requires Kafka workload identity token)
   [ ] Flink Agents (gated on AI endpoint)

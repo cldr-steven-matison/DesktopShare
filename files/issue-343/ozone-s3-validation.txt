@@ -1,0 +1,42 @@
+# Ozone S3 Field Validation — Run 2026-09-16 03:08:27
+# Host: spark-dd06 (NvidiaSpark-1) — Python boto3 with AWS V4 signing
+
+== CLE-int Ozone S3 Gateway ==
+Endpoint: https://goes01-cle-int-ozone-s3.goes01-cle-int-cluster.demos.cloudera-labs.com
+Buckets: ['hive-warehouse']
+
+  Bucket 'hive-warehouse' objects:
+    ozone_test_db/ (0 bytes, modified 2026-09-02 13:36:10.336000+00:00)
+    ozone_test_db/sample_logs/data/20260902_133646_00028_7e39s-050053fa-5453-49c5-9bb6-0e560a153b97.parquet (1039 bytes, modified 2026-09-02 13:36:48.650000+00:00)
+    ozone_test_db/sample_logs/data/20260902_134218_00032_7e39s-18c13f79-5ccc-48b4-893d-3a9d9df0384b.parquet (1039 bytes, modified 2026-09-02 13:42:20.789000+00:00)
+    ozone_test_db/sample_logs/metadata/00000-08f01aa7-2501-482a-995c-c8a51846538f.metadata.json (1759 bytes, modified 2026-09-02 13:36:38.630000+00:00)
+    ozone_test_db/sample_logs/metadata/00001-361d1d63-f924-423b-957b-bebe8140431d.metadata.json (3712 bytes, modified 2026-09-02 13:36:49.536000+00:00)
+    ozone_test_db/sample_logs/metadata/00002-45e34e8e-1145-4412-9498-521b96005811.metadata.json (5656 bytes, modified 2026-09-02 13:42:21.330000+00:00)
+    ozone_test_db/sample_logs/metadata/0cc19ac4-814a-49b0-ae2b-37943479aea9-m0.avro (7311 bytes, modified 2026-09-02 13:36:49.080000+00:00)
+    ozone_test_db/sample_logs/metadata/20260902_133646_00028_7e39s-05575dd5-4cb5-41c4-8057-f1a65958f4aa.stats (1175 bytes, modified 2026-09-02 13:36:49.415000+00:00)
+    ozone_test_db/sample_logs/metadata/20260902_134218_00032_7e39s-c546d73e-dab6-4c50-89cd-b2bd0c4f2f64.stats (1219 bytes, modified 2026-09-02 13:42:21.243000+00:00)
+    ozone_test_db/sample_logs/metadata/b602567b-b187-49bf-b31a-8e66fc6a7e2f-m0.avro (7311 bytes, modified 2026-09-02 13:42:21.007000+00:00)
+
+== CDE-UDF Ozone S3 Gateway ==
+Endpoint: https://goes01-cde-udf-ozone-s3.goes01-cde-udf-cluster.demos.cloudera-labs.com
+Buckets: ['cde-csk-bucket', 'hive-warehouse']
+
+  Bucket 'cde-csk-bucket' objects:
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-batch-tb7mnw5n-0/driver/stderr_202608310810_0.gz (3712 bytes, modified 2026-08-31 08:11:02.540000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-batch-tb7mnw5n-0/driver/stdout_202608310810_0.gz (54 bytes, modified 2026-08-31 08:11:02.313000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-batch-tb7mnw5n-0/executor_1/stderr_202608310810_0.gz (1697 bytes, modified 2026-08-31 08:11:04.589000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-connect-dm-session-0/driver/stderr_202608310659_0.gz (1961 bytes, modified 2026-08-31 07:00:04.982000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-connect-dm-session-0/driver/stderr_202608310700_0.gz (445 bytes, modified 2026-08-31 07:01:02.227000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-connect-dm-session-0/executor_1/stderr_202608310700_0.gz (1268 bytes, modified 2026-08-31 07:01:03.313000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/apps/spark-connect-dm-session-0/executor_1/stderr_202608310704_0.gz (243 bytes, modified 2026-08-31 07:05:02.598000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/eventlog/.keep (0 bytes, modified 2026-08-17 15:48:31.126000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/eventlog/eventlog_v2_spark-batch-tb7mnw5n-0/ (0 bytes, modified 2026-08-31 08:10:18.864000+00:00)
+    logs/dex/cluster-6gqzwzb4/c8wxv76g/eventlog/eventlog_v2_spark-batch-tb7mnw5n-0/appstatus_spark-batch-tb7mnw5n-0 (0 bytes, modified 2026-08-31 08:10:23.927000+00:00)
+
+  Bucket 'hive-warehouse' objects:
+
+== Summary ==
+Ozone S3 gateway is REACHABLE and AUTHENTICATED via AWS V4 signing (boto3).
+Authentication: hadoop-jwt as secret_access_key, 'hadoop-jwt' as access_key_id
+Iceberg table data (ozone_test_db/sample_logs) is physically stored in Ozone.
+The same credentials that work for Knox SSO → HTTP services also work for Ozone S3.
