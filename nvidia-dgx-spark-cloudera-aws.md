@@ -157,6 +157,18 @@ Per the [authentication doc](https://docs.cloudera.com/machine-learning/cloud/ai
 
 Three lines differ. That table is the whole thesis of the same-code arc, ch24.
 
+### 3.6 Field-validation status (as-built, 2026-09-16)
+
+Read live from `spark-dd06` for #342; full capture in [`files/issue-342/as-built-2026-09-16.md`](files/issue-342/as-built-2026-09-16.md).
+
+The `srm-iceberg` environment is **fully live**: environment `AVAILABLE` (`us-east-2`, VPC `10.10.0.0/16`), Data Lake `srm-iceberg-aw-dl` `RUNNING` (`LIGHT_DUTY`, Runtime `7.3.2`, RAZ on), Impala Data Hub `srm-iceberg-impala` `AVAILABLE` (4 nodes), and the Trino CDW warehouse `srm-trino-vw` `Running` with two DBCs. The Iceberg REST Catalog data share is configured (`DATA_SHARE_ID` + credentials in the demo clone), tables `poc_uc2.airlines` / `poc_uc2.flights` as designed.
+
+Three items are **not yet proven from the box**:
+
+- **REST Catalog read paths (§3.3) are blocked by the Knox SG, not by the catalog.** The box egresses on `165.1.200.190` because the corp VPN full tunnel is up (`tun0`, #347 AWC work), and the Knox SG allows only `179.64.39.45/32` on 443 (the home IP). TCP 443 to the Data Lake gateway times out (`http_code=000`, exit 28). This is a posture conflict on one box: VPN up serves goes01 but not the Public Cloud SG; VPN down reverts to the home IP that the SG already allows but drops goes01. Resolving it (drop the VPN for a validation window, or add a stable box egress `/32` to the Knox SG) is Steven's call — no SG or VPN change was made.
+- **CDF DataFlow (§3.2) is not enabled** on this environment (`cdp df list-services` returns none for its CRN); the Inbound Connection path needs CDF stood up first.
+- **Cloudera AI Inference (§3.4) is not deployed.** The AWS On-Demand G/VT vCPU quota in `us-east-2` is 920 (0 in use), so quota does not gate the node group when that deploy happens.
+
 ## 4. Cloudera AWC on AWS
 
 The third platform path is **Cloudera Anywhere (AWC)** — the `goes01` environment on AWS EKS. Its full using-runbook is the peer doc [`nvidia-dgx-spark-cloudera-awc.md`](nvidia-dgx-spark-cloudera-awc.md) (#283); AWC setup, API and auth are in [`cloudera-anywhere-getting-started.md`](cloudera-anywhere-getting-started.md) (#284). This section is the pointer and the field-validation checklist, not a duplicate.
