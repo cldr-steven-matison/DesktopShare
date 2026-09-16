@@ -26,14 +26,14 @@
 
 ### 📦 Artifacts
 
-- `files/issue-343/awc-check-latest.txt` — fresh validation run (2026-09-16T12:20Z)
-- `files/issue-343/field-validation.txt` — comprehensive validation results (previous run)
-- `files/issue-343/ozone-s3-validation.txt` — Ozone S3 boto3 validation
+- [awc-check-latest.txt](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-343/awc-check-latest.txt) — fresh validation run (2026-09-16T12:20Z)
+- [field-validation.txt](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-343/field-validation.txt) — comprehensive validation results (previous run)
+- [ozone-s3-validation.txt](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-343/ozone-s3-validation.txt) — Ozone S3 boto3 validation
 
 ### ✅ Source doc + chapter updated
 
-- `nvidia-dgx-spark-cloudera-awc.md` — all `[TO-VERIFY]` blocks replaced with confirmed results or blocked with root cause
-- `files/nvidia-spark-guide/ch20-cloudera-awc-on-aws.md` — as-built chapter with walk-through commands
+- [nvidia-dgx-spark-cloudera-awc.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/nvidia-dgx-spark-cloudera-awc.md) — all `[TO-VERIFY]` blocks replaced with confirmed results or blocked with root cause
+- [files/nvidia-spark-guide/ch20-cloudera-awc-on-aws.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/nvidia-spark-guide/ch20-cloudera-awc-on-aws.md) — as-built chapter with walk-through commands
 
 ### 🔜 Next
 
@@ -42,4 +42,4 @@
 
 ---
 
-sha: [3a8882] (previous validation run)
+sha: [e78f452](https://github.com/cldr-steven-matison/DesktopShare/commit/e78f452)
