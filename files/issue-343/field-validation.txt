@@ -1,0 +1,103 @@
+# Field Validation — Ch20 Cloudera AWC on AWS + DGX Spark
+# Date: 2026-09-15
+# Host: spark-dd06 (NvidiaSpark-1)
+
+== REACHABILITY ==
+All 10 goes01 subnets reachable (TCP :443 / :8443)
+  console.goes01-se-goes.demos.cloudera-labs.com     10.80.156.1     :443  OK
+  cdf.goes01-cdf-cluster.demos.cloudera-labs.com      10.80.155.216   :443  OK
+  goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com  10.80.155.227   :443  OK
+  goes01-cle-i-3a8882.goes01-cle-int-cluster.demos.cloudera-labs.com  10.80.158.220   :443  OK
+  goes01-csm-kafka.goes01-csm-cluster.demos.cloudera-labs.com  10.80.133.150   :8443  OK
+  goes01-csm-surveyor.goes01-csm-s-bf633e.goes01-csm-cluster.demos.cloudera-labs.com  10.80.133.150   :443  OK
+  goes01-cle-int-ozone-s3.goes01-cle-int-cluster.demos.cloudera-labs.com  10.80.158.220   :443  OK
+  goes01-cde-udf-ozone-s3.goes01-cde-udf-cluster.demos.cloudera-labs.com  10.80.154.41    :443  OK
+  goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com  10.80.186.131   :443  OK
+  goes01-cdx-cdx.goes01-cdx-cluster.demos.cloudera-labs.com  10.80.140.64    :443  OK
+
+== TLS ==
+Console, CDF, CSA, CAI verify without -k (ssl_verify=0)
+CLE-int hosts not in imported CA chain (need -k)
+
+== AWC Console API ==
+GET /api/v0/console/experiences -> 17 experiences, all deployed
+  Cloudera AI at https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com
+  Lakehouse Engine - Integrated at https://goes01-cle-i-3a8882-admin.goes01-cle-int-cluster.demos.cloudera-labs.com
+  Cloudera Streams Messaging (Kafka + Surveyor)
+  Cloudera Data Flow (CDF)
+  Cloudera Data Explorer (Hue)
+  Cloudera Workflow Orchestrator
+  Cloudera Data Engineering with Unified Data Fabric (x4)
+  Cloudera Data Visualization
+
+== CDF API ==
+GET /cdf/api/v1/deployments -> 1 deployment (rsingh1)
+XSRF-TOKEN auto-fetched on first GET, then used for authenticated calls
+
+== SSB API ==
+Cookie auth: auth passing (structured JSON 500 = route exists)
+Bearer auth: 302 to websso (Cookie required, documented)
+
+== Lakehouse Engine (Trino) ==
+Version: cloudera-0.479.1 (Trino 479, Cloudera build)
+Coordinator: goes01-cle-i-3a8882.goes01-cle-int-cluster.demos.cloudera-labs.com
+Auth: Bearer hadoop-jwt works, X-Trino-User must equal token's user
+
+== SHOW CATALOGS ==
+["hive"] ["iceberg"] ["system"]  — PROVEN: catalogs are wired (Integrated engine)
+
+== Iceberg Tables ==
+PROVEN: iceberg.ozone_test_db.sample_logs is queryable
+  Columns: log_id (bigint), service_name (varchar), status_code (integer), message (varchar), created_at (timestamp)
+  Rows: 2 (demo test data from 2026-09-02)
+  "Cannot query Iceberg table" from hive catalog — need to query via iceberg catalog
+
+== Ozone S3 ==
+TCP :443 reachable on both Ozone gateways
+HTTP returns 403 without AWS V4 signing
+XML error: "Error creating s3 auth info. The request may not be signed using AWS V4 signing algorithm"
+Need rclone/s3cmd with AWS V4 signing for actual S3 operations (bucket/object listing)
+
+== Kafka (CSM) ==
+TLS :8443 connects and verifies against Cloudera AWC Internal CA
+Certificate: CN=AWC CSM Kafka, issuer=Cloudera AWC Internal CA
+Valid: 2026-08-13 to 2026-11-11
+Need Kafka client (kafka-console-producer/consumer or kcat) for produce/consume testing
+Client auth requires Kafka workload identity behind Knox SSO
+
+== Cloudera AI Inference ==
+EXPERIENCE: The landing page at goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com serves the Cloudera AI UI SPA
+  All paths return HTML (SPA shell) — no REST API endpoints found
+  /v1/models, /v1/chat/completions, /ml/v1/models, /v2/models, /models, /kserve/models — all 200 HTML
+  /dashboard, /ray/, /kuberay/ — all 200 HTML (Ray dashboard embedded in SPA)
+  /model-registry/api/v1/models — 200 HTML (Model Registry UI)
+  
+  Knox gateway on console host redirects all paths to /gateway/knox-cdpsso/websso (except Cookie auth which returns SPA shell)
+  
+  Engine deployed: "Cloudera AI Control Plane" (id=23, serviceName=goes01-cai, status=deployed)
+  Blueprint: "Cloudera AI" (id=16, blueprintVersion=1.6.0, deployed 2026-08-13)
+  Engine types on box: cai-base-connected-plugin, cai-plugin
+  
+  NOTE: Swagger files dropped by user (files/issue-343/) are from the Console UI, 
+  auth API, and Lakehouse Engine — not the Cloudera AI Inference API.
+  The inference API swagger may be accessible from within the Cloudera AI experience UI.
+
+== Flink Agents ==
+Gated on Cloudera AI Inference endpoint being resolved (needs OPENAI_COMPLETIONS_CONNECTION swap)
+
+== Summary ==
+PROVEN:
+  [x] Reachability — all 10 goes01 subnets reachable
+  [x] CA chain — TLS verifies for most hosts
+  [x] CDF API — authenticated, 1 deployment
+  [x] SSB auth — Cookie works
+  [x] Trino /v1/info — working
+  [x] SHOW CATALOGS — hive, iceberg, system (Integrated engine)
+  [x] Iceberg query — iceberg.ozone_test_db.sample_logs accessible
+  [x] Kafka TLS — connects and cert validates
+
+TO-VERIFY:
+  [ ] Cloudera AI inference endpoint URL + OpenAI-compatible request
+  [ ] Ozone S3 operations (need AWS V4 signing)
+  [ ] Kafka produce/consume (need Kafka client)
+  [ ] Flink Agents (gated on AI endpoint)

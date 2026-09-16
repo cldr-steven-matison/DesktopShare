@@ -1,0 +1,2675 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anywhere Cloud Console API",
+    "description": "AWC Console REST API for managing clusters, blueprints, and blueprint deployments.\n\nThis API provides:\n- Cluster creation and management\n- Blueprint catalog browsing\n- Blueprint deployment (a deployed blueprint instance) management\n- Real-time status updates via Server-Sent Events (SSE)\n- Integration with Taikun API for cluster provisioning\n\n## SSE Support\n\nThe following endpoints provide Server-Sent Events (SSE) for real-time updates:\n- `GET /api/v1/console/clusters/events` - SSE stream for cluster updates\n- `GET /api/v1/console/blueprint-deployments/events` - SSE stream for blueprint deployment updates\n\n**SSE Behavior:**\n- Initial data sent immediately upon connection\n- Updates sent only when data changes (efficient, not every N seconds)\n- Keepalive comments (`: keepalive`) sent every 30 seconds if no data updates\n- Change detection using SHA-256 hash of JSON payload\n- Supports the same query filters as the corresponding JSON list endpoint\n\nSSE streams are not paginated; each `data:` frame carries the full snapshot array.\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "AWC Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health and version endpoints"
+    },
+    {
+      "name": "Marketplace",
+      "description": "Blueprint catalog (flattened across catalogs)"
+    },
+    {
+      "name": "Infrastructure",
+      "description": "Compute infrastructure information (Taikun API)"
+    },
+    {
+      "name": "Flavors",
+      "description": "VM flavor/instance type listing (Taikun API)"
+    },
+    {
+      "name": "Clusters",
+      "description": "Kubernetes cluster management"
+    },
+    {
+      "name": "Blueprint Deployments",
+      "description": "Blueprint deployment (deployed blueprint instance) management"
+    },
+    {
+      "name": "Marketplace Ops",
+      "description": "Internal marketplace synchronization"
+    },
+    {
+      "name": "Upgrade",
+      "description": "Anywhere Cloud control plane upgrade management"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness check",
+        "operationId": "getHealth",
+        "description": "Simple health check to verify the service process is running",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness check",
+        "operationId": "getReady",
+        "description": "Detailed check to verify the service can handle requests.\nChecks PostgreSQL database and Taikun API connectivity.\n",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is ready to handle requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not available (dependencies unhealthy)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "summary": "API version",
+        "operationId": "getVersion",
+        "description": "Returns service and API version information",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Version information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/console/blueprints": {
+      "get": {
+        "summary": "List blueprints across catalogs",
+        "operationId": "listBlueprints",
+        "description": "Returns blueprint parent tiles flattened across all catalogs, each with\nits registry-present version drill-down. Pass `catalog_id` to scope to a\nsingle catalog. The version `blueprint_version_id` is the deploy entry\npoint for creating a blueprint deployment.\n",
+        "tags": [
+          "Marketplace"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CatalogIdFilter"
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of blueprints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/Blueprint"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/blueprints/{blueprint_id}": {
+      "get": {
+        "summary": "Get a single blueprint with its full version drill-down",
+        "operationId": "getBlueprint",
+        "description": "Returns one blueprint parent with its full version drill-down, including\nresolved engine instances (with config forms), node group requirements,\nand jointly-supported Kubernetes versions. `blueprint_id` is globally unique.\n",
+        "tags": [
+          "Marketplace"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BlueprintId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Blueprint detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blueprint"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/infrastructure": {
+      "get": {
+        "summary": "List cloud credentials / compute infrastructure",
+        "operationId": "listInfrastructure",
+        "description": "Returns all cloud credentials visible to the current Taikun user, each with\nits associated provider and region. Data is fetched from the Taikun API.\n\nUse the optional `cloud_credential_id` filter to scope the list to a single\ncredential.\n",
+        "tags": [
+          "Infrastructure"
+        ],
+        "parameters": [
+          {
+            "name": "cloud_credential_id",
+            "in": "query",
+            "required": false,
+            "description": "When provided, the response is filtered to the single credential with\nthis ID. Returns 404 if the credential is not found.\n",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 392
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of cloud credentials with infrastructure details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/CloudCredential"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/flavors": {
+      "get": {
+        "summary": "List available VM flavors",
+        "operationId": "listFlavors",
+        "description": "Returns available VM flavors (instance types) from the Taikun API for a\ncloud credential, with orthogonal optional resource filters.\n\n- `cloud_credential_id` — fetch flavors from this credential; when omitted,\n  the project-default credential is used.\n- `min_cpu` / `min_memory` — raw Kubernetes quantity strings (e.g. `8`,\n  `32Gi`); the server parses them and returns flavors meeting or exceeding\n  the bar. Pass the node group's declared requirement verbatim.\n- `gpu` — when `true`, only GPU-enabled flavors; when `false`, only non-GPU\n  flavors; when omitted, both.\n",
+        "tags": [
+          "Flavors"
+        ],
+        "parameters": [
+          {
+            "name": "cloud_credential_id",
+            "in": "query",
+            "required": false,
+            "description": "Cloud credential to fetch flavors from (as returned by\n`GET /api/v1/console/infrastructure`). When omitted, the project-default\ncredential is used. Returns 404 if the ID is not found.\n",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 392
+          },
+          {
+            "name": "min_cpu",
+            "in": "query",
+            "required": false,
+            "description": "Minimum CPU as a raw Kubernetes quantity string, parsed server-side\n(e.g. `8`, `500m`). Flavors below this are excluded.\n",
+            "schema": {
+              "type": "string"
+            },
+            "example": "8"
+          },
+          {
+            "name": "min_memory",
+            "in": "query",
+            "required": false,
+            "description": "Minimum memory as a raw Kubernetes quantity string, parsed server-side\n(e.g. `32Gi`, `16G`). Flavors below this are excluded.\n",
+            "schema": {
+              "type": "string"
+            },
+            "example": "32Gi"
+          },
+          {
+            "name": "gpu",
+            "in": "query",
+            "required": false,
+            "description": "When set, filter flavors by GPU support.",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": false
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of available flavors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/Flavor"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/clusters": {
+      "get": {
+        "summary": "List all deployed clusters (JSON snapshot)",
+        "operationId": "listClusters",
+        "description": "Returns a JSON snapshot of all Kubernetes clusters that have been deployed.\n\nFor real-time updates, use `GET /api/v1/console/clusters/events` (SSE).\nThe `status` filter is case-insensitive.\n",
+        "tags": [
+          "Clusters"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClusterStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of deployed clusters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/Cluster"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/clusters/{cluster_id}": {
+      "delete": {
+        "summary": "Delete a cluster",
+        "operationId": "deleteCluster",
+        "description": "Initiates deletion of a cluster and all its blueprint deployments.\n\nReturns `202 Accepted` immediately; deletion runs asynchronously (the\nbacking Taikun project is force-deleted, then polled until gone, then the\nrows are removed). Subscribe to `GET /api/v1/console/clusters/events` (SSE)\nto track progress. On failure the cluster status is set to `delete_failed`\nwith a reason and the DELETE can be retried.\n",
+        "tags": [
+          "Clusters"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClusterId"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cluster deletion initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionAcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Cluster deletion is already in progress",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Cluster deletion in progress",
+                  "status": 409,
+                  "detail": "cluster 'cluster-034' is already being deleted",
+                  "code": "CLUSTER_DELETION_IN_PROGRESS"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/clusters/events": {
+      "get": {
+        "summary": "Stream deployed clusters (SSE)",
+        "operationId": "streamClusters",
+        "description": "Server-Sent Events (SSE) stream for real-time cluster updates.\n\nInitial data is sent immediately; further frames are sent only when the\ndata changes (SHA-256 change detection). Keepalive comments (`: keepalive`)\nare sent every 30 seconds when idle. Accepts the same `status` filter as\nthe JSON list endpoint.\n",
+        "tags": [
+          "Clusters"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClusterStatusFilter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of cluster updates",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Each `data:` frame contains a JSON\narray of Cluster objects (same shape as the JSON list `data`).\nFrames sent only when the data changes; keepalive comments every\n30 seconds.\n"
+                },
+                "example": "data: [{\"cluster_id\":\"cluster-034\",\"name\":\"final-api-test-cluster\",\"status\":\"provisioning\",\"infrastructure\":\"osc1-sjc\",\"kubernetes_version\":\"v1.33.5\",\"nodes\":4,\"blueprint_deployments\":[],\"created_at\":\"2026-02-12T20:10:14Z\"}]\n\n: keepalive\n\ndata: [{\"cluster_id\":\"cluster-034\",\"name\":\"final-api-test-cluster\",\"status\":\"ready\",\"infrastructure\":\"osc1-sjc\",\"kubernetes_version\":\"v1.33.5\",\"nodes\":4,\"blueprint_deployments\":[\"kafka-exp-kafka\"],\"created_at\":\"2026-02-12T20:10:14Z\"}]\n"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/v1/console/blueprint-deployments": {
+      "get": {
+        "summary": "List all blueprint deployments (JSON snapshot)",
+        "operationId": "listBlueprintDeployments",
+        "description": "Returns a JSON snapshot of all blueprint deployments (deployed blueprint\ninstances) across all clusters.\n\nFor real-time updates, use `GET /api/v1/console/blueprint-deployments/events`\n(SSE).\n",
+        "tags": [
+          "Blueprint Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BlueprintDeploymentStatusFilter"
+          },
+          {
+            "name": "cluster_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter by numeric cluster ID (not the formatted `cluster-NNN` string)",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 30
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of blueprint deployments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/BlueprintDeployment"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Deploy a blueprint (atomic cluster + blueprint)",
+        "operationId": "createBlueprintDeployment",
+        "description": "Deploys a blueprint by atomically provisioning a new Kubernetes cluster\nand installing the blueprint (identified by `blueprint_version_id`) onto\nit in a single call. Returns `202 Accepted` immediately; provisioning and\ndeployment proceed asynchronously. Track progress via\n`GET /api/v1/console/blueprint-deployments/events` (SSE).\n\nPass `dry_run=true` to run pre-flight checks (e.g. flavor existence,\nOpenStack quota) without persisting or creating any resources; the\nresponse reports validity and any errors and nothing is persisted.\n\nFor a multi-instance blueprint, only the primary blueprint deployment is\nreturned in the 202 body; additional per-instance deployments are created\nserver-side and are discoverable via `GET /api/v1/console/blueprint-deployments`.\n",
+        "tags": [
+          "Blueprint Deployments"
+        ],
+        "parameters": [
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "description": "When true, validate the request and run pre-flight checks (flavor\nexistence, OpenStack quota) without persisting or creating resources.\nReturns `200` with a validation result instead of `202`.\n",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": false
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBlueprintDeploymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dry-run validation result (returned when `dry_run=true`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DryRunResult"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Blueprint deployment initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlueprintDeployment"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "A name conflict occurred. Either the desired cluster name is already\ntaken (`CLUSTER_NAME_CONFLICT`) or the blueprint deployment instance\nname is already taken (`BLUEPRINT_DEPLOYMENT_NAME_CONFLICT`).\n",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "example": {
+                  "type": "about:blank",
+                  "title": "Cluster name conflict",
+                  "status": 409,
+                  "detail": "a cluster named 'my-cai-cluster' already exists",
+                  "code": "CLUSTER_NAME_CONFLICT"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/blueprint-deployments/events": {
+      "get": {
+        "summary": "Stream blueprint deployments (SSE)",
+        "operationId": "streamBlueprintDeployments",
+        "description": "Server-Sent Events (SSE) stream for real-time blueprint deployment updates.\n\nInitial data is sent immediately; further frames are sent only when the\ndata changes (SHA-256 change detection). Keepalive comments (`: keepalive`)\nare sent every 30 seconds when idle. Accepts the same `status` and\n`cluster_id` filters as the JSON list endpoint.\n",
+        "tags": [
+          "Blueprint Deployments"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BlueprintDeploymentStatusFilter"
+          },
+          {
+            "name": "cluster_id",
+            "in": "query",
+            "required": false,
+            "description": "Filter by numeric cluster ID",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 30
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of blueprint deployment updates",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Each `data:` frame contains a JSON\narray of BlueprintDeployment objects (same shape as the JSON list\n`data`). Frames sent only when the data changes; keepalive\ncomments every 30 seconds.\n"
+                },
+                "example": "data: [{\"blueprint_deployment_id\":\"deploy-034\",\"name\":\"final-api-test-exp\",\"blueprint_deployment_app_name\":\"kuberay-operator\",\"cluster_id\":\"cluster-034\",\"cluster_name\":\"final-api-test-cluster\",\"status\":\"deploying_experience\",\"created_at\":\"2026-02-11T20:26:43Z\"}]\n\n: keepalive\n\ndata: [{\"blueprint_deployment_id\":\"deploy-034\",\"name\":\"final-api-test-exp\",\"blueprint_deployment_app_name\":\"kuberay-operator\",\"cluster_id\":\"cluster-034\",\"cluster_name\":\"final-api-test-cluster\",\"status\":\"deployed\",\"version\":\"1.56.0\",\"landing_page_url\":\"https://cai.cluster.example.com\",\"created_at\":\"2026-02-11T20:26:43Z\"}]\n"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/v1/console/marketplace/sync": {
+      "post": {
+        "summary": "Synchronize the marketplace catalog",
+        "operationId": "syncMarketplace",
+        "x-internal": true,
+        "description": "Triggers a resync of the marketplace catalog from its OCI registries.\nInternal operational endpoint; not exposed through the gateway.\n",
+        "tags": [
+          "Marketplace Ops"
+        ],
+        "responses": {
+          "202": {
+            "description": "Marketplace sync initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/console/upgrade/versions": {
+      "get": {
+        "summary": "List available Anywhere Cloud upgrade versions",
+        "operationId": "listUpgradeVersions",
+        "description": "Returns upgrade candidate versions newer than the currently running release,\nordered by release date descending (newest first). Each item includes its\nrelease date and the highest CVE severity fixed relative to its immediate\npredecessor. The running version is excluded from this list; `is_current` is\nreserved and always false on listed items.\n",
+        "tags": [
+          "Upgrade"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available upgrade versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/UpgradeVersion"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/console/upgrade": {
+      "post": {
+        "summary": "Initiate Anywhere Cloud upgrade",
+        "operationId": "upgradeConsole",
+        "description": "Triggers an upgrade of the Anywhere Cloud control plane to the specified\nversion.\n\nThis endpoint is idempotent: calling it while an upgrade is already in\nprogress (or has failed) acts as a retry. The upgrade is orchestrated\nasynchronously. Returns `202 Accepted` immediately; use\n`GET /api/v1/console/upgrade/status` to poll for progress.\n",
+        "tags": [
+          "Upgrade"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiateUpgradeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Upgrade initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/console/upgrade/status": {
+      "get": {
+        "summary": "Get current upgrade status",
+        "operationId": "getUpgradeStatus",
+        "description": "Returns the current state of the Anywhere Cloud upgrade process, including\nordered steps and substeps with their individual statuses.\n\n**Polling behavior:**\n- Call once on page load to determine if an upgrade is active.\n- If `status` is `in_progress`, poll every ~5 seconds.\n- Stop polling when `status` is `not_started`, `completed`, or `failed`.\n- After calling `POST /api/v1/console/upgrade`, begin polling.\n\n**Status semantics:**\n- `completed` requires both the Taikun umbrella deployment and all changed\n  platform component releases to be healthy. Completion may lag umbrella\n  readiness while components finish rolling out.\n- After umbrella readiness, the Rolling Upgrade step may gain additional\n  dynamic substeps (one per upgraded component). Substep names vary by\n  release and are not fixed across versions.\n- `completed` reflects the most recent upgrade attempt and persists until a new upgrade is started.\n- Failure detail is carried on step and substep `status_reason` fields.\n- The rollout workflow times out after 15 minutes; if Taikun completes later,\n  call `POST /api/v1/console/upgrade` again with the same `target_version`.\n\n**Note:** During the upgrade, Anywhere Cloud may experience brief downtime.\nThe client should handle connection failures gracefully and retry.\n",
+        "tags": [
+          "Upgrade"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current upgrade status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeStatusResponse"
+                },
+                "examples": {
+                  "not_started": {
+                    "summary": "No upgrade in progress",
+                    "value": {
+                      "status": "not_started",
+                      "target_version": null,
+                      "steps": []
+                    }
+                  },
+                  "in_progress": {
+                    "summary": "Upgrade in progress",
+                    "value": {
+                      "status": "in_progress",
+                      "target_version": "2.5.0",
+                      "steps": [
+                        {
+                          "name": "Pre-flight health checks",
+                          "description": "Check upgradability of Anywhere Cloud",
+                          "status": "completed",
+                          "status_reason": null,
+                          "substeps": [
+                            {
+                              "name": "Anywhere Cloud app discovered",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Deployment reachable",
+                              "status": "completed",
+                              "status_reason": null
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Rolling Upgrade",
+                          "description": "Update the catalog version and roll out the new release",
+                          "status": "in_progress",
+                          "status_reason": null,
+                          "substeps": [
+                            {
+                              "name": "Catalog version updated",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Rollout sync triggered",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Deployment ready at target version",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "awc-auth",
+                              "status": "in_progress",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "awc-console",
+                              "status": "not_started",
+                              "status_reason": null
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Post-upgrade validation",
+                          "description": "Confirm Anywhere Cloud is running the target version",
+                          "status": "not_started",
+                          "status_reason": null,
+                          "substeps": []
+                        }
+                      ]
+                    }
+                  },
+                  "completed": {
+                    "summary": "Upgrade finished successfully",
+                    "value": {
+                      "status": "completed",
+                      "target_version": "2.5.0",
+                      "steps": [
+                        {
+                          "name": "Pre-flight health checks",
+                          "description": "Check upgradability of Anywhere Cloud",
+                          "status": "completed",
+                          "status_reason": null,
+                          "substeps": [
+                            {
+                              "name": "Anywhere Cloud app discovered",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Deployment reachable",
+                              "status": "completed",
+                              "status_reason": null
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Rolling Upgrade",
+                          "description": "Update the catalog version and roll out the new release",
+                          "status": "completed",
+                          "status_reason": null,
+                          "substeps": [
+                            {
+                              "name": "Catalog version updated",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Rollout sync triggered",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Deployment ready at target version",
+                              "status": "completed",
+                              "status_reason": null
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Post-upgrade validation",
+                          "description": "Confirm Anywhere Cloud is running the target version",
+                          "status": "completed",
+                          "status_reason": null,
+                          "substeps": []
+                        }
+                      ]
+                    }
+                  },
+                  "failed": {
+                    "summary": "Upgrade failed",
+                    "value": {
+                      "status": "failed",
+                      "target_version": "2.5.0",
+                      "steps": [
+                        {
+                          "name": "Pre-flight health checks",
+                          "description": "Check upgradability of Anywhere Cloud",
+                          "status": "completed",
+                          "status_reason": null,
+                          "substeps": [
+                            {
+                              "name": "Anywhere Cloud app discovered",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Deployment reachable",
+                              "status": "completed",
+                              "status_reason": null
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Rolling Upgrade",
+                          "description": "Update the catalog version and roll out the new release",
+                          "status": "failed",
+                          "status_reason": "rollout sync failed: deployment orchestrator error",
+                          "substeps": [
+                            {
+                              "name": "Catalog version updated",
+                              "status": "completed",
+                              "status_reason": null
+                            },
+                            {
+                              "name": "Rollout sync triggered",
+                              "status": "failed",
+                              "status_reason": "rollout sync failed: deployment orchestrator error"
+                            },
+                            {
+                              "name": "Deployment ready at target version",
+                              "status": "not_started",
+                              "status_reason": null
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code",
+            "example": "validation_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message",
+            "example": "field 'name' is required"
+          },
+          "details": {
+            "type": "array",
+            "description": "Additional error details",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "name must be non-empty"
+            ]
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "default": "about:blank",
+            "description": "URI reference identifying the problem type",
+            "example": "about:blank",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Stable, human-readable summary of the problem type",
+            "example": "Cluster not found",
+            "readOnly": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code for this occurrence",
+            "example": 404,
+            "readOnly": true
+          },
+          "detail": {
+            "type": "string",
+            "description": "Human-readable explanation specific to this occurrence",
+            "example": "no cluster with id 'abc-123'",
+            "readOnly": true
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "description": "Machine-readable branch field (SCREAMING_SNAKE)",
+            "example": "CLUSTER_NOT_FOUND",
+            "readOnly": true
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of items requested",
+            "example": 50,
+            "readOnly": true
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of items skipped before this page",
+            "example": 0,
+            "readOnly": true
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of items across all pages",
+            "example": 137,
+            "readOnly": true
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy"
+            ],
+            "description": "Liveness status",
+            "example": "healthy",
+            "readOnly": true
+          }
+        }
+      },
+      "ReadyCheck": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Dependency name",
+            "example": "database",
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "description": "Dependency status",
+            "example": "up",
+            "readOnly": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Status detail",
+            "example": "connection refused",
+            "readOnly": true
+          }
+        }
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unavailable"
+            ],
+            "description": "Readiness status",
+            "example": "ready",
+            "readOnly": true
+          },
+          "checks": {
+            "type": "array",
+            "description": "Per-dependency readiness checks",
+            "items": {
+              "$ref": "#/components/schemas/ReadyCheck"
+            },
+            "readOnly": true
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "required": [
+          "service_version",
+          "api_version"
+        ],
+        "properties": {
+          "service_version": {
+            "type": "string",
+            "description": "Build version of the service binary",
+            "example": "1.2.3",
+            "readOnly": true
+          },
+          "api_version": {
+            "type": "string",
+            "description": "API specification version",
+            "example": "v0",
+            "readOnly": true
+          }
+        }
+      },
+      "Blueprint": {
+        "type": "object",
+        "description": "A blueprint parent tile with its version drill-down.",
+        "required": [
+          "blueprint_id",
+          "name",
+          "display_name",
+          "versions"
+        ],
+        "properties": {
+          "blueprint_id": {
+            "type": "integer",
+            "description": "Blueprint identifier",
+            "readOnly": true,
+            "example": 8
+          },
+          "name": {
+            "type": "string",
+            "description": "Stable machine name of the blueprint",
+            "readOnly": true,
+            "example": "cai"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable blueprint name shown in the catalog tile",
+            "readOnly": true,
+            "example": "Cloudera AI"
+          },
+          "description": {
+            "type": "string",
+            "description": "Short marketing description of the blueprint",
+            "readOnly": true,
+            "example": "End-to-end Cloudera AI platform blueprint"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Organization that publishes the blueprint",
+            "readOnly": true,
+            "example": "Cloudera"
+          },
+          "latest_version": {
+            "type": "string",
+            "description": "Highest-semver version string",
+            "readOnly": true,
+            "example": "1.56.0"
+          },
+          "versions": {
+            "type": "array",
+            "description": "All registry-present versions of this blueprint, newest first",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/BlueprintVersion"
+            }
+          }
+        }
+      },
+      "BlueprintVersion": {
+        "type": "object",
+        "required": [
+          "blueprint_version_id",
+          "version"
+        ],
+        "properties": {
+          "blueprint_version_id": {
+            "type": "integer",
+            "description": "Blueprint version identifier; the deploy entry point",
+            "readOnly": true,
+            "example": 10
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver version string of this blueprint version",
+            "readOnly": true,
+            "example": "1.56.0"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable name for this blueprint version",
+            "readOnly": true,
+            "example": "Cloudera AI"
+          },
+          "description": {
+            "type": "string",
+            "description": "Short description of this blueprint version",
+            "readOnly": true,
+            "example": "End-to-end Cloudera AI platform blueprint"
+          },
+          "engines": {
+            "type": "array",
+            "description": "The blueprint's engine instances, each resolved to the engine's\nlatest version and its config form. Returned only by the\nsingle-blueprint detail endpoint; omitted in the list.\n",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/BlueprintEngine"
+            }
+          },
+          "hardware_tiers": {
+            "type": "array",
+            "description": "Hardware tiers declared by this blueprint version. Each tier carries its\nown cluster topology (Kubernetes version + node group requirements). The\ndeploy wizard renders one option per tier and drives the node-group forms\nand flavor filtering from the selected tier. Returned only by the\nsingle-blueprint detail endpoint; omitted in the list.\n",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/HardwareTier"
+            }
+          }
+        }
+      },
+      "BlueprintEngine": {
+        "type": "object",
+        "description": "One engine instance of a blueprint version, resolved to the engine's\nlatest version and its UI config form. Inlined on the blueprint detail\nresponse so the configure screen can render from a single call.\n",
+        "required": [
+          "instance_name",
+          "engine_id",
+          "name",
+          "version",
+          "version_id",
+          "requires_embedded_registry"
+        ],
+        "properties": {
+          "instance_name": {
+            "type": "string",
+            "description": "Blueprint instance name",
+            "readOnly": true,
+            "example": "kafka"
+          },
+          "engine_id": {
+            "type": "integer",
+            "description": "Engine identifier",
+            "readOnly": true,
+            "example": 5
+          },
+          "name": {
+            "type": "string",
+            "description": "Stable machine name of the engine",
+            "readOnly": true,
+            "example": "cai-plugin"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Human-readable engine name (from the pinned latest version)",
+            "readOnly": true,
+            "example": "Cloudera AI Plugin"
+          },
+          "description": {
+            "type": "string",
+            "description": "Short description of the engine (from the pinned latest version)",
+            "readOnly": true,
+            "example": "Runtime plugin for CAI workloads"
+          },
+          "version": {
+            "type": "string",
+            "description": "Pinned engine version string (the engine's latest)",
+            "readOnly": true,
+            "example": "1.56.0"
+          },
+          "version_id": {
+            "type": "integer",
+            "description": "Engine version identifier",
+            "readOnly": true,
+            "example": 50
+          },
+          "config_schema": {
+            "$ref": "#/components/schemas/ConfigSchemaEngine",
+            "description": "UI config form derived from the pinned engine version's config schema.\nOmitted when the engine version declares no config.\n"
+          },
+          "requires_embedded_registry": {
+            "type": "boolean",
+            "description": "When true, deployment requires Taikun OS-level registry trust setup",
+            "readOnly": true,
+            "example": false
+          }
+        }
+      },
+      "BlueprintNodeGroup": {
+        "type": "object",
+        "description": "One node group requirement from the blueprint cluster spec, passed through\nverbatim. ACE passthrough carve-out: the declared property names are\nsnake_case, but nested object shapes below mirror the upstream ACE\nblueprint schema and their inner values are not renamed.\n",
+        "properties": {
+          "id": {
+            "type": "string",
+            "readOnly": true,
+            "example": "worker"
+          },
+          "display_name": {
+            "type": "string",
+            "readOnly": true,
+            "example": "Worker"
+          },
+          "description": {
+            "type": "string",
+            "readOnly": true
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "worker",
+              "master"
+            ],
+            "readOnly": true
+          },
+          "optional": {
+            "type": "boolean",
+            "default": false,
+            "readOnly": true,
+            "description": "When true, this node group may be skipped during provisioning"
+          },
+          "node_count": {
+            "type": "object",
+            "readOnly": true,
+            "description": "Node count requirement, passed through from the ACE blueprint schema.",
+            "additionalProperties": true
+          },
+          "resources": {
+            "type": "object",
+            "readOnly": true,
+            "description": "Resource requirement, passed through verbatim from the ACE blueprint schema (inner values not renamed).",
+            "additionalProperties": true
+          },
+          "storage": {
+            "type": "object",
+            "readOnly": true,
+            "description": "Storage requirement, passed through verbatim from the ACE blueprint schema (inner values not renamed).",
+            "additionalProperties": true
+          }
+        }
+      },
+      "HardwareTierClusterConfig": {
+        "type": "object",
+        "description": "Cluster configuration template for one hardware tier, sourced from the\nblueprint's tier definition. Backs the deploy wizard's cluster form.\n",
+        "properties": {
+          "kubernetes_version": {
+            "type": "string",
+            "description": "Kubernetes version for this tier's workload cluster: the tier's declared\nversion, surfaced only when Taikun can currently provision it.\n",
+            "readOnly": true,
+            "example": "1.33.2"
+          },
+          "node_groups": {
+            "type": "array",
+            "description": "Node group requirements for this tier (see BlueprintNodeGroup).",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/BlueprintNodeGroup"
+            }
+          }
+        }
+      },
+      "HardwareTier": {
+        "type": "object",
+        "description": "One hardware tier declared by a blueprint version.",
+        "required": [
+          "name",
+          "cluster"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tier identifier. Submitted back as `hardware_tier` on\nCreateBlueprintDeploymentRequest to select this tier's topology.\n",
+            "readOnly": true,
+            "example": "default"
+          },
+          "cluster": {
+            "$ref": "#/components/schemas/HardwareTierClusterConfig"
+          }
+        }
+      },
+      "ConfigSchemaEngine": {
+        "type": "object",
+        "description": "Engine config form passed through from the ACE engine config schema. Field\nnames are snake_case; nested `input_fields` shapes and any dynamic values\nmirror upstream ACE (passthrough carve-out).\n",
+        "required": [
+          "id",
+          "title",
+          "input_fields"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique engine identifier.",
+            "readOnly": true,
+            "example": "demo-plugin"
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable engine name.",
+            "readOnly": true,
+            "example": "Demo App (UI Testing)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional engine description shown in UI cards.",
+            "readOnly": true
+          },
+          "input_fields": {
+            "type": "array",
+            "description": "Dynamic form fields rendered when configuring this engine.",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/ConfigSchemaInputField"
+            }
+          }
+        }
+      },
+      "ConfigSchemaInputFieldBase": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "title"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Field key used in the ace_instance_info payload.",
+            "readOnly": true,
+            "example": "deploymentName"
+          },
+          "type": {
+            "type": "string",
+            "description": "Discriminator for field renderer and validation behavior.",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Label displayed for the field.",
+            "readOnly": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional helper text shown below the field.",
+            "readOnly": true
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the field is required.",
+            "default": false,
+            "readOnly": true
+          }
+        }
+      },
+      "ConfigSchemaStringInputField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConfigSchemaInputFieldBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string"
+                ],
+                "readOnly": true
+              },
+              "default": {
+                "type": "string",
+                "readOnly": true
+              },
+              "example": {
+                "type": "string",
+                "description": "Sample value shown as placeholder text when the field is empty.",
+                "readOnly": true,
+                "example": "my-deployment"
+              },
+              "pattern": {
+                "type": "string",
+                "readOnly": true
+              },
+              "min_length": {
+                "type": "integer",
+                "minimum": 0,
+                "readOnly": true
+              },
+              "max_length": {
+                "type": "integer",
+                "minimum": 0,
+                "readOnly": true
+              },
+              "sensitive": {
+                "type": "boolean",
+                "description": "Marks a string field as sensitive; UI renders masked input.",
+                "default": false,
+                "readOnly": true
+              }
+            }
+          }
+        ]
+      },
+      "ConfigSchemaIntegerInputField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConfigSchemaInputFieldBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "integer"
+                ],
+                "readOnly": true
+              },
+              "default": {
+                "type": "integer",
+                "readOnly": true
+              },
+              "example": {
+                "type": "integer",
+                "description": "Sample value shown as placeholder text when the field is empty.",
+                "readOnly": true,
+                "example": 8443
+              },
+              "minimum": {
+                "type": "integer",
+                "readOnly": true
+              },
+              "maximum": {
+                "type": "integer",
+                "readOnly": true
+              }
+            }
+          }
+        ]
+      },
+      "ConfigSchemaOption": {
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Human-readable text displayed to the user.",
+            "readOnly": true,
+            "example": "Development"
+          },
+          "value": {
+            "type": "string",
+            "description": "Machine-readable value submitted in the ace_instance_info payload.",
+            "readOnly": true,
+            "example": "development"
+          }
+        }
+      },
+      "ConfigSchemaSelectInputField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConfigSchemaInputFieldBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "options"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "select"
+                ],
+                "readOnly": true
+              },
+              "default": {
+                "type": "string",
+                "readOnly": true
+              },
+              "options": {
+                "type": "array",
+                "readOnly": true,
+                "items": {
+                  "$ref": "#/components/schemas/ConfigSchemaOption"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ConfigSchemaRadioInputField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConfigSchemaInputFieldBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "options"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "radio"
+                ],
+                "readOnly": true
+              },
+              "default": {
+                "type": "string",
+                "readOnly": true
+              },
+              "options": {
+                "type": "array",
+                "description": "List of mutually exclusive options rendered as radio buttons.",
+                "readOnly": true,
+                "items": {
+                  "$ref": "#/components/schemas/ConfigSchemaOption"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ConfigSchemaBooleanInputField": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConfigSchemaInputFieldBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "boolean"
+                ],
+                "readOnly": true
+              },
+              "default": {
+                "type": "boolean",
+                "readOnly": true
+              }
+            }
+          }
+        ]
+      },
+      "ConfigSchemaInputField": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ConfigSchemaStringInputField"
+          },
+          {
+            "$ref": "#/components/schemas/ConfigSchemaIntegerInputField"
+          },
+          {
+            "$ref": "#/components/schemas/ConfigSchemaSelectInputField"
+          },
+          {
+            "$ref": "#/components/schemas/ConfigSchemaRadioInputField"
+          },
+          {
+            "$ref": "#/components/schemas/ConfigSchemaBooleanInputField"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "string": "#/components/schemas/ConfigSchemaStringInputField",
+            "integer": "#/components/schemas/ConfigSchemaIntegerInputField",
+            "select": "#/components/schemas/ConfigSchemaSelectInputField",
+            "radio": "#/components/schemas/ConfigSchemaRadioInputField",
+            "boolean": "#/components/schemas/ConfigSchemaBooleanInputField"
+          }
+        }
+      },
+      "CloudCredential": {
+        "type": "object",
+        "required": [
+          "cloud_credential_id",
+          "cloud_credential_name",
+          "provider",
+          "region"
+        ],
+        "properties": {
+          "cloud_credential_id": {
+            "type": "integer",
+            "description": "Taikun cloud credential ID",
+            "readOnly": true,
+            "example": 392
+          },
+          "cloud_credential_name": {
+            "type": "string",
+            "description": "Human-readable cloud credential name from Taikun",
+            "readOnly": true,
+            "example": "osc1-sjc"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Cloud provider type (e.g. OPENSTACK, AWS, AZURE)",
+            "readOnly": true,
+            "example": "OPENSTACK"
+          },
+          "region": {
+            "type": "string",
+            "description": "Region or datacenter",
+            "readOnly": true,
+            "example": "default"
+          }
+        }
+      },
+      "Flavor": {
+        "type": "object",
+        "description": "A VM flavor from the Taikun API. No description field is available in the\nTaikun response.\n",
+        "required": [
+          "name",
+          "cpu",
+          "ram",
+          "gpu"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Flavor identifier from Taikun",
+            "readOnly": true,
+            "example": "c16m32"
+          },
+          "cpu": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of vCPUs",
+            "readOnly": true,
+            "example": 16
+          },
+          "ram": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "RAM in GB",
+            "readOnly": true,
+            "example": 32
+          },
+          "gpu": {
+            "type": "boolean",
+            "description": "Whether this flavor has GPU support, as reported by the cloud provider.\n",
+            "readOnly": true,
+            "example": false
+          }
+        }
+      },
+      "Cluster": {
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "name",
+          "status",
+          "infrastructure",
+          "kubernetes_version",
+          "nodes",
+          "created_at",
+          "blueprint_deployments"
+        ],
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "description": "Formatted cluster ID",
+            "readOnly": true,
+            "example": "cluster-034"
+          },
+          "name": {
+            "type": "string",
+            "description": "Cluster name",
+            "readOnly": true,
+            "example": "my-cai-cluster"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "provisioning",
+              "ready",
+              "failed",
+              "deleting",
+              "delete_failed"
+            ],
+            "description": "Current cluster status",
+            "readOnly": true
+          },
+          "blueprint_deployments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of blueprint deployments on this cluster",
+            "readOnly": true,
+            "example": [
+              "kafka-exp-kafka",
+              "kafka-exp-surveyor"
+            ]
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable explanation of the current status. Present when status\nis `failed`; omitted when there is nothing to report.\n",
+            "readOnly": true,
+            "example": "Taikun project creation failed: quota exceeded"
+          },
+          "diagnostic_download_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Fully-qualified URL to download diagnostics bundles for the cluster.\nOmitted when no diagnostics are available.\n",
+            "readOnly": true,
+            "example": "https://diagnostics.default.awc.example/api/v1/diagnostics/download"
+          },
+          "infrastructure": {
+            "type": "string",
+            "description": "Infrastructure name where the cluster is deployed",
+            "readOnly": true,
+            "example": "osc1-sjc"
+          },
+          "kubernetes_version": {
+            "type": "string",
+            "description": "Kubernetes version",
+            "readOnly": true,
+            "example": "v1.33.5"
+          },
+          "nodes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Total number of nodes (bastion + masters + workers)",
+            "readOnly": true,
+            "example": 4
+          },
+          "cloud_credential_name": {
+            "type": "string",
+            "description": "Cloud credential name used to provision this cluster.",
+            "readOnly": true,
+            "example": "osc1-sjc"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Cloud provider type for the credential used to provision this cluster.",
+            "readOnly": true,
+            "example": "OPENSTACK"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Cluster creation timestamp (ISO 8601)",
+            "readOnly": true,
+            "example": "2026-02-12T20:10:14Z"
+          }
+        }
+      },
+      "BlueprintDeployment": {
+        "type": "object",
+        "required": [
+          "blueprint_deployment_id",
+          "name",
+          "blueprint_deployment_app_name",
+          "cluster_id",
+          "cluster_name",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "blueprint_deployment_id": {
+            "type": "string",
+            "description": "Formatted blueprint deployment ID",
+            "readOnly": true,
+            "example": "deploy-034"
+          },
+          "name": {
+            "type": "string",
+            "description": "Blueprint deployment instance name",
+            "readOnly": true,
+            "example": "my-cai-exp"
+          },
+          "blueprint_deployment_app_name": {
+            "type": "string",
+            "description": "Application/chart name",
+            "readOnly": true,
+            "example": "kuberay-operator"
+          },
+          "cluster_id": {
+            "type": "string",
+            "description": "Formatted cluster ID where the blueprint is deployed",
+            "readOnly": true,
+            "example": "cluster-034"
+          },
+          "cluster_name": {
+            "type": "string",
+            "description": "Cluster name where the blueprint is deployed",
+            "readOnly": true,
+            "example": "my-cai-cluster"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cluster_creating",
+              "installing_core_services",
+              "deploying_experience",
+              "deployed",
+              "failed",
+              "cluster_deleting",
+              "cluster_delete_failed"
+            ],
+            "description": "Current blueprint deployment status",
+            "readOnly": true
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable explanation of the current status. Present when status\nis `failed`; omitted when there is nothing to report.\n",
+            "readOnly": true,
+            "example": "Helm install failed: timed out waiting for the condition"
+          },
+          "version": {
+            "type": "string",
+            "description": "Deployed blueprint version (chart version). Omitted when not set.",
+            "readOnly": true,
+            "example": "1.56.0"
+          },
+          "landing_page_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL to the deployed blueprint's landing page. Set after successful\ndeployment; omitted until the app reports its URL.\n",
+            "readOnly": true,
+            "example": "https://cai.cluster.example.com"
+          },
+          "cloud_credential_name": {
+            "type": "string",
+            "description": "Cloud credential name used to provision the cluster this deployment runs on.",
+            "readOnly": true,
+            "example": "osc1-sjc"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Cloud provider type for the credential of the cluster this deployment runs on.",
+            "readOnly": true,
+            "example": "OPENSTACK"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Blueprint deployment creation timestamp (ISO 8601)",
+            "readOnly": true,
+            "example": "2026-02-11T20:26:43Z"
+          }
+        }
+      },
+      "NodeConfig": {
+        "type": "object",
+        "required": [
+          "flavor",
+          "disk_size"
+        ],
+        "properties": {
+          "flavor": {
+            "type": "string",
+            "description": "VM flavor/instance type",
+            "readOnly": false,
+            "example": "c04m04"
+          },
+          "disk_size": {
+            "type": "integer",
+            "minimum": 30,
+            "description": "Disk size in GB (converted to bytes internally by the backend)",
+            "readOnly": false,
+            "example": 100
+          }
+        }
+      },
+      "NodeGroup": {
+        "type": "object",
+        "required": [
+          "name",
+          "flavor",
+          "count",
+          "disk_size"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Node group identifier",
+            "readOnly": false,
+            "example": "master-primary"
+          },
+          "flavor": {
+            "type": "string",
+            "description": "VM flavor/instance type",
+            "readOnly": false,
+            "example": "c16m32"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of nodes in this group",
+            "readOnly": false,
+            "example": 2
+          },
+          "disk_size": {
+            "type": "integer",
+            "minimum": 30,
+            "description": "Disk size in GB (converted to bytes internally by the backend)",
+            "readOnly": false,
+            "example": 300
+          }
+        }
+      },
+      "ClusterConfig": {
+        "type": "object",
+        "required": [
+          "kubernetes_version",
+          "bastion_node",
+          "master_node_groups",
+          "worker_node_groups"
+        ],
+        "properties": {
+          "kubernetes_version": {
+            "type": "string",
+            "description": "Kubernetes version to install",
+            "readOnly": false,
+            "example": "v1.33.5"
+          },
+          "bastion_node": {
+            "$ref": "#/components/schemas/NodeConfig"
+          },
+          "master_node_groups": {
+            "type": "array",
+            "minItems": 1,
+            "description": "One or more master node groups",
+            "readOnly": false,
+            "items": {
+              "$ref": "#/components/schemas/NodeGroup"
+            }
+          },
+          "worker_node_groups": {
+            "type": "array",
+            "minItems": 1,
+            "description": "One or more worker node groups",
+            "readOnly": false,
+            "items": {
+              "$ref": "#/components/schemas/NodeGroup"
+            }
+          }
+        }
+      },
+      "CreateBlueprintDeploymentRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "cluster_name",
+          "blueprint_version_id",
+          "cloud_credential_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Desired blueprint deployment instance name (must be unique, DNS-1123 compliant)",
+            "readOnly": false,
+            "example": "my-cai-exp"
+          },
+          "cluster_name": {
+            "type": "string",
+            "description": "Desired cluster name (must be unique, DNS-1123 compliant)",
+            "readOnly": false,
+            "example": "my-cai-cluster"
+          },
+          "blueprint_version_id": {
+            "type": "integer",
+            "description": "Blueprint version to deploy; a `blueprint_version_id` from the\nblueprint catalog drill-down (`GET /api/v1/console/blueprints/{blueprint_id}`).\n",
+            "readOnly": false,
+            "example": 10
+          },
+          "version": {
+            "type": "string",
+            "description": "Blueprint version string to record; should match blueprint_version_id",
+            "readOnly": false,
+            "example": "1.56.0"
+          },
+          "hardware_tier": {
+            "type": "string",
+            "description": "Name of the selected hardware tier (a `name` from the blueprint detail's\n`hardware_tiers`). Determines the cluster topology template; defaults to\nthe blueprint's default tier when omitted.\n",
+            "readOnly": false,
+            "example": "default"
+          },
+          "engine_versions": {
+            "type": "object",
+            "description": "Optional per-instance engine version overrides. Keys must be blueprint\ninstance names (not engine package names); values are semver strings.\nOmitted instances use the catalog default for the blueprint version.\n",
+            "readOnly": false,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "cdx": "1.0.0"
+            }
+          },
+          "cloud_credential_id": {
+            "type": "integer",
+            "description": "Cloud credential to provision the cluster with. Obtain IDs from\n`GET /api/v1/console/infrastructure`.\n",
+            "readOnly": false,
+            "example": 392
+          },
+          "compute_infrastructure": {
+            "type": "string",
+            "description": "Display label for the compute infrastructure (optional; derived from\nthe cloud credential when omitted).\n",
+            "readOnly": false,
+            "example": "osc1-sjc"
+          },
+          "cidr": {
+            "type": "string",
+            "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$",
+            "description": "CIDR block for the cluster network (optional; Taikun default when omitted)",
+            "readOnly": false,
+            "example": "10.0.0.0/16"
+          },
+          "cluster_config": {
+            "$ref": "#/components/schemas/ClusterConfig"
+          },
+          "ace_instance_info": {
+            "type": "object",
+            "description": "User-provided configuration for ACE engine instances. Keys are engine\nIDs; each value is an object of dynamic field inputs for that engine,\nmerged with the blueprint's config template at deploy time. ACE\npassthrough carve-out: inner keys/values mirror upstream ACE and are\nnot renamed.\n",
+            "readOnly": false,
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "example": {
+              "demo-monitoring-plugin": {
+                "metricsEnabled": false,
+                "retentionDays": 14
+              }
+            }
+          }
+        }
+      },
+      "DryRunResult": {
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "description": "True if all pre-flight checks passed",
+            "readOnly": true,
+            "example": true
+          },
+          "errors": {
+            "type": "array",
+            "description": "List of validation errors (empty when valid is true)",
+            "readOnly": true,
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Insufficient OpenStack quota: need 5 instances but only 2 available (limit 20, used 18)"
+            ]
+          }
+        }
+      },
+      "UpgradeVersion": {
+        "type": "object",
+        "description": "One Anywhere Cloud version available for upgrade.",
+        "required": [
+          "version",
+          "release_date",
+          "is_current"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Version identifier",
+            "readOnly": true,
+            "example": "2.5.0"
+          },
+          "release_date": {
+            "type": "string",
+            "description": "Release date (ISO 8601 date) when available. Currently always emitted\nas an empty string: the upstream package-versions source provides no\nrelease metadata. Consumers must tolerate \"\".\n",
+            "readOnly": true,
+            "example": ""
+          },
+          "is_current": {
+            "type": "boolean",
+            "description": "True when this is the currently running Anywhere Cloud version.",
+            "readOnly": true,
+            "example": false
+          },
+          "fixed_cve_severity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "Critical",
+              "High",
+              "Low",
+              null
+            ],
+            "description": "Highest CVE severity fixed in this release relative to its immediate\npredecessor. Null when the release contains no CVE fixes.\n",
+            "readOnly": true,
+            "example": "Critical"
+          }
+        }
+      },
+      "InitiateUpgradeRequest": {
+        "type": "object",
+        "required": [
+          "target_version"
+        ],
+        "properties": {
+          "target_version": {
+            "type": "string",
+            "description": "Version to upgrade Anywhere Cloud to (must be from the available versions list)",
+            "readOnly": false,
+            "example": "2.5.0"
+          }
+        }
+      },
+      "UpgradeStatusResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "target_version",
+          "steps"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "in_progress",
+              "completed",
+              "failed"
+            ],
+            "description": "Overall upgrade status:\n- not_started: No upgrade in progress\n- in_progress: Upgrade is actively running\n- completed: Upgrade finished successfully\n- failed: Upgrade encountered an error (can retry via POST /api/v1/console/upgrade)\n",
+            "readOnly": true
+          },
+          "target_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Version being upgraded to. Null when status is idle.",
+            "readOnly": true,
+            "example": "2.5.0"
+          },
+          "steps": {
+            "type": "array",
+            "description": "Ordered list of upgrade steps. Array position determines execution order.\nEmpty when status is idle.\n",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/UpgradeStep"
+            }
+          }
+        }
+      },
+      "UpgradeStep": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "status",
+          "substeps"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Step title displayed in the UI",
+            "readOnly": true,
+            "example": "Pre-flight Health Checks"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what this step does",
+            "readOnly": true,
+            "example": "Check upgradability of EngineInstances"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "in_progress",
+              "completed",
+              "failed"
+            ],
+            "description": "Current status of this step",
+            "readOnly": true
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Error message when status is failed, propagated from the failed substep.\nNull for non-failed statuses.\n",
+            "readOnly": true
+          },
+          "substeps": {
+            "type": "array",
+            "description": "Ordered list of substeps within this step. Array position determines\nexecution order. Rolling Upgrade adds dynamic component substeps after\nthe three fixed rollout substeps.\n",
+            "readOnly": true,
+            "items": {
+              "$ref": "#/components/schemas/UpgradeSubstep"
+            }
+          }
+        }
+      },
+      "UpgradeSubstep": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Substep label displayed in the UI",
+            "readOnly": true,
+            "example": "Check network connection"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "in_progress",
+              "completed",
+              "failed"
+            ],
+            "description": "Current status of this substep",
+            "readOnly": true
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Error message when status is failed. This is the original error source\nthat gets propagated to the parent step's status_reason.\n",
+            "readOnly": true
+          }
+        }
+      },
+      "AcceptedResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable acknowledgement",
+            "readOnly": true,
+            "example": "marketplace sync initiated"
+          }
+        }
+      },
+      "DeletionAcceptedResponse": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable acknowledgement",
+            "readOnly": true,
+            "example": "cluster deletion initiated"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "LimitParam": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of items to return",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50,
+          "example": 50
+        }
+      },
+      "OffsetParam": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "description": "Number of items to skip before the returned page",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "example": 0
+        }
+      },
+      "CatalogIdFilter": {
+        "name": "catalog_id",
+        "in": "query",
+        "required": false,
+        "description": "Optional filter scoping the list to a single catalog. Omit to list across\nall catalogs.\n",
+        "schema": {
+          "type": "integer"
+        },
+        "example": 1
+      },
+      "BlueprintId": {
+        "name": "blueprint_id",
+        "in": "path",
+        "required": true,
+        "description": "Blueprint identifier, globally unique",
+        "schema": {
+          "type": "integer"
+        },
+        "example": 8
+      },
+      "ClusterId": {
+        "name": "cluster_id",
+        "in": "path",
+        "required": true,
+        "description": "Cluster ID (e.g. `cluster-025` or `25`)",
+        "schema": {
+          "type": "string"
+        },
+        "example": "cluster-034"
+      },
+      "ClusterStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filter by cluster status (case-insensitive)",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "provisioning",
+            "ready",
+            "failed",
+            "deleting",
+            "delete_failed"
+          ]
+        },
+        "example": "ready"
+      },
+      "BlueprintDeploymentStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filter by blueprint deployment status",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "cluster_creating",
+            "installing_core_services",
+            "deploying_experience",
+            "deployed",
+            "failed",
+            "cluster_deleting",
+            "cluster_delete_failed"
+          ]
+        },
+        "example": "deployed"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Invalid request",
+              "status": 400,
+              "detail": "request body could not be parsed",
+              "code": "INVALID_REQUEST"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Resource not found",
+              "status": 404,
+              "detail": "no resource with the requested identifier",
+              "code": "NOT_FOUND"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Internal server error",
+              "status": 500,
+              "detail": "an unexpected error occurred",
+              "code": "INTERNAL_ERROR"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required dependency (Taikun API or database) is temporarily\nunavailable, so the request could not be serviced. The client may retry.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Service Unavailable",
+              "status": 503,
+              "detail": "upgrade service unavailable",
+              "code": "SERVICE_UNAVAILABLE"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "JwtAuthentication": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HTTP Authorization Bearer header using a JWT. Authentication is enforced\nupstream at the Knox gateway; the service runs no in-process auth\nmiddleware. Declared for documentation of the expected credential only.\n"
+      }
+    }
+  },
+  "security": [
+    {
+      "JwtAuthentication": []
+    }
+  ]
+}

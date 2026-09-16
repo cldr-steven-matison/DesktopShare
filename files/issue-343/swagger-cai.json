@@ -1,0 +1,3210 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anywhere Cloud Auth API",
+    "description": "AWC Authentication Service - Policy Administration Point (PAP).\n\nProvides REST APIs for managing:\n- SSO configurations (SAML and LDAP providers)\n- Machine users for machine-to-machine authentication\n- Roles and role membership for access control\n",
+    "version": "v1",
+    "contact": {
+      "name": "AWC Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8082",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health and version endpoints"
+    },
+    {
+      "name": "Session",
+      "description": "Current user session information"
+    },
+    {
+      "name": "IDP",
+      "description": "Identity provider discovery"
+    },
+    {
+      "name": "SSO Configurations",
+      "description": "Manage SSO provider configurations"
+    },
+    {
+      "name": "Machine Users",
+      "description": "Manage machine users for programmatic API access"
+    },
+    {
+      "name": "Roles",
+      "description": "Manage roles and role membership"
+    },
+    {
+      "name": "Access Keys",
+      "description": "Access key credential provisioning and token exchange"
+    },
+    {
+      "name": "Engine Roles",
+      "description": "Engine-scoped role provisioning and lifecycle management"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "Get current user",
+        "operationId": "getCurrentUser",
+        "description": "Returns the authenticated user's identity and assigned roles.\nRequires the x-awc-username header to be injected by the Knox proxy.\n",
+        "tags": [
+          "Session"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/idp/default": {
+      "get": {
+        "summary": "Get default identity provider",
+        "operationId": "getDefaultIDP",
+        "description": "Returns the active default identity provider configuration.\nAlways returns 200. When no default has been configured, `configured` is false and all other fields are absent.\nFor SAML providers, includes the SP metadata XML for IdP registration.\n",
+        "tags": [
+          "IDP"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default identity provider configuration. `configured` is false when no default has been set.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultIDPResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso-configurations/test-ldap": {
+      "post": {
+        "summary": "Test LDAP connection",
+        "operationId": "testLdapConnection",
+        "description": "Validates an LDAP server connection by dialing the server and performing a bind.\nOn failure returns a problem+json body whose `code` identifies the specific\nfailure (e.g. CONNECTION_REFUSED, TLS_HANDSHAKE_FAILED, BIND_FAILED, SSRF_BLOCKED).\n",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestLDAPConnectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LDAP connection test result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestLDAPConnectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso-configurations/test-saml": {
+      "post": {
+        "summary": "Test SAML connection",
+        "operationId": "testSamlConnection",
+        "description": "Validates SAML IdP metadata by fetching a URL or parsing supplied XML.\nChecks that the certificate is valid and uses a strong signature algorithm.\nExactly one of idp_metadata_url or idp_metadata_xml must be provided.\nOn failure returns a problem+json body whose `code` identifies the specific\nfailure (e.g. METADATA_UNREACHABLE, INVALID_XML, CERTIFICATE_EXPIRED,\nWEAK_SIGNATURE_ALGORITHM).\n",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestSAMLConnectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SAML connection test result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSAMLConnectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness check",
+        "operationId": "getHealth",
+        "description": "Simple health check to verify the service process is running",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness check",
+        "operationId": "getReady",
+        "description": "Detailed check to verify the service can handle requests",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is ready to handle requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not available (dependencies unhealthy)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "summary": "API version",
+        "operationId": "getVersion",
+        "description": "Returns service and API version information",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Version information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso-configurations": {
+      "get": {
+        "summary": "List all SSO configurations",
+        "operationId": "listSsoConfigurations",
+        "description": "Returns all configured SSO providers",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of SSO configurations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/SSOConfiguration"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create or replace SSO configuration",
+        "operationId": "createSsoConfiguration",
+        "description": "Create or replace an SSO provider configuration. At most one configuration per provider_type is allowed. If a configuration with the same provider_type already exists, it is replaced atomically. Returns 201 on fresh create, 200 on replace.\n",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSSOConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing SSO configuration replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SSOConfiguration"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "SSO configuration created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SSOConfiguration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/SSOConfigurationConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/KnoxGatewayError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso-configurations/{ssoConfigId}": {
+      "get": {
+        "summary": "Get SSO configuration",
+        "operationId": "getSsoConfiguration",
+        "description": "Get details of a specific SSO configuration",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SSOConfigId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSO configuration details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SSOConfiguration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/SSOConfigurationNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update SSO configuration",
+        "operationId": "updateSsoConfiguration",
+        "description": "Update an existing SSO configuration",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SSOConfigId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSSOConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSO configuration updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SSOConfiguration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/SSOConfigurationNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/SSOConfigurationConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/KnoxGatewayError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete SSO configuration",
+        "operationId": "deleteSsoConfiguration",
+        "description": "Remove an SSO configuration",
+        "tags": [
+          "SSO Configurations"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SSOConfigId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "SSO configuration deleted"
+          },
+          "400": {
+            "$ref": "#/components/responses/LdapDeleteBlocked"
+          },
+          "404": {
+            "$ref": "#/components/responses/SSOConfigurationNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/KnoxGatewayError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/machine-users": {
+      "get": {
+        "summary": "List all machine users",
+        "operationId": "listMachineUsers",
+        "description": "Returns all machine users",
+        "tags": [
+          "Machine Users"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of machine users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/MachineUser"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create machine user",
+        "operationId": "createMachineUser",
+        "description": "Create a new machine user for machine-to-machine authentication",
+        "tags": [
+          "Machine Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMachineUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Machine user created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/MachineUserConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/machine-users/{machineUserId}": {
+      "get": {
+        "summary": "Get machine user",
+        "operationId": "getMachineUser",
+        "description": "Get details of a specific machine user",
+        "tags": [
+          "Machine Users"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineUserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Machine user details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/MachineUserNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update machine user",
+        "operationId": "updateMachineUser",
+        "description": "Update an existing machine user",
+        "tags": [
+          "Machine Users"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineUserId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMachineUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Machine user updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/MachineUserNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MachineUserConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete machine user",
+        "operationId": "deleteMachineUser",
+        "description": "Remove a machine user",
+        "tags": [
+          "Machine Users"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MachineUserId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Machine user deleted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/MachineUserNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/roles": {
+      "get": {
+        "summary": "List all roles",
+        "operationId": "listRoles",
+        "description": "Returns all roles. Members are not included (performance). `name` and `scope` are exact-match filters that narrow the same list: `name` is unique, so it yields a single-element data array (or an empty one when no role matches); `scope` yields all roles in that scope.\n",
+        "tags": [
+          "Roles"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact role name to filter by. Returns an empty data array if not found.",
+            "example": "awc-admin"
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/OffsetParam"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 63
+            },
+            "description": "Filter roles by exact scope value. Returns only roles matching this scope.\nMax 63 characters (Kubernetes namespace name / DNS label limit).\n",
+            "example": "cai-team-alpha"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of roles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "readOnly": true,
+                      "items": {
+                        "$ref": "#/components/schemas/Role"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create role",
+        "operationId": "createRole",
+        "description": "Create a new role for access control",
+        "tags": [
+          "Roles"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Role created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/RoleConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/roles/lookup": {
+      "post": {
+        "summary": "Lookup roles for a user",
+        "operationId": "lookupRoles",
+        "description": "Returns all roles mapped to the given user (directly or via group membership).\nCalled by Knox on every authenticated request to populate the x-awc-roles header.\nExcluded from ext-authz via notPaths to avoid circular dependency.\n",
+        "tags": [
+          "Roles"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookupRolesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Roles found (may be empty array if no mappings exist)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupRolesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/roles/{roleId}": {
+      "get": {
+        "summary": "Get role",
+        "operationId": "getRole",
+        "description": "Get details of a specific role including its members",
+        "tags": [
+          "Roles"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoleId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role details with members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/RoleNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update role",
+        "operationId": "updateRole",
+        "description": "Update an existing role",
+        "tags": [
+          "Roles"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoleId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/RoleNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/RoleConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete role",
+        "operationId": "deleteRole",
+        "description": "Remove a role (also removes all member associations)",
+        "tags": [
+          "Roles"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoleId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Role deleted"
+          },
+          "404": {
+            "$ref": "#/components/responses/RoleNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/roles/{roleId}/members": {
+      "post": {
+        "summary": "Add role member",
+        "operationId": "addRoleMember",
+        "description": "Add a user or group to a role. Idempotent: if the member already belongs to the role, the request succeeds and the existing membership is returned. Role membership is a set — duplicate adds have the same postcondition as a fresh insert and do not produce an error.\n",
+        "tags": [
+          "Roles"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoleId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRoleMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Member added to role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/RoleNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/roles/{roleId}/members/{memberId}": {
+      "delete": {
+        "summary": "Remove role member",
+        "operationId": "removeRoleMember",
+        "description": "Remove a user or group from a role",
+        "tags": [
+          "Roles"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoleId"
+          },
+          {
+            "$ref": "#/components/parameters/MemberId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed from role"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/RoleOrMemberNotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/access-keys/credentials": {
+      "post": {
+        "summary": "Provision access key credentials",
+        "operationId": "provisionAccessKey",
+        "description": "Provisions a new client_id/client_secret pair bound to the requesting user's identity.\nThe client_secret is returned once and is not stored by the service.\n",
+        "tags": [
+          "Access Keys"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionAccessKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Credentials provisioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/AccessKeyBadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/access-keys/token": {
+      "post": {
+        "summary": "Exchange access key credentials for a session token (OAuth2 client_credentials)",
+        "operationId": "exchangeAccessKeyToken",
+        "description": "RFC 6749 client_credentials grant. Exchanges a client_id/client_secret pair for a\nshort-lived session token. Credentials can be provided via HTTP Basic authentication\n(recommended) or as form-encoded body parameters.\n",
+        "tags": [
+          "Access Keys"
+        ],
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "readOnly": false,
+                    "enum": [
+                      "client_credentials"
+                    ],
+                    "description": "Must be \"client_credentials\"",
+                    "example": "client_credentials"
+                  },
+                  "client_id": {
+                    "type": "string",
+                    "readOnly": false,
+                    "description": "OAuth client ID (alternative to Basic auth header)",
+                    "example": "awc-sa-ci-pipeline-bot"
+                  },
+                  "client_secret": {
+                    "type": "string",
+                    "readOnly": false,
+                    "writeOnly": true,
+                    "description": "OAuth client secret (alternative to Basic auth header)",
+                    "example": "s3cr3t-v4lu3"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessKeyTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid grant type or request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuth2TokenErrorResponse"
+                },
+                "example": {
+                  "error": "unsupported_grant_type",
+                  "error_description": "grant_type must be client_credentials"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "example": "Basic"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuth2TokenErrorResponse"
+                },
+                "example": {
+                  "error": "invalid_client",
+                  "error_description": "Client authentication failed"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuth2TokenErrorResponse"
+                },
+                "example": {
+                  "error": "invalid_client",
+                  "error_description": "Access denied"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authorization server unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuth2TokenErrorResponse"
+                },
+                "example": {
+                  "error": "server_error",
+                  "error_description": "Authorization server unavailable"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/engine-roles": {
+      "post": {
+        "summary": "Provision engine-scoped roles",
+        "operationId": "provisionEngineRoles",
+        "x-internal": true,
+        "description": "Internal endpoint used by ace-hub during EngineDeployment reconciliation.\nNot intended for external use.\n\nBulk-provision roles for an engine instance. Idempotent — re-calling with\nthe same scope and definitions is a no-op for existing roles.\n",
+        "tags": [
+          "Engine Roles"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionEngineRolesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Roles provisioned (or already exist)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionEngineRolesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/EngineRoleScopeConflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete all roles for a scope",
+        "operationId": "deleteEngineRoles",
+        "x-internal": true,
+        "description": "Internal endpoint used by ace-hub during EngineDeployment teardown.\nNot intended for external use.\n\nDeletes all roles (deploy-time and runtime) for the given scope.\nCascade-deletes role_members. Idempotent — 204 even if no roles existed.\n",
+        "tags": [
+          "Engine Roles"
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 63
+            },
+            "description": "Engine scope to delete roles for.\nMax 63 characters (Kubernetes namespace name / DNS label limit).\n",
+            "example": "cai-team-alpha"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Roles deleted (or none existed)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "LimitParam": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum number of items to return",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50,
+          "example": 50
+        }
+      },
+      "OffsetParam": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "description": "Number of items to skip before the returned page",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "example": 0
+        }
+      },
+      "SSOConfigId": {
+        "name": "ssoConfigId",
+        "in": "path",
+        "required": true,
+        "description": "UUID of the SSO configuration",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "example": "550e8400-e29b-41d4-a716-446655440000"
+        }
+      },
+      "MachineUserId": {
+        "name": "machineUserId",
+        "in": "path",
+        "required": true,
+        "description": "UUID of the machine user",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "example": "550e8400-e29b-41d4-a716-446655440001"
+        }
+      },
+      "RoleId": {
+        "name": "roleId",
+        "in": "path",
+        "required": true,
+        "description": "UUID or name of the role",
+        "schema": {
+          "type": "string",
+          "example": "awc-admin"
+        }
+      },
+      "MemberId": {
+        "name": "memberId",
+        "in": "path",
+        "required": true,
+        "description": "UUID of the role member",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "example": "550e8400-e29b-41d4-a716-446655440003"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request was rejected. The `code` field distinguishes the problem:\n`INVALID_REQUEST_BODY` (body could not be parsed), `VALIDATION_FAILED`\n(body parsed but a field failed validation), `INVALID_PATH_PARAMETER`\n(a path segment is malformed, e.g. a non-UUID id), or\n`INVALID_QUERY_PARAMETER` (a query parameter is malformed, e.g. a\nnon-integer or out-of-range `limit`/`offset`).\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Bad Request",
+              "status": 400,
+              "detail": "name must be a valid RFC 1123 label",
+              "code": "VALIDATION_FAILED"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Request is not authenticated. `code` is `UNAUTHENTICATED` when the caller\nidentity is missing; on the access-key credential path a Knox rejection of\nthe service credentials surfaces as `KNOX_AUTHENTICATION_FAILED`.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Unauthorized",
+              "status": 401,
+              "detail": "authentication is required",
+              "code": "UNAUTHENTICATED"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Knox denied the operation (`code`: `KNOX_ACCESS_DENIED`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Forbidden",
+              "status": 403,
+              "detail": "access denied by Knox",
+              "code": "KNOX_ACCESS_DENIED"
+            }
+          }
+        }
+      },
+      "SSOConfigurationNotFound": {
+        "description": "No SSO configuration matches the requested id.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Not Found",
+              "status": 404,
+              "detail": "SSO configuration not found",
+              "code": "SSO_CONFIGURATION_NOT_FOUND"
+            }
+          }
+        }
+      },
+      "MachineUserNotFound": {
+        "description": "No machine user matches the requested id.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Not Found",
+              "status": 404,
+              "detail": "Machine user not found",
+              "code": "MACHINE_USER_NOT_FOUND"
+            }
+          }
+        }
+      },
+      "RoleNotFound": {
+        "description": "No role matches the requested id or name.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Not Found",
+              "status": 404,
+              "detail": "Role not found",
+              "code": "ROLE_NOT_FOUND"
+            }
+          }
+        }
+      },
+      "RoleOrMemberNotFound": {
+        "description": "The role or the membership was not found. `code` is `ROLE_NOT_FOUND` when\nthe role does not exist, `ROLE_MEMBER_NOT_FOUND` when the role exists but\nthe member does not.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Not Found",
+              "status": 404,
+              "detail": "Role member not found",
+              "code": "ROLE_MEMBER_NOT_FOUND"
+            }
+          }
+        }
+      },
+      "SSOConfigurationConflict": {
+        "description": "An SSO configuration for this provider type already exists.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "SSO configuration with this name already exists",
+              "code": "SSO_CONFIGURATION_EXISTS"
+            }
+          }
+        }
+      },
+      "MachineUserConflict": {
+        "description": "A machine user with this name already exists.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "Machine user with this name already exists",
+              "code": "MACHINE_USER_EXISTS"
+            }
+          }
+        }
+      },
+      "RoleConflict": {
+        "description": "A role with this name already exists.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "Role with this name already exists",
+              "code": "ROLE_EXISTS"
+            }
+          }
+        }
+      },
+      "EngineRoleScopeConflict": {
+        "description": "The engine scope is already owned by a different engine type; its roles\ncannot be reprovisioned under the requested engine type.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "scope is owned by a different engine_type",
+              "code": "ENGINE_SCOPE_CONFLICT"
+            }
+          }
+        }
+      },
+      "AccessKeyBadRequest": {
+        "description": "The request was rejected. The `code` field distinguishes the problem:\n`INVALID_REQUEST_BODY` (body could not be parsed), `VALIDATION_FAILED`\n(a field failed validation), or `KNOX_REQUEST_REJECTED` (Knox rejected\nthe credential-provisioning request as malformed).\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Bad Request",
+              "status": 400,
+              "detail": "Knox rejected the access-key request",
+              "code": "KNOX_REQUEST_REJECTED"
+            }
+          }
+        }
+      },
+      "LdapDeleteBlocked": {
+        "description": "The delete was rejected. The `code` field distinguishes the problem:\n`LDAP_DELETE_BLOCKED` (the LDAP configuration cannot be deleted while a\nSAML provider is the active default — delete SAML first or switch the\ndefault to LDAP), or `INVALID_PATH_PARAMETER` (the id path segment is\nmalformed, e.g. a non-UUID).\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Bad Request",
+              "status": 400,
+              "detail": "Cannot delete LDAP while SAML is the active provider. Delete SAML first or switch default to LDAP.",
+              "code": "LDAP_DELETE_BLOCKED"
+            }
+          }
+        }
+      },
+      "KnoxGatewayError": {
+        "description": "A Knox gateway reconfiguration step failed while applying the change\n(`code`: `KNOX_GATEWAY_ERROR`). Any partial writes are rolled back before\nthis is returned; the request can be retried once Knox is healthy.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Bad Gateway",
+              "status": 502,
+              "detail": "Failed to configure SAML in Knox gateway",
+              "code": "KNOX_GATEWAY_ERROR"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "An unexpected server-side error occurred (`code`: `INTERNAL_ERROR`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Internal Server Error",
+              "status": 500,
+              "detail": "an unexpected error occurred",
+              "code": "INTERNAL_ERROR"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The Knox integration is disabled or unreachable, so the access-key\noperation cannot be served (`code`: `KNOX_UNAVAILABLE`).\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Service Unavailable",
+              "status": 503,
+              "detail": "Knox service unavailable",
+              "code": "KNOX_UNAVAILABLE"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code",
+            "example": "validation_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message",
+            "example": "field 'name' is required"
+          },
+          "details": {
+            "type": "array",
+            "description": "Additional error details",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "name must be non-empty"
+            ]
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "default": "about:blank",
+            "description": "URI reference identifying the problem type",
+            "example": "about:blank",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Stable, human-readable summary of the problem type",
+            "example": "Cluster not found",
+            "readOnly": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code for this occurrence",
+            "example": 404,
+            "readOnly": true
+          },
+          "detail": {
+            "type": "string",
+            "description": "Human-readable explanation specific to this occurrence",
+            "example": "no cluster with id 'abc-123'",
+            "readOnly": true
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "description": "Machine-readable branch field (SCREAMING_SNAKE)",
+            "example": "CLUSTER_NOT_FOUND",
+            "readOnly": true
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of items requested",
+            "example": 50,
+            "readOnly": true
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of items skipped before this page",
+            "example": 0,
+            "readOnly": true
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of items across all pages",
+            "example": 137,
+            "readOnly": true
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy"
+            ],
+            "description": "Liveness status",
+            "example": "healthy",
+            "readOnly": true
+          }
+        }
+      },
+      "ReadyCheck": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Dependency name",
+            "example": "database",
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "description": "Dependency status",
+            "example": "up",
+            "readOnly": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Status detail",
+            "example": "connection refused",
+            "readOnly": true
+          }
+        }
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unavailable"
+            ],
+            "description": "Readiness status",
+            "example": "ready",
+            "readOnly": true
+          },
+          "checks": {
+            "type": "array",
+            "description": "Per-dependency readiness checks",
+            "items": {
+              "$ref": "#/components/schemas/ReadyCheck"
+            },
+            "readOnly": true
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "required": [
+          "service_version",
+          "api_version"
+        ],
+        "properties": {
+          "service_version": {
+            "type": "string",
+            "description": "Build version of the service binary",
+            "example": "1.2.3",
+            "readOnly": true
+          },
+          "api_version": {
+            "type": "string",
+            "description": "API specification version",
+            "example": "v0",
+            "readOnly": true
+          }
+        }
+      },
+      "SSOConfiguration": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "provider_type",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Unique identifier for the SSO configuration",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": false,
+            "description": "Human-readable name for this SSO configuration",
+            "example": "Corporate SAML"
+          },
+          "provider_type": {
+            "type": "string",
+            "enum": [
+              "saml",
+              "ldap"
+            ],
+            "readOnly": false,
+            "description": "Type of SSO provider",
+            "example": "saml"
+          },
+          "enabled": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether this SSO configuration is active",
+            "example": true
+          },
+          "is_default": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether this is the default SSO configuration used for login",
+            "example": false
+          },
+          "saml_config": {
+            "$ref": "#/components/schemas/SAMLConfig",
+            "description": "SAML-specific configuration (only present for SAML provider type)"
+          },
+          "ldap_config": {
+            "$ref": "#/components/schemas/LDAPConfig",
+            "description": "LDAP-specific configuration (only present for LDAP provider type)"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the configuration was created",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the configuration was last updated",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "CreateSSOConfigRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "provider_type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": false,
+            "description": "Human-readable name for this SSO configuration",
+            "example": "Corporate SAML"
+          },
+          "provider_type": {
+            "type": "string",
+            "enum": [
+              "saml",
+              "ldap"
+            ],
+            "readOnly": false,
+            "description": "Type of SSO provider",
+            "example": "saml"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "readOnly": false,
+            "description": "Whether this SSO configuration should be active",
+            "example": true
+          },
+          "is_default": {
+            "type": "boolean",
+            "default": false,
+            "readOnly": false,
+            "description": "Whether this should be the default SSO configuration used for login",
+            "example": false
+          },
+          "saml_config": {
+            "$ref": "#/components/schemas/CreateSAMLConfigRequest",
+            "description": "SAML-specific configuration (required when provider_type is saml)"
+          },
+          "ldap_config": {
+            "$ref": "#/components/schemas/CreateLDAPConfigRequest",
+            "description": "Always required. Configures the LDAP user directory used by engines and (when provider_type is ldap) as the authentication provider."
+          }
+        }
+      },
+      "UpdateSSOConfigRequest": {
+        "type": "object",
+        "description": "At least one field must be provided",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": false,
+            "description": "New name for the SSO configuration",
+            "example": "Updated SAML Name"
+          },
+          "enabled": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Enable or disable the SSO configuration",
+            "example": false
+          },
+          "is_default": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Set this SSO configuration as the default for login",
+            "example": true
+          },
+          "saml_config": {
+            "$ref": "#/components/schemas/UpdateSAMLConfigRequest",
+            "description": "Update SAML-specific configuration (only valid for SAML provider type)"
+          },
+          "ldap_config": {
+            "$ref": "#/components/schemas/UpdateLDAPConfigRequest",
+            "description": "Update LDAP-specific configuration."
+          }
+        }
+      },
+      "SAMLConfig": {
+        "type": "object",
+        "required": [
+          "sp_entity_id",
+          "callback_url",
+          "name_id_format",
+          "authn_requests_signed",
+          "want_assertions_signed",
+          "max_auth_lifetime",
+          "username_attribute",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "idp_metadata_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": true,
+            "description": "URL to IdP metadata XML. Present when config was created with a URL; absent for XML-upload configs.",
+            "example": "https://idp.example.com/metadata"
+          },
+          "idp_metadata_xml": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Raw SAML IdP metadata XML. Present when config was created via XML upload; absent for URL-based configs.",
+            "example": "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+          },
+          "sp_entity_id": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Service Provider entity identifier registered in the IdP as the Audience URI. Auto-generated from the gateway_url host if not provided at creation time.",
+            "example": "https://knox.awc.example/gateway/awc-saml/api/v1/websso"
+          },
+          "callback_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": true,
+            "description": "ACS (Assertion Consumer Service) URL — derived from gateway_url and stored internally",
+            "example": "https://knox.awc.example/gateway/knoxsso/api/v1/websso?pac4jCallback=true&client_name=SAML2Client"
+          },
+          "name_id_format": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML NameID format URN",
+            "example": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+          },
+          "authn_requests_signed": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether to sign authentication requests",
+            "example": false
+          },
+          "want_assertions_signed": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether to require signed assertions from IdP",
+            "example": true
+          },
+          "max_auth_lifetime": {
+            "type": "integer",
+            "minimum": 1,
+            "readOnly": false,
+            "description": "Maximum authentication session lifetime in seconds",
+            "example": 3600
+          },
+          "username_attribute": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML attribute to use for username",
+            "example": "NameID"
+          },
+          "groups_attribute": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML attribute to use for groups (optional)",
+            "example": "memberOf"
+          },
+          "sp_metadata": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Generated SAML SP metadata XML for registering this service provider with the IdP. Derived from sp_entity_id and callback_url at response time; never stored.",
+            "example": "<?xml version=\"1.0\"?><EntityDescriptor ...>"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the configuration was created",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the configuration was last updated",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "CreateSAMLConfigRequest": {
+        "type": "object",
+        "required": [
+          "gateway_url"
+        ],
+        "description": "Exactly one of idp_metadata_url or idp_metadata_xml must be provided.",
+        "properties": {
+          "idp_metadata_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": false,
+            "description": "URL to IdP metadata XML. Required when idp_metadata_xml is not provided. Mutually exclusive with idp_metadata_xml.",
+            "example": "https://idp.example.com/metadata"
+          },
+          "idp_metadata_xml": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Raw SAML IdP metadata XML. Required when idp_metadata_url is not provided. Mutually exclusive with idp_metadata_url. Use for on-prem or air-gapped IdPs that do not expose a public metadata URL.",
+            "example": "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+          },
+          "sp_entity_id": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Service Provider entity identifier to register in the IdP as the Audience URI. Auto-generated from the gateway_url host if not provided. Generated value follows the pattern: https://knox.{cluster-domain}/gateway/awc-saml/api/v1/websso",
+            "example": "https://knox.awc.example/gateway/awc-saml/api/v1/websso"
+          },
+          "gateway_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": false,
+            "description": "Cluster gateway URL (e.g. https://awc.example). The Knox external URL is derived as https://knox.{cluster-domain}. The ACS callback URL and sp_entity_id are both generated from this value — callers do not need to construct them manually.",
+            "example": "https://awc.example"
+          },
+          "name_id_format": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML NameID format URN",
+            "default": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+            "example": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+          },
+          "authn_requests_signed": {
+            "type": "boolean",
+            "default": false,
+            "readOnly": false,
+            "description": "Whether to sign authentication requests",
+            "example": false
+          },
+          "want_assertions_signed": {
+            "type": "boolean",
+            "default": true,
+            "readOnly": false,
+            "description": "Whether to require signed assertions from IdP",
+            "example": true
+          },
+          "max_auth_lifetime": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 3600,
+            "readOnly": false,
+            "description": "Maximum authentication session lifetime in seconds",
+            "example": 3600
+          },
+          "username_attribute": {
+            "type": "string",
+            "maxLength": 200,
+            "default": "NameID",
+            "readOnly": false,
+            "description": "SAML attribute to use for username",
+            "example": "NameID"
+          },
+          "groups_attribute": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML attribute to use for groups (optional)",
+            "example": "memberOf"
+          }
+        }
+      },
+      "UpdateSAMLConfigRequest": {
+        "type": "object",
+        "description": "At least one field must be provided. idp_metadata_url and idp_metadata_xml are mutually exclusive.",
+        "minProperties": 1,
+        "properties": {
+          "idp_metadata_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": false,
+            "description": "URL to IdP metadata XML. Mutually exclusive with idp_metadata_xml. Setting this clears any stored idp_metadata_xml.",
+            "example": "https://idp.example.com/new-metadata"
+          },
+          "idp_metadata_xml": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Raw SAML IdP metadata XML. Mutually exclusive with idp_metadata_url. Setting this clears any stored idp_metadata_url.",
+            "example": "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+          },
+          "sp_entity_id": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Service Provider entity identifier. This is auto-generated at creation time and is stable — most callers do not need to set this.",
+            "example": "https://knox.awc.example/gateway/awc-saml/api/v1/websso"
+          },
+          "gateway_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": false,
+            "description": "Cluster gateway URL. Provide to update the Knox external hostname used for the ACS callback URL and (if auto-generated) the sp_entity_id.",
+            "example": "https://awc.example"
+          },
+          "name_id_format": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML NameID format URN",
+            "example": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+          },
+          "authn_requests_signed": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether to sign authentication requests",
+            "example": false
+          },
+          "want_assertions_signed": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether to require signed assertions from IdP",
+            "example": true
+          },
+          "max_auth_lifetime": {
+            "type": "integer",
+            "minimum": 1,
+            "readOnly": false,
+            "description": "Maximum authentication session lifetime in seconds",
+            "example": 3600
+          },
+          "username_attribute": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML attribute to use for username",
+            "example": "NameID"
+          },
+          "groups_attribute": {
+            "type": "string",
+            "maxLength": 200,
+            "readOnly": false,
+            "description": "SAML attribute to use for groups (optional)",
+            "example": "memberOf"
+          }
+        }
+      },
+      "UpdateLDAPConfigRequest": {
+        "type": "object",
+        "description": "Partial update for LDAP configuration. At least one field must be provided.",
+        "minProperties": 1,
+        "properties": {
+          "ldap_url": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP server URL (ldap:// or ldaps://)",
+            "example": "ldaps://corp-ad.example.com:636"
+          },
+          "ca_cert": {
+            "type": "string",
+            "readOnly": false,
+            "description": "PEM-encoded CA certificate for TLS verification",
+            "example": "-----BEGIN CERTIFICATE-----\nMIID..."
+          },
+          "ldap_bind_dn": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Distinguished name for LDAP bind",
+            "example": "CN=svc-bind,OU=ServiceAccounts,DC=corp,DC=example,DC=com"
+          },
+          "ldap_bind_password": {
+            "type": "string",
+            "readOnly": false,
+            "writeOnly": true,
+            "description": "Password for LDAP bind (write-only, never returned in responses)",
+            "example": "s3cret"
+          },
+          "user_search_base": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Base DN for user searches",
+            "example": "OU=Users,DC=corp,DC=example,DC=com"
+          },
+          "user_search_filter": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP search filter for users",
+            "example": "(&(objectClass=person)(sAMAccountName={0}))"
+          },
+          "group_search_base": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Base DN for group searches",
+            "example": "OU=Groups,DC=corp,DC=example,DC=com"
+          },
+          "group_search_filter": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP search filter for groups",
+            "example": "(&(objectClass=group)(member={0}))"
+          },
+          "email_attribute": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP attribute for user email",
+            "example": "mail"
+          }
+        }
+      },
+      "MachineUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Unique identifier for the machine user",
+            "example": "550e8400-e29b-41d4-a716-446655440001"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": false,
+            "description": "Human-readable name for this machine user",
+            "example": "ci-pipeline-bot"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Description of what this machine user is used for",
+            "example": "CI/CD pipeline automation account"
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": true,
+            "description": "OAuth client ID (populated when Knox integration is enabled)",
+            "example": "awc-sa-ci-pipeline-bot"
+          },
+          "enabled": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Whether this machine user is active",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the machine user was created",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the machine user was last updated",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "CreateMachineUserRequest": {
+        "type": "object",
+        "description": "Machine users are created enabled by default; use PATCH to disable.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": false,
+            "description": "Human-readable name for this machine user",
+            "example": "ci-pipeline-bot"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Description of what this machine user is used for",
+            "example": "CI/CD pipeline automation account"
+          }
+        }
+      },
+      "UpdateMachineUserRequest": {
+        "type": "object",
+        "description": "At least one field must be provided",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "readOnly": false,
+            "description": "New name for the machine user",
+            "example": "updated-bot-name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Updated description",
+            "example": "Updated description"
+          },
+          "enabled": {
+            "type": "boolean",
+            "readOnly": false,
+            "description": "Enable or disable the machine user",
+            "example": false
+          }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Unique identifier for the role",
+            "example": "550e8400-e29b-41d4-a716-446655440002"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": false,
+            "description": "Role name. Must be a valid RFC 1123 label: lowercase alphanumeric or '-',\nmust not start or end with '-', max 63 characters.\n",
+            "example": "cluster-admin"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Description of what this role grants access to",
+            "example": "Full administrative access to all clusters"
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": false,
+            "description": "Scope identifier for the role. Must be a valid RFC 1123 label: lowercase\nalphanumeric or '-', must not start or end with '-', max 63 characters.\nExamples: platform, ml-workspace-abc123, spark-cluster-1\n",
+            "example": "platform"
+          },
+          "members": {
+            "type": "array",
+            "readOnly": true,
+            "description": "Users and groups assigned to this role (only included in GET by ID)",
+            "items": {
+              "$ref": "#/components/schemas/RoleMember"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the role was created",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the role was last updated",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "RoleMember": {
+        "type": "object",
+        "required": [
+          "id",
+          "member_type",
+          "member_id",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Unique identifier for this role membership",
+            "example": "550e8400-e29b-41d4-a716-446655440003"
+          },
+          "member_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "readOnly": false,
+            "description": "Type of member (user or group from IdP)",
+            "example": "user"
+          },
+          "member_id": {
+            "type": "string",
+            "maxLength": 255,
+            "readOnly": false,
+            "description": "Username or group name from the identity provider",
+            "example": "john.doe@example.com"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the member was added to the role",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "CreateRoleRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "scope"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": false,
+            "description": "Role name. Must be a valid RFC 1123 label: lowercase alphanumeric or '-',\nmust not start or end with '-', max 63 characters.\n",
+            "example": "cluster-admin"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Description of what this role grants access to",
+            "example": "Full administrative access to all clusters"
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": false,
+            "description": "Scope identifier for the role. Must be a valid RFC 1123 label: lowercase\nalphanumeric or '-', must not start or end with '-', max 63 characters.\nExamples: platform, ml-workspace-abc123, spark-cluster-1\n",
+            "example": "platform"
+          }
+        }
+      },
+      "UpdateRoleRequest": {
+        "type": "object",
+        "description": "At least one field must be provided",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": false,
+            "description": "New role name. Must be a valid RFC 1123 label: lowercase alphanumeric or '-',\nmust not start or end with '-', max 63 characters.\n",
+            "example": "updated-role-name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "readOnly": false,
+            "description": "Updated description",
+            "example": "Updated role description"
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": false,
+            "description": "Scope identifier for the role. Must be a valid RFC 1123 label: lowercase\nalphanumeric or '-', must not start or end with '-', max 63 characters.\nExamples: platform, ml-workspace-abc123, spark-cluster-1\n",
+            "example": "platform"
+          }
+        }
+      },
+      "AddRoleMemberRequest": {
+        "type": "object",
+        "required": [
+          "member_type",
+          "member_id"
+        ],
+        "properties": {
+          "member_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "readOnly": false,
+            "description": "Type of member to add",
+            "example": "user"
+          },
+          "member_id": {
+            "type": "string",
+            "maxLength": 255,
+            "readOnly": false,
+            "description": "Username or group name from the identity provider",
+            "example": "john.doe@example.com"
+          }
+        }
+      },
+      "LookupRolesRequest": {
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "maxLength": 255,
+            "readOnly": false,
+            "description": "Authenticated user's identifier from the IdP assertion",
+            "example": "alice"
+          },
+          "groups": {
+            "type": "array",
+            "maxItems": 5000,
+            "readOnly": false,
+            "description": "User's groups resolved by Knox from customer's LDAP. Omit or empty if no groups.",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "example": [
+              "platform-admins",
+              "ml-team",
+              "engineering"
+            ]
+          }
+        }
+      },
+      "LookupRolesResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "roles"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Echo of the requested user ID",
+            "example": "alice"
+          },
+          "roles": {
+            "type": "array",
+            "readOnly": true,
+            "description": "Deduplicated set of roles mapped to this user (direct + group-based)",
+            "items": {
+              "$ref": "#/components/schemas/RoleAssignment"
+            }
+          }
+        }
+      },
+      "RoleAssignment": {
+        "type": "object",
+        "required": [
+          "scope",
+          "name"
+        ],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": true,
+            "description": "Scope of the role (RFC 1123 label)",
+            "example": "platform"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "readOnly": true,
+            "description": "Name of the role (RFC 1123 label)",
+            "example": "awc-admin"
+          }
+        }
+      },
+      "CurrentUserResponse": {
+        "type": "object",
+        "required": [
+          "username",
+          "roles"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "readOnly": true,
+            "description": "The authenticated user's username as injected by the Knox proxy",
+            "example": "john.doe@example.com"
+          },
+          "roles": {
+            "type": "array",
+            "readOnly": true,
+            "description": "All roles assigned to the user. Each entry is in \"scope:name\" format.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "platform:awc-admin",
+              "ws-1:viewer"
+            ]
+          }
+        }
+      },
+      "DefaultIDPResponse": {
+        "type": "object",
+        "required": [
+          "configured"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Whether a default identity provider has been configured. When false, all other fields are absent.",
+            "example": true
+          },
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Display name of the default SSO configuration. Present only when configured is true.",
+            "example": "Corporate SAML"
+          },
+          "provider_type": {
+            "type": "string",
+            "enum": [
+              "saml",
+              "ldap"
+            ],
+            "readOnly": true,
+            "description": "Type of the default identity provider. Present only when configured is true.",
+            "example": "saml"
+          },
+          "saml_config": {
+            "$ref": "#/components/schemas/SAMLConfig",
+            "description": "Full SAML configuration including generated sp_metadata (present when provider_type is saml)"
+          },
+          "ldap_config": {
+            "$ref": "#/components/schemas/LDAPConfig",
+            "description": "LDAP configuration (present when provider_type is ldap; bind password is never returned)"
+          }
+        }
+      },
+      "TestSAMLConnectionRequest": {
+        "type": "object",
+        "description": "Exactly one of idp_metadata_url or idp_metadata_xml must be provided.",
+        "properties": {
+          "idp_metadata_url": {
+            "type": "string",
+            "format": "uri",
+            "readOnly": false,
+            "description": "URL to the IdP SAML metadata XML. Mutually exclusive with idp_metadata_xml.",
+            "example": "https://idp.example.com/metadata"
+          },
+          "idp_metadata_xml": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Raw SAML IdP metadata XML to validate directly without a network fetch. Mutually exclusive with idp_metadata_url.",
+            "example": "<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.example.com\">...</EntityDescriptor>"
+          }
+        }
+      },
+      "TestSAMLConnectionResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "idp_entity_id"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Whether the connection test succeeded",
+            "example": true
+          },
+          "idp_entity_id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Entity ID parsed from the IdP metadata",
+            "example": "https://idp.example.com"
+          },
+          "certificate_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Expiry timestamp of the IdP signing certificate",
+            "example": "2027-01-15T10:30:00Z"
+          }
+        }
+      },
+      "LDAPConfig": {
+        "type": "object",
+        "required": [
+          "ldap_url",
+          "ldap_bind_dn",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "ldap_url": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP server URL (ldap:// or ldaps://)",
+            "example": "ldap://ldap.example.com:389"
+          },
+          "ca_cert": {
+            "type": "string",
+            "readOnly": false,
+            "description": "PEM-encoded CA certificate for LDAPS (optional)",
+            "example": "-----BEGIN CERTIFICATE-----\n..."
+          },
+          "ldap_bind_dn": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Distinguished name used to bind to the LDAP server",
+            "example": "cn=admin,dc=example,dc=com"
+          },
+          "user_search_base": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Base DN for user searches",
+            "example": "ou=users,dc=example,dc=com"
+          },
+          "user_search_filter": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP filter for user lookup ({0} is replaced with the username)",
+            "example": "(uid={0})"
+          },
+          "group_search_base": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Base DN for group searches",
+            "example": "ou=groups,dc=example,dc=com"
+          },
+          "group_search_filter": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP filter for group membership ({0} is replaced with the user DN)",
+            "example": "(member={0})"
+          },
+          "email_attribute": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP attribute for user email (optional)",
+            "example": "mail"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the configuration was created",
+            "example": "2026-01-15T10:30:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the configuration was last updated",
+            "example": "2026-01-15T10:30:00Z"
+          }
+        }
+      },
+      "CreateLDAPConfigRequest": {
+        "type": "object",
+        "required": [
+          "ldap_url",
+          "ldap_bind_dn",
+          "ldap_bind_password"
+        ],
+        "properties": {
+          "ldap_url": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP server URL (ldap:// or ldaps://)",
+            "example": "ldap://ldap.example.com:389"
+          },
+          "ca_cert": {
+            "type": "string",
+            "readOnly": false,
+            "description": "PEM-encoded CA certificate for LDAPS (optional)",
+            "example": "-----BEGIN CERTIFICATE-----\n..."
+          },
+          "ldap_bind_dn": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Distinguished name used to bind to the LDAP server",
+            "example": "cn=admin,dc=example,dc=com"
+          },
+          "ldap_bind_password": {
+            "type": "string",
+            "format": "password",
+            "readOnly": false,
+            "writeOnly": true,
+            "description": "Password for the bind DN (write-only; never returned in responses)",
+            "example": "s3cr3t"
+          },
+          "user_search_base": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Base DN for user searches",
+            "example": "ou=users,dc=example,dc=com"
+          },
+          "user_search_filter": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP filter for user lookup ({0} is replaced with the username)",
+            "example": "(uid={0})"
+          },
+          "group_search_base": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Base DN for group searches",
+            "example": "ou=groups,dc=example,dc=com"
+          },
+          "group_search_filter": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP filter for group membership ({0} is replaced with the user DN)",
+            "example": "(member={0})"
+          },
+          "email_attribute": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP attribute for user email (optional)",
+            "example": "mail"
+          }
+        }
+      },
+      "TestLDAPConnectionRequest": {
+        "type": "object",
+        "required": [
+          "ldap_url",
+          "ldap_bind_dn",
+          "ldap_bind_password"
+        ],
+        "properties": {
+          "ldap_url": {
+            "type": "string",
+            "readOnly": false,
+            "description": "LDAP server URL to test",
+            "example": "ldap://ldap.example.com:389"
+          },
+          "ca_cert": {
+            "type": "string",
+            "readOnly": false,
+            "description": "PEM-encoded CA certificate for LDAPS (optional)",
+            "example": "-----BEGIN CERTIFICATE-----\n..."
+          },
+          "ldap_bind_dn": {
+            "type": "string",
+            "readOnly": false,
+            "description": "Distinguished name to bind with",
+            "example": "cn=admin,dc=example,dc=com"
+          },
+          "ldap_bind_password": {
+            "type": "string",
+            "format": "password",
+            "readOnly": false,
+            "writeOnly": true,
+            "description": "Password for the bind DN",
+            "example": "s3cr3t"
+          }
+        }
+      },
+      "TestLDAPConnectionResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Whether the LDAP connection test succeeded",
+            "example": true
+          }
+        }
+      },
+      "ProvisionAccessKeyRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 255,
+            "readOnly": false,
+            "description": "Human-readable label for the credential set (stored in Knox)",
+            "example": "ci-pipeline credentials"
+          }
+        }
+      },
+      "AccessKeyResponse": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "client_secret",
+          "principal",
+          "issued_at"
+        ],
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "OAuth client ID provisioned by Knox",
+            "example": "awc-sa-ci-pipeline-bot"
+          },
+          "client_secret": {
+            "type": "string",
+            "readOnly": true,
+            "description": "OAuth client secret provisioned by Knox. Returned once at issuance. Not stored by the service.",
+            "example": "s3cr3t-v4lu3"
+          },
+          "principal": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Username of the user these credentials are bound to",
+            "example": "bob"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Timestamp when the credentials were issued",
+            "example": "2026-03-18T10:30:00Z"
+          }
+        }
+      },
+      "OAuth2TokenErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "error_description"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "readOnly": true,
+            "description": "RFC 6749 error code",
+            "enum": [
+              "invalid_client",
+              "unsupported_grant_type",
+              "invalid_request",
+              "server_error"
+            ],
+            "example": "invalid_client"
+          },
+          "error_description": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Human-readable error description",
+            "example": "Client authentication failed"
+          }
+        }
+      },
+      "AccessKeyTokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Short-lived access token for authenticating downstream requests",
+            "example": "eyJhbGciOiJSUzI1NiJ9..."
+          },
+          "token_type": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Token type; always Bearer",
+            "example": "Bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "Token lifetime in seconds",
+            "example": 3600
+          }
+        }
+      },
+      "ProvisionEngineRolesRequest": {
+        "type": "object",
+        "required": [
+          "scope",
+          "engine_type",
+          "role_definitions"
+        ],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "readOnly": false,
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "description": "Engine scope identifier. Must be a valid RFC 1123 label: lowercase\nalphanumeric or '-', start and end with alphanumeric, max 63 chars.\n",
+            "example": "cai-team-alpha"
+          },
+          "engine_type": {
+            "type": "string",
+            "readOnly": false,
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Engine type identifier (e.g., cloudera-ai, cloudera-data-flow)",
+            "example": "cloudera-ai"
+          },
+          "role_definitions": {
+            "type": "array",
+            "readOnly": false,
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Role definitions to provision for this scope",
+            "items": {
+              "$ref": "#/components/schemas/EngineRoleDefinition"
+            }
+          },
+          "deployer_id": {
+            "type": "string",
+            "readOnly": false,
+            "description": "User ID of the deployer (for auto-assigning default roles)",
+            "example": "alice@cloudera.com"
+          },
+          "default_for_deployer": {
+            "type": "array",
+            "readOnly": false,
+            "description": "Role names from role_definitions to auto-assign to deployer_id",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "ml-admin"
+            ]
+          }
+        }
+      },
+      "EngineRoleDefinition": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "readOnly": false,
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+            "description": "Role name. Must be a valid RFC 1123 label: lowercase alphanumeric\nor '-', start and end with alphanumeric, max 63 chars. Unique within scope.\n",
+            "example": "ml-admin"
+          },
+          "description": {
+            "type": "string",
+            "readOnly": false,
+            "maxLength": 500,
+            "description": "Human-readable description shown in AWC console role assignment UI",
+            "example": "Full administrative access to ML workspace"
+          }
+        }
+      },
+      "ProvisionEngineRolesResponse": {
+        "type": "object",
+        "required": [
+          "scope",
+          "roles"
+        ],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Engine scope the roles were provisioned under",
+            "example": "cai-team-alpha"
+          },
+          "roles": {
+            "type": "array",
+            "readOnly": true,
+            "description": "Provisioned role results",
+            "items": {
+              "$ref": "#/components/schemas/ProvisionedRole"
+            }
+          }
+        }
+      },
+      "ProvisionedRole": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "UUID of the provisioned role",
+            "example": "550e8400-e29b-41d4-a716-446655440010"
+          },
+          "name": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Role name",
+            "example": "ml-admin"
+          },
+          "state": {
+            "type": "string",
+            "readOnly": true,
+            "enum": [
+              "created",
+              "already_exists"
+            ],
+            "description": "Whether the role was newly created or already existed",
+            "example": "created"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "JwtAuthentication": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HTTP Authorization Bearer header using a JWT"
+      },
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "OAuth2 client credentials via HTTP Basic authentication (client_id:client_secret)"
+      }
+    }
+  },
+  "security": [
+    {
+      "JwtAuthentication": []
+    }
+  ]
+}

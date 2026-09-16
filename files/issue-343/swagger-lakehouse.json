@@ -1,0 +1,1568 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AWC Diagnostics Service API",
+    "description": "Diagnostics service for collecting, managing, and downloading diagnostic logs\nfrom AWC deployments.\n\nThis service provides:\n- Log collection from Kubernetes pods and namespaces\n- Real-time log ingestion via OTLP (OpenTelemetry Protocol)\n- Redaction rule management for sensitive data\n- Diagnostic bundle download with compression\n- Collection status monitoring\n",
+    "version": "v1",
+    "contact": {
+      "name": "AWC Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1/diagnostics",
+      "description": "Diagnostics API v1"
+    },
+    {
+      "url": "/v1",
+      "description": "OTLP endpoint"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health, readiness and version endpoints"
+    },
+    {
+      "name": "Collection",
+      "description": "Diagnostic collection management"
+    },
+    {
+      "name": "Status",
+      "description": "Collection status monitoring"
+    },
+    {
+      "name": "Download",
+      "description": "Diagnostic bundle download"
+    },
+    {
+      "name": "Redaction",
+      "description": "Sensitive data redaction rules"
+    },
+    {
+      "name": "Namespaces",
+      "description": "Kubernetes namespace discovery"
+    },
+    {
+      "name": "OTLP",
+      "description": "OpenTelemetry Protocol log ingestion"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness check",
+        "operationId": "getHealth",
+        "description": "Verify the service process is running.",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness check",
+        "operationId": "getReady",
+        "description": "Verify the service can handle requests (Kubernetes and storage healthy).",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "summary": "Service and API version",
+        "operationId": "getVersion",
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Version information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/status": {
+      "get": {
+        "summary": "Get collection status (GET)",
+        "operationId": "getDiagnosticsStatus",
+        "description": "Returns the current status of the diagnostic collection process.\nThis endpoint provides the same functionality as the POST version\nbut without requiring a request body.\n",
+        "tags": [
+          "Status"
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Get collection status (POST)",
+        "operationId": "getDiagnosticsStatusPost",
+        "description": "Returns the current status of the diagnostic collection process.\nAccepts an empty JSON object as the request body.\n",
+        "tags": [
+          "Status"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Collection status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/collect": {
+      "post": {
+        "summary": "Start diagnostic collection",
+        "operationId": "collectDiagnostics",
+        "description": "Initiates a new diagnostic collection process. This creates a collection\njob that gathers logs and diagnostics from specified namespaces and pods.\n\nThe collection process runs asynchronously. Use the status endpoint to\nmonitor progress.\n",
+        "tags": [
+          "Collection"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectRequest"
+              },
+              "examples": {
+                "full_collection": {
+                  "summary": "Full diagnostic collection",
+                  "value": {
+                    "type": "full",
+                    "bundle_size": 500,
+                    "start_timestamp": "2025-02-10T00:00:00Z",
+                    "end_timestamp": "2025-02-10T23:59:59Z"
+                  }
+                },
+                "simple_collection": {
+                  "summary": "Simple collection with defaults",
+                  "value": {
+                    "type": "logs",
+                    "bundle_size": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Collection initiated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/download": {
+      "get": {
+        "summary": "Download diagnostic bundle (GET)",
+        "operationId": "downloadDiagnosticsBundle",
+        "description": "Downloads the collected diagnostic bundle as a compressed TAR archive.\nThe bundle is streamed with LZ4 compression for efficient transfer.\n\nThis endpoint supports distributed download across multiple service replicas\nfor improved performance.\n\nAlways serves the current collection (tracked in the collection ConfigMap);\nit takes no parameters. Log retention is governed server-side by the\nLOG_RETENTION_DAYS setting, not per request.\n",
+        "tags": [
+          "Download"
+        ],
+        "responses": {
+          "200": {
+            "description": "Diagnostic bundle download",
+            "content": {
+              "application/x-lz4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "description": "Filename for the downloaded bundle",
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"diagnostics-20250210-abc123.tar.lz4\""
+                }
+              },
+              "Content-Type": {
+                "description": "MIME type",
+                "schema": {
+                  "type": "string",
+                  "example": "application/x-lz4"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "summary": "Download diagnostic bundle (POST)",
+        "operationId": "downloadDiagnosticsBundlePost",
+        "description": "Alternative endpoint for downloading diagnostic bundles using POST.\nFunctionally identical to the GET endpoint; takes no request body.\n",
+        "tags": [
+          "Download"
+        ],
+        "responses": {
+          "200": {
+            "description": "Diagnostic bundle download",
+            "content": {
+              "application/x-lz4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/download-file": {
+      "get": {
+        "summary": "Download specific log file",
+        "operationId": "downloadDiagnosticsFile",
+        "description": "Downloads a specific log file from a pod. Useful for viewing individual\npod logs without downloading the entire diagnostic bundle.\n",
+        "tags": [
+          "Download"
+        ],
+        "parameters": [
+          {
+            "name": "pod_name",
+            "in": "query",
+            "required": true,
+            "description": "Name of the pod",
+            "schema": {
+              "type": "string",
+              "example": "spark-executor-1"
+            }
+          },
+          {
+            "name": "namespace",
+            "in": "query",
+            "description": "Kubernetes namespace. Defaults to \"mcp-platform\" when omitted.",
+            "schema": {
+              "type": "string",
+              "example": "spark-jobs"
+            }
+          },
+          {
+            "name": "tail_lines",
+            "in": "query",
+            "description": "Number of log lines to return from the end",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "example": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Log file contents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadFileResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/create-redaction-rule": {
+      "post": {
+        "summary": "Create redaction rule",
+        "operationId": "createRedactionRule",
+        "description": "Creates a new rule for redacting sensitive data from logs.\nRules use regex patterns to find and replace sensitive information.\n",
+        "tags": [
+          "Redaction"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRedactionRuleRequest"
+              },
+              "examples": {
+                "password_redaction": {
+                  "summary": "Redact passwords",
+                  "value": {
+                    "description": "Redact password fields",
+                    "search": "password[\"']?\\s*[:=]\\s*[\"']?([^\"'\\s,}]+)",
+                    "case_sensitive": false,
+                    "replace": "password=redacted",
+                    "insertion_index": 0,
+                    "trigger": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Redaction rule created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRedactionRuleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/update-redaction-rule": {
+      "post": {
+        "summary": "Update redaction rule",
+        "operationId": "updateRedactionRule",
+        "description": "Updates an existing redaction rule at the specified index.",
+        "tags": [
+          "Redaction"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRedactionRuleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Redaction rule updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRedactionRuleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/delete-redaction-rule": {
+      "post": {
+        "summary": "Delete redaction rule",
+        "operationId": "deleteRedactionRule",
+        "description": "Deletes a redaction rule at the specified index.",
+        "tags": [
+          "Redaction"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRedactionRuleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Redaction rule deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRedactionRuleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/list-redaction-rules": {
+      "post": {
+        "summary": "List all redaction rules",
+        "operationId": "listRedactionRules",
+        "description": "Returns all configured redaction rules.",
+        "tags": [
+          "Redaction"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListRedactionRulesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of redaction rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRedactionRulesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          }
+        }
+      }
+    },
+    "/api/v1/diagnostics/list-namespaces": {
+      "post": {
+        "summary": "List Kubernetes namespaces",
+        "operationId": "listNamespaces",
+        "description": "Returns a list of all Kubernetes namespaces in the cluster.\nUseful for discovering which namespaces are available for log collection.\n",
+        "tags": [
+          "Namespaces"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListNamespacesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of namespaces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListNamespacesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/v1/logs": {
+      "post": {
+        "summary": "OTLP log ingestion",
+        "operationId": "ingestOtlpLogs",
+        "description": "OpenTelemetry Protocol (OTLP) endpoint for real-time log ingestion.\nThis endpoint accepts logs in OTLP format from OpenTelemetry collectors\nand applications.\n\nLogs are processed, optionally redacted, and written to the log storage.\n\nThis is an external OpenTelemetry protocol contract; its request/response\nbodies are defined by the OTLP specification and are not restyled to the\nAWC property conventions.\n",
+        "tags": [
+          "OTLP"
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "OTLP LogsData encoded as protobuf. The handler decodes protobuf only;\nJSON-encoded OTLP is not accepted on this HTTP path.\n",
+          "content": {
+            "application/x-protobuf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logs accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OTLPLogsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/internal/tar-stream": {
+      "post": {
+        "summary": "Internal TAR stream endpoint",
+        "operationId": "streamTarArchive",
+        "description": "Internal endpoint used by service replicas for distributed download.\nNot intended for external use.\n",
+        "tags": [
+          "Download"
+        ],
+        "x-internal": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "TAR stream",
+            "content": {
+              "application/x-tar": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          }
+        }
+      }
+    },
+    "/internal/tar-lz4-stream": {
+      "post": {
+        "summary": "Internal TAR+LZ4 stream endpoint",
+        "operationId": "streamTarLz4Archive",
+        "description": "Internal endpoint used by service replicas for distributed download\nwith LZ4 compression. Not intended for external use.\n",
+        "tags": [
+          "Download"
+        ],
+        "x-internal": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Compressed TAR stream",
+            "content": {
+              "application/x-lz4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableContent"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code",
+            "example": "validation_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message",
+            "example": "field 'name' is required"
+          },
+          "details": {
+            "type": "array",
+            "description": "Additional error details",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "name must be non-empty"
+            ]
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "default": "about:blank",
+            "description": "URI reference identifying the problem type",
+            "example": "about:blank",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "description": "Stable, human-readable summary of the problem type",
+            "example": "Cluster not found",
+            "readOnly": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code for this occurrence",
+            "example": 404,
+            "readOnly": true
+          },
+          "detail": {
+            "type": "string",
+            "description": "Human-readable explanation specific to this occurrence",
+            "example": "no cluster with id 'abc-123'",
+            "readOnly": true
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "description": "Machine-readable branch field (SCREAMING_SNAKE)",
+            "example": "CLUSTER_NOT_FOUND",
+            "readOnly": true
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of items requested",
+            "example": 50,
+            "readOnly": true
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of items skipped before this page",
+            "example": 0,
+            "readOnly": true
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of items across all pages",
+            "example": 137,
+            "readOnly": true
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy"
+            ],
+            "description": "Liveness status",
+            "example": "healthy",
+            "readOnly": true
+          }
+        }
+      },
+      "ReadyCheck": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Dependency name",
+            "example": "database",
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "description": "Dependency status",
+            "example": "up",
+            "readOnly": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Status detail",
+            "example": "connection refused",
+            "readOnly": true
+          }
+        }
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unavailable"
+            ],
+            "description": "Readiness status",
+            "example": "ready",
+            "readOnly": true
+          },
+          "checks": {
+            "type": "array",
+            "description": "Per-dependency readiness checks",
+            "items": {
+              "$ref": "#/components/schemas/ReadyCheck"
+            },
+            "readOnly": true
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "required": [
+          "service_version",
+          "api_version"
+        ],
+        "properties": {
+          "service_version": {
+            "type": "string",
+            "description": "Build version of the service binary",
+            "example": "1.2.3",
+            "readOnly": true
+          },
+          "api_version": {
+            "type": "string",
+            "description": "API specification version",
+            "example": "v0",
+            "readOnly": true
+          }
+        }
+      },
+      "StatusRequest": {
+        "type": "object",
+        "description": "Empty request object for status endpoint",
+        "example": {}
+      },
+      "StatusResponse": {
+        "type": "object",
+        "required": [
+          "current_state",
+          "current_state_detail",
+          "last_collected_file_name",
+          "last_collected_timestamp",
+          "last_uploaded_file_name"
+        ],
+        "properties": {
+          "current_state": {
+            "type": "string",
+            "description": "Current collection state",
+            "example": "IDLE",
+            "readOnly": true
+          },
+          "current_state_detail": {
+            "type": "string",
+            "description": "Detailed status message",
+            "example": "Collection finished successfully",
+            "readOnly": true
+          },
+          "last_collected_file_name": {
+            "type": "string",
+            "description": "Filename of the last collected bundle",
+            "example": "diagnostics-20250210-abc123.tar.lz4",
+            "readOnly": true
+          },
+          "last_collected_timestamp": {
+            "type": "string",
+            "description": "Human-readable age and timestamp of last collection",
+            "example": "5 minutes (2025-02-10T15:30:00Z)",
+            "readOnly": true
+          },
+          "last_uploaded_file_name": {
+            "type": "string",
+            "description": "Filename of the last uploaded bundle",
+            "example": "diagnostics-20250210-abc123.tar.lz4",
+            "readOnly": true
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL to download the diagnostic bundle",
+            "example": "/api/v1/diagnostics/download",
+            "readOnly": true
+          }
+        }
+      },
+      "CollectRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type of collection to perform",
+            "enum": [
+              "full",
+              "logs",
+              "metrics",
+              "resources"
+            ],
+            "default": "full",
+            "example": "full",
+            "readOnly": false
+          },
+          "bundle_size": {
+            "type": "integer",
+            "description": "Maximum bundle size in MB",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 500,
+            "example": 500,
+            "readOnly": false
+          },
+          "environment_filters": {
+            "type": "array",
+            "description": "Filters for log collection by environment",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentFilter"
+            },
+            "readOnly": false
+          },
+          "live_resource_filters": {
+            "type": "array",
+            "description": "Filters for live Kubernetes resources",
+            "items": {
+              "$ref": "#/components/schemas/LiveResourceFilter"
+            },
+            "readOnly": false
+          },
+          "archive_resource_filters": {
+            "type": "array",
+            "description": "Filters for archived resources",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveResourceFilter"
+            },
+            "readOnly": false
+          },
+          "start_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the collection time range (RFC 3339)",
+            "example": "2025-02-10T00:00:00Z",
+            "readOnly": false
+          },
+          "end_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the collection time range (RFC 3339)",
+            "example": "2025-02-10T23:59:59Z",
+            "readOnly": false
+          }
+        }
+      },
+      "EnvironmentFilter": {
+        "type": "object",
+        "required": [
+          "environment"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "description": "Environment name to filter",
+            "example": "production",
+            "readOnly": false
+          }
+        }
+      },
+      "LiveResourceFilter": {
+        "type": "object",
+        "required": [
+          "environment"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "description": "Environment name",
+            "example": "production",
+            "readOnly": false
+          },
+          "workload_type": {
+            "type": "string",
+            "description": "Kubernetes workload type",
+            "example": "deployment",
+            "readOnly": false
+          },
+          "workload_list": {
+            "type": "array",
+            "description": "List of workload names",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "api-service"
+            ],
+            "readOnly": false
+          }
+        }
+      },
+      "ArchiveResourceFilter": {
+        "type": "object",
+        "required": [
+          "environment"
+        ],
+        "properties": {
+          "environment": {
+            "type": "string",
+            "description": "Environment name",
+            "example": "production",
+            "readOnly": false
+          },
+          "namespace_list": {
+            "type": "array",
+            "description": "List of namespaces to collect from",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "spark-jobs",
+              "cdp-system"
+            ],
+            "readOnly": false
+          },
+          "pod_list": {
+            "type": "array",
+            "description": "List of specific pods to collect from",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "executor-1",
+              "driver-1"
+            ],
+            "readOnly": false
+          }
+        }
+      },
+      "CollectResponse": {
+        "type": "object",
+        "description": "Empty response indicating collection started"
+      },
+      "DownloadFileResponse": {
+        "type": "object",
+        "required": [
+          "found",
+          "pod_name",
+          "namespace",
+          "message"
+        ],
+        "properties": {
+          "found": {
+            "type": "boolean",
+            "description": "Whether the log file was found",
+            "example": true,
+            "readOnly": true
+          },
+          "pod_name": {
+            "type": "string",
+            "description": "Name of the pod",
+            "example": "spark-executor-1",
+            "readOnly": true
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Kubernetes namespace",
+            "example": "spark-jobs",
+            "readOnly": true
+          },
+          "logs": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Log file contents (if found)",
+            "example": "2025-02-10 15:30:00 INFO Starting executor...",
+            "readOnly": true
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pod status",
+            "example": "Running",
+            "readOnly": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable result message",
+            "example": "Logs retrieved successfully from Kubernetes pod",
+            "readOnly": true
+          }
+        }
+      },
+      "CreateRedactionRuleRequest": {
+        "type": "object",
+        "required": [
+          "description",
+          "search",
+          "case_sensitive",
+          "replace",
+          "insertion_index"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the rule",
+            "example": "Redact password fields",
+            "readOnly": false
+          },
+          "search": {
+            "type": "string",
+            "description": "Regular expression pattern to search for",
+            "example": "password[\"']?\\s*[:=]\\s*[\"']?([^\"'\\s,}]+)",
+            "readOnly": false
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "description": "Whether the search is case-sensitive",
+            "default": false,
+            "example": false,
+            "readOnly": false
+          },
+          "replace": {
+            "type": "string",
+            "description": "Replacement string (can include capture groups)",
+            "example": "password=redacted",
+            "readOnly": false
+          },
+          "insertion_index": {
+            "type": "integer",
+            "description": "Position to insert the rule (0-based, capped at 49)",
+            "minimum": 0,
+            "maximum": 49,
+            "example": 0,
+            "readOnly": false
+          },
+          "trigger": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional trigger string for fast pre-filtering",
+            "example": "password",
+            "readOnly": false
+          }
+        }
+      },
+      "CreateRedactionRuleResponse": {
+        "type": "object",
+        "description": "Empty response indicating success"
+      },
+      "UpdateRedactionRuleRequest": {
+        "type": "object",
+        "required": [
+          "index",
+          "description",
+          "search",
+          "case_sensitive",
+          "replace"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Index of the rule to update",
+            "minimum": 0,
+            "example": 0,
+            "readOnly": false
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description",
+            "example": "Redact password fields",
+            "readOnly": false
+          },
+          "search": {
+            "type": "string",
+            "description": "Regular expression pattern",
+            "example": "password[\"']?\\s*[:=]\\s*[\"']?([^\"'\\s,}]+)",
+            "readOnly": false
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "description": "Case-sensitive search",
+            "example": false,
+            "readOnly": false
+          },
+          "replace": {
+            "type": "string",
+            "description": "Replacement string",
+            "example": "password=redacted",
+            "readOnly": false
+          },
+          "trigger": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional trigger string",
+            "example": "password",
+            "readOnly": false
+          }
+        }
+      },
+      "UpdateRedactionRuleResponse": {
+        "type": "object",
+        "description": "Empty response indicating success"
+      },
+      "DeleteRedactionRuleRequest": {
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Index of the rule to delete",
+            "minimum": 0,
+            "example": 0,
+            "readOnly": false
+          }
+        }
+      },
+      "DeleteRedactionRuleResponse": {
+        "type": "object",
+        "description": "Empty response indicating success"
+      },
+      "ListRedactionRulesRequest": {
+        "type": "object",
+        "description": "Empty request object",
+        "example": {}
+      },
+      "RedactionRule": {
+        "type": "object",
+        "required": [
+          "index",
+          "description",
+          "search",
+          "case_sensitive",
+          "replace",
+          "is_default"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Rule index",
+            "example": 0,
+            "readOnly": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Rule description",
+            "example": "Redact passwords",
+            "readOnly": true
+          },
+          "search": {
+            "type": "string",
+            "description": "Search pattern",
+            "example": "password[\"']?\\s*[:=]\\s*[\"']?([^\"'\\s,}]+)",
+            "readOnly": true
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "description": "Case sensitivity",
+            "example": false,
+            "readOnly": true
+          },
+          "replace": {
+            "type": "string",
+            "description": "Replacement string",
+            "example": "password=redacted",
+            "readOnly": true
+          },
+          "trigger": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trigger string",
+            "example": "password",
+            "readOnly": true
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "Whether this is a built-in default rule",
+            "example": false,
+            "readOnly": true
+          }
+        }
+      },
+      "ListRedactionRulesResponse": {
+        "type": "object",
+        "required": [
+          "redaction_rules"
+        ],
+        "properties": {
+          "redaction_rules": {
+            "type": "array",
+            "description": "List of redaction rules",
+            "items": {
+              "$ref": "#/components/schemas/RedactionRule"
+            },
+            "readOnly": true
+          }
+        }
+      },
+      "ListNamespacesRequest": {
+        "type": "object",
+        "description": "Empty request object",
+        "example": {}
+      },
+      "ListNamespacesResponse": {
+        "type": "object",
+        "required": [
+          "namespaces"
+        ],
+        "properties": {
+          "namespaces": {
+            "type": "array",
+            "description": "List of Kubernetes namespaces",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "cdp-system",
+              "spark-jobs",
+              "kube-system"
+            ],
+            "readOnly": true
+          }
+        }
+      },
+      "OTLPLogsResponse": {
+        "type": "object",
+        "description": "OTLP logs response",
+        "required": [
+          "status",
+          "logs_processed"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok",
+            "readOnly": true
+          },
+          "logs_processed": {
+            "type": "integer",
+            "description": "Number of OTLP log records ingested from the request",
+            "example": 42,
+            "readOnly": true
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Bad Request",
+              "status": 400,
+              "detail": "start_timestamp must be before end_timestamp",
+              "code": "INVALID_REQUEST"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Not Found",
+              "status": 404,
+              "detail": "No collection with UUID: abc123",
+              "code": "NOT_FOUND"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Internal Server Error",
+              "status": 500,
+              "detail": "Failed to connect to Kubernetes API",
+              "code": "INTERNAL_ERROR"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Request Content-Type is not `application/json`. Returned by the JSON body\nextractor before the handler runs.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Unsupported Media Type",
+              "status": 415,
+              "detail": "Expected request with `Content-Type: application/json`",
+              "code": "UNSUPPORTED_MEDIA_TYPE"
+            }
+          }
+        }
+      },
+      "UnprocessableContent": {
+        "description": "Request body is well-formed JSON but does not match the expected schema\n(missing required field or wrong type). Returned by the JSON body\nextractor before the handler runs.\n",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "about:blank",
+              "title": "Unprocessable Entity",
+              "status": 422,
+              "detail": "Failed to deserialize the JSON body into the target type",
+              "code": "UNPROCESSABLE_CONTENT"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "JwtAuthentication": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HTTP Authorization Bearer header using a JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "JwtAuthentication": []
+    }
+  ]
+}
