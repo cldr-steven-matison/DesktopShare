@@ -1,0 +1,18 @@
+# Step 0 gate — 2026-09-16T130008Z
+## env load:
+AWC_JWT loaded (670 chars, ends …hZvA); XSRF unset.
+
+## TCP/TLS connect (no auth):
+  console.goes01-se-goes.demos.cloudera-labs.com:443 -> 302 connect=0.367593s
+  goes01-csm-kafka.goes01-csm-cluster.demos.cloudera-labs.com:8443 -> FAIL (000 connect=0.276877s)
+
+## Console API auth check: GET /experiences
+  HTTP 401, bytes=     439
+  content-type sniff: <html><head><meta http-equiv="Content-
+
+## GATE VERDICT (2026-09-16T130052Z)
+- Reachability: GOOD. Console :443 -> 302 (normal Knox redirect). CSM kafka :8443 TCP connect SUCCEEDED (nc). This Mac reaches goes01 over the corp VPN full tunnel (utun4).
+- Auth: STALE. GET /experiences -> HTTP 401 from knox-jwtauth (/gateway/knox-jwtauth/auth/api/v1/extauthz). The hadoop-jwt in ~/.awc.creds (670 chars, ends hZvA) is expired.
+- STOP condition hit (plan Step 0): cannot probe CAI serving / OAuth exchange / Kafka SASL without a valid session token. Needs interactive Knox SSO refresh:
+    bash ~/Documents/GitHub/awc-demo/awc-cookie.sh    # Firefox login, repopulates ~/.awc.creds
+  or awc-creds-set.sh to paste a fresh token from browser DevTools.

@@ -1,0 +1,2 @@
+PRODUCED marker=issue-351-oauthbearer-proof-4ff1bc5f -> test_topic[0]@offset 3988896
+CONSUMED back: test_topic[0]@3988896 value=issue-351-oauthbearer-proof-4ff1bc5f  ✓ ROUND-TRIP OK

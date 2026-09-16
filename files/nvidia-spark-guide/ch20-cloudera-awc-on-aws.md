@@ -1,6 +1,6 @@
 # Chapter 20 — Cloudera AWC on AWS + the DGX Spark
 
-> **Status: as-built — field validation complete (#343, 2026-09-16).** Reachability, TLS, Knox SSO, Trino, Iceberg, Ozone S3 all confirmed. Cloudera AI Inference and Kafka produce/consume blocked on platform-side action. Source: [`nvidia-dgx-spark-cloudera-awc.md`](../../nvidia-dgx-spark-cloudera-awc.md) · Work-stream I-AWC · [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) / [#284](https://github.com/cldr-steven-matison/DesktopShare/issues/284) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: as-built — field validation complete (#343, 2026-09-16).** Reachability, TLS, Knox SSO, Trino, Iceberg, Ozone S3 all confirmed. **Kafka produce/consume proven over SASL_SSL/OAUTHBEARER (#351, 2026-09-16)**; Cloudera AI Inference blocked on a UI model deployment only (auth solved, #351). Source: [`nvidia-dgx-spark-cloudera-awc.md`](../../nvidia-dgx-spark-cloudera-awc.md) · Work-stream I-AWC · [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) / [#284](https://github.com/cldr-steven-matison/DesktopShare/issues/284) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
 
 **What you'll build.** The goes01 AWC environment on EKS connected to the DGX Spark as an external client of AWC experiences, with network reachability confirmed.
 
@@ -9,7 +9,7 @@
 - DGX Spark as an external client consuming AWC experiences
 - AWC setup reference: `cloudera-anywhere-getting-started.md`
 - box→goes01 reachability, Knox SSO, Trino, Iceberg, Ozone S3 — all PROVEN
-- Cloudera AI Inference and Kafka produce/consume — BLOCKED (see below)
+- Kafka produce/consume — PROVEN over SASL_SSL/OAUTHBEARER (#351); Cloudera AI Inference — blocked on a UI model deployment only (see below)
 
 ## Before you start
 - goes01 AWC environment provisioned on EKS
@@ -49,7 +49,7 @@ All 10 goes01 subnets reachable from `tun0` (full corp VPN):
 | CDF | 10.80.155.216 | :443 | OK |
 | CSA/SSB | 10.80.155.227 | :443 | OK |
 | CLE-Integrated | 10.80.158.220 | :443 | OK (TLS needs -k) |
-| CSM Kafka | 10.80.133.150 | :8443 | OK (TLS OK, SASL blocked) |
+| CSM Kafka | 10.80.133.150 | :8443 | OK (SASL_SSL/OAUTHBEARER proven, #351) |
 | CSM Surveyor | 10.80.133.150 | :443 | OK |
 | Ozone S3 (CLE-int) | 10.80.158.220 | :443 | OK |
 | Ozone S3 (CDE-UDF) | 10.80.154.41 | :443 | OK |
@@ -129,17 +129,21 @@ s3 = boto3.client(
 - [x] Iceberg table `ozone_test_db.sample_logs` queryable via Trino SQL
 - [x] Ozone S3 lists buckets with AWS V4 signing on both gateways
 
+## Kafka produce/consume (A4) — PROVEN (#351, 2026-09-16)
+
+Not blocked. Produce→consume round-trips over **SASL_SSL / OAUTHBEARER** from the box:
+
+- The broker (`goes01-csm-kafka:8443`, 3-broker KRAFT) advertises **OAUTHBEARER as its only enabled mechanism** — #343's PLAIN/SCRAM/GSSAPI attempts failed because those are disabled, not the credential.
+- The `hadoop-jwt` cookie is rejected with one precise error — `Token validation failed: Expiry not set` (no `exp` claim). The correct credential is an **OAuth2 `client_credentials` access-token** (which carries `exp`):
+  1. `POST /api/v0/auth/access-keys/credentials` → `client_id`/`client_secret` (bound to your user)
+  2. `POST /api/v0/auth/access-keys/token` (Basic auth, `grant_type=client_credentials`) → `access_token`
+  3. Use it as the OAUTHBEARER token — auth `error_code=0`, `list_topics` + produce/consume on `test_topic` succeed.
+- Client config: `security.protocol=SASL_SSL`, `sasl.mechanism=OAUTHBEARER`, `sasl.oauthbearer.token.endpoint.url=…/api/v0/auth/access-keys/token` + clientId/secret (`OAuthBearerLoginModule` / librdkafka-oidc), trusting the `Cloudera AWC Internal CA` PEM.
+
 ## Blocked
 
-- **Cloudera AI Inference (A1, A3):** The CAI experience (`goes01-cai-c-fe629e`) serves only the Knox-proxy UI SPA. Every path returns 200 HTML — no REST API endpoints. Inference requires:
-  1. Manual model deployment via CAI UI (**Serving → Model Endpoints → Create Endpoint**)
-  2. 10–20 minutes for model artifact download (requires GPU resources)
-  3. Exposing the internal Kserve endpoint (cluster-internal by default)
-  - Root cause: Kserve inference pods run inside the CSM cluster; no Knox route maps them to a public/Knox-accessible path.
-
-- **Kafka Produce/Consume (A4):** TLS connects on `goes01-csm-kafka:8443` and cert validates against `Cloudera AWC Internal CA`. SASL authentication fails for every mechanism tried (PLAIN, OAUTHBEARER, SCRAM-SHA-256, GSSAPI).
-  - Root cause: `hadoop-jwt` is a Knox SSO web cookie, not a Kafka workload identity token. The Knox cookie authenticates HTTP services (CDF, SSB, Trino, Ozone) but does not pass through to Kafka's SASL layer.
-  - Kafka on CSM uses Ranger for authentication. Requires a Ranger/LDAP user with Kafka access or a platform admin-provisioned SASL token.
+- **Cloudera AI Inference (A1, A3):** The CAI experience (`goes01-cai-c-fe629e`) serves only the Knox-proxy UI SPA — every path returns the 200 HTML SPA (cookie) or 302 → knox-cdpsso (Bearer); no inference REST route. Blocked on **one thing only — a UI model deployment** (**Serving → Model Endpoints → Create Endpoint**, ~10–20 min, GPU). The **auth is solved** (#351): Bearer the same `access-keys/token` client_credentials access-token at the deployed model's `…/openai/v1/…` route.
+  - Remaining root cause: Kserve inference pods are cluster-internal; once a model is deployed, confirm the endpoint is reachable from the box (may need a Knox route / on-subnet relay).
 
 ## Next
 

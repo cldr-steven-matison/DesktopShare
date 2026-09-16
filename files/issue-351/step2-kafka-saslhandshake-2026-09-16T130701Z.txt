@@ -1,0 +1,3 @@
+TLS OK: TLSv1.3 peer cert subject: n/a
+SaslHandshake resp: corr=1 error_code=33 (34=UNSUPPORTED_SASL_MECHANISM)
+ENABLED_MECHANISMS: ['OAUTHBEARER']

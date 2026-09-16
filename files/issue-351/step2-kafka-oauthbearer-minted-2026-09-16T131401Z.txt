@@ -1,0 +1,3 @@
+SaslHandshake(OAUTHBEARER) error_code = 0 (0=OK)
+SaslAuthenticate error_code = 0 (0=OK, 58=SASL_AUTHENTICATION_FAILED)
+SaslAuthenticate error_message = 

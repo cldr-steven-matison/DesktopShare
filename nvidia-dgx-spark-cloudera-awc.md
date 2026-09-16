@@ -1,6 +1,6 @@
 # The DGX Spark and Cloudera Anywhere (AWC)
 
-> **Status (2026-09-16):** the AWC-form-factor companion to `nvidia-dgx-spark-cloudera-aws.md`, driving issue [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) under EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). This is the **using** doc — what the DGX Spark and Cloudera Anywhere *do together*. It is **not** an AWC getting-started guide: the setup, the CA chain, Knox SSO, the `hadoop-jwt` credential and the Console/CDF/SSB/Trino APIs live in `cloudera-anywhere-getting-started.md` (issue [#284](https://github.com/cldr-steven-matison/DesktopShare/issues/284)), which this doc treats as a prerequisite. **Decided:** AWC is a third Cloudera shape alongside CDP Base and CDP Public Cloud; the DGX Spark is a *client* of it, never a node in it; the parity payload is the OpenAI-compatible API on both sides. Field validation complete (#343, 2026-09-16): reachability, Knox SSO, Trino, Iceberg, Ozone S3 all confirmed. Two rows blocked pending platform-side action. Feeds `files/nvidia-spark-guide/` chapter ch22 (and the AWC leg of ch24).
+> **Status (2026-09-16):** the AWC-form-factor companion to `nvidia-dgx-spark-cloudera-aws.md`, driving issue [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) under EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). This is the **using** doc — what the DGX Spark and Cloudera Anywhere *do together*. It is **not** an AWC getting-started guide: the setup, the CA chain, Knox SSO, the `hadoop-jwt` credential and the Console/CDF/SSB/Trino APIs live in `cloudera-anywhere-getting-started.md` (issue [#284](https://github.com/cldr-steven-matison/DesktopShare/issues/284)), which this doc treats as a prerequisite. **Decided:** AWC is a third Cloudera shape alongside CDP Base and CDP Public Cloud; the DGX Spark is a *client* of it, never a node in it; the parity payload is the OpenAI-compatible API on both sides. Field validation complete (#343, 2026-09-16): reachability, Knox SSO, Trino, Iceberg, Ozone S3 all confirmed. **Kafka (A4) proven live over SASL_SSL/OAUTHBEARER (#351, 2026-09-16); CAI Inference (A1/A3) blocked on a UI model deployment only — its auth is now solved (#351).** Feeds `files/nvidia-spark-guide/` chapter ch22 (and the AWC leg of ch24).
 
 ## 1. The three shapes, side by side
 
@@ -36,14 +36,14 @@ This is the AWC analog of `nvidia-dgx-spark-cloudera-aws.md` §3.4 — and the p
 
 **Status (#343, 2026-09-16): BLOCKED.** The Cloudera AI experience (`goes01-cai-c-fe629e`) serves only the Knox-proxy UI SPA. Every path returns `200 HTML` — no REST API endpoints or swagger for inference. The UI requires manual model deployment via **Serving → Model Endpoints → Create Endpoint**, which takes 10–20 minutes (downloads model artifacts, requires GPU resources).
 
-The only authenticated paths on the CAI host are the Console auth API (`/api/v1/auth/*`) and the Knox SPA shell. The `CAI_API_KEY` (machine user credential in `~/.awc.creds`) authenticates the auth API but not inference endpoints. Once a model is deployed, the expected URL pattern is:
+The CAI workbench host is cookie-SSO: `hadoop-jwt` as `Cookie` returns the 200 SPA shell on every path, and both `hadoop-jwt` and a minted access-token as `Bearer` get 302 → knox-cdpsso — no inference route is exposed there (#351, 2026-09-16). **The auth half is no longer a mystery**, though: the correct programmatic credential is the same OAuth2 `client_credentials` access-token that unlocked Kafka (`POST /api/v0/auth/access-keys/token`, carries `exp`), Bearer'd at the deployed model's KServe route — not the `hadoop-jwt` cookie and not a guessed `${CDP_TOKEN}`. Once a model is deployed, the expected URL pattern is:
 
 ```bash
-curl -H "Authorization: Bearer ${CDP_TOKEN}" \
-     "https://${DOMAIN}/namespaces/serving-default/endpoints/${ENDPOINT_NAME}/v1/chat/completions"
+curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+     "https://${DOMAIN}/namespaces/serving-default/endpoints/${ENDPOINT_NAME}/openai/v1/chat/completions"
 ```
 
-**A1 (OpenAI client) and A3 (Flink Agents) are blocked until a model is deployed in the CAI UI.**
+**A1 (OpenAI client) and A3 (Flink Agents) remain blocked on one thing only — a model deployed in the CAI UI** (Serving → Model Endpoints → Create Endpoint, GPU alloc). The auth mechanism is proven (#351).
 
 ## 4. The DGX Spark against the AWC data plane
 
@@ -52,7 +52,7 @@ The box as a producer/consumer against Cloudera Anywhere's data services. Each r
 - **Lakehouse Engine (Trino).** PROVEN (#343, 2026-09-16): the coordinator is the CLE Integrated landing URL with `-admin` stripped; `hadoop-jwt` works as a `Bearer` token on `/v1/statement` (`SELECT 1` → `[1]`), with the catch that `X-Trino-User` must equal the token's own identity — Trino refuses impersonation. `SHOW CATALOGS` returns `["hive"] ["iceberg"] ["system"]` — data catalogs wired natively on the Integrated engine (no catalog attach needed, unlike the old Basic engine). `iceberg.ozone_test_db.sample_logs` is queryable via Trino (5 columns, 2 rows of demo test data). A NiFi flow on the box reaches it as one more Trino REST client, via the `trino_q` request shape in `cloudera-anywhere-getting-started.md`.
 - **Iceberg on AWC.** Unlike CDP Public Cloud (`nvidia-dgx-spark-cloudera-aws.md` §3.3), AWC exposes **no Knox datashare `iceberg-rest/v1/` endpoint**. Iceberg on AWC = Trino-over-HMS + Ozone. `iceberg.ozone_test_db.sample_logs` is queryable via the Lakehouse Engine. The `GetIceberg`/`QueryIceberg` + `RESTCatalogService` read paths validated against `srm-iceberg` do **not** transfer directly; the AWC read path is Trino SQL through the Lakehouse Engine. This is a genuine form-factor difference the chapter must state, not paper over.
 - **Object Store (Ozone).** S3-compatible gateway. PROVEN (#343, 2026-09-16): AWS V4 signing via `boto3` works on both gateways (`goes01-cle-int-ozone-s3` and `goes01-cde-udf-ozone-s3`). Auth: `hadoop-jwt` as `secret_access_key`, `'hadoop-jwt'` as `access_key_id` — same Knox cookie. Buckets confirmed: `hive-warehouse` (CLE-int, contains `ozone_test_db/` with sample_logs parquet files and Iceberg metadata), `cde-csk-bucket` (CDE-UDF, Spark batch logs). Full bucket listing and object inspection confirmed.
-- **Streaming (CDF / CSA-SSB / CSM-Kafka).** CDF (`/cdf/api/v1/`, needs `hadoop-jwt` + XSRF) and SSB (`/api/v1/`) are reachable and auth-passing (#284, #343): CDF returns deployments, SSB auth passes with `Cookie: hadoop-jwt` (Bearer gets redirected to Knox SSO). The CSM Kafka node (`10.80.133.150:8443`) connects and cert validates against `Cloudera AWC Internal CA` (valid until 2026-11-11), TLS OK. **SASL authentication blocked:** SASL/OAUTHBEARER and SASL/PLAIN with `hadoop-jwt` both fail — the broker drops the connection for every mechanism tried (PLAIN, OAUTHBEARER, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI). **Root cause:** `hadoop-jwt` is a Knox SSO web cookie, not a Kafka workload identity token. Kafka on CSM uses Ranger for authentication, requiring a credential that Kafka's SASL layer accepts — the Knox cookie does not pass through to SASL. **Produce/consume remains untested** — TLS OK, auth blocked pending a proper Kafka workload identity token.
+- **Streaming (CDF / CSA-SSB / CSM-Kafka).** CDF (`/cdf/api/v1/`, needs `hadoop-jwt` + XSRF) and SSB (`/api/v1/`) are reachable and auth-passing (#284, #343): CDF returns deployments, SSB auth passes with `Cookie: hadoop-jwt` (Bearer gets redirected to Knox SSO). **CSM Kafka: PROVEN (#351, 2026-09-16)** — produce→consume round-trip works from the box over **SASL_SSL / OAUTHBEARER**. The broker (`goes01-csm-kafka…:8443`, 3-broker KRAFT) advertises **OAUTHBEARER as its only enabled SASL mechanism** — so #343's PLAIN/SCRAM/GSSAPI attempts failed because those mechanisms are disabled, not because of the credential. The `hadoop-jwt` SSO cookie is rejected with a single precise error, `Token validation failed: Expiry not set`: it carries no `exp` claim. The correct credential is an **OAuth2 `client_credentials` token** minted from `POST /api/v0/auth/access-keys/token` (a `client_id`/`client_secret` from `POST /api/v0/auth/access-keys/credentials`), which *does* carry `exp`. With that token the OAUTHBEARER handshake + `SaslAuthenticate` return `error_code=0`, `list_topics` and a produce→consume on `test_topic` both succeed (Ranger authorizes the bound principal). Client config: `security.protocol=SASL_SSL`, `sasl.mechanism=OAUTHBEARER`, `sasl.oauthbearer.token.endpoint.url=…/api/v0/auth/access-keys/token` + clientId/secret (the `OAuthBearerLoginModule` / librdkafka-oidc form), trusting the `Cloudera AWC Internal CA`. Evidence: `files/issue-351/step2-*`.
 
 ## 5. The API shape, and the base-URL swap (the AWC leg of ch24)
 
@@ -61,7 +61,7 @@ The whole thesis of the same-code arc is that only the base URL, the auth header
 | | Local on the box | Cloudera AI on AWC |
 |---|---|---|
 | Base URL | `http://<box-ip>:8000/v1` | Cloudera AI Inference endpoint on `goes01` (private) — not yet resolvable |
-| Auth | none | `Authorization: Bearer <hadoop-jwt>` (Knox SSO session cookie) — not yet confirmed to bind to inference |
+| Auth | none | `Authorization: Bearer <access-token>` — an OAuth2 `client_credentials` token from `access-keys/token` (proven for Kafka #351; the same token is expected for the CAI inference route, not the `hadoop-jwt` cookie) |
 | Model name | raw HF/NGC id | the model's registered / served name — unknown until deployed |
 | Protocol | OpenAI-compatible | OpenAI-compatible (expected — Cloudera AI Inference is NIM-backed) |
 | Network | home LAN | private `10.80.x`, VPN-only |
@@ -74,10 +74,10 @@ Extends the ten-row catalogue in `nvidia-dgx-spark-cloudera-aws.md` §6 with the
 
 | # | Box side | AWC side | Path | Demo value | State |
 |---|---|---|---|---|---|
-| A1 | OpenAI client / NiFi `InvokeHTTP` | Cloudera AI on AWC inference endpoint | `hadoop-jwt` Bearer, OpenAI-compat | The SE money shot on the third form factor: same request, desk vs AWC | **BLOCKED** — model must be deployed in CAI UI first |
+| A1 | OpenAI client / NiFi `InvokeHTTP` | Cloudera AI on AWC inference endpoint | `access-keys/token` Bearer, OpenAI-compat | The SE money shot on the third form factor: same request, desk vs AWC | **BLOCKED on model deploy only** (#351) — auth proven (OAuth2 client_credentials access-token, not `hadoop-jwt`); a model must be deployed in the CAI UI |
 | A2 | NiFi flow issuing Trino SQL | Lakehouse Engine (Trino) `/v1/statement` | `hadoop-jwt` Bearer, `X-Trino-User`=token user | Query AWC data from a desk-side flow, no Iceberg jars | **PROVEN** — `SELECT 1` → `[1]`, `SHOW CATALOGS` → hive/iceberg/system, `iceberg.ozone_test_db.sample_logs` queryable |
 | A3 | Flink Agents job | Cloudera AI on AWC as chat-model resource | `OPENAI_COMPLETIONS_CONNECTION` swap | Agentic Flink job, desk-local or AWC-backed | **GATED** on A1 |
-| A4 | MiNiFi Java agent, EFM class `NvidiaSpark-1` | AWC Kafka (CSM) via on-subnet path | Agent → local NiFi → AWC sink | Jetson→desk→AWC ladder | **BLOCKED** — SASL auth with `hadoop-jwt` fails; requires Kafka workload identity token |
+| A4 | MiNiFi Java agent, EFM class `NvidiaSpark-1` | AWC Kafka (CSM) via on-subnet path | Agent → local NiFi → AWC sink | Jetson→desk→AWC ladder | **PROVEN** (#351) — SASL_SSL/OAUTHBEARER with an `access-keys/token` client_credentials token; produce→consume on `test_topic` OK |
 
 ## 7. What NOT to do
 
@@ -88,17 +88,18 @@ Extends the ten-row catalogue in `nvidia-dgx-spark-cloudera-aws.md` §6 with the
 - **Don't type or echo the `hadoop-jwt`.** Source it from `~/.awc.creds` via the `awc-demo` helpers; put endpoint URLs and the token in a Parameter Context, never inline.
 - **Don't call the Cloudera AI on AWC inference surface validated.** The CAI experience serves only the UI SPA; the Kserve inference endpoints are cluster-internal.
 - **Don't add the inference call inline to a live Process Group,** and don't GET-then-PUT a processor with sensitive properties (the masked `********` writes back as a literal).
-- **Don't assume `hadoop-jwt` works for Kafka SASL.** Knox SSO cookies authenticate web services; they do not pass through to Kafka's SASL layer.
+- **Don't use `hadoop-jwt` for Kafka SASL.** It reaches the broker's OAUTHBEARER validator but is rejected for lacking an `exp` claim (`Token validation failed: Expiry not set`). Use an OAuth2 `client_credentials` access-token from `access-keys/token` instead (#351). And don't reach for PLAIN/SCRAM/GSSAPI — OAUTHBEARER is the only enabled mechanism.
 
 ## Blocked on platform-side action
 
-- **CAI Inference (A1, A3):** Requires manual model deployment in the CAI UI (Serving → Model Endpoints → Create Endpoint). Once deployed, the internal Kserve endpoint needs to be exposed or the DGX Spark needs to reach the internal cluster DNS.
-- **Kafka Produce/Consume (A4):** `hadoop-jwt` does not work as a SASL token. Requires a Kafka workload identity token from Ranger/CDP auth. Either a Ranger/LDAP user with Kafka access, or a platform admin-provisioned SASL token.
+- **CAI Inference (A1, A3):** Requires manual model deployment in the CAI UI (Serving → Model Endpoints → Create Endpoint). The auth is solved (#351) — Bearer an `access-keys/token` client_credentials access-token at the model's `…/openai/v1/…` route. Once deployed, confirm the Kserve endpoint is reachable from the box (may need a Knox route / on-subnet relay).
+- **Kafka Produce/Consume (A4): RESOLVED (#351).** Not blocked. SASL_SSL/OAUTHBEARER with an OAuth2 `client_credentials` access-token (from `POST /api/v0/auth/access-keys/token`) authenticates and produce→consume works. The `hadoop-jwt` failed only for lacking an `exp` claim; PLAIN/SCRAM/GSSAPI are simply not enabled on the broker.
 
 ## Open questions
 
 - Which model to serve on Cloudera AI on AWC for the parity pair, and its registered name.
 - Whether an on-subnet relay is needed to expose the Kserve inference endpoint to the DGX Spark (likely — Kserve pods are internal to the CSM cluster).
+- ~~How to authenticate to CSM Kafka~~ — answered (#351): OAUTHBEARER + `access-keys/token` client_credentials.
 
 ## Definition of done
 

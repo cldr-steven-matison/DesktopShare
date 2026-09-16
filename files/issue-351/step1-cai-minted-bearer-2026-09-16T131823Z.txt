@@ -1,0 +1,11 @@
+# CAI re-probe with minted access-token (Bearer) 2026-09-16T131823Z
+/api/v2/models                           -> 302 ct= loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v2/models
+   sniff:
+/api/v1/models                           -> 302 ct= loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v1/models
+   sniff:
+/namespaces/serving-default/endpoints    -> 302 ct= loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/namespaces/serving-default/endpoints
+   sniff:
+/models                                  -> 302 ct= loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/models
+   sniff:
+/api/v2/projects                         -> 302 ct= loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v2/projects
+   sniff:

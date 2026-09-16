@@ -1,0 +1,3 @@
+CONNECTED as broker cluster: nDT2Sa9oTruJjqgkMrCUmA
+brokers: ['0@goes01-csm-kafka-0-broker.goes01-csm-cluster.demos.cloudera-labs.com:8443', '1@goes01-csm-kafka-1-broker.goes01-csm-cluster.demos.cloudera-labs.com:8443', '2@goes01-csm-kafka-2-broker.goes01-csm-cluster.demos.cloudera-labs.com:8443']
+topics visible (6): ['__surveyor_topic_configs', '__transaction_state', 'dm_topic', 'sensor_data', 'test_topic', 'tt']

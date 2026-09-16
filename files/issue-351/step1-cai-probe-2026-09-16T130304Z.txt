@@ -1,0 +1,23 @@
+# CAI probe 2026-09-16T130304Z  base=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com
+/                                                    -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/
+     sniff: 
+/api/v2/models                                       -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v2/models
+     sniff: 
+/api/v1/models                                       -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v1/models
+     sniff: 
+/v1/models                                           -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/v1/models
+     sniff: 
+/serving/api/v1/models                               -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/serving/api/v1/models
+     sniff: 
+/api/v1/endpoints                                    -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v1/endpoints
+     sniff: 
+/serving-default/v1/models                           -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/serving-default/v1/models
+     sniff: 
+/namespaces/serving-default/endpoints                -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/namespaces/serving-default/endpoints
+     sniff: 
+/model-hub/api/v1/models                             -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/model-hub/api/v1/models
+     sniff: 
+/ai/api/v1/inference/models                          -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/ai/api/v1/inference/models
+     sniff: 
+/api/v2/ml/serving/models                            -> 302  ct=  loc=https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com/api/v2/ml/serving/models
+     sniff: 
