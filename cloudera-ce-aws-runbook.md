@@ -40,7 +40,7 @@ before flipping to `ACTIVATED`; the CFM parcel then distributed in ~10 min (§3.
 
 Deploy and teardown are each an explicit go from Steven, with the cost stated. **Tear down or pause
 in the same session** unless told to keep it. Exits are in §6. The 09-16 cluster was kept running at
-the end of the session on Steven's call; the teardown and its three zeros are still owed.
+the end of the session on Steven's call; its teardown and three zeros are [#357](https://github.com/cldr-steven-matison/DesktopShare/issues/357), and the clean end-to-end re-run of this runbook from an empty account is [#358](https://github.com/cldr-steven-matison/DesktopShare/issues/358).
 
 **Size the nodes before the next run (§2a).** The stock `t3a.xlarge` workers (16 GB, no swap) carry
 19 GB of default JVM heap once NiFi is grafted in; three of four wedged within two hours of the full
@@ -463,6 +463,5 @@ not the host `--profile`.
 - **Do not kill the deploy at the parcel counter freeze** (§3.4).
 - **Do not run a second deploy host against the same `name_prefix`.** Terraform state is a local
   file; the second host cannot see what the first created.
-- **Do not let a second agent session run `git checkout`/`stash` in this clone while a runbook is in
-  flight.** On 09-16 a concurrent session on the box reverted this file and a `known-patterns.tsv`
-  row mid-run; re-check the working tree before the finish commit.
+- **Two sessions share this checkout on the box.** Check `git status` before the finish commit; a
+  concurrent session can revert a file mid-run.

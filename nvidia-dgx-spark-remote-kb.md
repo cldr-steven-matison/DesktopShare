@@ -1,6 +1,6 @@
 # NvidiaSpark-1 — ds-kb remote transport (HTTP/MCP)
 
-> **Status (2026-09-14):** design complete, implementation files staged. The local KB (`kb_mcp.py`) serves via stdio on spark-dd06 only. Remote transport exposes the same `kb_search` tool over MCP HTTP on port 8191 so other array devices can query the same index.
+> **Status (2026-09-14, swept 2026-09-16):** built and running — `kb-remote.service` is active on `spark-dd06` and listening on `:8191` ([#335](https://github.com/cldr-steven-matison/DesktopShare/issues/335), closed; EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356)); the other devices' opencode adoption is tracked in [#331](https://github.com/cldr-steven-matison/DesktopShare/issues/331). The local KB (`kb_mcp.py`) serves via stdio on spark-dd06 only. Remote transport exposes the same `kb_search` tool over MCP HTTP on port 8191 so other array devices can query the same index.
 
 ## What changes
 
@@ -143,10 +143,7 @@ From any array device, opencode should automatically pick up the `kb_search` too
 > ds-kb: "why did the MiNiFi agent enroll but never send a heartbeat"
 ```
 
-Should return the same top-3 docs as the local stdio version:
-1. `nvidianano-minifi-ops.md §Health check` (kind=completed)
-2. `minifi-efm.md §11 A K8s MiNiFi agent can go silent` (kind=rule)
-3. `efm-metrics.md §Layer 0 — get EFM running` (kind=plan)
+Should return the same ranking as the local stdio version (the as-built top-5 is recorded in `nvidia-dgx-spark-local-kb.md` §3): `nvidianano-minifi-ops.md §Health check` first, then the two `minifi-efm.md` copies (`NiFiandAi/references/` and the skill's `references/`, §11 "A K8s MiNiFi agent can go silent"), then `efm-metrics.md §Layer 0 — get EFM running`.
 
 ## Differences from local KB
 
@@ -183,13 +180,13 @@ Should return the same top-3 docs as the local stdio version:
 
 ## Definition of done
 
-- [ ] `kb_mcp_remote.py` written (done)
-- [ ] `kb-remote.service` written (done)
-- [ ] Service starts and responds on `:8191`
+- [x] `kb_mcp_remote.py` written
+- [x] `kb-remote.service` written
+- [x] Service starts and responds on `:8191` (active, listening on `0.0.0.0:8191`, checked 2026-09-16)
 - [ ] ufw opened for Tailscale CIDR on `:8191`
-- [ ] opencode on WindowsDesktop picks up `kb_search` from remote MCP
-- [ ] opencode on NvidiaNano picks up `kb_search` from remote MCP
-- [ ] opencode on StarlinkAI picks up `kb_search` from remote MCP
+- [ ] opencode on WindowsDesktop picks up `kb_search` from remote MCP (#331)
+- [ ] opencode on NvidiaNano picks up `kb_search` from remote MCP (#331)
+- [ ] opencode on StarlinkAI picks up `kb_search` from remote MCP (#331)
 - [ ] Results match local stdio version (same index, same TEI model)
-- [ ] Service survives reboot (systemd enabled)
-- [ ] `nvidia-dgx-spark-local-kb.md` updated with remote transport note in §7
+- [x] Service survives reboot (systemd enabled; checked 2026-09-16)
+- [x] `nvidia-dgx-spark-local-kb.md` carries the remote-transport note (end of §3, 2026-09-16)

@@ -1,6 +1,6 @@
 # NVIDIA DGX Spark — Day-1 Setup Runbook
 
-> **Status (2026-09-10).** Work-stream **B** of the DGX Spark EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233)). This is the as-built record of bringing `spark-dd06` from the box to a hardened, LAN-reachable serving host with its own Kubernetes platform, written from what ran on the box (2026-08-26 → 09-10), not from the pre-arrival draft. Every root step is one idempotent script, `files/issue-226/spark-bootstrap.sh`; every serving container is one committed script under `files/issue-226/`; reboot survival is `files/issue-322/`. Still owed: the static IP reservation on the router, and a re-run of bootstrap step 6 to replace the first run's ufw NodePort rules (see §7). The guide chapters this feeds are Ch2 and Ch3 in `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
+> **Status (2026-09-10).** Work-stream **B** of the DGX Spark series ([#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233), closed 2026-09-10; EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356)). This is the as-built record of bringing `spark-dd06` from the box to a hardened, LAN-reachable serving host with its own Kubernetes platform, written from what ran on the box (2026-08-26 → 09-10), not from the pre-arrival draft. Every root step is one idempotent script, `files/issue-226/spark-bootstrap.sh`; every serving container is one committed script under `files/issue-226/`; reboot survival is `files/issue-322/`. Still owed: the static IP reservation on the router (the ufw NodePort rules were re-applied 2026-09-10, §7). The guide chapters this feeds are Ch2 and Ch3 in `Complete Developer Guide for Nvidia Spark with Cloudera.md`.
 
 The box arrived 2026-08-26 and was serving a 35 B model to the LAN the same evening. This runbook is the order things happened in, with the values that came out, so the next DGX Spark (or a rebuild of this one) is a copy-paste job rather than a research project. Sizing and model choice are in `nvidia-dgx-spark-landscape.md`; the platform detail in `nvidia-dgx-spark-k3s-cso.md`; this file is the day itself.
 
@@ -10,7 +10,7 @@ Nothing on this list needed the hardware, and having it settled meant arrival da
 
 - Device name `NvidiaSpark-1`, GitHub label `device:NvidiaSpark-1`, a placeholder block in `CLAUDE-CHECKIN.md` and a row in `CONTEXT.md`. Filled in on 08-26 and 09-02.
 - Model lock, lead tier: `nvidia/Qwen3.6-35B-A3B-NVFP4` on NVIDIA's own DGX Spark vLLM playbook recipe (`nvidia-dgx-spark-plan.md` §6, 08-27). Stretch tier `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4`, embed `BAAI/bge-m3`, rerank `BAAI/bge-reranker-v2-m3`, STT whisper.cpp `large-v3` (locked 08-28).
-- The serving port is **`:8000`** everywhere. The community recipes I drafted from default to `:8888` (MiaAI-Lab); every flow, firewall rule and doc in this repo uses `:8000`.
+- The serving port is **`:8000`** everywhere. The community recipes (MiaAI-Lab) default to `:8888`; every flow, firewall rule and doc in this repo uses `:8000`.
 - The Kubernetes substrate is k3s on the host, not minikube and not k3d (`nvidia-dgx-spark-plan.md` §6, 08-27).
 - No Hugging Face token needed. Every locked model is a public repo.
 
@@ -38,7 +38,7 @@ docker run --rm --gpus all nvcr.io/nvidia/cuda:13.0.1-base-ubuntu24.04 nvidia-sm
 
 Docker's default runtime stays `runc`; the serving containers pass `--gpus all` explicitly, and k3s uses its own containerd, not Docker.
 
-> **RHEL option.** Red Hat documents RHEL 10 on DGX Spark. Everything from §3 down is OS-agnostic once Docker plus the NVIDIA runtime work; I did not take that path.
+> **RHEL option.** Red Hat documents RHEL 10 on DGX Spark. Everything from §3 down is OS-agnostic once Docker plus the NVIDIA runtime work; this box runs DGX OS.
 
 ## 2. Network
 

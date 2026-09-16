@@ -43,7 +43,11 @@ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
      "https://${DOMAIN}/namespaces/serving-default/endpoints/${ENDPOINT_NAME}/openai/v1/chat/completions"
 ```
 
-**A1 (OpenAI client) and A3 (Flink Agents) remain blocked on one thing only — a model deployed in the CAI UI** (Serving → Model Endpoints → Create Endpoint, GPU alloc). The auth mechanism is proven (#351).
+**A1 (OpenAI client) and A3 (Flink Agents) remain blocked on one thing — a model deployed in the CAI UI** (Serving → Model Endpoints → Create Endpoint, GPU alloc). The auth mechanism is proven (#351).
+
+**The UI deploy itself fails today: the goes01 AI Registry returns 503 (#351, 2026-09-16).** An attempted deploy of `meta/llama-3_1-8b-instruct` stopped with two UI errors — "Could not connect to AI Inference service 'dm-inference'" and "Error occurred while communicating with AI registry 'https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com' in environment '' (Status Code: 503)". Reproduced from a client over the corp VPN: `dm-registry` and `dm-inference` resolve to the same ingress (`10.80.186.131`); the ingress is up and its certificate validates without `-k` (the 12-root goes01 chain covers it), so the UI's network/certificate hypotheses are wrong; `GET https://dm-registry…/api/v1/models` returns **503** from the registry backend itself, and `dm-inference` returns 404 at root because no endpoint is deployed. This is a platform-side outage (registry pod/service unhealthy, and the empty `environment ''` suggests the CAI cluster's registry binding is off), fixable only by a goes01 platform admin. Recovery probe, no admin access needed: `curl -s -o /dev/null -w "%{http_code}\n" https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com/api/v1/models` → expect `200`/`401`, then retry the UI deploy, then Bearer the access-token at the endpoint's `…/openai/v1/chat/completions`.
+
+**Identity note for the demo.** No machine user exists on `goes01` (`GET /api/v0/auth/machine-users` → `[]`); the access key that works today is bound to `steven.matison` (its secret lives in `~/.awc.creds` or a NiFi Parameter Context, never in the repo). A demo machine identity would need its own key pair and its own Ranger policies (Kafka topic, Trino catalog).
 
 ## 4. The DGX Spark against the AWC data plane
 
@@ -92,8 +96,8 @@ Extends the ten-row catalogue in `nvidia-dgx-spark-cloudera-aws.md` §6 with the
 
 ## Blocked on platform-side action
 
-- **CAI Inference (A1, A3):** Requires manual model deployment in the CAI UI (Serving → Model Endpoints → Create Endpoint). The auth is solved (#351) — Bearer an `access-keys/token` client_credentials access-token at the model's `…/openai/v1/…` route. Once deployed, confirm the Kserve endpoint is reachable from the box (may need a Knox route / on-subnet relay).
-- **Kafka Produce/Consume (A4): RESOLVED (#351).** Not blocked. SASL_SSL/OAUTHBEARER with an OAuth2 `client_credentials` access-token (from `POST /api/v0/auth/access-keys/token`) authenticates and produce→consume works. The `hadoop-jwt` failed only for lacking an `exp` claim; PLAIN/SCRAM/GSSAPI are simply not enabled on the broker.
+- **CAI Inference (A1, A3):** the model deployment in the CAI UI (Serving → Model Endpoints → Create Endpoint) fails on an **AI Registry 503** (`dm-registry`, §3) — a goes01 platform-admin fix, tracked in [#351](https://github.com/cldr-steven-matison/DesktopShare/issues/351). The auth is solved — Bearer an `access-keys/token` client_credentials access-token at the model's `…/openai/v1/…` route. Once deployed, confirm the KServe endpoint is reachable from the box (may need a Knox route / on-subnet relay).
+- **Kafka Produce/Consume (A4): RESOLVED (#351), not blocked.** SASL_SSL/OAUTHBEARER with an OAuth2 `client_credentials` access-token (from `POST /api/v0/auth/access-keys/token`) authenticates and produce→consume works. The `hadoop-jwt` failed only for lacking an `exp` claim; PLAIN/SCRAM/GSSAPI are simply not enabled on the broker.
 
 ## Open questions
 

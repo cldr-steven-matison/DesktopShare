@@ -1,5 +1,7 @@
 # RAPIDS on the DGX Spark: cuDF, cuML and the Spark RAPIDS plugin on GB10, and the same code on Cloudera AI
 
+> **Status (2026-09-16):** field-run on `spark-dd06` and on the Cloudera AI Workbench L4 under [#346](https://github.com/cldr-steven-matison/DesktopShare/issues/346) (closed; EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356)). This runbook feeds **Chapter 22 (Cloudera AI on AWC)** — RAPIDS has no chapter of its own; the live-demo runsheet built on it (`nvidia-dgx-spark-rapids-demo.md`) is Chapter 25's fifth demo. Every measured number below is dated in place; the raw outputs and scripts are under `files/issue-346/`.
+
 This document covers GPU-accelerated data science on the NVIDIA DGX Spark and on a Cloudera AI
 Workbench GPU node, with no application code changes:
 
@@ -335,7 +337,7 @@ python -m cudf.pandas cudf_bench.py --rows 100000 --label gpu
 At 100k rows the build and string stages are too small to pay for the GPU launch, and the join
 carries the result at 6.8×. The overall 4.6× is the same overall the GB10 gives at 10M rows. The
 same script, unchanged, runs on the desk-side GB10 and on the cloud L4. The 10M-row run on the L4
-needs the 16 GB session and is the remaining measurement.
+needs a 16 GB+ session and was not run; the 100k-row result stands as the L4 measurement.
 
 ## Cloudera surfaces for the Spark job
 

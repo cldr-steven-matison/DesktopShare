@@ -1,9 +1,6 @@
 # NVIDIA DGX Spark — Capability Landscape
 
-> **Status (2026-08-28):** the box is `spark-dd06` and the **full Phase-0 model set is locked and standing up on it** — lead, capacity/stretch, and the embed / rerank / STT tier. This closes the expansion work-stream **A** ([#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232)) owed: MoE-vs-dense (§2.5), the serving-engine table (§3.5), the 128 GB co-hosting budget (§5.5), and three sourced candidates per slot with the lock (§6). Numbers tagged **[box]** are measured on `spark-dd06`; the rest carry their source and date. Where a **[box]** number and a community number disagree, the box wins and the community one is kept as a dated cross-check. The dated, confidence-tagged corpus in `nvidia-dgx-spark-research.md` §2/§4/§5 is the source of record for anything not yet measured here. "The Spark" below means the DGX Spark.
->
-> **Status (2026-08-26):** box landed as `spark-dd06`; first-package draft, expansion owed under #232.
-> **Status (2026-08-24):** Work-stream A of the readiness EPIC ([#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226)), authored before the box was in hand.
+> **Status (2026-08-28, swept 2026-09-16):** work-stream **A** of the DGX Spark series, EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356) (authored 2026-08-24 under #226, before the box was in hand; expanded on the box under #232). The box is `spark-dd06` and the **full Phase-0 model set is locked and standing up on it** — lead, capacity/stretch, and the embed / rerank / STT tier. This closes the expansion work-stream **A** ([#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232)) owed: MoE-vs-dense (§2.5), the serving-engine table (§3.5), the 128 GB co-hosting budget (§5.5), and three sourced candidates per slot with the lock (§6). Numbers tagged **[box]** are measured on `spark-dd06`; the rest carry their source and date. Where a **[box]** number and a community number disagree, the box wins and the community one is kept as a dated cross-check. The dated, confidence-tagged corpus in `nvidia-dgx-spark-research.md` §2/§4/§5 is the source of record for anything not yet measured here. "The Spark" below means the DGX Spark.
 
 ## 1. The one number that governs everything: 273 GB/s
 
@@ -59,13 +56,13 @@ The Spark has a **ConnectX-7 (200 Gb/s)** NIC. Two boxes cluster over **InfiniBa
 
 ## 5. The Cloudera bridge (equal-weight half)
 
-The Spark is a **local mirror of the production Cloudera AI Inference pattern**:
+The DGX Spark is a **local mirror of the production Cloudera AI Inference pattern**:
 
 - **NIM is integrated into Cloudera AI Inference**, delivering up to **36× faster inference on NVIDIA GPUs**, and runs **on-prem as of Cloudera Data Services 1.5.5 (Aug 2025)** ([Cloudera + NVIDIA](https://www.cloudera.com/partners/solutions/nvidia.html)).
 - The **RAPIDS Accelerator for Apache Spark** is integrated into CDP for GPU-accelerated data prep.
 - Cloudera's framing is **"bring AI compute to data"** — private AI inside the security perimeter.
 
-Because both the local Spark endpoint and Cloudera AI Inference speak the **same OpenAI/NIM API shape**, the SE story is concrete: **prototype an agent/RAG flow against the model on the desk, then repoint the base URL at Cloudera AI Inference to scale it** — same client code, same API, same NIM. That "develop local → scale to Cloudera AI" arc is the through-line of the demo plan (work-stream C).
+Because both the local DGX Spark endpoint and Cloudera AI Inference speak the **same OpenAI/NIM API shape**, the SE story is concrete: **prototype an agent/RAG flow against the model on the desk, then repoint the base URL at Cloudera AI Inference to scale it** — same client code, same API, same NIM. That "develop local → scale to Cloudera AI" arc is the through-line of the demo plan (work-stream C).
 
 ## 5.5 The 128 GB co-hosting budget
 
@@ -106,7 +103,7 @@ Locked before the first non-lead weight pull on `spark-dd06`. Each slot lists th
 
 - Every throughput/footprint claim is either **[box]**-measured on `spark-dd06` or carries a source link + date (satisfied above).
 - The three-regime table + §6 are the reference the runbook (B) and demo plan (C) size against.
-- Phase 0 closes when the demo-driver set is locked with Steven — **the full set is locked (§6)**; the box-measured stretch and STT numbers land as those endpoints finish standing up this session.
+- Phase 0 closes when the demo-driver set is locked with Steven — **the full set is locked (§6)** and the stretch and STT numbers are box-measured (§6, 2026-08-28).
 
 ## When this ships
 

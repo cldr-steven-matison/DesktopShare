@@ -2,7 +2,7 @@
 
 This is a live demo. The whole point is one idea. The same Python runs on the CPU or the GPU with no code change, and the GPU is a lot faster on the work that matters. I show it twice. First locally on the NVIDIA DGX Spark, then in a Cloudera AI (CAI) GPU session on AWC.
 
-I drive it from a coding agent (claude or opencode) and have it run the commands live. Everything below is copy-pasteable and the numbers are the ones measured on 2026-09-15/16 (full write-up in [issue #346](https://github.com/cldr-steven-matison/DesktopShare/issues/346) → [results.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-346/results.md)).
+I drive it from a coding agent (claude or opencode) and have it run the commands live. Everything below is copy-pasteable and the numbers are the ones measured on 2026-09-15/16 (full write-up in the closed [issue #346](https://github.com/cldr-steven-matison/DesktopShare/issues/346) → [results.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-346/results.md)).
 
 The "same code, CPU or GPU" story is `python` vs `python -m cudf.pandas`, nothing else. No `import cudf`, no rewrite.
 
@@ -281,9 +281,9 @@ Same 4.6× overall as the GB10 box, on completely different hardware, with the s
 
 ## Demo gotchas (both learned the hard way on #346)
 
-- **On the L4, use 100k rows, not 10M.** 10M rows plus the pip install OOM'd an 8 GB session mid-run. The full 10M run on the L4 needs a **16 GB+** session and is still owed.
+- **On the L4, use 100k rows, not 10M.** 10M rows plus the pip install OOM'd an 8 GB session mid-run. The full 10M run on the L4 needs a **16 GB+** session and was not run; say so if asked.
 - **The L4 bench must be written in the session** (`cat > /tmp/…`). Pre-pushing through the workbench API does not work on the broken v2 engine, so start the session from the web UI.
-- **The two acts run different scripts.** Act 1 is the full 5-stage box script (`cudf_bench.py`); Act 2 is the basic build/string/join `small_bench.py` recovered from the opencode session that ran it live. Don't claim the identical file ran on both.
+- **The two acts run different scripts.** Act 1 is the full 5-stage box script (`cudf_bench.py`); Act 2 is the basic build/string/join `small_bench.py` recovered from the session that ran it live. Don't claim the identical file ran on both.
 - **Chrome cert (if driving via Chrome on Linux):** import the Cloudera AWC Internal CA into the NSS store first, since Chrome ignores the system trust store.
 
   ```bash

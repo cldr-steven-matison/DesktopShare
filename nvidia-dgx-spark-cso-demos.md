@@ -1,6 +1,6 @@
 # CSO Operators / DGX Demo Designs
 
-> **Status (2026-09-08):** Rewritten on the box. This catalogue is **what has been built with EFM and NiFi on the DGX Spark itself** — four flows, every one running or field-validated on `spark-dd06`, each with a committed export. Nothing here is another device's flow with the DGX Spark swapped in; the 2026-08-24 draft was, and it is gone. The Cloudera AI / NIM-parity thread ("same code, two backends") belongs to work-stream I (`nvidia-dgx-spark-cloudera-aws.md` §5, [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241)), which Steven is re-scoping. Work-stream **C** of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234); feeds guide Ch25.
+> **Status (2026-09-08):** Rewritten on the box. This catalogue is **what has been built with EFM and NiFi on the DGX Spark itself** — four flows, every one running or field-validated on `spark-dd06`, each with a committed export. Nothing here is another device's flow with the DGX Spark swapped in; the 2026-08-24 draft was, and it is gone. The Cloudera AI / NIM-parity thread ("same code, two backends") belongs to Ch22 / Ch24 (`nvidia-dgx-spark-cloudera-awc.md` §3, §5; blocked on a `goes01` model endpoint, [#351](https://github.com/cldr-steven-matison/DesktopShare/issues/351)). Work-stream **C** of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#234](https://github.com/cldr-steven-matison/DesktopShare/issues/234); feeds guide Ch25.
 
 ## 1. What a demo is here
 
@@ -12,7 +12,7 @@ Live root canvas on `mynifi`, 2026-09-08: `SparkLlmBridge` (6 processors), `Rele
 
 **What it shows.** One MiNiFi Java agent, managed from EFM like every other agent in the fleet, is the single address the LAN uses to reach all four of the box's inference services. A caller POSTs to one port and gets a real synchronous answer; the agent proxies, it does not compute. The pattern is a consolidated single-handler router: one `HandleHttpRequest`, one dynamic `InvokeHTTP` whose URL comes from the request path, one `HandleHttpResponse`.
 
-**What runs.** EFM agent class `NvidiaSpark-1`, MiNiFi Java `2.24.08.0-19`, class flow version 5 (16 processors, 19 connections, one `StandardHttpContextMap`). Listener `:8190`, allowed paths and their upstreams:
+**What runs.** EFM agent class `NvidiaSpark-1`, MiNiFi Java `2.24.08.0-19`, class flow version 10 (2026-09-14, #334; version 5's 16 processors / 19 connections plus the `/v1/*` OpenAI-compatible aliases, one `StandardHttpContextMap`). Listener `:8190`, allowed paths and their upstreams:
 
 | Path | Upstream on the box |
 |---|---|
@@ -116,7 +116,7 @@ kubectl -n cld-streaming delete flinkdeployment flink-agents                    
 - **The Streamers PGs** (`StreamerBrain`, `StreamerResearch`, `StreamerCard`) run on the same `mynifi` but belong to the Streamers track ([#271](https://github.com/cldr-steven-matison/DesktopShare/issues/271), [#272](https://github.com/cldr-steven-matison/DesktopShare/issues/272)); the tracks share the box and nothing else.
 - **The local knowledge base ingest** is a Python walker (`files/issue-226/kb/ingest.py`), not a flow. A NiFi `ParseDocument → ChunkDocument → /embed → Qdrant` ingest is a design in `nvidia-dgx-spark-efm-agent.md` §3 row 9, not built.
 - **Flows on other devices** — the WindowsDesktop RAG app and its `StreamTovLLM` / `StreamToWhisper` flows, the Jetson class flow, the AMOLED and MicroFi bridges — are their own devices' demos. Pointing one of them at this box is a one-parameter change, and the ten such designs are listed in `nvidia-dgx-spark-efm-agent.md` §3; none of them is a DGX Spark demo until it is built and run from here.
-- **Cloudera AI Inference / NIM parity** — work-stream I, `nvidia-dgx-spark-cloudera-aws.md` §5, being re-scoped by Steven from the Mac.
+- **Cloudera AI Inference / NIM parity** — Ch22 (Cloudera AI on AWC), `nvidia-dgx-spark-cloudera-awc.md` §3 and `nvidia-dgx-spark-cloudera-aws.md` §5; blocked on a model endpoint on `goes01` ([#351](https://github.com/cldr-steven-matison/DesktopShare/issues/351)). The RAPIDS → Cloudera AI live demo (`nvidia-dgx-spark-rapids-demo.md`, #353) is the fifth demo in this catalogue and runs today against the Workbench GPU session.
 - **`flink-gpu.yaml`** is the GPU-scheduling smoke test from `nvidia-dgx-spark-k3s-cso.md` §8, not a flow.
 
 ## Definition of done

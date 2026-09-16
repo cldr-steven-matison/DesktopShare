@@ -1,14 +1,12 @@
 # Cloudera Streaming Operators on the DGX Spark — k3s, GPU, and the cutover ladder
 
-> **Status (2026-08-27):** substrate is k3s v1.32.13+k3s1 on the host (containerd, NVIDIA runtime auto-detected); the CUDA base image is confirmed arm64 on nvcr.io; lead model locked to nvidia/Qwen3.6-35B-A3B-NVFP4 on NVIDIA vLLM; kubectl/helm installed; root-level bring-up is files/issue-226/spark-bootstrap.sh under #235.
->
-> **Status (2026-08-26):** work-stream **F** of EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), issue [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238). The box landed today as `spark-dd06` (`CLAUDE-CHECKIN.md`, NvidiaSpark-1 block) and this session runs on it; [#235](https://github.com/cldr-steven-matison/DesktopShare/issues/235) — on-box bring-up — is the next execution step, and [#243](https://github.com/cldr-steven-matison/DesktopShare/issues/243) (the arm64 image check) is now an on-box `docker pull` + `docker image inspect` that belongs to §2 of this doc. **Decided:** every Cloudera image the fleet runs is arm64-native, so no upstream-image fallback is planned; WindowsDesktop stays production and moves one GPU service per rung. **Expected, not proven:** that those images *run* under k3s on GB10, every command block marked `# expected`, the memory budget in §5, and every rung's throughput. **Open:** the Phase-0 model lock (Steven's call) — nothing here names a locked model.
+> **Status (2026-08-27, swept 2026-09-16):** work-stream **F** of the DGX Spark series ([#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238), closed; EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356)), feeding Ch7–Ch11. Built on `spark-dd06`: substrate is k3s v1.32.13+k3s1 on the host (containerd, NVIDIA runtime auto-detected); the CUDA base image is confirmed arm64 on nvcr.io; the full model set is locked (landscape §6, 2026-08-28) with the lead nvidia/Qwen3.6-35B-A3B-NVFP4 on NVIDIA vLLM; kubectl/helm installed; root-level bring-up is `files/issue-226/spark-bootstrap.sh` (#235, closed). §§4, 5, 6 and 8 carry as-built blocks (operators + ingress-nginx with ssl-passthrough, the box's own Kafka and `mynifi`, the `SparkLlmBridge` gate flow, Flink claiming the GPU, flink-agents 0.3.1). The §9 cutover ladder is planning-only by decision (plan §6, 2026-08-27). `cfm-operator` ≥ 3.3.x is amd64-only (#338); the box stays on the pinned release.
 
-The Spark box is the first host in the array with enough memory to hold a serious model *and* a Cloudera streaming stack at the same time. That is the whole reason to put k3s on it rather than just `docker run` a serving container: NiFi, Kafka and Flink only exist as Kubernetes operators, and I want a flow on the box's own cluster calling a model on the box's own GPU. This doc is the plan to get there without touching WindowsDesktop's production cluster until each replacement is proven from a second machine.
+The Spark box is the first host in the array with enough memory to hold a serious model *and* a Cloudera streaming stack at the same time. That is the whole reason to put k3s on it rather than just `docker run` a serving container: NiFi, Kafka and Flink only exist as Kubernetes operators, and the goal is a flow on the box's own cluster calling a model on the box's own GPU. This doc is the plan to get there without touching WindowsDesktop's production cluster until each replacement is proven from a second machine.
 
 ## 1. What runs where
 
-Two clusters live on WindowsDesktop today: the default `minikube` profile is production, and `cso-prod-1` is the staged replacement whose pre-prod validation passed 2026-08-25 (`files/cso-prod-1/VALIDATION.md`) but whose cutover has not run (`cso-prod-1-cutover-plan.md`). The Spark box is a third, independent cluster — not a replica of either.
+Two clusters live on WindowsDesktop today: the default `minikube` profile is production, and `cso-prod-1` is the staged replacement whose pre-prod validation passed 2026-08-25 (`files/cso-prod-1/VALIDATION.md`) but whose cutover has not run (`completed/cso-prod-1-cutover-plan.md`). The Spark box is a third, independent cluster — not a replica of either.
 
 | Component | `minikube` (prod today) | `cso-prod-1` (staged) | Spark target | Migrates? | Rung |
 |---|---|---|---|---|---|
@@ -198,7 +196,7 @@ helm upgrade --install cfm-operator --namespace cfm-streaming --version 3.0.0-b1
   oci://container.repository.cloudera.com/cloudera-helm/cfm-operator/cfm-operator
 ```
 
-Schema Registry and Surveyor are optional on this box — both are scaled to 0 on prod today (`cso-prod-1-cutover-plan.md` §4). Install them only when a demo needs them, because §5's budget has no room for idle pods.
+Schema Registry and Surveyor are optional on this box — both are scaled to 0 on prod today (`completed/cso-prod-1-cutover-plan.md` §4). Install them only when a demo needs them, because §5's budget has no room for idle pods.
 
 **As built, 2026-08-27 (spark-dd06).** The whole sequence is now one idempotent script,
 `files/issue-226/spark-operators.sh` — `preflight → secrets → certmanager → issuers → ingress → csm →
@@ -582,13 +580,13 @@ The Spark box is a development and demo platform and an inference target, not a 
 - `CLAUDE-CHECKIN.md`'s NvidiaSpark-1 block gets the real k3s/kubectl/helm versions, the static IP reservation, the cluster's NodePort block, and its endpoint map; `CONTEXT.md` gets any new namespace or endpoint name.
 - The Flink GPU image finally gets a checked-in Dockerfile under `files/`, which `completed/gpu-minikube-grok-flink-image.md` and `completed/flink-minikube-gpu-working.md` never had.
 - `agent/known-patterns.tsv` gets a row for k3s-on-GB10 so the next session does not re-derive §3, and any canonical flow shape from §6 goes back into the `nifi-and-ai` skill.
-- #243 closes on the box; #238 flips to review; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) unblocks once the cluster exists, and the ch25 demo catalogue can start pulling from a working stack.
+- Done: #243 and #238 closed; [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) (the EFM agent class) ran on the cluster and closed 2026-09-10; the Ch25 demo catalogue (`nvidia-dgx-spark-cso-demos.md`) pulls from this stack.
 - Blog drafts follow `agent/writing-style.md` — the k3s-on-GB10 write-up is genuinely first-of-its-kind: a [forum search for NiFi and DGX Spark](https://forums.developer.nvidia.com/search?q=nifi%20dgx%20spark) returns nothing, and [NVIDIA's playbook library](https://raw.githubusercontent.com/NVIDIA/dgx-spark-playbooks/main/README.md) has no Kafka, NiFi or Flink playbook at all.
 
 ## Resources
 
 - Companion docs: `nvidia-dgx-spark-plan.md` (EPIC spine) · `nvidia-dgx-spark-research.md` (§3 Kubernetes on GB10, §9 CSO on aarch64, §10 Flink Agents and NiFi → local LLM) · `nvidia-dgx-spark-landscape.md` · `nvidia-dgx-spark-runbook.md` · `nvidia-dgx-spark-cso-demos.md` · `Complete Developer Guide for Nvidia Spark with Cloudera.md` · `files/nvidia-spark-guide/README.md`
-- Fleet precedent: `files/cso-prod-1/VALIDATION.md` · `files/cso-prod-1/SNAPSHOT.md` · `cso-prod-1-preprod-plan.md` · `cso-prod-1-cutover-plan.md` · `files/agent-install-operators.sh` · `files/setup-cloudera-streaming.sh` · `files/cso-prod-1/nifi-cso-prod-1.yaml` · `files/cso-prod-1/kafka-eval.yaml` · `files/cso-prod-1/kafkatopics.yaml` · `files/cso-prod-1/flows/prod/parameter-contexts.md`
+- Fleet precedent: `files/cso-prod-1/VALIDATION.md` · `files/cso-prod-1/SNAPSHOT.md` · `completed/cso-prod-1-preprod-plan.md` · `completed/cso-prod-1-cutover-plan.md` · `files/agent-install-operators.sh` · `files/setup-cloudera-streaming.sh` · `files/cso-prod-1/nifi-cso-prod-1.yaml` · `files/cso-prod-1/kafka-eval.yaml` · `files/cso-prod-1/kafkatopics.yaml` · `files/cso-prod-1/flows/prod/parameter-contexts.md`
 - GPU Flink precedent: `flink-plan.md` §7 · `completed/gpu-minikube-grok-flink-image.md` · `completed/flink-minikube-gpu-working.md` · `flink-agents-cso-plan.md`
 - NiFi and app precedent: `completed/how-to-nifi-and-ai.md` · `skills/nifi-and-ai/SKILL.md` · `cso-operator-app-plan.md` · `agent/incident-rules.md` · `CLAUDE-CHECKIN.md`
 - [k3s NVIDIA runtime docs](https://docs.k3s.io/advanced#nvidia-container-runtime-support)
