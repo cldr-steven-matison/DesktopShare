@@ -38,3 +38,7 @@
 
 ---
 sha: [e1284fa](https://github.com/cldr-steven-matison/DesktopShare/commit/e1284fa) (previous reachability work)
+
+---
+
+**Issue #349 filed** — [DS-KB: Update with AWC + Cloudera AI doc ingestion (public + private)](https://github.com/cldr-steven-matison/DesktopShare/issues/349). This is a separate task to update the DesktopShare knowledge base (Qdrant collection `desktopshare-kb`, 4197 chunks) with the full Cloudera AI / AWC doc corpus.
