@@ -40,7 +40,7 @@ before flipping to `ACTIVATED`; the CFM parcel then distributed in ~10 min (§3.
 
 Deploy and teardown are each an explicit go from Steven, with the cost stated. **Tear down or pause
 in the same session** unless told to keep it. Exits are in §6. The 09-16 cluster was kept running at
-the end of the session on Steven's call; its teardown and three zeros are [#357](https://github.com/cldr-steven-matison/DesktopShare/issues/357), and the clean end-to-end re-run of this runbook from an empty account is [#358](https://github.com/cldr-steven-matison/DesktopShare/issues/358).
+the end of the session on Steven's call; teardown ran on 2026-09-17 via [#357](https://github.com/cldr-steven-matison/DesktopShare/issues/357) and the three zeros confirmed. The clean end-to-end re-run of this runbook from an empty account is [#358](https://github.com/cldr-steven-matison/DesktopShare/issues/358).
 
 **Size the nodes before the next run (§2a).** The stock `t3a.xlarge` workers (16 GB, no swap) carry
 19 GB of default JVM heap once NiFi is grafted in; three of four wedged within two hours of the full
