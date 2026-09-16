@@ -1,0 +1,33 @@
+# Project config for Grok Build when cwd is the DesktopShare checkout (BrainShare on NvidiaSpark-1).
+# A project .grok/config.toml may only contribute [mcp_servers], [plugins] and [permission]
+# (Grok settings reference); hooks, models and [ui] are user config (~/.grok/config.toml).
+#
+# Hooks: Grok imports .claude/settings.json (Claude compat, project trusted), so the same
+# .claude/hooks/guard.sh runs here — its payload is normalized (toolName/run_terminal_command)
+# and its decision comes back as the top-level {"decision":"deny"} Grok reads (#344).
+#
+# Permission mirror of guard.sh's ASK rules (1 and 17). With the user-level
+# permission_mode = "always-approve" these ask rules are auto-approved and only the hook's
+# deny holds; they become live the moment that mode is "auto" or "ask". They are asks, not
+# denies, on purpose: a deny would also block a run Steven approved on the phone.
+# Canon: agent/incident-rules.md §"Three harnesses, one guard".
+
+[mcp_servers.ds-kb]
+command = "uv"
+args = ["run", "--with", "mcp<2", "--python", "3.12", "/home/tunas/BrainShare/files/issue-226/kb/kb_mcp.py"]
+env = { KB_TEI_URL = "http://127.0.0.1:8080", KB_QDRANT_URL = "http://127.0.0.1:6333", KB_COLLECTION = "desktopshare-kb" }
+enabled = true
+
+[permission]
+ask = [
+  "Bash(*teardown.sh*)",
+  "Bash(*redeploy.sh*)",
+  "Bash(*terraform apply*)",
+  "Bash(*terraform destroy*)",
+  "Bash(*cdp * delete-*)",
+  "Bash(*cloudformation delete-stack*)",
+  "Bash(*infrastructure-teardown.yml*)",
+  "Bash(*deploy.sh*)",
+  "Bash(*rollout restart*)",
+  "Bash(*kubectl*delete*pod*)",
+]
