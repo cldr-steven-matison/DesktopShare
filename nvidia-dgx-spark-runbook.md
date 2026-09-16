@@ -48,6 +48,8 @@ The box sits on the array's LAN at `192.168.1.203` and on the Tailscale tailnet 
 
 **The static IP reservation is still owed.** It lives on the router at `192.168.1.254`, not on the box; bootstrap step 9 prints both MACs for it. Which one to reserve was decided 2026-09-10: `wlP9s9`, `f8:3d:c6:f1:12:5a`, because that is where `.203` lives today and k3s advertises its API on it. Until the reservation is made, DHCP has kept `.203` stable but nothing guarantees it.
 
+**k3s's node IP is pinned, and the pin belongs to one Wi-Fi profile.** `/etc/rancher/k3s/config.yaml` carries `node-ip:`, with `tls-san` entries for both `.144` and `.203`. The pin is deliberate. With the corp VPN up, auto-detection would take `tun0`'s address, since that is the default-route interface. The cost is that the two saved profiles give the box different addresses (`STARLINK` puts it at `.144`, `ATTyjuHfEi 1` at `.203`), and on the profile the pin does not match, k3s exits on every start with `failed to find interface with specified node ip` and every API-dependent pod flaps with it. That was the 2026-09-16 outage behind #352, some 270 restarts before anyone read the log line. Check `grep node-ip /etc/rancher/k3s/config.yaml` against the live address; re-pin and `systemctl restart k3s`. The VPN adds a second, separate trap. `gpclient` installs `default dev tun0` with no route for the service CIDR, so `10.43.0.0/16` would go into the tunnel; `k3s-vpn-route.timer` (`files/issue-352/`) re-asserts `10.43.0.0/16 via <LAN gw> dev wlP9p1s0` every 30 s. As-built: `files/issue-352/as-built-2026-09-16.md`.
+
 Tailscale joined via bootstrap step 5 (`tailscale up --hostname nvidiaspark-1 --accept-routes`, the auth URL printed to `/var/log/tailscale-up.log`). The first join landed on the wrong account by picking `tunastreet@outlook.com` at the browser step; `tailscale logout` and a second `tailscale up` put it on the array's `steven.matison@gmail.com` tailnet. Peers: WindowsDesktop `100.68.113.126`, StarlinkAI `100.110.253.66`. The `:8000` endpoint is bound to loopback and the LAN address only, not the tailnet address; a tailnet-only flow would need that bind added on purpose (§6).
 
 ## 3. Containers and the first endpoint
@@ -176,7 +178,7 @@ journalctl -k | grep -iE 'nvme.*(timeout|reset)|blocked for more'   # empty on a
 
 ## Still owed
 
-- Static IP reservation for `192.168.1.203` on the router (§2). The MAC to reserve is `wlP9s9`'s, `f8:3d:c6:f1:12:5a`, decided 2026-09-10 — the Wi-Fi NIC, since that is where `.203` lives today and k3s advertises its API there.
+- Static IP reservation for `192.168.1.203` on the router (§2). The MAC to reserve is `wlP9s9`'s, `f8:3d:c6:f1:12:5a`, decided 2026-09-10 — the Wi-Fi NIC, since that is where `.203` lives today and k3s advertises its API there. A reservation keeps `.203` from drifting on the AT&T network; it does not cover a switch to the `STARLINK` profile, where k3s's pinned `node-ip` has to be moved by hand (§2, #352).
 - Plug in the 10 GbE port and move the reservation to it (§2). A deliberate cutover, not a cable swap: k3s advertises on the current address.
 
 ## Resources

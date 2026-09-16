@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-assert the k3s service-CIDR route every 30 s (survives VPN reconnect and wifi flaps) (#352)
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
