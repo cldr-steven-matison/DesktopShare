@@ -48,23 +48,113 @@ ds_device_labels() {
   esac
 }
 
+# ---------------------------------------------------------------------------
+# Three harnesses, one guard (#344). Claude Code, Grok Build and opencode all run the
+# same guard.sh on this box; what differs is the payload SHAPE they hand it, the env
+# they set, and the decision shape they read back. These helpers are the adapter
+# layer: normalize the payload in, resolve the project dir without relying on
+# CLAUDE_PROJECT_DIR, and name the harness so guard.sh can pick the output shape.
+# Canon: agent/incident-rules.md §"Three harnesses, one guard".
+# ---------------------------------------------------------------------------
+
+# Echo which harness is running this hook: grok | opencode | claude.
+#   grok     — GROK_HOOK_EVENT is set only inside a real Grok hook dispatch (a stale
+#              GROK_SESSION_ID leaking from a parent shell must NOT flip a Claude session).
+#   opencode — the .opencode/plugins/ds-guard.js plugin exports DS_HARNESS=opencode.
+#   claude   — everything else (Claude Code sets CLAUDE_PROJECT_DIR and nothing Grok-shaped).
+ds_harness() {
+  if [ -n "${GROK_HOOK_EVENT:-}" ]; then
+    echo grok
+  elif [ "${DS_HARNESS:-}" = "opencode" ]; then
+    echo opencode
+  else
+    echo claude
+  fi
+}
+
+# Echo the DesktopShare checkout this hook runs for. Claude Code sets CLAUDE_PROJECT_DIR;
+# Grok sets GROK_WORKSPACE_ROOT and (per its docs) not CLAUDE_PROJECT_DIR; the opencode
+# plugin sets CLAUDE_PROJECT_DIR itself. Last resort: the git toplevel of the cwd, then ".".
+# guard.sh fails CLOSED under grok/opencode when the result has no agent/known-patterns.tsv.
+ds_project_dir() {
+  local d
+  for d in "${CLAUDE_PROJECT_DIR:-}" "${GROK_WORKSPACE_ROOT:-}"; do
+    if [ -n "$d" ] && [ -d "$d/.claude/hooks" ]; then printf '%s' "$d"; return 0; fi
+  done
+  d="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$d" ] && [ -d "$d/.claude/hooks" ]; then printf '%s' "$d"; return 0; fi
+  printf '%s' "${CLAUDE_PROJECT_DIR:-.}"
+}
+
+# stdin: the raw hook payload from ANY of the three harnesses. stdout: the same payload in
+# Claude Code's shape, so every `.tool_name` / `.tool_input.*` read downstream works
+# unchanged. Grok sends toolName/toolInput (camelCase, plus snake_case copies) with ITS
+# tool names (run_terminal_command, search_replace, spawn_subagent…); opencode's plugin
+# sends bash/edit/write/task/skill with filePath-style args. A Claude payload passes
+# through unchanged. Emits nothing when stdin is not JSON (caller falls back to the raw
+# text). Every field that exists in the input is kept; only the normalized copies are added.
+ds_normalize_payload() {
+  jq -c '
+    def nm: {run_terminal_command:"Bash", bash:"Bash",
+             search_replace:"Edit", edit:"Edit",
+             write_file:"Write", write:"Write",
+             read_file:"Read", read:"Read",
+             grep:"Grep",
+             spawn_subagent:"Agent", task:"Agent",
+             skill:"Skill"};
+    . as $p
+    | (($p.tool_name // $p.toolName // "") | tostring) as $t
+    | (nm[$t] // $t) as $T
+    | (($p.tool_input // $p.toolInput // {}) | if type == "object" then . else {} end) as $i
+    | $p + {
+        tool_name: $T,
+        tool_input: ($i
+          + (if (($i.file_path // "") == "") and (($i.filePath // "") != "") then {file_path: $i.filePath} else {} end)
+          + (if $T == "Skill" and (($i.skill // "") == "") and (($i.name // "") != "") then {skill: $i.name} else {} end)),
+        cwd: ($p.cwd // env.GROK_WORKSPACE_ROOT // ""),
+        agent_id: ($p.agent_id // $p.agentId // "")
+      }' 2>/dev/null
+}
+
 # Echo the path to the claim-pending marker file (under the project's .claude dir).
 ds_claim_marker() {
-  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.claim-pending"
+  echo "$(ds_project_dir)/.claude/.claim-pending"
 }
 
 # Echo the path to the nifi-and-ai-skill-loaded marker file (under the project's
 # .claude dir). Written by guard.sh itself on a Skill(nifi-and-ai) call, cleared by
 # checkin.sh at session start.
 ds_nifi_skill_marker() {
-  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.nifi-skill-loaded"
+  echo "$(ds_project_dir)/.claude/.nifi-skill-loaded"
 }
 
 # Echo the path to the known-patterns-noticed marker (guard.sh rule 11): one
 # agent/known-patterns.tsv key per line, so each "the repo already holds this"
 # notice fires once per session. checkin.sh clears it at session start.
 ds_patterns_marker() {
-  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.patterns-noticed"
+  echo "$(ds_project_dir)/.claude/.patterns-noticed"
+}
+
+# Echo the path to the pending-asks registry (guard.sh phone bridge, #344): one row per
+# bridged ask that got no answer inside the poll window — `<key>\t<asktime>\t<label>`.
+# A re-run of the same command consumes a phone reply stamped after that asktime, which
+# is how a harness whose hook cannot wait (Grok's 5 s default timeout) still gets a yes.
+ds_pending_asks_file() {
+  echo "$(ds_project_dir)/.claude/.pending-asks"
+}
+
+# Clear every per-SESSION marker. checkin.sh (Claude/Grok SessionStart) calls this; the
+# opencode plugin calls it on session.created because opencode has no SessionStart hook,
+# so before #344 nothing ever cleared them there and a stale .nifi-skill-loaded would have
+# silenced rule 8 for every later opencode session.
+ds_clear_session_markers() {
+  local p; p="$(ds_project_dir)"
+  rm -f "$(ds_claim_marker)" \
+        "$(ds_nifi_skill_marker)" "$(ds_nifi_skill_marker).read-noticed" \
+        "$(ds_patterns_marker)" \
+        "$(ds_session_issue_marker)" "$(ds_last_tool_file)" \
+        "$(ds_pending_asks_file)" \
+        "$p/.claude/.finish-nagged" 2>/dev/null || true
 }
 
 # Echo EVERY issue number in a command string that follows `gh issue <verb>`,
@@ -100,7 +190,7 @@ ds_unattended() {
 # (auto-claim, the finish-ritual check, the close flip) — no extra lookups.
 # checkin.sh clears it at session start.
 ds_session_issue_marker() {
-  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.session-issues"
+  echo "$(ds_project_dir)/.claude/.session-issues"
 }
 
 # Path to the last-command file: a redacted one-line summary of the most recent
@@ -108,7 +198,7 @@ ds_session_issue_marker() {
 # permission prompt is parked on — including prompts guard itself never raised
 # (an allowlist miss, which is most of them).
 ds_last_tool_file() {
-  echo "${CLAUDE_PROJECT_DIR:-.}/.claude/.last-tool"
+  echo "$(ds_project_dir)/.claude/.last-tool"
 }
 
 # Record $1 as an issue this session is working. Idempotent, fails silently.

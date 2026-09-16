@@ -23,7 +23,14 @@ command -v jq >/dev/null 2>&1 || exit 0
 [ "${DS_COMPRESS_ADVISE:-1}" != "0" ] || exit 0
 [ "$(hostname -s 2>/dev/null)" = "spark-dd06" ] || exit 0
 
-payload="$(cat)"
+# Normalize the payload to Claude's shape first (#344): Grok sends toolName/toolInput with
+# its own tool names, opencode's plugin sends bash. lib missing => raw payload.
+_proj="${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}"
+# shellcheck disable=SC1091
+. "$_proj/.claude/hooks/lib-device.sh" 2>/dev/null || true
+raw="$(cat)"; payload=""
+command -v ds_normalize_payload >/dev/null 2>&1 && payload="$(printf '%s' "$raw" | ds_normalize_payload)"
+[ -n "$payload" ] || payload="$raw"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // ""' 2>/dev/null)" || exit 0
 [ "$tool" = "Bash" ] || exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // ""' 2>/dev/null)"
@@ -31,7 +38,8 @@ printf '%s' "$cmd" | grep -Eq -- '(^|[;&(]|sudo |[A-Z_][A-Z0-9_]*=[^ ]* )[[:spac
 # a command that already pipes into compress.py is the uptake we want — never nag it
 printf '%s' "$cmd" | grep -q 'compress\.py' && exit 0
 
-proj="${CLAUDE_PROJECT_DIR:-.}"
+proj="$_proj"
+command -v ds_project_dir >/dev/null 2>&1 && proj="$(ds_project_dir)"
 sid="$(printf '%s' "$payload" | jq -r '.session_id // ""' 2>/dev/null)"
 tool_py="$proj/files/issue-226/kb/compress.py"
 [ -f "$tool_py" ] || exit 0

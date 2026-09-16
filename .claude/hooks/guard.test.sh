@@ -75,7 +75,9 @@ case "$args" in
   *)                                            exit 0 ;;
 esac
 EOF
-chmod +x "$FIX/stubbin/hostname" "$FIX/stubbin/gh"
+# curl: the phone-bridge ack must never reach api.telegram.org from a test.
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FIX/stubbin/curl"
+chmod +x "$FIX/stubbin/hostname" "$FIX/stubbin/gh" "$FIX/stubbin/curl"
 
 # Commit everything now that the stubs exist, so the fixture tree is CLEAN for rule 7.
 git -C "$FIX" -c user.email=t@t -c user.name=t add -A 2>/dev/null || true
@@ -94,13 +96,23 @@ run_guard() {
         "$FIX/.claude/.nifi-skill-loaded.read-noticed" "$FIX/.claude/.last-tool" \
         "$FIX/.claude/.memory-proposals" "$FIX/.claude/.finish-nagged" 2>/dev/null
   [ -n "${SEED_PROPOSALS:-}" ] && printf '%b' "$SEED_PROPOSALS" > "$FIX/.claude/.memory-proposals"
-  printf '%s' "$1" | env -i \
-    PATH="$FIX/stubbin:/usr/bin:/bin" \
-    HOME="$FIX" \
-    CLAUDE_PROJECT_DIR="$FIX" \
-    GH_LABELS="${GH_LABELS:-}" GH_EDIT_RC="${GH_EDIT_RC:-0}" DS_TEST_HOST="${DS_TEST_HOST:-}" \
-    DS_VALIDATOR=0 \
-    bash "$FIX/.claude/hooks/guard.sh" 2>/dev/null
+  # Harness simulation (#344). Default = Claude Code (CLAUDE_PROJECT_DIR set). DS_TEST_GROK=1
+  # = a Grok compat dispatch: GROK_HOOK_EVENT + GROK_WORKSPACE_ROOT set, CLAUDE_PROJECT_DIR
+  # UNSET (Grok does not set it); DS_TEST_GROK_ROOT overrides the workspace root (fail-closed
+  # case). DS_TEST_OC=1 = the opencode plugin: CLAUDE_PROJECT_DIR + DS_HARNESS=opencode.
+  # The bridge is OFF (DS_BRIDGE=0) unless a case turns it on against the stub curl.
+  local -a e=(PATH="$FIX/stubbin:/usr/bin:/bin" HOME="$FIX"
+              GH_LABELS="${GH_LABELS:-}" GH_EDIT_RC="${GH_EDIT_RC:-0}" DS_TEST_HOST="${DS_TEST_HOST:-}"
+              DS_VALIDATOR=0 DS_BRIDGE="${DS_BRIDGE:-0}" DS_BRIDGE_POLL_S="${DS_BRIDGE_POLL_S:-1}")
+  if [ "${DS_TEST_GROK:-}" = "1" ]; then
+    e+=(GROK_HOOK_EVENT=PreToolUse GROK_SESSION_ID=g1 GROK_WORKSPACE_ROOT="${DS_TEST_GROK_ROOT:-$FIX}")
+  else
+    e+=(CLAUDE_PROJECT_DIR="$FIX")
+    [ "${DS_TEST_OC:-}" = "1" ] && e+=(DS_HARNESS=opencode)
+  fi
+  # cwd = the fixture (Grok/opencode run hooks from the workspace root); DS_TEST_CWD overrides
+  # (the fail-closed case runs from a dir that is not a git checkout at all).
+  ( cd "${DS_TEST_CWD:-$FIX}" && printf '%s' "$1" | env -i "${e[@]}" bash "$FIX/.claude/hooks/guard.sh" 2>/dev/null )
 }
 
 # payload helpers. p_bash 3rd arg = agent_id (present => the call is from a sub-agent).
@@ -109,6 +121,19 @@ p_bash()  { jq -nc --arg c "$1" --argjson bg "${2:-false}" --arg aid "${3:-}" \
    + (if $aid=="" then {} else {agent_id:$aid,agent_type:"Explore"} end)'; }
 p_agent() { jq -nc --arg m "$1" --arg t "${2:-general-purpose}" '{tool_name:"Agent",tool_input:({subagent_type:$t}+(if $m=="" then {} else {model:$m} end))}'; }
 p_write() { jq -nc --arg p "$1" '{tool_name:"Write",cwd:env.CLAUDE_PROJECT_DIR,tool_input:{file_path:$p,content:"x"}}'; }
+# Grok-shaped (#344): camelCase AND snake_case copies, Grok's own tool names, no run_in_background.
+p_grok()  { jq -nc --arg c "$1" --arg t "${2:-run_terminal_command}" --arg d "$FIX" \
+  '{hookEventName:"PreToolUse",hook_event_name:"PreToolUse",sessionId:"g1",session_id:"g1",
+    toolName:$t,tool_name:$t,toolInput:{command:$c,description:"probe"},tool_input:{command:$c,description:"probe"},
+    cwd:$d,workspaceRoot:$d}'; }
+p_grok_edit() { jq -nc --arg p "$1" --arg d "$FIX" \
+  '{hookEventName:"PreToolUse",sessionId:"g1",toolName:"search_replace",toolInput:{filePath:$p,oldString:"a",newString:"b"},cwd:$d}'; }
+p_grok_agent() { jq -nc --arg d "$FIX" '{hookEventName:"PreToolUse",toolName:"spawn_subagent",toolInput:{prompt:"list files",agent:"explore"},cwd:$d}'; }
+# opencode-shaped (#344): what .opencode/plugins/ds-guard.js sends — opencode tool names, raw args.
+p_oc()    { jq -nc --arg c "$1" --arg t "${2:-bash}" --arg d "$FIX" \
+  '{hook_event_name:"PreToolUse",session_id:"oc1",cwd:$d,tool_name:$t,tool_input:{command:$c,description:"probe"}}'; }
+p_oc_task()  { jq -nc --arg d "$FIX" '{hook_event_name:"PreToolUse",session_id:"oc1",cwd:$d,tool_name:"task",tool_input:{description:"x",prompt:"list files",subagent_type:"explore"}}'; }
+p_oc_skill() { jq -nc --arg n "$1" --arg d "$FIX" '{hook_event_name:"PreToolUse",session_id:"oc1",cwd:$d,tool_name:"skill",tool_input:{name:$n}}'; }
 
 # assert_decision <name> <expected: deny|ask|allow|pass> <substr> <payload>
 #   pass = no output (guard fell through / allowed silently, no injection)
@@ -269,6 +294,68 @@ GH_LABELS="device:WindowsDesktop,status:in-progress" \
   assert_decision "14 nothing resolves -> pass"           pass ""                 "$(p_bash "gh issue comment 5 --body-file $FIX/body-none.md")"
 GH_LABELS="device:WindowsDesktop,status:in-progress" \
   assert_decision "14 inline --body bare -> deny"         deny "known-patterns.tsv" "$(p_bash 'gh issue edit 5 --body "read known-patterns.tsv first"')"
+
+# ---- #344 — rule 17 + three harnesses (2026-09-16) ------------------------------
+echo "[17] rule 17 — live-infra teardown/redeploy/destroy asks (#344)"
+INCIDENT='cd ~/Documents/GitHub/iceberg-rest-catalog-demo && echo "srm-iceberg-cdp-env" | bash teardown.sh | tee /tmp/opencode/teardown.log'
+LAUNCH='tmux new-session -d -s monday-redeploy "cd ~/Documents/GitHub/iceberg-rest-catalog-demo && bash monday-redeploy.sh 2>&1 | tee -a ~/Documents/GitHub/iceberg-rest-catalog-demo/monday-redeploy-$(date +%F-%H%M).log"'
+assert_decision "17 bash teardown.sh -> ask"                     ask  "guard rule 17" "$(p_bash 'bash teardown.sh')"
+assert_decision "17 the 2026-09-15 incident command -> ask"      ask  "guard rule 17" "$(p_bash "$INCIDENT")"
+assert_decision "17 sanctioned tmux launch -> ask, rule 17 not 1" ask  "guard rule 17" "$(p_bash "$LAUNCH")"
+assert_decision "17 path-qualified teardown -> ask"              ask  "guard rule 17" "$(p_bash 'bash ~/Documents/GitHub/iceberg-rest-catalog-demo/teardown.sh')"
+assert_decision "17 ./redeploy.sh -> ask"                        ask  "guard rule 17" "$(p_bash 'cd ~/x && ./redeploy.sh')"
+assert_decision "17 uppercase TEARDOWN.SH -> ask"                ask  "guard rule 17" "$(p_bash 'sh scripts/TEARDOWN.SH')"
+assert_decision "17 terraform apply -> ask"                      ask  "guard rule 17" "$(p_bash 'terraform apply -auto-approve')"
+assert_decision "17 cd && terraform destroy -> ask"              ask  "guard rule 17" "$(p_bash 'cd ~/cdp-tf-quickstarts/aws && terraform destroy -auto-approve')"
+assert_decision "17 cdp delete-environment -> ask"               ask  "guard rule 17" "$(p_bash 'cdp environments delete-environment --cascading --forced --environment-name srm-iceberg-cdp-env')"
+assert_decision "17 cdp dw delete-cluster -> ask"                ask  "guard rule 17" "$(p_bash 'cdp dw delete-cluster --cluster-id env-x')"
+assert_decision "17 CE infrastructure-teardown.yml -> ask"       ask  "guard rule 17" "$(p_bash 'ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml -m stdout')"
+assert_decision "17 terraform plan -> pass"                      pass ""              "$(p_bash 'terraform plan')"
+assert_decision "17 preflight.sh -> allow + runbook pointer"     allow "ALREADY holds" "$(p_bash 'bash preflight.sh')"
+assert_decision "17 pause.yml -> pass"                           pass ""              "$(p_bash 'ansible-navigator run playbooks/pause.yml -e @config.yml -m stdout')"
+assert_decision "17 tmux capture-pane -t monday-redeploy -> allow" allow "ALREADY holds" "$(p_bash 'tmux capture-pane -t monday-redeploy -p | tail -20')"
+assert_decision "17 git commit naming teardown.sh -> rule 2 only" allow "Commit/push guard" "$(p_bash 'git commit -m "runbook: teardown.sh notes (#344)"')"
+assert_decision "17 git log --grep=teardown.sh -> not rule 17 (pointer only)" allow "ALREADY holds" "$(p_bash 'git log --grep=teardown.sh')"
+assert_decision "17 echo mentioning teardown.sh -> allow + pointer" allow "ALREADY holds" "$(p_bash 'echo teardown.sh is documented in the runbook')"
+
+echo "[H] three harnesses — Grok/opencode payloads reach the same rules; unanswered ask = deny (#344)"
+DS_TEST_GROK=1 assert_decision "H grok teardown -> deny (no phone answer)"       deny "NEEDS STEVEN'S YES" "$(p_grok 'bash teardown.sh')"
+out="$(DS_TEST_GROK=1 run_guard "$(p_grok 'bash teardown.sh')")"
+if [ "$(printf '%s' "$out" | jq -r '.decision // ""')" = "deny" ]; then ok "H grok deny carries top-level decision=deny (the only shape Grok reads)"; else bad "H grok top-level decision" "$out"; fi
+DS_TEST_GROK=1 assert_decision "H grok kubectl delete pod -> deny (rule 1 path)"  deny "NEEDS STEVEN'S YES" "$(p_grok 'kubectl delete pod mynifi-0')"
+DS_TEST_GROK=1 assert_decision "H grok ls -> pass"                                pass ""                   "$(p_grok 'ls -la')"
+DS_TEST_GROK=1 assert_decision "H grok spawn_subagent, no model -> pass (rule 9 Claude-only)" pass "" "$(p_grok_agent)"
+DS_TEST_GROK=1 assert_decision "H grok search_replace under ~/Downloads -> deny (rule 16 via normalizer)" deny "files/issue-<n>/" "$(p_grok_edit "$FIX/Downloads/302/shot.png")"
+out="$(DS_TEST_GROK=1 run_guard "$(p_grok 'bash preflight.sh')")"
+if [ "$(printf '%s' "$out" | jq -r '.decision // ""')" = "allow" ] && printf '%s' "$out" | grep -q "ALREADY holds"; then ok "H grok ctx carries top-level decision=allow + context"; else bad "H grok allow shape" "$out"; fi
+DS_TEST_GROK=1 DS_TEST_GROK_ROOT="$FIX/nowhere" DS_TEST_CWD=/ assert_decision "H grok bad workspace root, cwd not a checkout -> deny (fails closed)" deny "fails closed" "$(p_grok 'ls')"
+DS_TEST_GROK=1 DS_TEST_GROK_ROOT="$FIX/nowhere" assert_decision "H grok bad workspace root, cwd IS the checkout -> resolves via git, ls passes" pass "" "$(p_grok 'ls')"
+DS_TEST_OC=1 assert_decision "H opencode bash teardown -> deny (no phone answer)"  deny "NEEDS STEVEN'S YES" "$(p_oc 'bash teardown.sh')"
+DS_TEST_OC=1 assert_decision "H opencode bash ls -> pass"                          pass ""                   "$(p_oc 'ls')"
+DS_TEST_OC=1 assert_decision "H opencode task, no model -> pass (rule 9 Claude-only)" pass ""               "$(p_oc_task)"
+DS_TEST_OC=1 assert_decision "H opencode foreground sleep loop -> deny, harness wording" deny "single-shot check" "$(p_oc 'while true; do sleep 5; done')"
+DS_TEST_OC=1 run_guard "$(p_oc_skill nifi-and-ai)" >/dev/null
+if [ -f "$FIX/.claude/.nifi-skill-loaded" ]; then ok "H opencode skill nifi-and-ai -> marker written"; else bad "H opencode skill marker" "missing"; fi
+assert_decision "H claude teardown, no phone -> stays an ASK (desk prompt)"       ask  "guard rule 17"       "$(p_bash 'bash teardown.sh')"
+
+echo "[H] pending-ask registry — a re-run consumes the phone reply stamped after the ask (#344)"
+printf 'TOKEN=x\nCHAT_ID=y\n' > "$FIX/.env"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$FIX/files/agent-ask.sh"
+: > "$FIX/.claude/telegram-inbox.log"
+rm -f "$FIX/.claude/.pending-asks"
+DS_TEST_GROK=1 DS_BRIDGE=1 assert_decision "P grok teardown, bridge on, no reply -> deny"  deny "NEEDS STEVEN'S YES" "$(p_grok 'bash teardown.sh')"
+if grep -q "guard rule 17" "$FIX/.claude/.pending-asks" 2>/dev/null; then ok "P pending row recorded"; else bad "P pending row recorded" "$(cat "$FIX/.claude/.pending-asks" 2>/dev/null)"; fi
+printf '%s yes go ahead\n' "$(( $(date +%s) + 1 ))" >> "$FIX/.claude/telegram-inbox.log"
+DS_TEST_GROK=1 DS_BRIDGE=1 assert_decision "P re-run after a phone yes -> allow (consumed)" allow "Approved from the phone" "$(p_grok 'bash teardown.sh')"
+if [ ! -s "$FIX/.claude/.pending-asks" ] || ! grep -q "guard rule 17" "$FIX/.claude/.pending-asks"; then ok "P consumed row removed"; else bad "P consumed row removed" "$(cat "$FIX/.claude/.pending-asks")"; fi
+: > "$FIX/.claude/telegram-inbox.log"; rm -f "$FIX/.claude/.pending-asks"
+DS_TEST_GROK=1 DS_BRIDGE=1 run_guard "$(p_grok 'bash teardown.sh')" >/dev/null
+printf '%s no leave it\n' "$(( $(date +%s) + 1 ))" >> "$FIX/.claude/telegram-inbox.log"
+DS_TEST_GROK=1 DS_BRIDGE=1 assert_decision "P re-run after a phone no -> deny (do not retry)" deny "Denied from the phone" "$(p_grok 'bash teardown.sh')"
+: > "$FIX/.claude/telegram-inbox.log"; rm -f "$FIX/.claude/.pending-asks"
+DS_BRIDGE=1 run_guard "$(p_bash 'bash teardown.sh')" >/dev/null
+if [ -s "$FIX/.claude/.pending-asks" ]; then bad "P claude never writes a pending row" "$(cat "$FIX/.claude/.pending-asks")"; else ok "P claude never writes a pending row (desk prompt instead)"; fi
+rm -f "$FIX/.env" "$FIX/files/agent-ask.sh" "$FIX/.claude/.pending-asks"
 
 # ---- finish-check.sh (Stop hook) ---------------------------------------------
 echo "[Stop] finish-check.sh — the positive finish-ritual guard (#247 B1)"

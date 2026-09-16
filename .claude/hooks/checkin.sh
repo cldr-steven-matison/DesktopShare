@@ -21,52 +21,34 @@
 # never block the session from starting. The hostname->label map is kept in
 # lockstep with CLAUDE-CHECKIN.md and agent/device-comms.md's responsibility map.
 
-proj="${CLAUDE_PROJECT_DIR:-.}"
+# Grok's compat import does not set CLAUDE_PROJECT_DIR (it sets GROK_WORKSPACE_ROOT), so
+# resolve the checkout from either before anything else (#344).
+proj="${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}"
 cd "$proj" 2>/dev/null || exit 0
 
 # Shared hostname->label map and marker path (also used by guard.sh).
 . "$proj/.claude/hooks/lib-device.sh" 2>/dev/null || true
+command -v ds_project_dir >/dev/null 2>&1 && proj="$(ds_project_dir)"
 
-# Clear any stale claim-pending marker from a prior session, so a leftover line
-# can't make this session's first edit prompt spuriously (see guard.sh Trigger B).
-if command -v ds_claim_marker >/dev/null 2>&1; then
-  rm -f "$(ds_claim_marker)" 2>/dev/null || true
+# Clear every per-SESSION marker from a prior session (ds_clear_session_markers,
+# lib-device.sh): the claim-pending marker (guard.sh Trigger B), the nifi-and-ai-skill
+# marker + its read-noticed companion (rule 8/8b — a skill load from a prior session must
+# not let this one skip loading it before its own first live NiFi/EFM write, 2026-08-11
+# #136/#142; 2026-08-21 #199), the known-patterns marker (rule 11, #247), the session-comms
+# markers the Telegram pings quote (#192), the pending phone asks (#344) and the
+# finish-ritual nag (#247 B1). One function so the opencode plugin (which has no
+# SessionStart) clears exactly the same set on session.created (#344).
+if command -v ds_clear_session_markers >/dev/null 2>&1; then
+  ds_clear_session_markers
+else
+  rm -f "$proj/.claude/.claim-pending" "$proj/.claude/.nifi-skill-loaded" \
+        "$proj/.claude/.nifi-skill-loaded.read-noticed" "$proj/.claude/.patterns-noticed" \
+        "$proj/.claude/.session-issues" "$proj/.claude/.last-tool" "$proj/.claude/.pending-asks" \
+        "$proj/.claude/.finish-nagged" 2>/dev/null || true
 fi
 
-# Same for the nifi-and-ai-skill-loaded marker (guard.sh rule 8) — a skill load
-# from a prior session must not let this session skip loading it again before its
-# own first live NiFi/EFM write (2026-08-11, issue #136/#142: skipped the skill
-# entirely on a live central-NiFi edit off the momentum of an earlier, unrelated
-# NiFi task in the same session — this marker exists so THAT session boundary is
-# also enforced, not just cross-session).
-if command -v ds_nifi_skill_marker >/dev/null 2>&1; then
-  rm -f "$(ds_nifi_skill_marker)" 2>/dev/null || true
-  # ...and the companion "already nudged about a pre-skill read" marker (rule 8b,
-  # 2026-08-21 #199) — it is once-per-SESSION, so it has to reset here too.
-  rm -f "$(ds_nifi_skill_marker).read-noticed" 2>/dev/null || true
-fi
-
-# Same for the known-patterns-noticed marker (guard.sh rule 11, #247): the
-# "repo already holds this" notice is once per SESSION, so it resets here.
-if command -v ds_patterns_marker >/dev/null 2>&1; then
-  rm -f "$(ds_patterns_marker)" 2>/dev/null || true
-fi
-
-# Same for the session-comms context markers (issue #192): the issue(s) this
-# session is working and the last command guard.sh saw. Both are what the
-# Telegram pings quote, so a leftover from a prior session would make a ping name
-# the wrong issue or the wrong command — worse than saying nothing.
-if command -v ds_session_issue_marker >/dev/null 2>&1; then
-  rm -f "$(ds_session_issue_marker)" 2>/dev/null || true
-fi
-if command -v ds_last_tool_file >/dev/null 2>&1; then
-  rm -f "$(ds_last_tool_file)" 2>/dev/null || true
-fi
-
-# Same for the finish-ritual nag marker (finish-check.sh Stop hook, #247 B1): once per
-# issue per SESSION, so it resets here. And age out settled memory-proposal rows
-# (guard.sh rule M, #310): WRITTEN/DENIED rows older than 7 days are history, not state.
-rm -f "$proj/.claude/.finish-nagged" 2>/dev/null || true
+# Age out settled memory-proposal rows (guard.sh rule M, #310): WRITTEN/DENIED rows older
+# than 7 days are history, not state.
 if [ -f "$proj/.claude/.memory-proposals" ]; then
   cutoff="$(date -d '7 days ago' +%F 2>/dev/null || date -v-7d +%F 2>/dev/null || echo 0000-00-00)"
   awk -F'\t' -v c="$cutoff" '!($4=="WRITTEN" || $4=="DENIED") || $5 >= c' "$proj/.claude/.memory-proposals" \

@@ -43,3 +43,8 @@ __pycache__/
 # one arduino-cli compile. The 318 KB app0 images and everything else are tracked.
 /files/petru-now-playing-hack/petru_backup_ORIGINAL_2026-09-06.bin
 /files/petru-now-playing-hack/**/*.merged.bin
+# #344 three-harness guard: per-session trace toggle + trace, pending phone asks, opencode plugin canary.
+/.claude/.guard-trace-on
+/.claude/.guard-trace
+/.claude/.pending-asks
+/.claude/.ds-guard-loaded

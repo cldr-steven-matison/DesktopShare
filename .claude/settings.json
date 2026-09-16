@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkin.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/checkin.sh\"",
             "timeout": 60,
             "statusMessage": "Session check-in: git pull + device issue inbox"
           }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/finish-check.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/finish-check.sh\"",
             "timeout": 30,
             "statusMessage": "Finish-ritual check: pushed commit vs issue comment/status"
           }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/subagent-context.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/subagent-context.sh\"",
             "timeout": 10,
             "statusMessage": "Injecting agent/subagent-rules.md into the sub-agent"
           }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/guard.sh\"",
             "timeout": 300,
             "statusMessage": "Checking deploy/commit/claim guard"
           }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/kb-retrieve.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/kb-retrieve.sh\"",
             "timeout": 10,
             "statusMessage": "Local KB: retrieving passages for this grep (spark-dd06 only, advisory)"
           }
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/compress-advise.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/compress-advise.sh\"",
             "timeout": 5,
             "statusMessage": "Local compress: offering box-side log triage for a bare log dump (spark-dd06 only, advisory)"
           }
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/claim-on-prompt.sh\"",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}/.claude/hooks/claim-on-prompt.sh\"",
             "timeout": 20,
             "statusMessage": "Claim-on-prompt: flip the issue Steven directed this session at to status:in-progress"
           }

@@ -74,6 +74,24 @@
 #      is the 20 s littlefs path (2026-08-27 #262/#263, the ask proposed on #247 that day).
 #  16. [DENY, Edit/Write] A write under $HOME/{Downloads,Desktop,Documents,Pictures,Videos}
 #      — issue artifacts go in files/issue-<n>/, scratch in the scratchpad (2026-09-08 #302).
+#  17. [ASK] Live-infrastructure teardown/redeploy/destroy — teardown.sh, monday-redeploy.sh,
+#      redeploy.sh, terraform apply|destroy, cdp … delete-*, cloudformation delete-stack, the
+#      CE infrastructure-teardown.yml. CloudFormation-managed, ~$45/day, ~3 h rebuild; a
+#      half-run leaves terraform state broken. 2026-09-15 (#344): an opencode session, told
+#      "start 333", piped the script's own confirmation prompt into teardown.sh and then ran
+#      monday-redeploy.sh, with no rule matching on ANY harness and the known-patterns row
+#      allowing it with a runbook pointer. Sits BEFORE rule 1 so the reason is this one.
+#      preflight.sh, terraform plan, pause/resume.yml never match.
+#
+# Three harnesses, one guard (#344): Claude Code, Grok Build and opencode all run this file.
+# lib-device.sh normalizes the payload (Grok's toolName/run_terminal_command, opencode's
+# bash/filePath) into Claude's shape before the parse; `harness` (ds_harness) picks the
+# decision shape on the way out — Grok reads ONLY a top-level {"decision":"deny","reason"}
+# and has no "ask", so an ask the phone bridge did not answer becomes a DENY under Grok and
+# opencode whose reason says how to approve (answer the phone, re-run: the re-run consumes
+# the stamped yes via .claude/.pending-asks). Rule 9 is Claude-only (opencode's task tool has
+# no model field). Under grok/opencode the guard fails CLOSED when the project dir does not
+# resolve. Canon: agent/incident-rules.md §"Three harnesses, one guard".
 #   M. [DENY -> ASK, Edit/Write] The memory gate (#310). No proposal on file for the target
 #      path -> deny with "run files/memory-propose.sh first". PENDING proposal -> a bridged
 #      ASK to Steven carrying the fact + the triggering-event issue; yes = this one write, no = DENIED
@@ -97,10 +115,47 @@
 
 command -v jq >/dev/null 2>&1 || exit 0
 
-# The full PreToolUse payload arrives once on stdin; read it, then pull fields.
-payload="$(cat)"
+# Source the shared lib FIRST (#344): it holds the payload normalizer and the harness /
+# project-dir resolution the parse below depends on. Claude Code sets CLAUDE_PROJECT_DIR;
+# Grok's compat import sets GROK_WORKSPACE_ROOT instead; the opencode plugin sets
+# CLAUDE_PROJECT_DIR itself. Missing lib => raw parse, Claude shape, claude harness.
+# Harness detection must NOT depend on the lib loading: a Grok dispatch whose workspace
+# root does not resolve would otherwise read as Claude and fail open (found by the #344
+# harness tests). Same logic as ds_harness, inline.
+harness="claude"
+[ -n "${GROK_HOOK_EVENT:-}" ] && harness="grok"
+[ "${DS_HARNESS:-}" = "opencode" ] && harness="opencode"
+proj="${CLAUDE_PROJECT_DIR:-${GROK_WORKSPACE_ROOT:-.}}"
+libok=""
+if [ -f "$proj/.claude/hooks/lib-device.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$proj/.claude/hooks/lib-device.sh" 2>/dev/null && libok=1
+else
+  # Neither env var pointed at a checkout: try the git toplevel of the hook's cwd.
+  _g="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$_g" ] && [ -f "$_g/.claude/hooks/lib-device.sh" ]; then
+    proj="$_g"
+    # shellcheck disable=SC1091
+    . "$proj/.claude/hooks/lib-device.sh" 2>/dev/null && libok=1
+  fi
+fi
+command -v ds_project_dir >/dev/null 2>&1 && proj="$(ds_project_dir)"
+
+# The full PreToolUse payload arrives once on stdin; normalize it to Claude's shape
+# (ds_normalize_payload — Grok/opencode field and tool names), then pull fields.
+raw="$(cat)"
+payload=""
+command -v ds_normalize_payload >/dev/null 2>&1 && payload="$(printf '%s' "$raw" | ds_normalize_payload)"
+[ -n "$payload" ] || payload="$raw"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // ""' 2>/dev/null)" || exit 0
 cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // ""' 2>/dev/null)"
+# Trace (off by default): `touch .claude/.guard-trace-on` and every call logs one line —
+# the way the live Grok/opencode dispatch is proven (#344 gates G1/G2), never guessed.
+if [ -f "$proj/.claude/.guard-trace-on" ]; then
+  printf '%s harness=%s tool=%s CPD=%s GWR=%s keys=%s cmd=%.100s\n' "$(date +%T)" "$harness" "$tool" \
+    "${CLAUDE_PROJECT_DIR:+set}" "${GROK_WORKSPACE_ROOT:+set}" \
+    "$(printf '%s' "$raw" | jq -c 'keys' 2>/dev/null)" "$cmd" >> "$proj/.claude/.guard-trace" 2>/dev/null || true
+fi
 # The session's working directory at call time — sessions cd into sub-repos
 # (waveshare-devices, EdgeFlowManager) in EARLIER Bash calls, so git checks that
 # only ever look at $proj miss the repo the ritual is actually happening in.
@@ -112,9 +167,6 @@ hookcwd="$(printf '%s' "$payload" | jq -r '.cwd // ""' 2>/dev/null)"
 # claims on a view from anyone (claiming moved to claim-on-prompt.sh, 2026-09-08 #247).
 agentid="$(printf '%s' "$payload" | jq -r '.agent_id // ""' 2>/dev/null)"
 
-proj="${CLAUDE_PROJECT_DIR:-.}"
-# shellcheck disable=SC1091
-. "$proj/.claude/hooks/lib-device.sh" 2>/dev/null || true
 marker=""
 command -v ds_claim_marker >/dev/null 2>&1 && marker="$(ds_claim_marker)"
 
@@ -131,6 +183,15 @@ command -v ds_claim_marker >/dev/null 2>&1 && marker="$(ds_claim_marker)"
 
 emit_json_ask() {
   # $1 = reason string. Shown in the permission prompt; blocks pending a decision.
+  # Reached ONLY when the phone bridge produced no usable answer. Claude Code can park
+  # the call on a desk prompt; Grok and opencode cannot prompt from a hook (Grok reads
+  # only allow/deny, opencode blocks only on a throw), so there the unanswered ask is a
+  # DENY that says how to get the yes (#344). Fail closed, never fail open.
+  case "$harness" in
+    grok|opencode)
+      emit_deny "NEEDS STEVEN'S YES — guard ask with no answer yet (this harness cannot prompt from a hook, so the ask went to his phone through the #192 bridge). $1 — Do NOT work around this and do NOT retry blindly. Say in one line what you want to run and why, then wait for him: once he replies yes on the phone, re-run this exact command and the guard lets it through (the yes is bound to this command via .claude/.pending-asks, 30 min). If he says no, drop it. If the bridge is down, he runs it himself at a terminal."
+      ;;
+  esac
   jq -nc --arg r "$1" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0
@@ -140,8 +201,15 @@ emit_deny() {
   # $1 = reason. Blocks the call and returns the reason to the model (both as the
   # decision reason and as additionalContext, so it lands regardless of how the
   # client surfaces a denial). The model acts on it and retries in the same turn.
-  jq -nc --arg r "$1" \
-    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r,additionalContext:$r}}'
+  # Grok's hook runner reads ONLY a top-level decision/reason (never
+  # hookSpecificOutput.permissionDecision), so it gets that shape (#344).
+  if [ "$harness" = "grok" ]; then
+    jq -nc --arg r "$1" \
+      '{decision:"deny",reason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r,additionalContext:$r}}'
+  else
+    jq -nc --arg r "$1" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r,additionalContext:$r}}'
+  fi
   exit 0
 }
 
@@ -157,11 +225,25 @@ emit_ctx() {
   # $1 = message. Allow the call (no prompt) but inject the message into the model's
   # context via additionalContext — the one field guaranteed to reach the model
   # regardless of permission mode or allow-list (unlike an "ask" reason). Used by
-  # auto-claim so the model learns the label was flipped for it.
-  jq -nc --arg r "$1" \
-    '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r,additionalContext:$r}}'
+  # auto-claim so the model learns the label was flipped for it. Grok gets the
+  # top-level decision it reads plus the same context field (#344).
+  if [ "$harness" = "grok" ]; then
+    jq -nc --arg r "$1" \
+      '{decision:"allow",additionalContext:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r,additionalContext:$r}}'
+  else
+    jq -nc --arg r "$1" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r,additionalContext:$r}}'
+  fi
   exit 0
 }
+
+# Fail CLOSED under a non-Claude harness when the checkout did not resolve (#344). Under
+# Grok, CLAUDE_PROJECT_DIR is not set and a wrong $proj would silently turn every marker
+# rule (1, 8, M) and the phone bridge itself into allow/ctx. Claude Code always sets the
+# variable, so there the old fail-open stays (a broken hook must not lock the desk out).
+if [ "$harness" != "claude" ] && { [ -z "$libok" ] || [ ! -f "$proj/agent/known-patterns.tsv" ]; }; then
+  emit_deny "BLOCKED (guard misconfigured, fails closed on $harness): the project dir resolved to '$proj' and its .claude/hooks/lib-device.sh or agent/known-patterns.tsv is not there, so the guard cannot check this call. Set CLAUDE_PROJECT_DIR (opencode plugin) or run Grok from the DesktopShare checkout so GROK_WORKSPACE_ROOT points at it; then retry. agent/incident-rules.md 'Three harnesses, one guard' (#344)."
+fi
 
 # ---- Permission bridge (issue #192) ----------------------------------------
 # Send the ask to the phone (files/agent-ask.sh -> ~/.claude/telegram-inbox.log),
@@ -173,6 +255,11 @@ emit_ctx() {
 # NEVER auto-allows: send failed, timed out, or an unclear answer -> desk prompt.
 ds_bridge_decide() {
   local reason="$1" label="$2" inbox base cur line ans ask q n cmdline asktime ep body why
+  local askkey reg prev pasktime now poll step waited
+  # DS_BRIDGE=0 turns the bridge off for the harness probes and tests (#344): a probe must
+  # never leave a real "Approve?" on Steven's phone (device-comms.md "Automated tests
+  # never send a real ask").
+  [ "${DS_BRIDGE:-1}" != "0" ] || return 0
   [ -f "$HOME/.env" ] || return 0
   grep -Eq '^ *(export +)?TOKEN=' "$HOME/.env" 2>/dev/null || return 0
   grep -Eq '^ *(export +)?CHAT_ID=' "$HOME/.env" 2>/dev/null || return 0
@@ -180,6 +267,46 @@ ds_bridge_decide() {
   [ -f "$ask" ] || return 0
 
   inbox="$HOME/.claude/telegram-inbox.log"
+
+  # Async approval (#344). Grok's hook timeout (5 s default) and opencode cannot wait out a
+  # 180 s poll, so an unanswered ask is recorded in .claude/.pending-asks keyed on the
+  # command, and a RE-RUN of the same command consumes the first clear yes/no stamped at or
+  # after that ask (30 min window). Claude Code keeps the synchronous poll + desk prompt
+  # and never writes a row, so a later phone yes to something else cannot pre-approve a
+  # re-run there ("ask fresh every time").
+  askkey="$(printf '%s|%s|%s' "$tool" "$cmd" "${fpath:-}" | md5sum 2>/dev/null | cut -c1-12)"
+  reg=""; command -v ds_pending_asks_file >/dev/null 2>&1 && reg="$(ds_pending_asks_file)"
+  prev=""
+  [ -n "$reg" ] && [ -f "$reg" ] && prev="$(awk -F'\t' -v k="$askkey" '$1==k {r=$0} END{print r}' "$reg" 2>/dev/null)"
+  if [ -n "$prev" ]; then
+    pasktime="$(printf '%s' "$prev" | cut -f2)"; now="$(date +%s)"
+    if [ -n "$pasktime" ] && [ $((now - pasktime)) -le 1800 ]; then
+      line="$(awk -v t="$pasktime" '$1 ~ /^[0-9]+$/ && $1+0 >= t {print; exit}' "$inbox" 2>/dev/null)"
+      if [ -n "$line" ]; then
+        body="$(printf '%s' "$line" | sed 's/^[0-9]* *//')"
+        ans="$(printf '%s' "$body" | awk '{print $1}' | tr '[:upper:]' '[:lower:]' | tr -d '.,!')"
+        case "$ans" in
+          yes|y|ok|okay|approve|approved|proceed|go)
+            grep -v "^$askkey	" "$reg" > "$reg.tmp" 2>/dev/null; mv "$reg.tmp" "$reg" 2>/dev/null || rm -f "$reg.tmp"
+            ds_bridge_ack "✅ approved (re-run consumed the earlier yes) — running it"
+            emit_ctx "Approved from the phone through the #192 permission bridge (reply: \"$ans\", to the ask recorded at $pasktime). Steven answered this himself, so it satisfies 'ask fresh every time'. It covers ONLY this one command. Guard's reason was: $reason"
+            ;;
+          no|n|deny|denied|stop|cancel|abort)
+            grep -v "^$askkey	" "$reg" > "$reg.tmp" 2>/dev/null; mv "$reg.tmp" "$reg" 2>/dev/null || rm -f "$reg.tmp"
+            ds_bridge_ack "🚫 denied (re-run consumed the earlier no) — not running it"
+            emit_deny "Denied from the phone through the #192 permission bridge (reply: \"$ans\"). Do NOT retry this command. Say what you would do instead and move on to work that doesn't depend on it. Guard's reason was: $reason"
+            ;;
+        esac
+      fi
+      # Still pending and no clear answer: do not re-send (no phone spam); a short poll below
+      # gives a reply landing right now a chance, then the harness-aware no-answer path runs.
+      asktime="$pasktime"
+    else
+      grep -v "^$askkey	" "$reg" > "$reg.tmp" 2>/dev/null; mv "$reg.tmp" "$reg" 2>/dev/null || rm -f "$reg.tmp"
+      prev=""
+    fi
+  fi
+
   # Snapshot BEFORE the send: a phone-in-hand reply can land in the gap, and a
   # baseline taken afterwards already contains it, so the count never grows and
   # the poll waits out the whole window (agent-to-agent.md "Reply bridge").
@@ -199,14 +326,22 @@ Approve?"
 
   # Stamp the ask time BEFORE sending: every inbox line carries its append epoch
   # (agent-reply.sh), and only lines stamped at/after this instant may answer
-  # THIS question.
-  asktime="$(date +%s)"
-  ( set -a; . "$HOME/.env" 2>/dev/null; set +a; bash "$ask" "$q" ) >/dev/null 2>&1 || return 0
+  # THIS question. A still-pending row skips the send and keeps its own asktime.
+  if [ -z "$prev" ]; then
+    asktime="$(date +%s)"
+    ( set -a; . "$HOME/.env" 2>/dev/null; set +a; bash "$ask" "$q" ) >/dev/null 2>&1 || return 0
+  fi
 
-  n=0; line=""
-  while [ "$n" -lt 36 ]; do
-    sleep 5
-    n=$((n + 1))
+  # Poll window. Claude Code: 180 s under a 300 s hook timeout. Grok's compat import may
+  # cap the hook at its 5 s default (gate G1 measures it), so it polls 3 s and relies on the
+  # pending-asks re-run; DS_BRIDGE_POLL_S overrides either.
+  poll="${DS_BRIDGE_POLL_S:-}"
+  if [ -z "$poll" ]; then case "$harness" in grok) poll=3 ;; *) poll=180 ;; esac; fi
+  step=5; [ "$poll" -le 15 ] && step=1
+  waited=0; line=""
+  while [ "$waited" -lt "$poll" ]; do
+    sleep "$step"
+    waited=$((waited + step))
     cur="$(wc -l < "$inbox" 2>/dev/null || echo "$base")"
     # Consume new lines oldest-first, SKIPPING any stamped before the ask went
     # out. OpenClaw queues replies while its model endpoint is down and flushes
@@ -224,7 +359,20 @@ Approve?"
     done
     [ -n "$line" ] && break
   done
-  [ -n "$line" ] || { ds_bridge_ack "⌨️ no reply in 3 min — falling back to the prompt at the desk"; return 0; }
+  if [ -z "$line" ]; then
+    if [ "$harness" = "claude" ]; then
+      ds_bridge_ack "⌨️ no reply in 3 min — falling back to the prompt at the desk"
+    else
+      # Record the pending ask so the re-run can consume the reply (see above); the
+      # no-answer path in emit_json_ask then DENIES with the how-to-approve text.
+      if [ -n "$reg" ] && [ -z "$prev" ]; then
+        mkdir -p "$(dirname "$reg")" 2>/dev/null || true
+        printf '%s\t%s\t%s\n' "$askkey" "$asktime" "$label" >> "$reg" 2>/dev/null || true
+        ds_bridge_ack "⏸ no reply yet — the $harness call is DENIED for now; reply yes/no and the session re-runs it"
+      fi
+    fi
+    return 0
+  fi
 
   body="$(printf '%s' "$line" | sed 's/^[0-9]* *//')"
   # The first WORD decides — "yes go ahead" is a yes, "no leave it" is a no. The
@@ -380,6 +528,10 @@ case "$tool" in
     # a file-listing agent bills like a design session. Retrieval/listing/mechanical
     # edits/waiting on a process: haiku. Moderate reasoning: sonnet. opus/fable only
     # for genuine hard reasoning, with the reason stated in the prompt.
+    # Claude Code ONLY (#344): opencode's task tool and Grok's spawn_subagent carry no
+    # model field, so this deny would be unsatisfiable there — an infinite loop, not a
+    # rule. Their sub-agents run the box's own local model anyway.
+    [ "$harness" = "claude" ] || exit 0
     amodel="$(printf '%s' "$payload" | jq -r '.tool_input.model // ""' 2>/dev/null)"
     atype="$(printf '%s' "$payload" | jq -r '.tool_input.subagent_type // ""' 2>/dev/null)"
     if [ "$atype" = "fork" ]; then
@@ -418,7 +570,13 @@ if [ "$bg" != "true" ]; then
     waitloop="a single sleep of 30s or more"
   fi
   if [ -n "$waitloop" ]; then
-    emit_deny "BLOCKED: $waitloop in a FOREGROUND Bash call. That parks this session on the top model waiting on a pod/build/rollout — Steven interrupted this twice on 2026-08-25 (#244/#247: 'why are you burning my tokens'). Do one of: (a) re-run this exact command with run_in_background:true — you are re-invoked when it exits, nothing to poll; (b) hand the wait to a haiku Agent whose prompt says never to end its turn while the process it is watching is still running, then verify its claim yourself (pgrep / kubectl get) before reporting; (c) make a single-shot check with no sleep and move on to work that does not depend on it. Do not retry the loop in the foreground."
+    if [ "$harness" = "claude" ]; then
+      emit_deny "BLOCKED: $waitloop in a FOREGROUND Bash call. That parks this session on the top model waiting on a pod/build/rollout — Steven interrupted this twice on 2026-08-25 (#244/#247: 'why are you burning my tokens'). Do one of: (a) re-run this exact command with run_in_background:true — you are re-invoked when it exits, nothing to poll; (b) hand the wait to a haiku Agent whose prompt says never to end its turn while the process it is watching is still running, then verify its claim yourself (pgrep / kubectl get) before reporting; (c) make a single-shot check with no sleep and move on to work that does not depend on it. Do not retry the loop in the foreground."
+    else
+      # Same hazard, no run_in_background flag on this harness (#344): the fix is a
+      # single-shot check, or a wait Steven owns in his own terminal/tmux.
+      emit_deny "BLOCKED: $waitloop in a tool call. A model-driven polling loop burns the session waiting on a pod/build/rollout (agent/workflow.md 'Model, effort & context hygiene', #244/#247). Do one of: (a) make a single-shot check with no sleep (kubectl get / tmux capture-pane / tail -n) and move on to work that does not depend on it; (b) if something must be watched for minutes, say so — Steven runs the wait in his own tmux (the redeploy runbook already does this). Do not retry the loop."
+    fi
   fi
 fi
 
@@ -536,6 +694,25 @@ fi
 if printf '%s' "$cmd" | grep -Eq 'agent-deployer|generateCommand' \
    && printf '%s' "$cmd" | grep -Eiq 'agentIdentifier'; then
   emit_deny "BLOCKED: this EFM agent-deployer / generateCommand call carries an agentIdentifier. Enrollment must let EFM mint a fresh identifier — reusing a retired agent's identifier (or hand-building the command) is exactly what broke the KubernetesPod class migration on 2026-08-06 (#127): the C2 UPDATE failed twice. Re-run WITHOUT agentIdentifier (POST /efm/api/agent-deployer/generateCommand omitting it, or take the command from EFM's Deploy Agent CLI screen) — skills/nifi-and-ai/references/minifi-efm.md §4, agent/incident-rules.md 'EFM agent deployment'. This is an instruction to you, not a decision for Steven; the retry is yours."
+fi
+
+# 17. [ASK] Live-infrastructure teardown / redeploy / destroy (#344). The srm-iceberg /
+# CDP / AWS / CE-cluster class: CloudFormation-managed, ~$45/day, ~3 h to rebuild, and a
+# half-run leaves terraform state broken. 2026-09-15: an opencode session told "start 333"
+# read the #344 rule, decided the issue body ("starting state: account empty") was the
+# yes, ran `echo "srm-iceberg-cdp-env" | bash teardown.sh` (piping the script's OWN
+# confirmation prompt) and then `bash monday-redeploy.sh` — no rule matched on any
+# harness, and the srm-iceberg-redeploy known-patterns row ALLOWED it with a runbook
+# pointer. An ASK, not a deny: the #333 monday-redeploy.sh workflow stays runnable on a
+# yes (sanctioned launch = the runbook's tmux line). Sits before rule 1 so the reason is
+# this one (monday-redeploy.sh also contains 'deploy.sh'). Case-insensitive; the script
+# has to be in COMMAND position (start / after ; & | ( / after bash|sh|source), path-
+# qualified or not, so `git commit -m "… teardown.sh …"`, `--grep=teardown.sh`, the tmux
+# `-s monday-redeploy` session name and `tmux capture-pane -t monday-redeploy` never trip
+# it. preflight.sh, terraform plan, pause.yml/resume.yml never match. Under grok/opencode
+# an unanswered ask is a deny (emit_json_ask); a phone yes lets the re-run through.
+if printf '%s' "$cmd" | grep -Eiq -- '(bash|sh|source)[[:space:]]+([^[:space:]]*/)?(teardown|monday-redeploy|redeploy)\.sh\b|(^|[;&|(][[:space:]]*)([^[:space:]]*/)?(teardown|monday-redeploy|redeploy)\.sh\b|(^|[;&|(][[:space:]]*|[[:space:]])terraform[[:space:]]+(apply|destroy)\b|(^|[;&|(][[:space:]]*|[[:space:]])cdp[[:space:]]+[a-z-]+[[:space:]]+delete-(environment|datalake|cluster|dbc|vw|instance)\b|cloudformation[[:space:]]+delete-stack\b|ansible-navigator[[:space:]]+run[[:space:]]+[^;&|]*(infrastructure-)?teardown\.yml'; then
+  emit_ask "Live-infrastructure teardown/redeploy/destroy detected (guard rule 17; agent/incident-rules.md 'Unauthorized infra mutation'). This is the srm-iceberg / CDP / AWS / CE-cluster class: CloudFormation-managed, about \$45/day, about 3 h to rebuild, and a half-run leaves terraform state broken. 2026-09-15 (#344): an opencode session piped the script's own confirmation prompt into teardown.sh and then ran monday-redeploy.sh, unasked, because an issue body described the empty starting state — that is NOT a yes. Only Steven's yes to THIS command, in this turn or on the phone, allows it. The sanctioned launch is the runbook's tmux line (cloudera-iceberg-rest-catalog-aws-plan-redeploy.md 'Automated redeploy'); preflight.sh and terraform plan never trip this rule. This approval covers ONLY this one command." "guard rule 17 — live-infra teardown/redeploy (~\$45/day, ~3 h rebuild)"
 fi
 
 # 1. Live-service redeploy / restart hazards (break in-flight NiFi InvokeHTTP).
