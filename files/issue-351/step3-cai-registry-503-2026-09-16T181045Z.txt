@@ -1,0 +1,19 @@
+# Step 3 — CAI model-endpoint deploy blocked by AI Registry 503 (probed from FTF3XR2065, 2026-09-16T181045Z)
+## Client-side reproduction of the UI errors (VPN full tunnel, utun4)
+
+DNS (both hosts -> same ingress IP):
+  dm-registry.goes01-cai-cluster.demos.cloudera-labs.com -> 10.80.186.131
+  dm-inference.goes01-cai-cluster.demos.cloudera-labs.com -> 10.80.186.131
+
+Registry API probes (curl -k, TLS verified separately as ssl_verify=0):
+  https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com/ -> 404
+  https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com/api/v1/models -> 503
+  https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com/v2/ -> 404
+  https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com/health -> 404
+  https://dm-registry.goes01-cai-cluster.demos.cloudera-labs.com/models -> 404
+
+Registry root TLS-verified (no -k):
+  http_code=404 ssl_verify_result=0 connect=0.147773s total=0.584148s
+
+Inference host dm-inference:
+  http_code=404 connect=0.148373s total=0.585877s
