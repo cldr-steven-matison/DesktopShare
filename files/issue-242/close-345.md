@@ -1,0 +1,7 @@
+**Closing with the #242 evaluation ([eval-2026-09-16.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-242/eval-2026-09-16.md)); commits [4c1fc78](https://github.com/cldr-steven-matison/DesktopShare/commit/4c1fc78), [a8f4b61](https://github.com/cldr-steven-matison/DesktopShare/commit/a8f4b61).**
+
+Confirmed: [cloudera-ce-aws-runbook.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/cloudera-ce-aws-runbook.md) is the clean, tested record of the Ozone-base-plus-NiFi CE deploy from the box — the Ozone SCM ring root cause (`hdds.grpc.tls.enabled` via AutoTLS, marked `final`), the three deploy-shape defects, the worker sizing and every transcript under [files/issue-345/](https://github.com/cldr-steven-matison/DesktopShare/tree/main/files/issue-345) are cited from it (phrase-grep proven in the evaluation). §0 now names the two follow-ups instead of "still owed".
+
+**The destroy task you asked for is #357** — the cluster is still running (read-only check at 19:40 UTC: 11 EC2 instances tagged `deployment=srm-cloudera-ce-base`, ~$2/h since 02:32 UTC). It is an explicit-go teardown with the three-zero proof; nothing was touched this session. The clean end-to-end re-run of the runbook from an empty account is #358 and carries the owed items (sizing in `hosts_base.tf` up front, Deploy Client Configuration).
+
+Artifacts: `ozone-nifi-cluster.yml`, its diff, the two EE patches, `ansible-navigator.yml` and the example config are inventoried for #359 with `cloudera-ce-aws` (the fork) as the proposed home.

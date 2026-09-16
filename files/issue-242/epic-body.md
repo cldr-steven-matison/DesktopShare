@@ -42,4 +42,15 @@ Decisions carried in, unanswered until someone answers them: the H5 knowledge-ba
 
 ## Children
 
-*(appended as they are filed)*
+Phase 2, on `NvidiaSpark-1`:
+- #355 — in-NiFi Iceberg REST Catalog read (`GetIceberg` / `QueryIceberg` from the box's CFM NiFi), in progress
+- #357 — tear down the `srm-cloudera-ce-base` CE cluster, three-zero proof (explicit go; ~$2/h while it waits)
+- #358 — Ch18 clean end-to-end redeploy of CE Base from the box, after #357 (explicit go; ~3 h 40 min, ~$2/h)
+- #359 — permanent homes for issue-attached scripts and exports, from [artifact-inventory.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-242/artifact-inventory.md)
+
+Phase 2, on the Mac (blocked on the platform side):
+- #351 — Cloudera AI Inference on AWC: auth solved, the UI model deploy fails on a goes01 AI Registry 503
+- #284 — Trino catalog add on AWC (GOES-team admin action)
+- #180 — CFM operator NiFi against CDP Ranger
+
+Phase 1 closed 2026-09-16 with the #242 evaluation ([eval-2026-09-16.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-242/eval-2026-09-16.md); commits [7ecf3ff](https://github.com/cldr-steven-matison/DesktopShare/commit/7ecf3ff), [4c1fc78](https://github.com/cldr-steven-matison/DesktopShare/commit/4c1fc78), [a8f4b61](https://github.com/cldr-steven-matison/DesktopShare/commit/a8f4b61), [5db3961](https://github.com/cldr-steven-matison/DesktopShare/commit/5db3961)); #242, #341, #342, #343, #345, #346 closed with it. Phase 3 (authoring) and phase 4 (public repo) get their issues when phase 2 closes.
