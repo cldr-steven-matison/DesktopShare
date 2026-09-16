@@ -1,0 +1,46 @@
+srm-cloudera-ce-base-base-master-01.cldr.internal
+-- scm log: cert/domain lines
+    260 Caused by: java.security.cert.CertificateException: No name matching srm-cloudera-ce-base-base-master-01.cldr.internal found for SNIHostName=srm-cloudera-ce-base-base-master-01.cldr.internal and peerHost=srm-cloudera-ce-base-base-master-01.cldr.internal in the chain of 2 certificate(s): 1. s
+    260 Caused by: java.security.cert.CertificateException: No name matching srm-cloudera-ce-base-base-master-01.cldr.internal found
+    260 	at org.apache.ratis.thirdparty.io.netty.handler.ssl.EnhancingX509ExtendedTrustManager.throwEnhancedCertificateException(EnhancingX509ExtendedTrustManager.java:162)
+      1 INFO [main]-org.apache.hadoop.hdds.security.x509.certificate.utils.SelfSignedCertificate: Certificate 1 is issued by SERIALNUMBER=1, O=CID-2752f85f-73df-4f1a-9c0c-5cdd00239b90, OU=1f66e59e-9b93-484a-930b-7065a307b31f, CN=scm@srm-cloudera-ce-base-base-master-01.cldr.internal to SERIALNUMBER=1
+      1 INFO [main]-org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient: Successfully stored SCM signed certificate.
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.utils.SelfSignedCertificate: Invalid domain srm-cloudera-ce-base-base-master-01.cldr.internal
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateSignRequest: Invalid domain srm-cloudera-ce-base-base-master-01.cldr.internal
+      1 	at org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient.getPrimarySCMSelfSignedCert(SCMCertificateClient.java:346)
+      1 	at org.apache.hadoop.hdds.security.x509.certificate.authority.DefaultCAServer.verifySelfSignedCA(DefaultCAServer.java:326)
+-- scm log: last ERROR/WARN
+     10 ERROR [grpc-default-executor-1]-org.apache.ratis.client.impl.OrderedAsync:  client-E81E9D04A07F: Failed* RaftClientRequest:client-E81E9D04A07F->1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90, cid=13, seq=1*, Watch(0), null
+      8 ERROR [timer5]-org.apache.ratis.client.impl.OrderedAsync:  (Repeated 10 times in the last 5.001s) client-E81E9D04A07F: Failed* RaftClientRequest:client-E81E9D04A07F->1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90, cid=13, seq=1*, Watch(0), null
+      7 ERROR [timer5]-org.apache.ratis.client.impl.OrderedAsync:  (Repeated 10 times in the last 5.001s) client-B4092251498B: Failed* RaftClientRequest:client-B4092251498B->1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90, cid=1, seq=1*, Watch(0), null
+      7 ERROR [timer5]-org.apache.ratis.client.impl.OrderedAsync:  (Repeated 10 times in the last 5.001s) client-A2490568E765: Failed* RaftClientRequest:client-A2490568E765->1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90, cid=19, seq=1*, Watch(0), null
+      7 ERROR [timer5]-org.apache.ratis.client.impl.OrderedAsync:  (Repeated 10 times in the last 5.000s) client-7F223622F585: Failed* RaftClientRequest:client-7F223622F585->1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90, cid=17, seq=1*, Watch(0), null
+      7 ERROR [grpc-default-executor-4]-org.apache.ratis.client.impl.OrderedAsync:  client-7F223622F585: Failed* RaftClientRequest:client-7F223622F585->1f66e59e-9b93-484a-930b-7065a307b31f@group-5CDD00239B90, cid=17, seq=1*, Watch(0), null
+-- scm cert SAN
+/var/lib/hadoop-ozone/scm/ozone-metadata/scm/sub-ca/certs/CA-1.crt
+subject=CN=scm@srm-cloudera-ce-base-base-master-01.cldr.internal, OU=1f66e59e-9b93-484a-930b-7065a307b31f, O=CID-2752f85f-73df-4f1a-9c0c-5cdd00239b90, serialNumber=1
+X509v3 Subject Alternative Name: 
+    IP Address:10.10.1.146
+/var/lib/hadoop-ozone/scm/ozone-metadata/scm/sub-ca/certs/2.crt
+subject=CN=scm-sub@srm-cloudera-ce-base-base-master-01.cldr.internal, OU=1f66e59e-9b93-484a-930b-7065a307b31f, O=CID-2752f85f-73df-4f1a-9c0c-5cdd00239b90, serialNumber=2
+X509v3 Subject Alternative Name: 
+    IP Address:10.10.1.146
+/var/lib/hadoop-ozone/scm/ozone-metadata/scm/sub-ca/certs/certificate.crt
+subject=CN=scm-sub@srm-cloudera-ce-base-base-master-01.cldr.internal, OU=1f66e59e-9b93-484a-930b-7065a307b31f, O=CID-2752f85f-73df-4f1a-9c0c-5cdd00239b90, serialNumber=2
+X509v3 Subject Alternative Name: 
+    IP Address:10.10.1.146
+jar: 
+-- validator jar
+/opt/cloudera/parcels/CDH/lib/hadoop-ozone/share/ozone/lib/commons-validator-1.10.1.jar
+-- ozone version
+-- hdds tls props in scm conf
+jars: /opt/cloudera/parcels/CDH/lib/hadoop-ozone/share/ozone/lib/hdds-common-2.2.0.7.3.2.10000-317.jar
+-- scm conf
+sudo: unzip: command not found
+/var/run/cloudera-scm-agent/process/1546338558-ozone-STORAGE_CONTAINER_MANAGER/ozone-conf/ozone-site.xml
+hdds.x509.max.duration = P1865D
+ozone.security.enabled = true
+ozone.om.ratis.enable = true
+ozone.scm.nodes.scm1 = node1,node2,node3
+ozone.scm.ratis.enable = true
+hdds.grpc.tls.enabled = true

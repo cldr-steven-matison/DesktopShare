@@ -1,433 +1,407 @@
-# Field runbook: CDP CE Base on AWS with the full streaming stack
+# Field runbook: CDP CE Base on AWS, Ozone base with NiFi grafted in
 
-> **Authored, not yet field-run for the streaming services.** The base recipe (infrastructure,
-> FreeIPA/PostgreSQL/Caddy, Cloudera Manager, and the Ozone cluster) is the one from
-> [`files/issue-292/VALIDATION.md`](files/issue-292/VALIDATION.md), which stood up clean
-> (`failed=0`) on this Mac on 2026-09-14. The streaming additions in this runbook (Schema Registry,
-> SMM, NiFi/CFM, Flink/SSB) are authored from the `cloudera-labs/cloudera-ce-aws` playbook sources
-> and are marked `# expected — verify on the box` until an on-box `srm-cloudera-ce-base` run fills in
-> the observed values. All execution stays on this Mac (`device:FTF3XR2065`).
+The target is a CDP CE Base cluster (CM 7.13.2 / Runtime 7.3.2) that comes up on the Ozone
+foundation the [`files/issue-292/VALIDATION.md`](files/issue-292/VALIDATION.md) build proved, with
+NiFi and NiFi Registry (CFM 4.10.0.0 / NiFi 2.3) already present, so demo work has flow and
+messaging ready without a manual Cloudera Manager add-service pass. Everything is a
+[`cloudera-labs/cloudera-ce-aws`](https://github.com/cloudera-labs/cloudera-ce-aws) v1.0.0 matter:
+one cluster template, one command, one teardown.
 
-The goal is a CDP CE Base cluster that comes up with the streaming foundation already present, so
-demo work has Kafka, Schema Registry, SMM, NiFi + NiFi Registry, and Flink/SSB ready without a
-manual Cloudera Manager add-service pass. This is the same `cloudera-labs/cloudera-ce-aws` v1.0.0
-build (CM 7.13.2 / Runtime 7.3.2) as the MCP-server validation, with a streaming cluster template
-in place of the stock `ozone-cluster.yml`.
+The base is `ozone-cluster.yml` (Ozone, Iceberg via Hive/HIVE_ON_TEZ, Kafka, Ranger, Knox, Atlas,
+ZooKeeper, HDFS, YARN, Tez, HBase, Solr). The graft is NiFi + NiFi Registry. Schema Registry and
+Streams Messaging Manager are deferred: only their database prerequisite runs. CSA/Flink/SSB are not
+part of this build.
 
-> **How the topology playbooks work (read this before §3).** Each `playbooks/*-cluster.yml`
-> is a self-contained *full cluster template*, not a layer. Running two of them does not merge their
-> services onto one cluster. So "the full stack" is one template that carries every service block you
-> want, and "add or remove a topology" means editing service blocks in that one template. The
-> per-topology map is in §3.
->
-> **The stock playbooks do not ship Schema Registry or SMM.** `kafka-cluster.yml` brings up the Kafka
-> broker only. `nifi-cluster.yml` and `nifi2.0-cluster.yml` even prepare the Schema Registry database
-> (`prereq_schemaregistry_database`) but never add the `SCHEMAREGISTRY` service to the template, and no
-> stock playbook adds `STREAMS_MESSAGING_MANAGER`. Those two service blocks have to be authored in.
-> That is the headline verify-on-box item of this runbook.
->
-> **Upstream pin still stands.** Keep the `1.0.0-amd64` EE image pin and the §2b patches;
-> `cloudera-ce-aws` v1.0.1 only fixed a publish-workflow build dependency, not the JDK/Caddy/parcel
-> drift below.
+> **How the topology playbooks work.** Each `playbooks/*-cluster.yml` is a self-contained full
+> cluster template, not a layer. Running two of them does not merge their services onto one
+> cluster. "Add or remove a topology" means editing service blocks in one template, which is what
+> `ozone-nifi-cluster.yml` (§3) is.
+
+Execution host for this runbook is the DGX Spark (`spark-dd06`, aarch64). The Mac path from the
+#292 build still works with the amd64 pin; the differences are in §1.
 
 ---
 
 ## 0. Cost + teardown contract (read first)
 
-~**$2/hr**, and the CSA base is a little heavier than the Ozone base, so budget a longer stand-up
-than the ~2.5 h Ozone run.
+~**$2/hr**, 11 EC2 nodes in `us-east-2`. Stand-up wall-clock for the grafted template, as run
+from the DGX Spark on 2026-09-16 (arm64-native EE, no emulation):
 
-```
-# expected — verify on the box
-# stand-up wall-clock for the streaming template (CSA base + CFM parcel + SR/SMM):
-#   ballpark 3 h under amd64 emulation on Apple Silicon; confirm on the first run.
-```
+| Stage | Wall-clock | Cumulative |
+|---|---|---|
+| `infrastructure.yml` (Terraform: VPC, SGs, 11 EC2, SSH key) | ~7 min | 02:32 → 02:39 UTC |
+| `services.yml` (FreeIPA, PostgreSQL, Caddy, Kerberos) | ~50 min | → 03:29 |
+| `cms.yml` (CM install, license, agents, AutoTLS, Kerberos) | ~20 min | → 03:49 |
+| `ozone-nifi-cluster.yml` (CSDs, CDH + CFM parcels, 16 services, First Run) | ~2 h 23 min | → 06:12 |
+| **Total** | **3 h 40 min** | |
 
-**Tear down or pause in the same session.** Never leave it running unwatched. Exits are in §6.
+The CDH parcel sat at `DISTRIBUTING 2400/6400` from about 04:10 to 05:00 with no active command
+before flipping to `ACTIVATED`; the CFM parcel then distributed in ~10 min (§3.4).
+
+Deploy and teardown are each an explicit go from Steven, with the cost stated. **Tear down or pause
+in the same session** unless told to keep it. Exits are in §6. The 09-16 cluster was kept running at
+the end of the session on Steven's call; the teardown and its three zeros are still owed.
 
 ---
 
-## 1. Prereqs on this Mac (human runs the interactive ones)
+## 1. Prereqs on the DGX Spark
+
+The execution environment is published for both architectures: `ghcr.io/cloudera-labs/cloudera-ce-aws:1.0.0`
+is a multi-arch manifest (amd64 + arm64), with `1.0.0-amd64` and `1.0.0-arm64` behind it. The box
+has no qemu binfmt, so the arm64 image runs natively and no `--platform` flag is needed.
 
 ```bash
-git clone https://github.com/cloudera-labs/cloudera-ce-aws.git ~/Documents/GitHub/cloudera-ce-aws
-cd ~/Documents/GitHub/cloudera-ce-aws
-python -m venv ~/cdp-navigator && source ~/cdp-navigator/bin/activate
-pip install ansible-core ansible-navigator
+git clone https://github.com/cldr-steven-matison/cloudera-ce-aws.git ~/cloudera-ce-aws   # fork of cloudera-labs, tag 1.0.0
+cd ~/cloudera-ce-aws
+uv python install 3.12
+uv venv ~/.venvs/cdp-navigator --python 3.12
+uv pip install --python ~/.venvs/cdp-navigator/bin/python ansible-navigator   # see the onig note
+source ~/.venvs/cdp-navigator/bin/activate
+docker pull ghcr.io/cloudera-labs/cloudera-ce-aws:1.0.0-arm64
+docker run --rm --entrypoint uname ghcr.io/cloudera-labs/cloudera-ce-aws:1.0.0-arm64 -m   # -> aarch64
 ```
 
-- **Docker daemon up** (Steven starts it; it is off by default on this box).
-- **`! aws sso login --profile <profile>`**. The SSO profile must carry `sso_account_id` and
-  `sso_role_name` (console login is not CLI creds). Verify with
-  `aws sts get-caller-identity --profile <profile>`.
-- **Cloudera license `.txt`** (not `.zip`): `export CDP_LICENSE_FILE=/path/to/license.txt`.
+- **The system Python cannot build the navigator.** `ansible-navigator` depends on `onigurumacffi`,
+  which has no aarch64 wheel and compiles against `pyconfig.h`; Ubuntu 24.04 ships neither the Python
+  headers nor `libonig-dev` here and the box has no passwordless sudo. A uv-managed CPython ships its
+  headers; the oniguruma headers come from the 6.9.9 source tarball and link against the system
+  `libonig.so.5`:
+  ```bash
+  curl -sL https://github.com/kkos/oniguruma/releases/download/v6.9.9/onig-6.9.9.tar.gz | tar xz -C /tmp
+  mkdir -p /tmp/oniglib && ln -sf /usr/lib/aarch64-linux-gnu/libonig.so.5 /tmp/oniglib/libonig.so
+  CFLAGS="-I/tmp/onig-6.9.9/src" LDFLAGS="-L/tmp/oniglib" \
+    uv pip install --python ~/.venvs/cdp-navigator/bin/python --no-cache ansible-navigator
+  ```
+- **`aws sso login --profile cldr-se`** (interactive, Steven runs it). The profile carries
+  `sso_session`, `sso_account_id`, `sso_role_name`, `region = us-east-2`. Verify with
+  `aws sts get-caller-identity --profile cldr-se`. Session credentials last ~12 h.
+- **Cloudera license `.txt`** at `~/license.txt`: `export CDP_LICENSE_FILE=$HOME/license.txt`.
+- **Docker** is up by default on this box (`tunas` in the `docker` group).
 
-**Two edits to `ansible-navigator.yml` before the first run** (v1.0.0 traps):
+`ansible-navigator.yml` edits before the first run (the committed copy is
+[`files/issue-345/ansible-navigator.yml`](files/issue-345/ansible-navigator.yml)):
 
 ```yaml
-    image: ghcr.io/cloudera-labs/cloudera-ce-aws:1.0.0-amd64   # :latest is NOT published
+    image: ghcr.io/cloudera-labs/cloudera-ce-aws:1.0.0-arm64   # explicit arch pin; :latest also exists and is multi-arch
+    pull:
+      policy: missing
+    volume-mounts:
+      - src: "${CDP_LICENSE_FILE}"
+        dest: "${CDP_LICENSE_FILE}"
+      - src: "/home/tunas/cloudera-ce-aws/patches/jdk_facts.py"
+        dest: "/usr/share/ansible/collections/ansible_collections/cloudera/exe/plugins/modules/jdk_facts.py"
+      - src: "/home/tunas/cloudera-ce-aws/patches/RedHat-pre.yml"
+        dest: "/usr/share/ansible/collections/ansible_collections/cloudera/exe/roles/caddy/tasks/RedHat-pre.yml"
     container-options:
       - "--network=host"
-      - "--platform=linux/amd64"                                 # be explicit on Apple Silicon
 ```
+
+On the Mac keep `1.0.0-amd64` and add `--platform=linux/amd64`; everything else is the same.
+
+**Navigator output does not stream to a redirected stdout.** With `-m stdout` and no TTY the log file
+stays empty until the run ends; the live view is `docker logs -f <ansible_runner_…>` on the runner
+container, which is also where the `PLAY RECAP` lines are read from.
 
 ---
 
-## 2. `config.yml` (gitignored, holds a plaintext password)
+## 2. `config-srm-base.yml` (excluded from git, holds a plaintext password)
+
+`config.yml` is the only name `.gitignore` covers, so the per-run file goes in `.git/info/exclude`.
+Committed example with the password scrubbed:
+[`files/issue-345/config-srm-base.example.yml`](files/issue-345/config-srm-base.example.yml).
 
 ```yaml
-name_prefix: "srm-cloudera-ce-base"   # distinct from the running steven-ce cluster (avoids tag/SG collision)
+name_prefix: "srm-cloudera-ce-base"   # also the AWS `deployment` tag used for the teardown proof
 infra_region: "us-east-2"
-common_password: "Cldr2026stream"     # ALPHANUMERIC ONLY, min 8, at least 1 digit; see the trap below
+common_password: "Cldr2026stream"     # letters and digits only
 owner_email: "steven.matison@cloudera.com"
 enable_prometheus: false              # group_vars declares it twice (last-wins=true); pin false
-cloudera_parcels:                     # PATCH: archive updated from p0.77083870 to p10000.82216952
+cloudera_parcels:                     # archive moved from p0.77083870 to p10000.82216952
   CDH: "7.3.2-1.cdh7.3.2.p10000.82216952"
 ```
+
+`dns_domain` / `kerberos_realm` stay at the defaults (`cldr.internal` / `CLDR.INTERNAL`). The Knox
+`gateway_dispatch_whitelist` in the template hard-codes `cldr\.internal`, so changing the domain is a
+template edit too, not just a config knob.
 
 > **`common_password` must be letters and digits only.** Cloudera's automation sets service admin
 > passwords via basic-auth URLs (`https://admin:PASSWORD@host/...`). An `@`, `#`, `/`, or `:` inside
 > the password corrupts the URL and enrollment dies on a `no_log` (censored) task. The clean fix is
 > teardown and redeploy, so get it right the first time.
 
-The streaming services read their own password overrides from `config.yml` commented defaults, which
-all fall back to `common_password` when left unset:
+---
 
-```yaml
-# smm_password: "{{ common_password }}"        # SMM
-# ssb_admin_password: "{{ common_password }}"   # SQL Stream Builder admin
-# ssb_mve_password: "{{ common_password }}"     # SSB materialized-view engine
+## 2b. EE patches for image drift (both still required against `1.0.0-arm64`)
+
+Both are volume-mounts (§1) over files inside the `cloudera.exe` collection baked into the EE. The
+sources are [`files/issue-345/patches/`](files/issue-345/patches/); copy them to
+`~/cloudera-ce-aws/patches/`. Confirm before every run:
+
+```bash
+grep -c "PATCH (#292)" patches/jdk_facts.py    # -> 3
+grep -c "PATCH (#292)" patches/RedHat-pre.yml  # -> 2
+ansible-navigator exec --ee true -m stdout -- grep -c PATCH \
+  /usr/share/ansible/collections/ansible_collections/cloudera/exe/plugins/modules/jdk_facts.py \
+  /usr/share/ansible/collections/ansible_collections/cloudera/exe/roles/caddy/tasks/RedHat-pre.yml
 ```
+
+- **Patch 1, `jdk_facts` regex.** The AMI ships OpenJDK `17.0.20.1+1-LTS`, a four-component version.
+  The `VERSION_REGEX` inside the `1.0.0-arm64` image has no fourth component group and returns `None`
+  on that string (tested against the extracted module); `jdk_facts.py` then crashes on `.group()`.
+  The patch adds an optional `security` group, a `[^)]*` suffix consumer, and a `None` guard that
+  warns instead of raising. Upstream `cloudera.exe` main has since added the fourth group, but the
+  pinned EE predates it. Passed on all 11 hosts on the 09-16 run.
+- **Patch 2, Caddy on RHEL 9 with no subscription.** The stock `RedHat-pre.yml` enables the COPR
+  `@caddy/caddy` repo, which answers 503 on unregistered EC2; Cloudsmith's `el/9` repo is empty, and
+  Caddy dropped RPM packaging in 2.11. The patch replaces the two COPR tasks: download the
+  `caddy_2.11.4_linux_amd64.tar.gz` release, build a wrapper RPM with `rpmbuild` (binary, systemd
+  unit, placeholder Caddyfile, `caddy` user with `/var/lib/caddy` as its home), `dnf install` it so
+  the role's `ansible.builtin.package` task sees `caddy` installed. The unit carries the
+  cert-ownership fix (`ExecStartPre=+chown -R caddy:caddy /var/lib/caddy`, `ExecStartPost` chmod of
+  the PKI dir) so the self-signed CA the role fetches can be written. Idempotent on `rpm -q caddy`.
+  Built, installed, started and the CA fetched on the gateway on the 09-16 run.
+
+Remove the mounts and `patches/` once an EE release ships the collection fixes.
 
 ---
 
-## 2b. Prereq patches — EE image drift (MANDATORY as of 2026-09-03)
+## 3. Deploy one template, `ozone-nifi-cluster.yml`
 
-Both patches are volume-mounts in `ansible-navigator.yml`. Confirm both are present before running:
+### 3.1 The graft
 
-```bash
-grep -c "PATCH (#292)" patches/jdk_facts.py   # -> 2
-grep -c "PATCH (#292)" patches/RedHat-pre.yml # -> 1
-```
+`playbooks/ozone-nifi-cluster.yml` is a copy of `ozone-cluster.yml`; every difference carries a
+`# NIFI GRAFT` marker. The file and its diff against stock are committed:
+[`files/issue-345/ozone-nifi-cluster.yml`](files/issue-345/ozone-nifi-cluster.yml),
+[`files/issue-345/ozone-nifi-cluster.diff`](files/issue-345/ozone-nifi-cluster.diff). Cluster name
+stays `ozone-base-cluster`. Edits 1 to 9 are lifted from `nifi2.0-cluster.yml`; edit 10 came out of
+the first run of the graft:
 
-Remove the mounts and `patches/` once the upstream collection ships fixes.
+| # | Where in the Ozone template | Edit |
+|---|---|---|
+| 1 | `hosts: base` prereq roles | add `cloudera.exe.prereq_nifi`, `cloudera.exe.prereq_nifiregistry` |
+| 2 | `hosts: postgresql` database roles | add `cloudera.exe.prereq_schemaregistry_database` (7.3.1+ guard). Database only; no SR service |
+| 3 | `Install available CSDs` | `cloudera_manager_csds: "{{ cloudera_parcel_csds + cfm_csds }}"` with the two CFM 4.10.0.0-154 CSD jars (`NIFI-2.3.0.4.10.0.0-154.jar`, `NIFIREGISTRY-2.3.0.4.10.0.0-154.jar`) |
+| 4 | `Configure available parcels` | append `https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/` to `remote_parcel_repo_urls` |
+| 5 | `Activate parcels` loop | `cloudera_parcels \| combine({'CFM': '4.10.0.0-154'})`, so the config CDH pin still applies |
+| 6 | new play after the parcels play | zulu21 `cloudera.exe.prereq_jdk` play (CFM 4.x needs JDK 21) |
+| 7 | after `Establish Knox service`, before AutoTLS | `NIFI` and `NIFIREGISTRY` service blocks (Ranger, Knox, ZK, Atlas, HDFS handles; `nifi.web.https.port: 8444`; `nifi.jdk.home` / `nifi.registry.jdk.home` = `/usr/lib/jvm/zulu21`) |
+| 8 | `Master3` host template | `__nifiregistry` `GATEWAY` + `NIFI_REGISTRY_SERVER` |
+| 9 | `Worker` host template | `__nifi` `NIFI_NODE` (all four workers) |
+| 10 | ZooKeeper `SERVER` role config | `zookeeper_enable_client_port: true`. AutoTLS plus `enableSecurity` turn the plaintext client port off (`clientPort=0`, TLS-only on 2182); the CFM 4.10 NiFi CSD start script pre-checks the quorum with a plaintext `zkCli.sh ls /` on 2181 ("Checking ZK quorum non secure connection", `control.sh` line 467) and exits 1 without it, so CM's First Run fails on `0 NiFi Node roles running`. NiFi itself keeps `nifi.zookeeper.client.secure=true` on 2182. Evidence: [`files/issue-345/nifi-first-start-failure.txt`](files/issue-345/nifi-first-start-failure.txt). On the 09-16 run the knob was applied to the running cluster through the CM API, ZooKeeper restarted, and all four NiFi nodes started |
+| 11 | HDFS service config | `core_site_safety_valve` with `hadoop.security.crypto.codec.classes.aes.ctr.nopadding = org.apache.hadoop.crypto.JceAesCtrCryptoCodec`. With `dfs.encrypt.data.transfer=true` (AES/CTR 256, the template default) NiFi's first HDFS write (the Ranger plugin's audit file) goes through the `libhadoop` bundled inside `nifi-ranger-nar-2.3.0.4.10.0.0-154.nar`, which calls OpenSSL's ENGINE path and segfaults in the AMI's `openssl-libs-3.5.8-1.el9_8` (`SIGSEGV` in `libcrypto.so.3` `ENGINE_get_cipher`, `hs_err_pid*.log`). All four JVMs died ~4 min after start; CM kept showing STARTED. The pure-Java codec avoids the native path for every HDFS client; CDH's own `libhadoop.so.1.0.0` was not the crashing library (Hive's encrypted writes worked). Evidence: [`files/issue-345/nifi-crash-openssl.txt`](files/issue-345/nifi-crash-openssl.txt). Applied on the running cluster via the HDFS service config + Deploy Client Configuration + NiFi restart |
 
-```
-# expected — verify on the box
-# re-confirm both patches are still needed against the current EE image before the run;
-# the JDK version and the RHEL9 Caddy repo state can both change under you.
-```
+Do **not** copy `nifi2.0-cluster.yml`'s hard-coded `parcel_list` vars block; it pins CDH back to
+`7.3.1-1.cdh7.3.1.p0.60371244` and silently discards the config pin.
 
-- **Patch 1, `jdk_facts` regex crash.** The AMI ships OpenJDK `17.0.20.1+1-LTS`, a four-component
-  version with a `-LTS` suffix. The collection's `VERSION_REGEX` returns `None` on the trailing
-  suffix and `jdk_facts.py` crashes on `.group()`. The patch adds `[^)]*` before the closing paren and
-  degrades gracefully. Mounted at
-  `/usr/share/.../cloudera/exe/plugins/modules/jdk_facts.py`.
-- **Patch 2, Caddy on RHEL 9 with no subscription.** COPR's caddy repo returns 503 on unregistered
-  EC2, Cloudsmith's `el/9` repo is empty, and Caddy dropped RPM packaging in v2.11+. The patch
-  downloads the Caddy `2.11.4` binary from GitHub, wraps it in an RPM via `rpmbuild`, and installs it
-  so `dnf` sees `caddy` as a package. Idempotent. Mounted at
-  `/usr/share/.../cloudera/exe/roles/caddy/tasks/RedHat-pre.yml`.
+### 3.2 Per-topology add/remove map
 
-Both patches are documented in full in [`files/issue-292/VALIDATION.md`](files/issue-292/VALIDATION.md) §2b.
+Each row is a service block in the one template. Delete a block (and its host-template role rows) to
+drop a topology; add one to include it. Cross-service `config:` keys use the `register:` handle of the
+dependency, so keep dependencies present.
 
----
-
-## 3. Deploy — one streaming cluster template
-
-### 3.1 Which template
-
-No stock playbook carries everything, so start from the richest one and graft the rest in. The base is
-a copy of `csa-cluster.yml` (it already carries Ozone, Kafka, Flink, SQL Stream Builder, Hive/Iceberg,
-and Dataviz). Copy it to a working template so the stock file stays clean:
-
-```bash
-cp playbooks/csa-cluster.yml playbooks/streaming-cluster.yml
-```
-
-```
-# expected — verify on the box
-# the working template filename is a choice; streaming-cluster.yml is the suggestion.
-# confirm the copy deploys as-is before grafting, so a graft failure is isolated from a base failure.
-```
-
-### 3.2 Per-topology to service-block map (add or remove here)
-
-Each row is a service block inside the one cluster template. Delete a block to drop that topology; add
-a block to include it. Cross-service `config:` references (for example `kafka_service`,
-`hdfs_service`) use the `register:` handle of the service they depend on, so keep dependencies present.
-
-| Topology | Service block `type:` | Parcel / CSD to add | Already in the csa base? |
+| Topology | Service block `type:` | Parcel / CSD | In `ozone-nifi-cluster.yml` |
 |---|---|---|---|
-| Ozone | `OZONE` | CDH (base) | yes |
-| Kafka | `KAFKA` | CDH (base) | yes |
-| Flink / SSB (CSA) | `FLINK`, `SQL_STREAM_BUILDER` | CSA 1.15 CSDs + parcel | yes |
-| Dataviz | `DATAVIZ` | CDV 8.0.7 CSD | yes |
-| Hive / Iceberg | `HIVE`, `HIVE_ON_TEZ`, `TEZ` | CDH (base) | yes |
-| **NiFi / CFM** | `NIFI`, `NIFIREGISTRY` | CFM 4.10.0.0 CSD + parcel | **no — graft in** |
-| **Schema Registry** | `SCHEMAREGISTRY` | CDH (base) | **no — graft in** |
-| **SMM** | `STREAMS_MESSAGING_MANAGER` | CDH (base) | **no — graft in** |
+| Ozone | `OZONE` | CDH | yes (base) |
+| Kafka | `KAFKA` | CDH | yes (base) |
+| Hive / Iceberg | `HIVE`, `HIVE_ON_TEZ`, `TEZ` | CDH | yes (base) |
+| Ranger / Knox / Atlas / Solr / HBase / YARN / HDFS / ZK | as named | CDH | yes (base) |
+| NiFi / NiFi Registry | `NIFI`, `NIFIREGISTRY` | CFM 4.10.0.0-154 parcel + 2 CSDs | **yes (graft)** |
+| Schema Registry | `SCHEMAREGISTRY` | CDH | no; DB prereq only (deferred) |
+| SMM | `STREAMS_MESSAGING_MANAGER` | CDH | no (deferred) |
+| Flink / SSB / Dataviz | `FLINK`, `SQL_STREAM_BUILDER`, `DATAVIZ` | CSA / CDV | no (never wanted) |
 
-### 3.3 Graft the CFM parcel and NiFi service blocks (CFM 4.x / NiFi 2.3)
-
-Add the CFM 4.x CSDs and parcel repo to the template's parcel/CSD config, alongside the CSA lines that
-are already there:
-
-```yaml
-        cloudera_manager_csds:
-          - https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/NIFI-2.3.0.4.10.0.0-154.jar
-          - https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/NIFIREGISTRY-2.3.0.4.10.0.0-154.jar
-        # and add to the remote_parcel_repo_urls list:
-        #   - https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/
-```
-
-Add the two NiFi service blocks (lifted from `nifi2.0-cluster.yml`, with the cluster name changed to
-match the template's cluster). Add `cloudera.exe.prereq_nifi` and `cloudera.exe.prereq_nifiregistry`
-to the `hosts: base` prereq roles, and `cloudera.exe.prereq_schemaregistry_database` to the
-`hosts: postgresql` roles:
-
-```yaml
-    - name: Establish Nifi service
-      cloudera.cluster.service:
-        cluster: streaming-base-cluster        # match your template's cluster name
-        name: nifi
-        type: NIFI
-        config:
-          hdfs_service: "{{ __hdfs.service.name }}"
-          ranger_service: "{{ __ranger.service.name }}"
-          knox_service: "{{ __knox.service.name }}"
-          zookeeper_service: "{{ __zookeeper.service.name }}"
-          atlas_service: "{{ __atlas.service.name }}"
-          kerberos.auth.enabled: true
-        role_config_groups:
-          - type: NIFI_NODE
-            config:
-              nifi.web.https.port: 8444
-              nifi.jdk.home: "/usr/lib/jvm/zulu21"
-      register: __nifi
-      notify: Services updated
-
-    - name: Establish Nifi Registry service
-      cloudera.cluster.service:
-        cluster: streaming-base-cluster
-        name: nifiregistry
-        type: NIFIREGISTRY
-        config:
-          hdfs_service: "{{ __hdfs.service.name }}"
-          ranger_service: "{{ __ranger.service.name }}"
-          knox_service: "{{ __knox.service.name }}"
-          nifi_service: "{{ __nifi.service.name }}"
-          kerberos.auth.enabled: true
-        role_config_groups:
-          - type: NIFI_REGISTRY_SERVER
-            config:
-              nifi.registry.jdk.home: "/usr/lib/jvm/zulu21"
-      register: __nifiregistry
-      notify: Services updated
-```
-
-### 3.4 Author the Schema Registry and SMM service blocks
-
-These have no stock block to copy, so they are authored from the CM service model and are the least
-certain part of this runbook. Both hang off the existing `__kafka` and `__zookeeper` handles.
-
-```yaml
-# expected — verify on the box
-# exact config keys, role_config_group types, host placement, and any missing prereq roles
-# for SCHEMAREGISTRY and STREAMS_MESSAGING_MANAGER are UNVERIFIED. Confirm against the CM
-# service definition on the running CM (Add Service wizard -> the service's config schema)
-# before trusting these blocks. The prereq_schemaregistry_database role IS already available.
-
-    - name: Establish Schema Registry service
-      cloudera.cluster.service:
-        cluster: streaming-base-cluster
-        name: schemaregistry
-        type: SCHEMAREGISTRY
-        config:
-          kafka_service: "{{ __kafka.service.name }}"
-          zookeeper_service: "{{ __zookeeper.service.name }}"
-          ranger_service: "{{ __ranger.service.name }}"
-          # database_host / database_name / database_password: from the prereq_schemaregistry_database role
-        # role_config_groups: [ SCHEMA_REGISTRY_SERVER ]   # confirm the exact role type on the box
-      register: __schemaregistry
-      notify: Services updated
-
-    - name: Establish Streams Messaging Manager service
-      cloudera.cluster.service:
-        cluster: streaming-base-cluster
-        name: streams_messaging_manager
-        type: STREAMS_MESSAGING_MANAGER
-        config:
-          kafka_service: "{{ __kafka.service.name }}"
-          schemaregistry_service: "{{ __schemaregistry.service.name }}"
-          zookeeper_service: "{{ __zookeeper.service.name }}"
-          # smm database + admin password: smm_password from config.yml
-        # role_config_groups: [ STREAMS_MESSAGING_MANAGER_SERVER, STREAMS_MESSAGING_MANAGER_UI ]
-      register: __smm
-      notify: Services updated
-```
-
-### 3.5 Run it
+### 3.3 Run it
 
 ```bash
+cd ~/cloudera-ce-aws
+source ~/.venvs/cdp-navigator/bin/activate
+eval "$(aws configure export-credentials --format env --profile cldr-se)"   # the EE inherits env vars, not --profile
+export CDP_LICENSE_FILE=$HOME/license.txt
+ansible-navigator run playbooks/ozone-nifi-cluster.yml -e @config-srm-base.yml -m stdout --syntax-check -i localhost,
 ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml \
-  playbooks/cms.yml playbooks/streaming-cluster.yml -e @config.yml -m stdout
+  playbooks/cms.yml playbooks/ozone-nifi-cluster.yml -e @config-srm-base.yml -m stdout
 ```
 
-- infrastructure builds the VPC, SGs, EC2, and SSH key via Terraform. services builds
-  FreeIPA/PostgreSQL/Caddy-TLS. cms installs CM, license, AutoTLS, and Kerberos.
-  streaming-cluster builds the full service set.
-- **Do not trust a `tee`'d exit code.** The EE runs `--tty`, so `tee` reports its own `0`. Watch
-  `docker logs -f <ansible_runner_container>` and trust the `PLAY RECAP` `failed=` counts.
-- Expect a full cluster stop then restart during first-run as CM applies Kerberos/AutoTLS/client
-  configs. Post-start `BAD`/`CONCERNING` for a few minutes while canaries settle is normal, so do not
-  restart.
-- End state: the streaming base cluster at **GOOD_HEALTH**, CM at `https://cm.<gateway-public-ip>.nip.io`
-  (`admin` / `common_password`). Read the gateway public IP from `tf_cluster_aws/terraform.tfstate` or
-  the EC2 console.
+- infrastructure builds the VPC, SGs, 11 EC2 nodes and the SSH key via Terraform. services builds
+  FreeIPA/PostgreSQL/Caddy-TLS. cms installs CM, the license, AutoTLS and Kerberos.
+  ozone-nifi-cluster builds the cluster.
+- Run it in the background and watch `docker logs -f` on the runner container for `PLAY RECAP` and
+  `failed=` counts. **Do not trust a `tee`'d exit code** (the EE runs `--tty`).
+- Expect a full cluster stop then restart during first-run while CM applies Kerberos/AutoTLS/client
+  configs. `BAD`/`CONCERNING` for a few minutes after the start while canaries settle is normal.
+- End state: `ozone-base-cluster` at **GOOD_HEALTH**, CM at `https://cm.<gateway-public-ip>.nip.io`
+  (`admin` / `common_password`). Knox is proxied the same way at `https://knox.<gateway-public-ip>.nip.io`.
 
-**Resuming after a mid-run failure** (infra already up): re-run from the failing playbook onward. The
+**Resuming after a mid-run failure** (infra already up): re-run from the failing playbook onward; the
 earlier-passed tasks re-verify idempotently.
 
 ```bash
 ansible-navigator run playbooks/services.yml playbooks/cms.yml \
-  playbooks/streaming-cluster.yml -e @config.yml -m stdout
+  playbooks/ozone-nifi-cluster.yml -e @config-srm-base.yml -m stdout
 ```
 
----
+### 3.4 Parcel-distribution counter freeze (the one live-attention point)
 
-## 3.5b Parcel-distribution stall — detect + recover (the one live-attention point)
-
-The CSA and CFM parcels are large, so this gate is more likely on the streaming template, not less.
-CM can show `DISTRIBUTING n/N` (for example `3200/6400`) frozen with no active command. On the
-proving run of the Ozone build this turned out to be a phase transition, not a dead transfer: one node
-already had the full parcel downloaded and unpacking, and the counter does not advance across
-download to unpack to distribute to activate. **Watch, do not kill.** Send the poll to background, not
-a foreground loop.
+CM shows `DISTRIBUTING n/N` frozen with no active command. On the 09-16 run the CDH parcel sat at
+`2400/6400`, `0/8` hosts, for ~50 minutes and then flipped straight to `ACTIVATED`; the counter does
+not advance across download, unpack, distribute, activate. The CFM parcel is a second, shorter
+window (`DISTRIBUTING 1092/6400` → `ACTIVATED` in ~10 min). **Watch, do not kill.** Poll in the
+background over the SSH jump:
 
 ```bash
-# from the SSH-forwarded CM (see §4), or on the CM host:
 curl -ks -u admin:<common_password> \
-  'https://<cm-host>:7183/api/v51/clusters/<cluster>/parcels' | python3 -m json.tool
+  'https://<manager-01>:7183/api/v51/clusters/ozone-base-cluster/parcels/products/CDH/versions/<version>?view=full' \
+  | python3 -c 'import sys,json; d=json.load(sys.stdin); s=d["state"]; print(d["stage"], s.get("progress"), "/", s.get("totalProgress"), "hosts", s.get("count"), "/", s.get("totalCount"))'
 ```
 
-If it is truly frozen (no active command, count not moving for ~5+ min), re-trigger distribution
-from the CM Parcels page (idempotent), then let the playbook continue. Full detect/recover detail is in
+If it is frozen for much longer with no active command, re-trigger distribution from the CM Parcels
+page (idempotent) and let the playbook continue. Detail:
 [`files/issue-292/VALIDATION.md`](files/issue-292/VALIDATION.md) §3.5.
 
 ---
 
-## 4. Verify the streaming services (from the Mac)
+## 4. Verify (from the box, over the generated SSH jump)
 
-Only the gateway has a public IP. Every other node is private behind the Caddy proxy. The infra stage
-writes an SSH key (`<name_prefix>-ssh-key.pem`) and an SSH config (`<name_prefix>-ssh.config`) to the
-repo root, and the node IPs are in `tf_cluster_aws/terraform.tfstate`.
+Only the gateway has a public IP; every other node is private behind the Caddy proxy. The infra
+stage writes `srm-cloudera-ce-base-ssh-key.pem` and `srm-cloudera-ce-base-ssh.config` to the repo
+root; node IPs are in `tf_cluster_aws/terraform.tfstate`. The gateway is a FreeIPA client, so
+`*.cldr.internal` names resolve there; from the box use the private IPs.
 
-> **Generated-SSH-config bug (blocks hostname SSH).** The generated config writes
-> `Host *.cldr.internal, 10.10.*` with a comma. OpenSSH separates `Host` patterns by whitespace only,
-> so the first pattern becomes the literal `*.cldr.internal,` and never matches. SSH to the private IP
-> still works (the `10.10.*` pattern is intact), or use an explicit `-J`.
+> **Generated-SSH-config bug.** The config writes `Host *.cldr.internal, 10.10.*` with a comma;
+> OpenSSH separates `Host` patterns by whitespace, so the hostname pattern never matches. The
+> `ProxyJump` in that config also fails host-key checking in a non-interactive shell. What works from
+> a script is an explicit `ProxyCommand` through the `jump` entry:
 
 ```bash
-# private IP through the generated config (matches the intact 10.10.* pattern):
-ssh -F <name_prefix>-ssh.config -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  10.10.1.<n> "hostname"
-
-# or explicit jump (fill in gateway public IP):
-ssh -i <name_prefix>-ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-  -o ProxyCommand="ssh -i <name_prefix>-ssh-key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p ec2-user@<gateway-public-ip>" \
-  ec2-user@10.10.1.<n> "hostname"
+CFG=~/cloudera-ce-aws/srm-cloudera-ce-base-ssh.config
+O="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o BatchMode=yes"
+ssh -F $CFG $O -o ProxyCommand="ssh -F $CFG $O -W %h:%p jump" ec2-user@10.10.1.<n> hostname
 ```
 
-> **Infra shape, from the running Ozone build for reference only.** The 2026-09-14 `steven-ce` run
-> (Ozone topology) came up with a gateway at public `3.140.195.142` / private `10.10.0.147`, and 11
-> nodes on VPC `10.10.0.0/16`: `manager-01`, `sdx-01`, `services-01`, `gateway-01`, three
-> `base-master-0{1,2,3}`, and four `base-worker-0{1..4}` on `10.10.1.x`. **The `srm-cloudera-ce-base`
-> streaming build gets fresh IPs**, so read yours from `terraform.tfstate`. AutoTLS is on, so use the
-> TLS ports (plaintext ports are disabled).
+### 4.1 Ozone certificate evidence, first
 
-Forward each service UI to a local port over the jump, then check each surface. Ports and host
-placement come from CM (Hosts, and each service's Web UI link):
+Capture this on every run, whichever way Ozone comes up. On the 09-16 run
+([`files/issue-345/ozone-cert-10.10.1.146.txt`](files/issue-345/ozone-cert-10.10.1.146.txt), `-35`,
+`-222` for master-02 / master-03):
 
+```bash
+# on each master, as root; role logs are /var/log/hadoop-ozone/ozone-scm-<fqdn>.log and ozone-om-<fqdn>.log
+grep -h -i -E "CertificateSignRequest|Invalid domain|SNIHostName|CertificateException" /var/log/hadoop-ozone/ozone-scm-$(hostname).log | sort | uniq -c | sort -rn | head
+for c in $(find /var/lib/hadoop-ozone/scm -path "*sub-ca/certs/*.crt"); do openssl x509 -in $c -noout -subject -ext subjectAltName; done
 ```
-# expected — verify on the box
-# fill each row from CM after the run. AutoTLS TLS ports are expected; confirm on the box.
 
-| Surface          | Endpoint (via SSH forward)                          | Smoke test |
-|------------------|-----------------------------------------------------|------------|
-| Cloudera Manager | https://localhost:7183                              | cluster at GOOD_HEALTH |
-| Kafka bootstrap  | <broker-host>:9093 (TLS)                            | produce + consume a topic |
-| Schema Registry  | https://<sr-host>:7790  (confirm port)              | register a schema |
-| SMM              | https://<smm-host>:8587 (confirm port)              | the topic is visible in SMM |
-| NiFi             | https://<nifi-host>:8444                            | UI reachable, build a minimal flow |
-| NiFi Registry    | https://<nifiregistry-host>:18443 (confirm port)    | UI reachable |
-| Flink Dashboard  | via Knox gateway (confirm path)                     | job manager reachable |
-| SQL Stream Builder | https://<ssb-host> (confirm port/Knox path)       | SSB console loads |
+- All three SCMs log `CertificateSignRequest: Invalid domain srm-cloudera-ce-base-base-master-0N.cldr.internal`
+  at start; master-01 also from `SelfSignedCertificate`.
+- master-01 (primordial SCM) issues its root CA and sub-CA certificates with `Subject Alternative Name:
+  IP Address:10.10.1.146` only.
+- master-02 and master-03 log `Error while fetching/storing SCM signed certificate` and hold no certificate.
+- master-01's Ratis client fails 260 times with `CertificateException: No name matching
+  <master-01>.cldr.internal found for SNIHostName=...`; the SCM ring never forms. SCM master-01 GOOD,
+  master-02/03 BAD, all three Ozone Managers BAD, all four Ozone DataNodes BAD, Recon and S3 Gateway GOOD.
+  CM's First Run verification then fails on `0 Ozone Manager roles running`.
+- SCM config: `hdds.grpc.tls.enabled=true`, `ozone.scm.ratis.enable=true`, `ozone.security.enabled=true`.
+  Ozone `2.2.0.7.3.2.10000-317`, commons-validator 1.10.1, CM `7.13.2.10000-82229633` (built 2026-08-21).
+- `DomainValidator.getInstance().isValid()` from the parcel's own commons-validator jar rejects every
+  `*.cldr.internal` name, including the `steven-ce-…` shape of the earlier successful builds, and
+  accepts `x.cldr.cloud`. So the IP-only SAN is not specific to this `name_prefix`; what decides
+  whether the SCM ring survives it is still open (Steven has deployed the same recipe three or four
+  times without this failure). Treat the domain change as a candidate fix, not a confirmed one.
+
+### 4.2 Cluster health and the streaming surfaces
+
+```bash
+curl -ks -u admin:<common_password> 'https://<manager-01>:7183/api/v51/clusters/ozone-base-cluster/services' \
+  | python3 -c 'import sys,json; [print(s["name"], s["serviceState"], s["healthSummary"]) for s in json.load(sys.stdin)["items"]]'
 ```
+
+As built on the 09-16 run after the ZooKeeper knob (§3.1 edit 10) and a NiFi start
+([`files/issue-345/cm-services-after-first-run.json`](files/issue-345/cm-services-after-first-run.json)
+is the snapshot before the knob):
+
+| Surface | Endpoint | Result |
+|---|---|---|
+| Cloudera Manager | `https://cm.<gateway-ip>.nip.io` (Caddy) and `https://<manager-01>:7183` | 16 services; cluster BAD because of Ozone; Kafka, Hive, Hive-on-Tez, Atlas, Ranger, Knox, ZK, HBase, Solr, HDFS, YARN GOOD |
+| NiFi | `https://<worker-0N>:8444/nifi/` (SNI must be the FQDN, an IP gets `400 Invalid SNI`); UI via Knox `https://knox.<gateway-ip>.nip.io/gateway/cdp-proxy/nifi-app/nifi/` (KnoxSSO form login); API via Knox `…/gateway/cdp-proxy-api/nifi-app/nifi-api/` with Basic auth `admin` / `common_password` | NiFi `2.3.0.4.10.0.0-154`, cluster `4 / 4` connected after edits 10 + 11. A `srm-smoke` PG (GenerateFlowFile every 2 s → LogAttribute) built, started and stopped through the API: 62 FlowFiles in 30 s, zero queued. Export: [`files/issue-345/srm-smoke.flow.json`](files/issue-345/srm-smoke.flow.json); transcript [`files/issue-345/nifi-verify.txt`](files/issue-345/nifi-verify.txt); six-minute stability watch [`files/issue-345/nifi-stability.txt`](files/issue-345/nifi-stability.txt) |
+| NiFi Registry | `https://<master-03>:18433/nifi-registry/`, via Knox `…/gateway/cdp-proxy-api/nifi-registry-app/nifi-registry-api/access` | `identity: admin` with bucket read/write/delete after the Ranger grant |
+
+**NiFi login is a Ranger grant, not a NiFi config.** The CSD creates the NiFi and Registry Ranger
+policies for user and group `nifi` only (`nifi.initial.admin.groups = nifi`), so the FreeIPA `admin`
+gets `403 Unable to view the user interface` until it is granted. Either put the user in a FreeIPA group
+named `nifi` (Ranger usersync) or add the user to the policies directly. The direct form, run on the
+gateway ([`files/issue-345/ranger-nifi-admin-grant.txt`](files/issue-345/ranger-nifi-admin-grant.txt)):
+`admin` appended to every policy of `ozone_base_cluster_nifi` and `ozone_base_cluster_nifiregistry`,
+plus four new NiFi policies for `/process-groups/*`, `/data/process-groups/*`,
+`/provenance-data/process-groups/*` and `/operation/process-groups/*` (READ + WRITE). The plugin
+polls every 30 s. Mutating calls through Knox carry the `__Secure-Request-Token` cookie back as a
+`Request-Token` header.
+
+The KnoxSSO redirect for the UI goes to the internal `sdx-01.cldr.internal:8443` name, so a browser
+outside the VPC needs a hosts entry plus a tunnel to reach the login form; the API path through
+`cdp-proxy-api` with Basic auth has no such dependency. No UI screenshots were captured on the 09-16
+run for that reason.
+| Ranger | `https://<sdx-01>:6182` | 19 repos incl. `ozone_base_cluster_nifi`, `ozone_base_cluster_nifiregistry`, `cm_kafka`, `cm_hive`, `cm_ozone` |
+| Kafka / Hive-Iceberg | `kafka-topics` / `kafka-console-producer` / `-consumer` with SASL_SSL + the CM truststore; `beeline` over Knox `cdp-proxy-api/hive` | [`files/issue-345/smoke-kafka-hive.txt`](files/issue-345/smoke-kafka-hive.txt) |
+| Ozone | `ozone admin scm roles` | fails while the SCM ring is down (§4.1) |
 
 ---
 
 ## 5. Ranger note
 
-The native streaming services authorize through the base cluster's own Ranger. There is no separate
-SDX. After the run, the Ranger UI should list a repo per service.
-
-```
-# expected — verify on the box
-# confirm the repo names on the box; expected shape: cm_kafka, cm_nifi, cm_schemaregistry,
-# cm_kafka (SMM reads Kafka's policies), cm_hdfs, cm_hive, cm_atlas, cm_yarn, ...
-```
+The services authorize through the base cluster's own Ranger (`sdx-01:6182`). There is no separate
+SDX. The NiFi plugin registers its repos as `ozone_base_cluster_nifi` and
+`ozone_base_cluster_nifiregistry` (cluster name prefix, not `cm_`); the CDH services use `cm_*`.
 
 ---
 
-## 6. Tear down (mandatory, same session, on approval only)
+## 6. Tear down (same session, explicit go only)
 
 ```bash
-ansible-navigator run playbooks/pause.yml   -e @config.yml -m stdout   # stop EC2, keep EBS (iterating)
-ansible-navigator run playbooks/resume.yml  -e @config.yml -m stdout   # bring it back
-ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml -m stdout   # destroy everything
+eval "$(aws configure export-credentials --format env --profile cldr-se)"
+export CDP_LICENSE_FILE=$HOME/license.txt
+ansible-navigator run playbooks/pause.yml   -e @config-srm-base.yml -m stdout   # stop EC2, keep EBS (iterating)
+ansible-navigator run playbooks/resume.yml  -e @config-srm-base.yml -m stdout   # bring it back
+ansible-navigator run playbooks/infrastructure-teardown.yml -e @config-srm-base.yml -m stdout   # destroy everything
 ```
 
-Prove nothing is left billing. The `deployment` tag equals `name_prefix` from `config.yml`, so match
-`srm-cloudera-ce-base`:
+Prove nothing is left billing. The `deployment` tag equals `name_prefix`:
 
 ```bash
-aws ec2 describe-instances --profile <profile> --region us-east-2 \
-  --filters "Name=tag:deployment,Values=srm-cloudera-ce-base" \
-            "Name=instance-state-name,Values=running,pending,stopping,stopped" \
-  --query 'length(Reservations[].Instances[])' --output text
-# -> 0
+for q in \
+  "ec2 describe-instances --filters Name=tag:deployment,Values=srm-cloudera-ce-base Name=instance-state-name,Values=running,pending,stopping,stopped --query length(Reservations[].Instances[])" \
+  "ec2 describe-volumes --filters Name=tag:deployment,Values=srm-cloudera-ce-base --query length(Volumes)" \
+  "ec2 describe-vpcs --filters Name=tag:deployment,Values=srm-cloudera-ce-base --query length(Vpcs)"; do
+  aws $q --profile cldr-se --region us-east-2 --output text   # -> 0, 0, 0
+done
 ```
 
-Two teardown gotchas carried from the Ozone run: export `CDP_LICENSE_FILE` (the navigator config
-volume-mounts it, so it must resolve even for teardown), and export the SSO creds as env vars, because
-the EE container only inherits `AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN`, not the host `--profile`:
-
-```bash
-eval "$(aws configure export-credentials --format env --profile <profile>)"
-```
+`CDP_LICENSE_FILE` must resolve even for the teardown (the navigator config volume-mounts it), and
+the SSO creds must be exported as env vars: the EE inherits `AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN`,
+not the host `--profile`.
 
 ---
 
-## What must be shown (fill on the box run)
+## What must be shown
 
-- Cluster reaches GOOD_HEALTH with Ozone, Iceberg-capable Hive, and the streaming services present
-  (Kafka, Schema Registry, SMM, NiFi + Registry, Flink/SSB).
-- The §4 smoke tests succeed.
-- As-built values filled where field-run; `# expected — verify on the box` blocks everywhere not yet
-  run.
+- `ozone-base-cluster` at GOOD_HEALTH with Ozone, Hive (Iceberg-capable), Kafka, NiFi and NiFi
+  Registry present. Open after the 09-16 run: Ozone (§4.1).
+- The §4 smoke tests succeed; the Ozone certificate evidence is captured either way.
+- As-built values filled where field-run; `# expected — verify on the box` everywhere not yet run.
+- Teardown proven: EC2, EBS and VPC counts at 0 for `deployment=srm-cloudera-ce-base`.
 
-> **Iceberg is a table format, not a CM service.** The "Iceberg present" bar is met by the Hive /
-> HIVE_ON_TEZ services in the CSA base (Iceberg tables via Hive/Impala/Spark). The standalone Iceberg
-> REST Catalog is a separate, currently-blocked effort (#284), not part of this runbook.
+> **Iceberg is a table format, not a CM service.** The "Iceberg present" bar is met by Hive /
+> HIVE_ON_TEZ in the base (Iceberg tables via Hive/Impala/Spark). The standalone Iceberg REST
+> Catalog is a separate effort (`cloudera-iceberg-rest-catalog-aws-plan.md`), not part of this build.
 
 ## What NOT to do
 
-- **Do not chain topology playbooks** expecting them to merge. Each is a full cluster template. Use one
-  template and add/remove service blocks in it (§3.2).
-- **Do not reuse the `steven-ce` name_prefix.** It collides with the running Ozone cluster's AWS tags
-  and security groups. This build is `srm-cloudera-ce-base`.
+- **Do not chain topology playbooks** expecting them to merge. One template; add or remove service
+  blocks in it (§3.2).
+- **Do not reuse another build's `name_prefix`.** The tag and security-group names collide.
 - **Do not GET-then-PUT a service's masked sensitive properties.** The masked `********` writes back
   as a literal and destroys the stored credential.
-- **Do not kill the deploy at the parcel-distribution freeze.** It is usually a phase transition
-  (§3.5b). Watch the parcels API, do not wait blind, and do not restart.
+- **Do not kill the deploy at the parcel counter freeze** (§3.4).
+- **Do not run a second deploy host against the same `name_prefix`.** Terraform state is a local
+  file; the second host cannot see what the first created.
+- **Do not let a second agent session run `git checkout`/`stash` in this clone while a runbook is in
+  flight.** On 09-16 a concurrent session on the box reverted this file and a `known-patterns.tsv`
+  row mid-run; re-check the working tree before the finish commit.

@@ -1,0 +1,26 @@
+-- wait for Ranger policy pickup (root PG readable)
+11:43:18 root pg -> 200
+-- current-user
+{"identity":"admin","anonymous":false,"logoutSupported":false,"provenancePermissions":{"canRead":true,"canWrite":false},"countersPermissions":{"canRead":false,"canWrite":false},"tenantsPermissions":{"canRead":true,"canWrite":false},"controllerPermissions":{"canRead":true,"canWrite":true},"policiesPe
+-- about
+{"about":{"title":"NiFi","version":"2.3.0.4.10.0.0-154","uri":"https://srm-cloudera-ce-base-sdx-01.cldr.internal:8443/gateway/cdp-proxy-api/nifi-app/nifi-api/","contentViewerUrl":"https://srm-cloudera-ce-base-sdx-01.cldr.internal:8443/gateway/cdp-proxy-api/nifi-app/nifi/#/content-viewer","timezone":
+-- cluster summary
+{"clusterSummary":{"connectedNodes":"4 / 4","connectedNodeCount":4,"totalNodeCount":4,"connectedToCluster":true,"clustered":true}}
+request-token cookie present: yes
+root pg: aa0289ad-01a0-1000-37f3-e6edf2eb060f
+-- create PG srm-smoke
+pg id: aa0748ee-01a0-1000-0000-00001ada7854
+processors: gen=aa074b0f-01a0-1000-ffff-ffffdd597a9c log=aa074c68-01a0-1000-ffff-ffff9022c382
+connection: aa074d36-01a0-1000-0000-000075833744
+-- start PG
+{"id":"aa0748ee-01a0-1000-0000-00001ada7854","state":"RUNNING"}
+-- status after 30 s
+PG srm-smoke flowFilesIn 0 flowFilesOut 0 queued 0 (0 bytes)
+  LogAttribute Running in 62 out 0
+  GenerateFlowFile Running in 0 out 62
+-- stop PG
+stopped
+-- export flow definition
+6448
+-- registry access as admin
+{"anonymous":false,"identity":"admin","loginSupported":true,"oidcloginSupported":false,"resourcePermissions":{"anyTopLevelResource":{"canDelete":true,"canRead":true,"canWrite":true},"buckets":{"canDel

@@ -1,0 +1,30 @@
+# Kafka + Hive/Iceberg smoke from sdx-01 (Wed Sep 16 11:28:28 AM UTC 2026)
+kinit admin@CLDR.INTERNAL: ok
+truststore built from /var/lib/cloudera-scm-agent/agent-cert/cm-auto-global_cacerts.pem
+-- kafka-topics --list (srm-cloudera-ce-base-base-worker-01.cldr.internal:9093)
+ATLAS_HOOK
+ATLAS_SPARK_HOOK
+__consumer_offsets
+26/09/16 11:28:34 INFO  utils.AppInfoParser: [kafka-admin-client-thread | adminclient-1]: App info kafka.admin.client for adminclient-1 unregistered
+26/09/16 11:28:34 WARN  kerberos.KerberosLogin: [kafka-kerberos-refresh-thread-null]: [Principal=null]: TGT renewal thread has been interrupted and will exit.
+26/09/16 11:28:34 INFO  metrics.Metrics: [kafka-admin-client-thread | adminclient-1]: Metrics scheduler closed
+26/09/16 11:28:34 INFO  metrics.Metrics: [kafka-admin-client-thread | adminclient-1]: Closing reporter org.apache.kafka.common.metrics.JmxReporter
+26/09/16 11:28:34 INFO  metrics.Metrics: [kafka-admin-client-thread | adminclient-1]: Metrics reporters closed
+-- create topic srm-smoke
+26/09/16 11:28:38 INFO  metrics.Metrics: [kafka-admin-client-thread | adminclient-1]: Metrics scheduler closed
+26/09/16 11:28:38 INFO  metrics.Metrics: [kafka-admin-client-thread | adminclient-1]: Closing reporter org.apache.kafka.common.metrics.JmxReporter
+26/09/16 11:28:38 INFO  metrics.Metrics: [kafka-admin-client-thread | adminclient-1]: Metrics reporters closed
+-- produce 3 records
+26/09/16 11:28:43 INFO  metrics.Metrics: [main]: Closing reporter org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter
+26/09/16 11:28:43 INFO  metrics.Metrics: [main]: Metrics reporters closed
+26/09/16 11:28:43 INFO  utils.AppInfoParser: [main]: App info kafka.producer for console-producer unregistered
+-- consume from beginning (max 3)
+26/09/16 11:28:51 INFO  metrics.Metrics: [main]: Closing reporter org.apache.kafka.common.telemetry.internals.ClientTelemetryReporter
+26/09/16 11:28:51 INFO  metrics.Metrics: [main]: Metrics reporters closed
+26/09/16 11:28:51 WARN  kerberos.KerberosLogin: [kafka-kerberos-refresh-thread-null]: [Principal=null]: TGT renewal thread has been interrupted and will exit.
+26/09/16 11:28:51 INFO  utils.AppInfoParser: [main]: App info kafka.consumer for console-consumer unregistered
+Processed a total of 3 messages
+-- hive via knox jdbc (beeline): create iceberg table
+Error: Could not open client transport with JDBC Uri: jdbc:hive2://srm-cloudera-ce-base-sdx-01.cldr.internal:8443/default;ssl=true;sslTrustStore=/tmp/smoke-ts.jks;trustStorePassword=smoke12345;transportMode=http;httpPath=gateway/cdp-proxy-api/hive: Could not establish connection to jdbc:hive2://srm-cloudera-ce-base-sdx-01.cldr.internal:8443/default;ssl=true;sslTrustStore=/tmp/smoke-ts.jks;trustStorePassword=smoke12345;transportMode=http;httpPath=gateway/cdp-proxy-api/hive: HTTP Response code: 500 (state=08S01,code=0)
+-- ozone client view
+srm-cloudera-ce-base-base-master-01.cldr.internal:9894:LEADER:1f66e59e-9b93-484a-930b-7065a307b31f:10.10.1.146

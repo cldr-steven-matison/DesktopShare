@@ -1,0 +1,7 @@
+# NiFi stability after the JCE codec fix (restart 11:36:31 UTC; previous crash came ~4 min after start)
+11:39:36 nodes on 8444: 4/4  hs_err files on worker-01: 1
+11:40:39 nodes on 8444: 4/4  hs_err files on worker-01: 1
+11:41:42 nodes on 8444: 4/4  hs_err files on worker-01: 1
+11:42:45 nodes on 8444: 4/4  hs_err files on worker-01: 1
+11:43:49 nodes on 8444: 4/4  hs_err files on worker-01: 1
+11:44:52 nodes on 8444: 4/4  hs_err files on worker-01: 1

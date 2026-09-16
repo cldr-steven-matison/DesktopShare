@@ -1,0 +1,18 @@
+ozone_base_cluster_nifi Policies -> admin granted ['READ']
+ozone_base_cluster_nifi Provenance -> admin granted ['READ']
+ozone_base_cluster_nifi Restricted Components -> admin granted ['WRITE']
+ozone_base_cluster_nifi Tenants -> admin granted ['READ']
+ozone_base_cluster_nifi Controller -> admin granted ['READ', 'WRITE']
+ozone_base_cluster_nifi Parameter Contexts -> admin granted ['READ', 'WRITE']
+ozone_base_cluster_nifi Flow -> admin granted ['READ']
+ozone_base_cluster_nifi Proxies -> admin granted ['WRITE']
+ozone_base_cluster_nifiregistry Actuator -> admin granted ['DELETE', 'READ', 'WRITE']
+ozone_base_cluster_nifiregistry Buckets -> admin granted ['DELETE', 'READ', 'WRITE']
+ozone_base_cluster_nifiregistry Policies -> admin granted ['READ']
+ozone_base_cluster_nifiregistry Swagger -> admin granted ['DELETE', 'READ', 'WRITE']
+ozone_base_cluster_nifiregistry Tenants -> admin granted ['READ']
+ozone_base_cluster_nifiregistry Proxies -> admin granted ['DELETE', 'READ', 'WRITE']
+admin process groups /process-groups/* -> 200
+admin data /data/process-groups/* -> 200
+admin provenance data /provenance-data/process-groups/* -> 200
+admin operation /operation/process-groups/* -> 200

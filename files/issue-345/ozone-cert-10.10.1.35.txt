@@ -1,0 +1,10 @@
+srm-cloudera-ce-base-base-master-02.cldr.internal
+-- scm log: cert/domain lines
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateSignRequest: Invalid domain srm-cloudera-ce-base-base-master-02.cldr.internal
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient: Error while fetching/storing SCM signed certificate.
+      1 	at org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient.getRootCASignedSCMCert(SCMCertificateClient.java:316)
+-- scm log: last ERROR/WARN
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.utils.CertificateSignRequest: Invalid domain srm-cloudera-ce-base-base-master-02.cldr.internal
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient: Error while fetching/storing SCM signed certificate.
+      1 ERROR [main]-org.apache.hadoop.hdds.security.x509.certificate.client.SCMCertificateClient: Default certificate serial id is not set. Can't locate the default certificate for this client.
+-- scm cert SAN

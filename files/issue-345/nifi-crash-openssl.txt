@@ -1,0 +1,59 @@
+# NiFi node JVM crash on srm-cloudera-ce-base workers, 2026-09-16 11:20 UTC — hs_err summary (worker-01)
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007fe273ba1686, pid=92533, tid=94560
+#
+# JRE version: OpenJDK Runtime Environment Zulu21.52+203-CA (21.0.12.1+1) (build 21.0.12.1+1-LTS)
+# Java VM: OpenJDK 64-Bit Server VM Zulu21.52+203-CA (21.0.12.1+1-LTS, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, g1 gc, linux-amd64)
+# Problematic frame:
+# C  [libcrypto.so.3+0x1a1686]  ENGINE_get_cipher+0x36
+#
+# Core dump will be written. Default location: Determined by the following: "/usr/lib/systemd/systemd-coredump %P %u %g %s %t %c %h" (alternatively, falling back to /opt/cloudera/parcels/CFM-4.10.0.0-154/NIFI/core.92533)
+#
+
+Current thread (0x00007fe2c4ec1ca0):  JavaThread "Thread-29" daemon [_thread_in_native, id=94560, stack(0x00007fe25edff000,0x00007fe25eeff000) (1024K)]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [libcrypto.so.3+0x1a1686]  ENGINE_get_cipher+0x36
+Java frames: (J=compiled Java code, j=interpreted, Vv=VM code)
+j  org.apache.hadoop.crypto.OpensslCipher.init(JIII[B[B)J+0
+j  org.apache.hadoop.crypto.OpensslCipher.init(I[B[B)V+17
+j  org.apache.hadoop.crypto.OpensslAesCtrCryptoCodec$OpensslAesCtrCipher.init([B[B)V+25
+j  org.apache.hadoop.crypto.CryptoOutputStream.updateEncryptor()V+79
+j  org.apache.hadoop.crypto.CryptoOutputStream.<init>(Ljava/io/OutputStream;Lorg/apache/hadoop/crypto/CryptoCodec;I[B[BJZ)V+129
+j  org.apache.hadoop.crypto.CryptoOutputStream.<init>(Ljava/io/OutputStream;Lorg/apache/hadoop/crypto/CryptoCodec;[B[BJZ)V+17
+j  org.apache.hadoop.crypto.CryptoOutputStream.<init>(Ljava/io/OutputStream;Lorg/apache/hadoop/crypto/CryptoCodec;[B[BJ)V+9
+j  org.apache.hadoop.crypto.CryptoOutputStream.<init>(Ljava/io/OutputStream;Lorg/apache/hadoop/crypto/CryptoCodec;[B[B)V+7
+j  org.apache.hadoop.hdfs.protocol.datatransfer.sasl.DataTransferSaslUtil.createStreamPair(Lorg/apache/hadoop/conf/Configuration;Lorg/apache/hadoop/crypto/CipherOption;Ljava/io/Out
+j  org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.doSaslHandshake(Ljava/net/InetAddress;Ljava/io/OutputStream;Ljava/io/InputStream;Ljava/lang/String;Ljava
+j  org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.getEncryptedStreams(Ljava/net/InetAddress;Ljava/io/OutputStream;Ljava/io/InputStream;Lorg/apache/hadoop/
+j  org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.send(Ljava/net/InetAddress;Ljava/io/OutputStream;Ljava/io/InputStream;Lorg/apache/hadoop/hdfs/security/t
+j  org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.checkTrustAndSend(Ljava/net/InetAddress;Ljava/io/OutputStream;Ljava/io/InputStream;Lorg/apache/hadoop/hd
+j  org.apache.hadoop.hdfs.protocol.datatransfer.sasl.SaslDataTransferClient.socketSend(Ljava/net/Socket;Ljava/io/OutputStream;Ljava/io/InputStream;Lorg/apache/hadoop/hdfs/protocol/
+j  org.apache.hadoop.hdfs.DataStreamer.createBlockOutputStream([Lorg/apache/hadoop/hdfs/protocol/DatanodeInfo;[Lorg/apache/hadoop/fs/StorageType;[Ljava/lang/String;JZ)Z+252
+j  org.apache.hadoop.hdfs.DataStreamer.nextBlockOutputStream()Lorg/apache/hadoop/hdfs/protocol/LocatedBlock;+115
+j  org.apache.hadoop.hdfs.DataStreamer.run()V+395
+v  ~StubRoutines::call_stub 0x00007fe34fd37cc6
+
+
+-- libraries
+/usr/lib64/libcrypto.so.3.5.8
+-- host
+openssl-libs-3.5.8-1.el9_8.x86_64
+Aug 28 09:22 libcrypto.so.3.5.8
+dfs.encrypt.data.transfer.algorithm	
+dfs.encrypt.data.transfer.cipher.suites	AES/CTR/NoPadding
+dfs.encrypt.data.transfer.cipher.key.bitlength	256
+-- crash count across workers
+worker-02: (no ssh from worker-01)
+worker-03: (no ssh from worker-01)
+worker-04: (no ssh from worker-01)
+-- hadoop/native libs mapped
+/tmp/nifi-ranger-nar-2.3.0.4.10.0.0-154.nar-unpacked_17288546972232330731_hadoop
+-- java.library.path / LD_LIBRARY_PATH from the crash report
+java_command: org.apache.nifi.NiFi
+LD_LIBRARY_PATH=:/opt/cloudera/cm-agent/lib:/opt/cloudera/cm-agent/lib/libboost-311:/opt/cloudera/parcels/CDH/lib/hadoop/lib/native/
+-- CDH native libhadoop and its openssl linkage
+/opt/cloudera/parcels/CDH/lib/hadoop/lib/native/libhadoop.so.1.0.0
+EVP_CipherInit_ex
+OPENSSL_init_crypto

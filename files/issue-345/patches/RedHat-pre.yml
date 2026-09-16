@@ -1,0 +1,145 @@
+---
+# PATCH (#292): Caddy on RHEL 9 without a Red Hat subscription.
+#
+# The stock role enables the COPR @caddy/caddy repo. On an unregistered EC2 host the RHEL 9
+# COPR repo answers 503, Cloudsmith's el/9 caddy repo is empty, and Caddy 2.11+ ships no RPM at
+# all. This file replaces the two COPR tasks: it downloads the upstream release binary, wraps it
+# in a local RPM (so the role's later ansible.builtin.package task sees "caddy" installed), ships
+# the systemd unit, and makes the service own its home so the self-signed PKI can be written.
+# Idempotent: skipped entirely when `rpm -q caddy` already succeeds.
+#
+# Mounted over
+#   /usr/share/ansible/collections/ansible_collections/cloudera/exe/roles/caddy/tasks/RedHat-pre.yml
+# by ansible-navigator.yml.
+
+- name: Check whether Caddy is already installed
+  ansible.builtin.command: rpm -q caddy
+  register: __caddy_rpm
+  changed_when: false
+  failed_when: false
+
+- name: Build and install a Caddy wrapper RPM
+  when: __caddy_rpm.rc != 0
+  vars:
+    caddy_version: "2.11.4"
+    caddy_build_root: /root/caddy-rpm
+  block:
+    - name: Install RPM build tooling
+      ansible.builtin.package:
+        name:
+          - rpm-build
+          - tar
+          - gzip
+        state: present
+
+    - name: Create the RPM build tree
+      ansible.builtin.file:
+        path: "{{ caddy_build_root }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - BUILD
+        - RPMS
+        - SOURCES
+        - SPECS
+        - SRPMS
+        - bin
+
+    - name: Download the Caddy release tarball
+      ansible.builtin.get_url:
+        url: "https://github.com/caddyserver/caddy/releases/download/v{{ caddy_version }}/caddy_{{ caddy_version }}_linux_amd64.tar.gz"
+        dest: "{{ caddy_build_root }}/SOURCES/caddy.tar.gz"
+        mode: "0644"
+
+    - name: Unpack the caddy binary
+      ansible.builtin.command:
+        cmd: tar -xzf {{ caddy_build_root }}/SOURCES/caddy.tar.gz -C {{ caddy_build_root }}/bin caddy
+        creates: "{{ caddy_build_root }}/bin/caddy"
+
+    - name: Write the systemd unit
+      ansible.builtin.copy:
+        dest: "{{ caddy_build_root }}/SOURCES/caddy.service"
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Caddy
+          Documentation=https://caddyserver.com/docs/
+          After=network.target network-online.target
+          Requires=network-online.target
+
+          [Service]
+          Type=notify
+          User=caddy
+          Group=caddy
+          # PATCH (#292): the service must own its home or the self-signed PKI cannot be written
+          ExecStartPre=+/bin/chown -R caddy:caddy /var/lib/caddy
+          ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+          ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+          ExecStartPost=+/bin/sh -c 'sleep 5; chmod -R a+rX /var/lib/caddy/.local/share/caddy/pki 2>/dev/null || true'
+          TimeoutStopSec=5s
+          LimitNOFILE=1048576
+          PrivateTmp=true
+          ProtectSystem=full
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Write a placeholder Caddyfile (the role templates the real one afterwards)
+      ansible.builtin.copy:
+        dest: "{{ caddy_build_root }}/SOURCES/Caddyfile"
+        mode: "0644"
+        content: |
+          :80 {
+            respond "caddy placeholder"
+          }
+
+    - name: Write the RPM spec
+      ansible.builtin.copy:
+        dest: "{{ caddy_build_root }}/SPECS/caddy.spec"
+        mode: "0644"
+        content: |
+          Name:           caddy
+          Version:        {{ caddy_version }}
+          Release:        1
+          Summary:        Caddy web server (wrapper around the upstream release binary)
+          License:        Apache-2.0
+          URL:            https://caddyserver.com
+          BuildArch:      x86_64
+          Requires(pre):  shadow-utils
+
+          %description
+          Upstream Caddy {{ caddy_version }} release binary packaged locally because no RPM
+          source is reachable from an unregistered RHEL 9 host.
+
+          %pre
+          getent group caddy >/dev/null || groupadd --system caddy
+          getent passwd caddy >/dev/null || useradd --system --gid caddy --home-dir /var/lib/caddy --create-home --shell /usr/sbin/nologin --comment "Caddy web server" caddy
+          exit 0
+
+          %install
+          mkdir -p %{buildroot}/usr/bin %{buildroot}/etc/caddy %{buildroot}/usr/lib/systemd/system %{buildroot}/var/lib/caddy
+          install -m 0755 {{ caddy_build_root }}/bin/caddy %{buildroot}/usr/bin/caddy
+          install -m 0644 %{_sourcedir}/caddy.service %{buildroot}/usr/lib/systemd/system/caddy.service
+          install -m 0644 %{_sourcedir}/Caddyfile %{buildroot}/etc/caddy/Caddyfile
+
+          %post
+          systemctl daemon-reload >/dev/null 2>&1 || :
+
+          %files
+          /usr/bin/caddy
+          /usr/lib/systemd/system/caddy.service
+          %dir /etc/caddy
+          %config(noreplace) /etc/caddy/Caddyfile
+          %dir %attr(0750,caddy,caddy) /var/lib/caddy
+
+    - name: Build the RPM
+      ansible.builtin.command:
+        cmd: rpmbuild --define "_topdir {{ caddy_build_root }}" -bb {{ caddy_build_root }}/SPECS/caddy.spec
+        creates: "{{ caddy_build_root }}/RPMS/x86_64/caddy-{{ caddy_version }}-1.x86_64.rpm"
+
+    - name: Install the RPM
+      ansible.builtin.dnf:
+        name: "{{ caddy_build_root }}/RPMS/x86_64/caddy-{{ caddy_version }}-1.x86_64.rpm"
+        state: present
+        disable_gpg_check: true

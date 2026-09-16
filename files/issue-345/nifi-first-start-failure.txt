@@ -1,0 +1,41 @@
+# NiFi node first start on srm-cloudera-ce-base (2026-09-16 05:43 UTC) — CSD control.sh ZK pre-check against the plaintext quorum
+
+## CM First Run verification (cloudera-scm-server.log)
+2026-09-16 06:12:16,035 WARN CommandPusher-1:com.cloudera.cmf.service.FirstRunVerificationCmdWork: Service has only 0 NiFi Node roles running instead of minimum required 1.Poor health seen : [This role's process exited. This role is supposed to be started., This role's process exited. This role is supposed to be started., This r
+2026-09-16 06:12:16,044 WARN CommandPusher-1:com.cloudera.cmf.service.FirstRunVerificationCmdWork: Service has only 0 Ozone Manager roles running instead of minimum required 1.Poor health seen : [This role's process exited. This role is supposed to be started., This role's process exited. This role is supposed to be started., Th
+
+## worker-02 NIFI_NODE stdout tail
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stdout.log:518:Wed Sep 16 05:43:28 AM UTC 2026 - Checking ZK quorum non secure connection
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stdout.log:545:java.net.ConnectException: Connection refused
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stdout.log:554:java.net.ConnectException: Connection refused
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stdout.log:560:2026-09-16 05:43:29,835 [myid:] - ERROR [main:ServiceUtils@48] - Exiting JVM with code 1
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stderr.log:1671:+ log 'Checking ZK quorum non secure connection'
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stderr.log:1672:+ LOG_MESSAGE='Checking ZK quorum non secure connection'
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stderr.log:1674:+ echo Wed Sep 16 05:43:28 AM UTC 2026 '- Checking ZK quorum non secure connection'
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stderr.log:1678:+ /opt/cloudera/parcels/CDH-7.3.2-1.cdh7.3.2.p10000.82216952/lib/zookeeper/bin/zkCli.sh -server srm-cloudera-ce-base-base-master-01.cldr.internal:2181,srm-cloudera-ce-base-base-
+/var/run/cloudera-scm-agent/process/1546338617-nifi-NIFI_NODE/logs/stderr.log:1707:KeeperErrorCode = ConnectionLoss for /
+
+## CSD control.sh (NIFI-2.3.0.4.10.0.0-154) lines 465-470
+
+    # ensure our quorum can be connected
+    log "Checking ZK quorum non secure connection"
+    run_zk_command ls /
+    log "Starting NiFi process ./nifi.sh"
+    cd ${NIFI_DIST}/bin && exec ./nifi.sh run
+-- common.sh run_zk_command
+    if [ -z "${CDH_ZOOKEEPER_HOME}" ]; then
+        log "CDH_ZOOKEEPER_HOME must be set"
+        exit 1
+    fi
+    if [ -z "${ZK_QUORUM}" ]; then
+        log "ZK_QUORUM must be set"
+        exit 1
+    fi
+    ${CDH_ZOOKEEPER_HOME}/bin/zkCli.sh -server $ZK_QUORUM $@
+    check_status $? "Failed to run zookeeper command '$@'"
+}
+
+## ZooKeeper as CM configured it (AutoTLS + enableSecurity)
+zoo.cfg on master-02: clientPort=0  secureClientPort=2182  client.portUnification=false  sslQuorum=true
+SERVER role config: zookeeper_enable_client_port=false (default true), zookeeper_client_portUnification=<default false>, zookeeper_secure_client_port=2182, service zookeeper_tls_enabled=true
+NiFi role env: ZK_QUORUM=<masters>:2181  SECURE_ZK_QUORUM=<masters>:2182  ZK_TLS_ENABLED=true; nifi.properties nifi.zookeeper.client.secure=true connect.string=<masters>:2182

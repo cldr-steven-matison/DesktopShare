@@ -1,0 +1,177 @@
+--- playbooks/ozone-cluster.yml	2026-08-26 20:15:09.391580786 +0000
++++ playbooks/ozone-nifi-cluster.yml	2026-09-16 11:35:36.599402281 +0000
+@@ -13,7 +13,8 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-# Ozone-enabled Base Cluster
++# Ozone-enabled Base Cluster with NiFi and NiFi Registry (CFM 4.10.0.0 / NiFi 2.3) grafted in.
++# Copy of ozone-cluster.yml; every difference is tagged '# NIFI GRAFT'.
+ #
+ # https://docs.cloudera.com/cdp-private-cloud-data-services/1.5.4/installation-ecs/topics/cdppvc-installation-base-software-requirements.html
+ 
+@@ -33,6 +34,8 @@
+     - role: cloudera.exe.prereq_ranger
+     - role: cloudera.exe.prereq_yarn
+     - role: cloudera.exe.prereq_zookeeper
++    - role: cloudera.exe.prereq_nifi          # NIFI GRAFT
++    - role: cloudera.exe.prereq_nifiregistry  # NIFI GRAFT
+ 
+ - name: Configure databases for Ozone Base cluster services
+   hosts: postgresql
+@@ -50,6 +53,9 @@
+     - role: cloudera.exe.prereq_hive_database
+     - role: cloudera.exe.prereq_knox_database
+       when: cloudera_runtime_version is version('7.3.1', 'ge', version_type='loose')
++    # NIFI GRAFT: database only; no SCHEMAREGISTRY service is established in this template (SR + SMM deferred).
++    - role: cloudera.exe.prereq_schemaregistry_database
++      when: cloudera_runtime_version is version('7.3.1', 'ge', version_type='loose')
+ 
+ - name: Configure reverse proxy for Ozone Base cluster services
+   hosts: reverse_proxy
+@@ -100,7 +106,11 @@
+         cloudera_manager_repo_username: "{{ lookup('cloudera.cluster.cm_license', cm_license_path).uuid }}"
+         cloudera_manager_repo_password: "{{ lookup('cloudera.cluster.cm_license', cm_license_path).password }}"
+         cloudera_manager_csd_restarted: true
+-        cloudera_manager_csds: "{{ cloudera_parcel_csds }}"
++        # NIFI GRAFT: CFM 4.10.0.0 CSDs appended to whatever config/group_vars define
++        cloudera_manager_csds: "{{ cloudera_parcel_csds + cfm_csds }}"
++        cfm_csds:
++          - https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/NIFI-2.3.0.4.10.0.0-154.jar
++          - https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/NIFIREGISTRY-2.3.0.4.10.0.0-154.jar
+ 
+     - name: Check availablity of Cloudera Manager
+       ansible.builtin.wait_for:
+@@ -112,7 +122,8 @@
+     - name: Configure available parcels
+       cloudera.cluster.cm_config:
+         parameters:
+-          remote_parcel_repo_urls: "{{ cloudera_parcel_repo_urls | join(',') }}"
++          # NIFI GRAFT: CFM parcel repo appended
++          remote_parcel_repo_urls: "{{ (cloudera_parcel_repo_urls + ['https://archive.cloudera.com/p/cfm2/4.10.0.0/redhat9/yum/tars/parcel/']) | join(',') }}"
+       delegate_to: localhost
+       become: false
+ 
+@@ -228,11 +239,27 @@
+         name: "{{ __parcel.key }}"
+         parcel_version: "{{ __parcel.value }}"
+         state: "activated"
+-      loop: "{{ cloudera_parcels | dict2items }}"
++      # NIFI GRAFT: CFM layered on top of the CDH pin from config/group_vars (never replace cloudera_parcels)
++      loop: "{{ (cloudera_parcels | combine({'CFM': '4.10.0.0-154'})) | dict2items }}"
+       loop_control:
+         loop_var: __parcel
+         label: "{{ __parcel.value }}"
+ 
++- name: Install additional JDK for CFM parcel version is 4.x+   # NIFI GRAFT (from nifi2.0-cluster.yml)
++  hosts: cluster
++  gather_facts: yes
++  become: yes
++  tags:
++    - nifi
++    - jdkk
++  roles:
++    - cloudera.exe.prereq_jdk
++  vars:
++    additional_jdk_packages:
++      - zulu21-jdk
++    additional_jdk_repository: "https://cdn.azul.com/zulu/bin/zulu-repo-1.0.0-1.noarch.rpm"
++    additional_jdk_key: "https://repos.azul.com/azul-repo.key"
++
+ - name: Provision Ozone Base cluster services
+   hosts: localhost
+   connection: local
+@@ -307,6 +334,10 @@
+             config:
+               dataDir: "{{ zookeeper_data_dir }}"
+               dataLogDir: "{{ zookeeper_data_log_dir }}"
++              # NIFI GRAFT: AutoTLS + enableSecurity turn the plaintext client port off; the CFM 4.10
++              # NiFi CSD start script pre-checks the quorum on the non-secure port (2181) and exits 1
++              # without it. NiFi itself still talks TLS on 2182.
++              zookeeper_enable_client_port: true
+       register: __zookeeper
+       notify: Services updated
+ 
+@@ -331,6 +362,10 @@
+           dfs_encrypt_data_transfer_algorithm: AES/CTR/NoPadding
+           hadoop_secure_web_ui: true
+           core_connector: "{{ __cluster.cloudera_manager.tags['_cldr_cluster.core_settings.service_name'] }}"
++          # NIFI GRAFT: the libhadoop bundled in CFM's nifi-ranger NAR segfaults inside OpenSSL 3.5.x
++          # (ENGINE_get_cipher) on the first encrypted HDFS write (Ranger audit); the pure-Java AES codec
++          # avoids the native path for every HDFS client, NiFi included.
++          core_site_safety_valve: "<property><name>hadoop.security.crypto.codec.classes.aes.ctr.nopadding</name><value>org.apache.hadoop.crypto.JceAesCtrCryptoCodec</value></property>"
+           # zookeeper_service: "{{ __zookeeper.service.name }}"
+         role_config_groups:
+           - type: DATANODE
+@@ -643,6 +678,51 @@
+       register: __knox
+       # notify: Services updated # Always returns TRUE until we have the suppress_redacted flag enabled
+ 
++    # NIFI GRAFT (from nifi2.0-cluster.yml, cluster renamed)
++    - name: Establish Nifi service
++      tags:
++        - nifi
++        - host_template
++      cloudera.cluster.service:
++        cluster: ozone-base-cluster
++        name: nifi
++        type: NIFI
++        config:
++          hdfs_service: "{{ __hdfs.service.name }}"
++          ranger_service: "{{ __ranger.service.name }}"
++          knox_service: "{{ __knox.service.name }}"
++          zookeeper_service: "{{ __zookeeper.service.name }}"
++          atlas_service: "{{ __atlas.service.name }}"
++          kerberos.auth.enabled: true
++        role_config_groups:
++          - type: NIFI_NODE
++            config:
++              nifi.web.https.port: 8444
++              nifi.jdk.home: "/usr/lib/jvm/zulu21"
++      register: __nifi
++      notify: Services updated
++
++    - name: Establish Nifi Registry service
++      tags:
++        - nifiregistry
++        - host_template
++      cloudera.cluster.service:
++        cluster: ozone-base-cluster
++        name: nifiregistry
++        type: NIFIREGISTRY
++        config:
++          hdfs_service: "{{ __hdfs.service.name }}"
++          ranger_service: "{{ __ranger.service.name }}"
++          knox_service: "{{ __knox.service.name }}"
++          nifi_service: "{{ __nifi.service.name }}"
++          kerberos.auth.enabled: true
++        role_config_groups:
++          - type: NIFI_REGISTRY_SERVER
++            config:
++              nifi.registry.jdk.home: "/usr/lib/jvm/zulu21"
++      register: __nifiregistry
++      notify: Services updated
++
+     - name: Enable AutoTLS on the cluster (post-services configuration)
+       tags:
+         - cluster
+@@ -749,6 +829,10 @@
+             type: SERVER
+           - service: "{{ __kafka.service.name }}"
+             type: KRAFT
++          - service: "{{ __nifiregistry.service.name }}"   # NIFI GRAFT
++            type: GATEWAY
++          - service: "{{ __nifiregistry.service.name }}"   # NIFI GRAFT
++            type: NIFI_REGISTRY_SERVER
+       notify: Services updated
+ 
+     - name: Establish Worker host template
+@@ -768,6 +852,8 @@
+             type: OZONE_DATANODE
+           - service: "{{ __yarn.service.name }}"
+             type: NODEMANAGER
++          - service: "{{ __nifi.service.name }}"   # NIFI GRAFT
++            type: NIFI_NODE
+       notify: Services updated
+ 
+ - name: Provision Ozone Base cluster role instances to hosts

@@ -1,0 +1,13 @@
+---
+# Per-run config for the srm-cloudera-ce-base build (Ozone base + NiFi graft). Gitignored via
+# .git/info/exclude: holds a plaintext password. Everything not set here comes from group_vars/all.yml.
+
+name_prefix: "srm-cloudera-ce-base"   # also the AWS `deployment` tag used for the teardown proof
+infra_region: "us-east-2"
+common_password: "<letters-and-digits-only>"     # letters and digits only (basic-auth URL trap)
+owner_email: "steven.matison@cloudera.com"
+enable_prometheus: false              # group_vars declares it twice; last-wins would make it true
+cloudera_parcels:                     # archive moved from p0.77083870 to p10000.82216952
+  CDH: "7.3.2-1.cdh7.3.2.p10000.82216952"
+# dns_domain / kerberos_realm deliberately left at the defaults (cldr.internal / CLDR.INTERNAL):
+# same shape as the proven 2026-09-14 run; the Knox dispatch whitelist in the template hard-codes it.
