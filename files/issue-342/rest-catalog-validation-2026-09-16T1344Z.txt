@@ -1,0 +1,41 @@
+===== Tier A — Iceberg REST Catalog read (poc_uc2.flights) — 2026-09-16T1344Z =====
+# egress=165.1.200.192  (SG rule sgr-036429a4064a2dd61)
+# Step 1 — exchange client creds for JWT
+  JWT acquired (len 1081)
+# Step 2 — list namespaces
+{"namespaces":[["default"],["information_schema"],["poc_uc2"],["sys"]]}
+# Step 3 — list tables in poc_uc2
+{"identifiers":[{"namespace":["poc_uc2"],"name":"airlines"},{"namespace":["poc_uc2"],"name":"flights"}]}
+# Step 4 — load table poc_uc2.flights (vended-creds keys shown, secrets redacted)
+{
+  "metadata_location": "s3a://srm-iceberg-buk-210e3813/data/warehouse/tablespace/external/hive/poc_uc2.db/flights/metadata/00012-9374626e-0ff8-4143-b647-adbea779a768.metadata.json",
+  "config_keys": [
+    "client.region",
+    "s3.access-key-id",
+    "s3.remote-signing-enabled",
+    "s3.secret-access-key",
+    "s3.session-token"
+  ],
+  "has_vended_creds": true,
+  "region": "us-east-2"
+}
+--- also validate airlines (3-row table) ---
+# Step 1 — exchange client creds for JWT
+  JWT acquired (len 1081)
+# Step 2 — list namespaces
+{"namespaces":[["default"],["information_schema"],["poc_uc2"],["sys"]]}
+# Step 3 — list tables in poc_uc2
+{"identifiers":[{"namespace":["poc_uc2"],"name":"airlines"},{"namespace":["poc_uc2"],"name":"flights"}]}
+# Step 4 — load table poc_uc2.airlines (vended-creds keys shown, secrets redacted)
+{
+  "metadata_location": "s3a://srm-iceberg-buk-210e3813/data/warehouse/tablespace/external/hive/poc_uc2.db/airlines/metadata/00002-a51a7368-893a-4ee9-a955-a452608c23ee.metadata.json",
+  "config_keys": [
+    "client.region",
+    "s3.access-key-id",
+    "s3.remote-signing-enabled",
+    "s3.secret-access-key",
+    "s3.session-token"
+  ],
+  "has_vended_creds": true,
+  "region": "us-east-2"
+}

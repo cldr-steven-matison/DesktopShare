@@ -1,6 +1,6 @@
 # Chapter 19 — CDP Public Cloud on AWS + the DGX Spark
 
-> **Status: environment live; box-side read path blocked pending a network decision.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) §3 · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) / [#342](https://github.com/cldr-steven-matison/DesktopShare/issues/342) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). As-built capture: [`files/issue-342/as-built-2026-09-16.md`](../issue-342/as-built-2026-09-16.md).
+> **Status: environment live; REST-catalog read path proven from the box (curl/Knox OAuth2 + `loadTable`, 2026-09-16); the in-NiFi read and native processors are pending a VPN↔k3s routing fix.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) §3 · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) / [#342](https://github.com/cldr-steven-matison/DesktopShare/issues/342) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226). As-built capture: [`files/issue-342/as-built-2026-09-16.md`](../issue-342/as-built-2026-09-16.md).
 
 **What you'll build.** CDP Public Cloud on AWS (the `srm-iceberg` environment) reached from a Spark-hosted NiFi as one more external REST client. It reads an Iceberg REST Catalog over Knox OAuth2, and it POSTs into Kafka over a DataFlow Inbound Connection.
 
