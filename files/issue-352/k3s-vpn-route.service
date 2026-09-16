@@ -1,5 +1,5 @@
 [Unit]
-Description=Keep the k3s service CIDR (10.43.0.0/16) off the corp VPN tunnel (#352)
+Description=Keep k3s traffic off the corp VPN tunnel: service CIDR 10.43.0.0/16 route + pod-egress (10.42.0.0/16) policy routing (#352)
 After=network-online.target
 
 [Service]

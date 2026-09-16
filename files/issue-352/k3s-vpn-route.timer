@@ -1,5 +1,5 @@
 [Unit]
-Description=Re-assert the k3s service-CIDR route every 30 s (survives VPN reconnect and wifi flaps) (#352)
+Description=Re-assert the k3s VPN carve-outs every 30 s (survives VPN reconnect and wifi flaps) (#352)
 
 [Timer]
 OnBootSec=20s
