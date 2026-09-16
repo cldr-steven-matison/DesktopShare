@@ -1,0 +1,54 @@
+# awc-check from spark-dd06 2026-09-16T11:57:07Z — tun0: 10.19.12.51/32
+
+## reachability (TCP :443 / :8443 / :9878, 5 s) — DNS via 172.17.64.15
+console.goes01-se-goes.demos.cloudera-labs.com                                 10.80.156.1     :443   OK
+cdf.goes01-cdf-cluster.demos.cloudera-labs.com                                 10.80.155.216   :443   OK
+goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com              10.80.155.227   :443   OK
+goes01-cle-i-3a8882.goes01-cle-int-cluster.demos.cloudera-labs.com             10.80.158.220   :443   OK
+goes01-csm-kafka.goes01-csm-cluster.demos.cloudera-labs.com                    10.80.133.150   :8443  OK
+goes01-csm-surveyor.goes01-csm-s-bf633e.goes01-csm-cluster.demos.cloudera-labs.com 10.80.133.150   :443   OK
+goes01-cle-int-ozone-s3.goes01-cle-int-cluster.demos.cloudera-labs.com         10.80.158.220   :443   OK
+goes01-cde-udf-ozone-s3.goes01-cde-udf-cluster.demos.cloudera-labs.com         10.80.154.41    :443   OK
+goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com                 10.80.186.131   :443   OK
+goes01-cdx-cdx.goes01-cdx-cluster.demos.cloudera-labs.com                      10.80.140.64    :443   OK
+
+## TLS — goes01 CA trusted by the system store? (no -k)
+console.goes01-se-goes.demos.cloudera-labs.com                                 HTTP 302 ssl_verify=0
+cdf.goes01-cdf-cluster.demos.cloudera-labs.com                                 HTTP 302 ssl_verify=0
+goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com              HTTP 302 ssl_verify=0
+goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com                 HTTP 302 ssl_verify=0
+goes01-cle-i-3a8882.goes01-cle-int-cluster.demos.cloudera-labs.com             HTTP 000 ssl_verify=20
+
+## 1. awc_api /experiences
+17 experiences
+Cloudera Data Explorer	deployed	https://goes01-cdx-cdx.goes01-cdx-cluster.demos.cloudera-labs.com
+Cloudera Lakehouse Engine - Integrated	deployed	https://goes01-cle-i-3a8882-admin.goes01-cle-int-cluster.demos.cloudera-labs.com
+Cloudera Lakehouse Engine - Integrated	deployed	null
+Cloudera Lakehouse Engine - Integrated	deployed	https://ranger.goes01-cle-i-5c67b0.goes01-cle-int-cluster.demos.cloudera-labs.com/,https://atlas.goes01-cle-i-5c67b0.goes01-cle-int-cluster.demos.cloudera-labs.com
+Cloudera Lakehouse Engine - Integrated	deployed	http://goes01-cle-int-ozone-s3gateway.goes01-cle-i-72684e.svc.cluster.local:9878,https://goes01-cle-int-ozone-s3.goes01-cle-int-cluster.demos.cloudera-labs.com
+Cloudera AI	deployed	https://goes01-cai-c-fe629e.goes01-cai-cluster.demos.cloudera-labs.com
+Cloudera Streams Messaging	deployed	https://ranger.goes01-csm-u-5dab1b.goes01-csm-cluster.demos.cloudera-labs.com/,https://atlas.goes01-csm-u-5dab1b.goes01-csm-cluster.demos.cloudera-labs.com
+Cloudera Streams Messaging	deployed	https://goes01-csm-surveyor.goes01-csm-s-bf633e.goes01-csm-cluster.demos.cloudera-labs.com
+Cloudera Streams Messaging	deployed	https://goes01-csm-kafka.goes01-csm-cluster.demos.cloudera-labs.com:8443
+Cloudera Workflow Orchestrator	deployed	https://goes01-cwo-cwo-airflow-api-server.goes01-cwo-cluster.demos.cloudera-labs.com
+Cloudera Streaming Analytics	deployed	https://goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com/
+Cloudera Data Flow	deployed	https://cdf.goes01-cdf-cluster.demos.cloudera-labs.com
+Cloudera Data Visualization	deployed	https://goes01-dataviz-dataviz.goes01-dataviz-cluster.demos.cloudera-labs.com
+Cloudera Data Engineering with Unified Data Fabric	deployed	https://console-goes01-cde-u-a423c1.apps.goes01-cde-udf-cluster.demos.cloudera-labs.com/dex/
+Cloudera Data Engineering with Unified Data Fabric	deployed	null
+Cloudera Data Engineering with Unified Data Fabric	deployed	https://ranger.goes01-cde-u-9c0fb3.goes01-cde-udf-cluster.demos.cloudera-labs.com/,https://atlas.goes01-cde-u-9c0fb3.goes01-cde-udf-cluster.demos.cloudera-labs.com
+Cloudera Data Engineering with Unified Data Fabric	deployed	http://goes01-cde-udf-ozone-s3gateway.goes01-cde-u-cb6ef8.svc.cluster.local:9878,https://goes01-cde-udf-ozone-s3.goes01-cde-udf-cluster.demos.cloudera-labs.com
+
+## 2. cdf_api /cdf/api/v1/deployments
+{"totalElements":1,"first":"rsingh1"}
+
+## 3. SSB /api/v1/  (auth passing = structured JSON 'No endpoint', not a 302 to websso)
+Bearer: HTTP 302 -> https://knox.goes01-se-goes.demos.cloudera-labs.com/gateway/knox-cdpsso/api/v1/websso?originalUrl=https://goes01-csa-csa-ssb-sse.goes01-csa-cluster.demos.cloudera-labs.com/api/v1/
+Cookie: {"type":"internal_server_error","error_message":"No endpoint GET /api/v1/."}
+
+## 4. Trino https://goes01-cle-i-3a8882.goes01-cle-int-cluster.demos.cloudera-labs.com /v1/info + SELECT 1 + SHOW CATALOGS  (curl -k — cle-int cert not in the goes01_awc chain)
+{"starting":false,"coordinator":true,"nodeVersion":{"version":"cloudera-0.479.1.2026.0.22.1-14-7eef079"},"uptime":"15.77d"}
+SELECT 1 -> [1]
+SHOW CATALOGS -> ["hive"] ["iceberg"] ["system"] 
+
+# written to /home/tunas/BrainShare/files/issue-347/awc-check-2026-09-16T1157Z.txt
