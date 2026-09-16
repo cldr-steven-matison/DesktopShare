@@ -1,3 +1,5 @@
+> Superseded where it differs by [execution-plan.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-344/execution-plan.md) (2026-09-16): the executed design, with the harness facts that changed it.
+
 # Issue #344 — opencode hardening plan (NvidiaSpark-1)
 
 ## Architecture reality check

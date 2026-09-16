@@ -1,3 +1,5 @@
+> Superseded where it differs by [execution-plan.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-344/execution-plan.md) (2026-09-16): the executed design, with the harness facts that changed it.
+
 # One guard.sh for three harnesses (issue #344 plan)
 
 Written on NvidiaSpark-1, 2026-09-16, from a read of the live hook code. It builds on [plan-comment.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-344/plan-comment.md) and replaces the opencode mechanism in [opencode-plan.md](https://github.com/cldr-steven-matison/DesktopShare/blob/main/files/issue-344/opencode-plan.md).
