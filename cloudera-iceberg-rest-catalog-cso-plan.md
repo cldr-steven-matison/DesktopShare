@@ -6,6 +6,7 @@ The **streaming-engine spinoff** of [`cloudera-iceberg-rest-catalog-aws-plan.md`
 > - **NiFi via `InvokeHTTP` ✅** — the portable "call the REST Catalog API from NiFi" path (namespaces/tables/load-table).
 > - **NiFi native `GetIceberg` + `RESTCatalogService` ✅** — the custom read processor returns `poc_uc2.airlines` (3 rows) as one FlowFile, after the jackson NAR fix + null-OAuth-token fix both landed (#152).
 > - **NiFi native `QueryIceberg` + `RESTCatalogService` ✅** — SQL over an Iceberg table with native predicate/projection pushdown; proven live on `poc_uc2.airlines` and the 120k-row `poc_uc2.flights`, where a partition filter prunes 11/12 manifests on CDP Public Cloud (#156).
+> - **Reproduced on NvidiaSpark-1's CFM-operator NiFi (k3s, 2026-09-16, #355) ✅** — same NAR rebuilt on the box, same proven export uploaded, both processors green with identical pushdown attributes (`flights` → 1 file planned, 11/12 manifests skipped). Capture + re-export: `files/issue-355/`. The box-specific gotcha: the NiFi **pod's** public egress is not the host's, so the Knox SG needs the pod's `/32`.
 > - **Flink/SSB ✅** — `SELECT * FROM poc_uc2.airlines` returns all 3 rows through the REST Catalog.
 
 ## Read the AWS plan first — the shared foundation lives there
@@ -69,7 +70,7 @@ The SQL read: a custom `QueryIceberg` processor — the read counterpart to stoc
   - `QueryIceberg` → `poc_uc2.airlines` — `SELECT *`, `WHERE code='AA'` (predicate + projection pushdown, `ref(name="code") == "AA"`), `GROUP BY dest`. NB: the live `airlines` schema is `code/description/origin/dest/year_id`.
   - `QueryFlights` → `poc_uc2.flights` — a 120k-row table partitioned by string `flight_month`, seeded into CDP via Impala and added to `srm-iceberg-share`. `WHERE flight_month='2026-03'` prunes **11/12 manifests** (1 data file planned) — metadata-layer partition pruning on CDP Public Cloud, matching the local rig.
 - **Coverage gate:** the module carries a JaCoCo `verify`-phase check (BUNDLE LINE ≥ 0.80); module line coverage 62.7% → 89.2% over 46 tests. Build: `JAVA_HOME=openjdk@21 mvn -Denforcer.skip=true clean verify`.
-- **Detail plan:** [`queryiceberg-processor-plan.md`](queryiceberg-processor-plan.md). Live proofs: [`files/issue-156/mac-leg-live-proof.txt`](files/issue-156/mac-leg-live-proof.txt) (airlines), [`files/issue-156/mac-leg-flights-cdp-proof.txt`](files/issue-156/mac-leg-flights-cdp-proof.txt) (flights).
+- **Detail plan:** [`queryiceberg-processor-plan.md`](queryiceberg-processor-plan.md). Live proofs: [`files/issue-156/mac-leg-live-proof.txt`](files/issue-156/mac-leg-live-proof.txt) (airlines), [`files/issue-156/mac-leg-flights-cdp-proof.txt`](files/issue-156/mac-leg-flights-cdp-proof.txt) (flights); NvidiaSpark-1 CFM-operator leg (#355): [`files/issue-355/nifi-validation-2026-09-16T2102Z.txt`](files/issue-355/nifi-validation-2026-09-16T2102Z.txt), flow re-export [`files/issue-355/flows/IcebergRESTCatalogDemo.flow.json`](files/issue-355/flows/IcebergRESTCatalogDemo.flow.json).
 
 ### Write path — read-only *by design* (the boundary)
 

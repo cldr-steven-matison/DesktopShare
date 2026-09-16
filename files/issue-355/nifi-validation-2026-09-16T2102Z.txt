@@ -1,0 +1,128 @@
+GetIceberg + QueryIceberg — LIVE proof from NvidiaSpark-1's CFM-operator NiFi against the CDP Public Cloud
+REST Catalog (issue #355), captured 2026-09-16 21:02 UTC. Driven end to end through the NiFi REST API.
+
+Target:   k3s spark-dd06, ns cfm-streaming, pod mynifi-0 (CFM 2.6.0.4.3.4.0-234), NiFi API via mTLS (nifi-admin).
+Catalog:  srm-iceberg CDP Public Cloud Data Share — https://srm-iceberg-aw-dl-gateway.srm-iceb.a465-9q4k.cloudera.site
+          /srm-iceberg-aw-dl/cdp-datashare-access/iceberg-rest (Knox client_credentials, REQUEST_BODY; vended S3 creds).
+          Warehouse bucket srm-iceberg-buk-210e3813 (rotated by the weekly rebuild; exports said ...-081550c7).
+NAR:      nifi-iceberg-read-nar-1.0.3-SNAPSHOT.nar (129,093,157 B) built on the box 16:08 UTC from
+          NiFi2-Processor-Playground a903e80, JDK 21, user-space Maven 3.9.10; hot-loaded into
+          /opt/nifi/nifi-current/data/extensions — processor-types lists GetIceberg + QueryIceberg under
+          com.example:nifi-iceberg-read-nar:1.0.3-SNAPSHOT.
+Flow:     PG IcebergRESTCatalogDemo (ac041fb7-01a0-1000-0000-0000693606d0) uploaded from the PROVEN mac-leg export
+          files/issue-156/IcebergRESTCatalogDemo.json (only delta: bucket swap), bound by name to Parameter Context
+          iceberg-demo-params (client_id / client_secret from credentials.json; secret write-only, never echoed).
+          CS chain: KnoxOAuth2 (StandardOauth2AccessTokenProvider, #{client_id}/#{client_secret}) -> CdpRestCatalog
+          (RESTCatalogService) -> GetIcebergJsonWriter. All ENABLED/VALID. Processors RUN_ONCE, then left STOPPED.
+Network:  NiFi's calls leave from the POD, whose public egress (108.204.157.197, home ISP — the #352 route carve-out
+          sends pod traffic around tun0) differs from the host's corp-VPN egress (165.1.200.190). The Knox SG
+          (sg-0938cb277fe790c79) needed the POD /32 on 443: sgr-0a99b1c80e91de119 (+ sgr-0b7ed5c302015cb12 for the
+          host-side curl check). Both added for the window and REVOKED after capture.
+Live-data note: poc_uc2.airlines currently holds 6 rows (AA/DL/UA twice) in 2 data files — a double-seeded table,
+          not a read defect: every route's record.count is correct for 6 rows and matches the mac-leg content
+          shape exactly. All pushdown/projection attributes match the mac-leg proof (files/issue-156/).
+
+### GetIceberg -> success  (poc_uc2.airlines, full read via CdpRestCatalog)
+finished=true uuid=e7bc31a3-11f5-4353-a404-4715f4c6b2f9
+  filename = e7bc31a3-11f5-4353-a404-4715f4c6b2f9
+  record.count = 6
+  iceberg.catalog.namespace = poc_uc2
+  mime.type = application/json
+  iceberg.table.name = airlines
+  --- content ---
+[{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX","year_id":2026},{"code":"DL","description":"Delta Air Lines","origin":"ATL","dest":"SEA","year_id":2026},{"code":"UA","description":"United Airlines","origin":"ORD","dest":"SFO","year_id":2026},{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX","year_id":2026},{"code":"DL","description":"Delta Air Lines","origin":"ATL","dest":"SEA","year_id":2026},{"code":"UA","description":"United Airlines","origin":"ORD","dest":"SFO","year_id":2026}]
+
+### QueryIceberg -> all   (SELECT * FROM airlines)
+finished=true uuid=f736b955-07e4-43ea-8cdd-d2681717e510
+  iceberg.pushdown.columns = code,description,origin,dest,year_id
+  mime.type = application/json
+  QueryIceberg.query = all
+  iceberg.table.name = airlines
+  iceberg.scan.skipped.data.manifests = 0
+  filename = f736b955-07e4-43ea-8cdd-d2681717e510
+  record.count = 6
+  iceberg.catalog.namespace = poc_uc2
+  iceberg.scan.result.data.files = 2
+  iceberg.scan.skipped.data.files = 0
+  iceberg.pushdown.filter = 
+  --- content ---
+[{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX","year_id":2026},{"code":"DL","description":"Delta Air Lines","origin":"ATL","dest":"SEA","year_id":2026},{"code":"UA","description":"United Airlines","origin":"ORD","dest":"SFO","year_id":2026},{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX","year_id":2026},{"code":"DL","description":"Delta Air Lines","origin":"ATL","dest":"SEA","year_id":2026},{"code":"UA","description":"United Airlines","origin":"ORD","dest":"SFO","year_id":2026}]
+
+### QueryIceberg -> filtered   (SELECT code, description, origin, dest FROM airlines WHERE code = 'AA')
+finished=true uuid=916054ae-e40e-4fab-9c9f-172c9297d838
+  iceberg.pushdown.columns = code,description,origin,dest
+  mime.type = application/json
+  QueryIceberg.query = filtered
+  iceberg.table.name = airlines
+  iceberg.scan.skipped.data.manifests = 0
+  filename = 916054ae-e40e-4fab-9c9f-172c9297d838
+  record.count = 2
+  iceberg.catalog.namespace = poc_uc2
+  iceberg.scan.result.data.files = 2
+  iceberg.scan.skipped.data.files = 0
+  iceberg.pushdown.filter = ref(name="code") == "AA"
+  --- content ---
+[{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX"},{"code":"AA","description":"American Airlines","origin":"JFK","dest":"LAX"}]
+
+### QueryIceberg -> by_dest   (SELECT dest, COUNT(*) AS n FROM airlines GROUP BY dest)
+finished=true uuid=8b4f7d7e-8399-4712-bb99-f49832672a2d
+  iceberg.pushdown.columns = dest
+  mime.type = application/json
+  QueryIceberg.query = by_dest
+  iceberg.table.name = airlines
+  iceberg.scan.skipped.data.manifests = 0
+  filename = 8b4f7d7e-8399-4712-bb99-f49832672a2d
+  record.count = 3
+  iceberg.catalog.namespace = poc_uc2
+  iceberg.scan.result.data.files = 2
+  iceberg.scan.skipped.data.files = 0
+  iceberg.pushdown.filter = 
+  --- content ---
+[{"dest":"LAX","n":2},{"dest":"SFO","n":2},{"dest":"SEA","n":2}]
+
+### QueryFlights -> pruned   (SELECT carrier_code, origin, dest, dep_delay FROM flights WHERE flight_month = '2026-03')   <- PARTITION PRUNING PROOF
+finished=true uuid=7e2e05d3-e17b-4add-b6b4-cde44c3391f4
+  iceberg.pushdown.columns = carrier_code,origin,dest,dep_delay,flight_month
+  mime.type = application/json
+  QueryIceberg.query = pruned
+  iceberg.table.name = flights
+  iceberg.scan.skipped.data.manifests = 11
+  record.count = 10000
+  iceberg.catalog.namespace = poc_uc2
+  iceberg.scan.result.data.files = 1
+  iceberg.scan.skipped.data.files = 0
+  iceberg.pushdown.filter = ref(name="flight_month") == "2026-03"
+  --- content: rows=10000 distinct_months_in_result= ---
+  first 3: [{"carrier_code":"AA","origin":"JFK","dest":"LAX","dep_delay":-15},{"carrier_code":"AA","origin":"JFK","dest":"LAX","dep_delay":-15},{"carrier_code":"AA","origin":"JFK","dest":"LAX","dep_delay":-15}]
+
+### QueryFlights -> delayed   (SELECT flight_id, carrier_code, dep_delay FROM flights WHERE dep_delay > 45 AND carrier_code = 'AA')
+finished=true uuid=5a2d8901-77b0-4ec6-aa75-7c5550496dc8
+  iceberg.pushdown.columns = flight_id,carrier_code,dep_delay
+  mime.type = application/json
+  QueryIceberg.query = delayed
+  iceberg.table.name = flights
+  iceberg.scan.skipped.data.manifests = 0
+  record.count = 6000
+  iceberg.catalog.namespace = poc_uc2
+  iceberg.scan.result.data.files = 12
+  iceberg.scan.skipped.data.files = 0
+  iceberg.pushdown.filter = (ref(name="dep_delay") > 45 and ref(name="carrier_code") == "AA")
+  --- content: rows=6000 carriers=AA min_dep_delay=69 ---
+  first 3: [{"flight_id":40112,"carrier_code":"AA","dep_delay":69},{"flight_id":41112,"carrier_code":"AA","dep_delay":69},{"flight_id":42112,"carrier_code":"AA","dep_delay":69}]
+
+### QueryFlights -> carrier_stats   (SELECT carrier_code, COUNT(*) AS n, AVG(dep_delay) AS avg_delay FROM flights GROUP BY carrier_code)
+finished=true uuid=19f582c7-cdf4-4dbf-8c25-58ed19b08b83
+  iceberg.pushdown.columns = carrier_code,dep_delay
+  mime.type = application/json
+  QueryIceberg.query = carrier_stats
+  iceberg.table.name = flights
+  iceberg.scan.skipped.data.manifests = 0
+  record.count = 8
+  iceberg.catalog.namespace = poc_uc2
+  iceberg.scan.result.data.files = 12
+  iceberg.scan.skipped.data.files = 0
+  iceberg.pushdown.filter = 
+  --- content: groups=8 total_rows=120000 ---
+[{"carrier_code":"AA","n":15000,"avg_delay":41},{"carrier_code":"AS","n":15000,"avg_delay":48},{"carrier_code":"F9","n":15000,"avg_delay":62},{"carrier_code":"B6","n":15000,"avg_delay":41},{"carrier_code":"WN","n":15000,"avg_delay":62},{"carrier_code":"DL","n":15000,"avg_delay":48},{"carrier_code":"UA","n":15000,"avg_delay":55},{"carrier_code":"NK","n":15000,"avg_delay":55}]
+
+### failure relationships (GetIceberg, QueryIceberg, QueryFlights): all empty. Bulletins: none.
