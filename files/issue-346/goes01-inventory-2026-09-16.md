@@ -181,4 +181,9 @@ Connect to CDE's Spark 4.1.1.
 2. **Does CDE 1.26.101 expose the cuDF plugin toggle?** Closes with a `GET` of the job-create
    schema on the VC jobs API (`…/dex/api/v1/jobs` with the cookie) and a look for a GPU / cuDF
    field. Even if present, `MaxVCAvailableGPU 0` means it cannot run here.
+   **Resolved (2026-09-16 PM):** API is POST-only, no schema endpoint. VC config has zero GPU,
+   no `gpu`/`rapids`/`cudf` keys. No cuDF toggle visible.
 3. **Can a GPU node group be added to the CDE cluster?** A question for `jenright` (service creator).
+4. **Workbench v2 engine status (2026-09-16 PM):** All API-created jobs stuck `ENGINE_SCHEDULING` →
+   `ENGINE_SKIPPED` (instant skip). The engine is non-functional. If the UI can start sessions,
+   cuDF validation is still possible; if not, the tenant needs a restart.

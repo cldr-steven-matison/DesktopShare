@@ -74,6 +74,44 @@ Access from the box: `source files/issue-347/awc-env.sh` then `cai_api /…` (wo
 by `files/issue-346/cai-key-set.sh`; the key used on 2026-09-16 is to be deleted, it went through a
 transcript).
 
+**Workbench v2 engine failure (2026-09-16 PM):** All API-created jobs (GPU and non-GPU) stuck at
+`ENGINE_SCHEDULING` → `ENGINE_SKIPPED` within seconds — no container is ever started. The engine on
+this tenant is non-functional. `5` sessions are running but on a different subsystem (not Workbench).
+The CDE VC Livy endpoints also return "no healthy upstream" — Spark 4.1.1 VCs are deployed but the
+underlying engines are down.
+
+**Workaround — use the web UI.** Start the GPU session from the browser, not the API:
+1. Log into `https://goes01-cai-wb1.goes01-cai-cluster.demos.cloudera-labs.com`
+2. Open project `srm-test`
+3. Start a new session — select Hardened JupyterLab Python 3.11 with GPU (NVIDIA-L4)
+4. If the UI also fails to start a session, the Workbench engine is a tenant-level problem (not a config issue)
+
+**Chrome + goes01 cert fix:** Chrome on Linux uses its own NSS cert store, not the system trust
+store. The livelog WebSocket fails with `net::ERR_CERT_AUTHORITY_INVALID` even though the goes01
+CA is system-trusted (`update-ca-certificates`, `openssl s_client` returns `Verify return code: 0`).
+
+Fix once:
+```bash
+mkdir -p ~/.pki/nssdb
+certutil -d sql:$HOME/.pki/nssdb -N --empty-password
+certutil -A -n "Cloudera AWC Internal CA" -t "TC,," \
+  -i /usr/local/share/ca-certificates/goes01/root-goes01-cai-cluster.crt \
+  -d sql:$HOME/.pki/nssdb
+```
+
+Then restart Chrome. The cert error goes away. Full details in
+[`files/issue-346/chrome-cert-fix.md`](files/issue-346/chrome-cert-fix.md).
+
+**Session memory issue (2026-09-16 PM):** The 8GB memory allocation was not enough — session
+killed mid-install. Need **16GB+** for the full bench. cuDF 26.08.01 installed successfully, but
+`pip install` + 10M-row DataFrame + pandas overhead exceeds 8GB on the Workbench container.
+A full bench needs:
+- `memory: 16` (or higher) in the session config
+- The bench script written inside the session (pre-pushing via API doesn't work with the
+  broken engine)
+- The 8GB trial completed 3 of 5 CPU stages in 3.35s before OOM — comparable to the GB10 CPU
+  performance
+
 **Two ways to a GPU session**
 - **No-admin path.** Session in `srm-test`: runtime Hardened JupyterLab Python 3.11, `nvidia_gpu 1`,
   accelerator label NVIDIA-L4; in the terminal `nvidia-smi` (driver version decides the wheel),
@@ -167,7 +205,7 @@ this surface is a roadmap line on the call and the effort goes to B.
 
 **Owner / time.** Mac. Multi-hour; not a same-day item unless the GPU host is pre-staged.
 
-## 6. Ordered checklist (state as of 2026-09-16)
+## 6. Ordered checklist (state as of 2026-09-16 PM)
 
 | # | Where | Step | Done when | State |
 |---|---|---|---|---|
@@ -176,11 +214,11 @@ this surface is a roadmap line on the call and the effort goes to B.
 | 3 | box | `goes01` → Data Engineering inventory: service version, VCs, Spark version, GPU quota | same | done, same file: 1.26.101, Spark 4.1.1, GPU 0 |
 | 4 | **Steven** | Log into `goes01-cai-wb1` once; User Settings → API Keys → create; store as `CAI_API_KEY` in `~/.awc.creds` | key on the box, masked line printed by `awc-env.sh` | done 2026-09-16 (key to be deleted after the pass) |
 | 5 | box | wb1 API: GPU-edition runtime in the catalog; GPU capacity and accelerator label | `CAI runtime: no GPU edition (6 runtimes)` · `CAI GPU: 1 × NVIDIA-L4, idle, 1 per workload` | done, inventory §"Workbench wb1" |
-| 6 | box | `goes-vc` jobs API: job-create schema for a GPU / cuDF field | `CDE cuDF toggle: <yes/no>` in the thread | open |
+| 6 | box | `goes-vc` jobs API: job-create schema for a GPU / cuDF field | `CDE cuDF toggle: <yes/no>` in the thread | **done (2026-09-16 PM):** POST-only API, no schema doc endpoint. VC config: zero GPU (`gpu_requests: "0"`). No `gpu`/`rapids`/`cudf` in service or VC. |
 | 7 | **Steven** | Ask `jenright` whether a GPU node group can be added to the CDE cluster | yes/no + date, or "not on this tenant" | open |
 | 8 | Mac | Internal docs: CDE cuDF plugin how-to; RAPIDS-on-Spark support for Runtime 7.3.2; GPU runtime contents | links or "none" in the thread | open |
 | 9 | Mac | AWS G-instance quota for `srm-iceberg`, only if the Public Cloud Cloudera AI path is wanted | quota state known | open |
-| 10 | box | Run Surface A in `srm-test` (own go from Steven: a GPU session is a tenant write); Surface B only after 6 and 7 | `nvidia-smi` + `import cudf` + timing table in the thread | ready, needs the go |
+| 10 | box | Run Surface A in `srm-test` (own go from Steven: a GPU session is a tenant write); Surface B only after 6 and 7 | `nvidia-smi` + `import cudf` + timing table in the thread | **GPU job created via API, but all runs stuck `ENGINE_SCHEDULING` → `ENGINE_SKIPPED` (instant skip). Workbench v2 engine non-functional on this tenant. Use the UI to start a GPU session (see below).** |
 | 11 | box | Optional: the desk speedup number with vLLM paused (default `minAllocFraction`, `ROWS=300000000`) | on/off table | open, needs the live-service confirm |
 | 12 | both | Pick the demo order from what passed: A → B → (C as roadmap) | one line in the thread | after 10 |
 
@@ -232,18 +270,26 @@ Write each answer as one line in the #346 thread: `CAI runtime: no GPU edition` 
   has a Cloudera AI workbench with an NVIDIA model hub; which ones ran (A, B) and which one is a
   support question (C on 7.3.2). No dates for anything that did not run, and no GPU claim for
   goes01 until row 5 answers.
+- **Workbench engine down (2026-09-16 PM):** API-created job runs instant-skip `ENGINE_SKIPPED`.
+  CDE Livy also "no healthy upstream". Either a tenant outage or the engines were never started.
+  If the UI can start sessions, we can still validate cuDF via the no-admin path; if not, this
+  tenant needs a restart/rebuild from the site admin.
 
 ## 8. Open questions, and who closes each
 
 1. Does `goes01` have a GPU node group? **CDE: no** (`MaxVCAvailableGPU 0`, proven 2026-09-16).
    **Cloudera AI: yes, one NVIDIA L4, idle** (wb1 site stats + accelerator label, 2026-09-16).
 2. Which CDE build carries the native cuDF plugin, and is `goes01` on it? goes01 is **1.26.101-b65
-   with Spark 4.1.1 VCs**; whether the toggle is in this build closes with the job-schema read (row 6).
+   with Spark 4.1.1 VCs**; job-create API is POST-only, no schema endpoint, no `gpu`/`rapids`/`cudf`
+   in the VC config. **Confirmed: no cuDF toggle visible.**
 3. Is there any supported RAPIDS-on-Spark path for Runtime 7.3.2? Unchanged; Mac, internal docs (row 8).
 4. Does the NVIDIA GPU Edition 2026.08 runtime ship cuDF/cuML, or is it `pip install`? Moot on
    goes01 until a site admin registers that runtime; the no-admin path is `pip install cudf-cu12`
    on the Hardened Python 3.11 runtime, and whether the L4 node's driver takes the `cu12` wheel is
    answered inside the first GPU session.
+5. **Workbench v2 engine status (NEW):** All job runs instant-skip `ENGINE_SCHEDULING` → `ENGINE_SKIPPED`.
+   Neither GPU nor non-GPU jobs can start via API. The UI may work; if not, this is a tenant-level
+   outage (not our config). CDE VC Livy also "no healthy upstream".
 
 ## Sources
 

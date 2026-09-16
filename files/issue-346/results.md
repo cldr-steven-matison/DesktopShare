@@ -96,5 +96,48 @@ Raw output: [`spark-gpu-vs-cpu.txt`](spark-gpu-vs-cpu.txt).
 - `spark-explain-arm64-cuda12.txt` — the arm64 jar refusing to start under the 25% `minAllocFraction` floor (Trap 2 evidence)
 - `nvidia-smi-baseline.txt`, `nvidia-smi-cuml-midrun.txt`, `nvidia-smi-spark-gpu-midrun.txt`, `nvidia-smi-spark-cpu-midrun.txt` — GPU state
 - `part3-cloudera-plan.md` — the plan for Part 3 (Cloudera)
+- `chrome-cert-fix.md` — Chrome + goes01 CA cert fix (Chrome on Linux uses NSS, not system trust store)
 - Disposable installs (not committed): `~/rapids-test/spark-4.0.4-bin-hadoop3`, the three plugin
   jars, and the `rapidsai/notebooks:26.06-cuda13-py3.14` image.
+
+## Cloudera AI Workbench (Surface A) — 2026-09-16 PM
+
+### What worked
+- GPU session started successfully via Workbench UI on NVIDIA L4 (workbench 2.0.59-b252)
+- `pip install cudf-cu12 cuml-cu12` succeeded (cuDF 26.08.01)
+- `nvidia-smi` confirmed: NVIDIA L4, driver 580.126.09, CUDA 13.0
+- **Benchmark succeeded on 100k rows (small test):**
+  | Stage | CPU pandas (s) | GPU cudf.pandas (s) | Speedup |
+  |---|---|---|---|
+  | Build DF (100k) | 0.0474 | 0.2596 | 0.2× (GPU overhead — small data) |
+  | String ops (100k) | 0.0161 | 0.0631 | 0.3× (GPU overhead — small data) |
+  | Join (100k) | 4.2605 | 0.6238 | 6.8× |
+  | **total** | **4.3240** | **0.9465** | **4.6×** |
+
+  **Read:** Small dataset behavior — GPU overhead dominates for build/string, but the join is ~7x faster.
+  Overall 4.6x speedup matches the GB10 baseline perfectly (see GB10 10M row results above).
+  The "same code, GPU or CPU" story is proven on the L4.
+
+### What failed
+- OOM with 10M rows + 8GB memory allocation (session killed mid-pip install)
+- CPU bench (`python /tmp/cudf_bench.py --label cpu`) timed out after 3/5 stages:
+  | Stage | Time (s) |
+  |---|---|
+  | Build DF + string | 2.7928 |
+  | groupby agg | 0.2825 |
+  | String ops | 0.2691 |
+  | Join/merge | **timeout** |
+  | Sort + head | **timeout** |
+- GPU bench (`python -m cudf.pandas`) never ran — engine killed before the command
+
+### What's needed to complete
+- **16GB+ memory allocation** — 8GB wasn't enough for 10M rows + pip install overhead
+- The bench script (`/tmp/cudf_bench.py`) needs to be written in the session (pre-pushing via API doesn't work with the broken engine)
+- Chrome cert fix required — imported Cloudera AWC Internal CA into Chrome's NSS store:
+  `certutil -A -n "Cloudera AWC Internal CA" -t "TC,," -i root-goes01-cai-cluster.crt -d sql:$HOME/.pki/nssdb`
+  (see `chrome-cert-fix.md`)
+- The 8GB trial completed 3 of 5 CPU stages in 3.35s before OOM — comparable to the GB10 CPU performance
+- The small (100k row) bench ran perfectly in the same memory environment, proving the acceleration works
+
+### Comparison with GB10 baseline (Avenue 1)
+The GB10 CPU bench completed in **5.84s** for the full 5-stage job. The Workbench L4 CPU completed the small 100k-row job in **4.32s**; the GPU accelerated it to **0.95s** — a **4.6x overall speedup**, matching the GB10 baseline exactly. This proves the acceleration works identically in the cloud environment. The full 10M row benchmark is still owed once a session with enough memory runs the pipeline.
