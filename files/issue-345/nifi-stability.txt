@@ -5,3 +5,14 @@
 11:42:45 nodes on 8444: 4/4  hs_err files on worker-01: 1
 11:43:49 nodes on 8444: 4/4  hs_err files on worker-01: 1
 11:44:52 nodes on 8444: 4/4  hs_err files on worker-01: 1
+-- Ranger NiFi audit files in HDFS (the write that crashed before)
+-rw-r--r--   3 nifi nifi          0 2026-09-16 11:40 /ranger/audit/nifi/ozone_base_cluster_nifi/20260916/ozone_base_cluster_nifi_ranger_audit_srm-cloudera-ce-base-base-worker-02.cldr.internal.log
+-rw-r--r--   3 nifi nifi        572 2026-09-16 11:38 /ranger/audit/nifi/ozone_base_cluster_nifi/20260916/ozone_base_cluster_nifi_ranger_audit_srm-cloudera-ce-base-base-worker-03.cldr.internal.1.log
+-rw-r--r--   3 nifi nifi          0 2026-09-16 11:40 /ranger/audit/nifi/ozone_base_cluster_nifi/20260916/ozone_base_cluster_nifi_ranger_audit_srm-cloudera-ce-base-base-worker-03.cldr.internal.log
+-rw-r--r--   3 nifi nifi       2304 2026-09-16 11:38 /ranger/audit/nifi/ozone_base_cluster_nifi/20260916/ozone_base_cluster_nifi_ranger_audit_srm-cloudera-ce-base-base-worker-04.cldr.internal.1.log
+-rw-r--r--   3 nifi nifi          0 2026-09-16 11:40 /ranger/audit/nifi/ozone_base_cluster_nifi/20260916/ozone_base_cluster_nifi_ranger_audit_srm-cloudera-ce-base-base-worker-04.cldr.internal.log
+-- CM nifi roles
+NIFI_NODE worker-04 STARTED NOT_AVAILABLE
+NIFI_NODE worker-02 STARTED NOT_AVAILABLE
+NIFI_NODE worker-03 STARTED NOT_AVAILABLE
+NIFI_NODE worker-01 STARTED NOT_AVAILABLE
