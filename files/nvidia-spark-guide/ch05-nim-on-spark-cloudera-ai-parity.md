@@ -1,6 +1,6 @@
 # Chapter 05 — NIM on the DGX Spark — Cloudera AI Inference parity
 
-> **Status: stub.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** DGX Spark NIM images running locally with an OpenAI-compatible surface that matches the Cloudera AI Inference endpoint shape.
 

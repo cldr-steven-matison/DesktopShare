@@ -1,6 +1,6 @@
 # Chapter 04 — Inference stacks on GB10 and the model lock
 
-> **Status: field-validated (model lock closed 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (model lock closed 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** vLLM, TEI, and whisper.cpp serving the locked model set on ports :8000–:8003, each verified healthy.
 

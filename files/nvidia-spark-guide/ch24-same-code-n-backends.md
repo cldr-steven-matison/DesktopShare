@@ -1,6 +1,6 @@
 # Chapter 24 — Same code, N backends — the arc
 
-> **Status: stub.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) / [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub.** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) / [#283](https://github.com/cldr-steven-matison/DesktopShare/issues/283) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A single Python client, a single NiFi flow, and a single Flink Agents job — each running unmodified against the desk endpoint, Cloudera AI on AWS, and Cloudera AI on AWC — by swapping only base-URL, auth, and model-name.
 

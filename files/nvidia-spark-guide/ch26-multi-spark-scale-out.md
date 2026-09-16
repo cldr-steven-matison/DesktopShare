@@ -1,6 +1,6 @@
 # Chapter 26 — Two, three, four Sparks: ConnectX-7, NCCL, 1M context
 
-> **Status: stub — gated on hardware.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub — gated on hardware.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A multi-Spark cluster connected via ConnectX-7 at 200 Gb/s, with NCCL for inter-GPU communication and 1M-context inference spanning two or more units.
 

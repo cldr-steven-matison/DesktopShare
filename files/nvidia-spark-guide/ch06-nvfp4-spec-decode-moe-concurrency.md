@@ -1,6 +1,6 @@
 # Chapter 06 — NVFP4, speculative decoding, MoE vs dense, concurrency
 
-> **Status: field-validated substance (measured 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated substance (measured 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-landscape.md`](../../nvidia-dgx-spark-landscape.md) · Work-stream A · [#232](https://github.com/cldr-steven-matison/DesktopShare/issues/232) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A measured characterization of NVFP4 quantization, speculative decoding gains, MoE vs dense behavior on the bandwidth wall, and concurrency limits — all from spark-dd06 runs.
 

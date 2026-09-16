@@ -1,6 +1,6 @@
 # Chapter 10 — NiFi → local LLM: custom Python processors and InvokeHTTP shapes
 
-> **Status: field-validated substance (SparkLlmBridge flow built 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated substance (SparkLlmBridge flow built 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A NiFi flow using InvokeHTTP to call the box's `/v1/chat/completions` endpoint, with the SparkLlmBridge gate process group and custom Python processors.
 

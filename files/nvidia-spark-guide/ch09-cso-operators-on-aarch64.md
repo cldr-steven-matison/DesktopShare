@@ -1,6 +1,6 @@
 # Chapter 09 — Cloudera Streaming Operators on aarch64 — install
 
-> **Status: field-validated (operators installed on-box 2026-08-27; all 16 images arm64-native).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (operators installed on-box 2026-08-27; all 16 images arm64-native).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** All Cloudera Streaming Operators (cert-manager, Strimzi, CSA, CFM) installed in order on the aarch64 k3s cluster, with ingress-nginx and ssl-passthrough enabled.
 

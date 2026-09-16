@@ -1,6 +1,6 @@
 # Chapter 03 — Joining the array: LAN, Tailscale, firewall, roster, EFM reachability
 
-> **Status: stub (roster done; network legs pending B expansion).** Source: [`nvidia-dgx-spark-runbook.md`](../../nvidia-dgx-spark-runbook.md) · Work-stream B · [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub (roster done; network legs pending B expansion).** Source: [`nvidia-dgx-spark-runbook.md`](../../nvidia-dgx-spark-runbook.md) · Work-stream B · [#233](https://github.com/cldr-steven-matison/DesktopShare/issues/233) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A DGX Spark on a static LAN IP, enrolled in the Tailscale mesh, with firewall rules set and EFM reachability confirmed from the array.
 

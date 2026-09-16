@@ -1,6 +1,6 @@
 # Chapter 17 — What moves off cloud tokens — cost control, measured
 
-> **Status: measured 2026-09-02/03; partial.** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) §5 + [`nvidia-dgx-spark-offload.md`](../../nvidia-dgx-spark-offload.md) · Work-streams H/L · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) / [#294](https://github.com/cldr-steven-matison/DesktopShare/issues/294) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: measured 2026-09-02/03; partial.** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) §5 + [`nvidia-dgx-spark-offload.md`](../../nvidia-dgx-spark-offload.md) · Work-streams H/L · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) / [#294](https://github.com/cldr-steven-matison/DesktopShare/issues/294) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A measured breakdown of which tasks shift from hosted Claude tokens to local inference on the DGX Spark, including the session scoreboard showing offload share.
 

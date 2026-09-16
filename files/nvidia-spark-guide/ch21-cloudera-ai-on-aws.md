@@ -1,6 +1,6 @@
 # Chapter 21 — Cloudera AI on AWS
 
-> **Status: stub (source in cloudera-aws; not field-tested).** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: stub (source in cloudera-aws; not field-tested).** Source: [`nvidia-dgx-spark-cloudera-aws.md`](../../nvidia-dgx-spark-cloudera-aws.md) · Work-stream I · [#241](https://github.com/cldr-steven-matison/DesktopShare/issues/241) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** Cloudera AI on AWS (Workbench → AI Registry → AI Inference) integrated with NVIDIA NIM microservices, with the OpenAI-compatible endpoint accessible from the DGX Spark via a base-URL swap.
 

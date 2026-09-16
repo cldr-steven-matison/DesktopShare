@@ -1,6 +1,6 @@
 # Chapter 08 — k3s with GPU on GB10
 
-> **Status: field-validated (k3s + GPU built 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (k3s + GPU built 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A k3s v1.32.13+k3s1 single-node cluster on the DGX Spark with the NVIDIA device plugin installed and GPU resources visible to pods.
 

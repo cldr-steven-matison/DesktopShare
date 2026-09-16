@@ -1,6 +1,6 @@
 # Chapter 14 — Observability: Prometheus exporters, the EFM fleet board, DGX Dashboard
 
-> **Status: partial (:9936/metrics live; cluster scrape pending).** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: partial (:9936/metrics live; cluster scrape pending).** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A Prometheus scrape path from the MiNiFi agent metrics exporter (:9936/metrics) into the cluster, with the EFM fleet board and DGX Dashboard providing the visual layer.
 

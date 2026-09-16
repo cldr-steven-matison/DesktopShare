@@ -1,6 +1,6 @@
 # Chapter 15 — Local knowledge base for Claude Code (MCP + Qdrant)
 
-> **Status: field-validated (KB live on spark-dd06 since 2026-08-27).** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) · Work-stream H · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (KB live on spark-dd06 since 2026-08-27).** Source: [`nvidia-dgx-spark-local-kb.md`](../../nvidia-dgx-spark-local-kb.md) · Work-stream H · [#240](https://github.com/cldr-steven-matison/DesktopShare/issues/240) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A Qdrant + TEI vector index of the DesktopShare doc corpus, exposed to Claude Code as the `ds-kb` MCP tool, with a call-site retrieval hook that injects relevant sections automatically.
 

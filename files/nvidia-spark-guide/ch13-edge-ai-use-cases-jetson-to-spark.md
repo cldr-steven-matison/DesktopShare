@@ -1,6 +1,6 @@
 # Chapter 13 — Out-of-box edge-AI use cases — the Jetson → Spark ladder
 
-> **Status: source done (#239); end-to-end from a non-Spark device pending.** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: source done (#239); end-to-end from a non-Spark device pending.** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** Ten edge-AI use-case flows deployable via EFM, demonstrating the Jetson → Spark escalation ladder where lighter models run on a Jetson and heavier inference escalates to the DGX Spark.
 

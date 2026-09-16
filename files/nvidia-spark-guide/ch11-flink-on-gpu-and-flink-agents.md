@@ -1,6 +1,6 @@
 # Chapter 11 — Flink on GPU + Flink Agents
 
-> **Status: field-validated (Flink on GPU + flink-agents 0.3.1 STABLE 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (Flink on GPU + flink-agents 0.3.1 STABLE 2026-08-27).** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** A Flink TaskManager with `nvidia.com/gpu` resource claim running on k3s, plus a flink-agents 0.3.1 job pointed at the box's own inference endpoint.
 

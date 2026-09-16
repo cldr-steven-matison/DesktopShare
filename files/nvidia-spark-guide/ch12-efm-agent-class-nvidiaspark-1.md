@@ -1,6 +1,6 @@
 # Chapter 12 — EFM agent class NvidiaSpark-1
 
-> **Status: field-validated (#239 closed 2026-08-28; class flow v5 validated on-box).** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (#239 closed 2026-08-28; class flow v5 validated on-box).** Source: [`nvidia-dgx-spark-efm-agent.md`](../../nvidia-dgx-spark-efm-agent.md) · Work-stream G · [#239](https://github.com/cldr-steven-matison/DesktopShare/issues/239) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** An EFM agent class for the DGX Spark, with the spark-dd06 MiNiFi agent enrolled via `generateCommand` and the single-handler router flow (flowVersion 5) deployed.
 

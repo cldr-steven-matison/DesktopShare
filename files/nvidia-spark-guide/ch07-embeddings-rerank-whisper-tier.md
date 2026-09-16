@@ -1,6 +1,6 @@
 # Chapter 07 — Embeddings, reranking, Whisper — the RAG service tier
 
-> **Status: field-validated (RAG tier built + measured 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: field-validated (RAG tier built + measured 2026-08-28); prose pending.** Source: [`nvidia-dgx-spark-k3s-cso.md`](../../nvidia-dgx-spark-k3s-cso.md) · Work-stream F · [#238](https://github.com/cldr-steven-matison/DesktopShare/issues/238) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** Three RAG-tier services running on the DGX Spark: bge-m3 embeddings on TEI (:8001), bge-reranker-v2-m3 on TEI (:8002), and whisper.cpp large-v3 with CUDA acceleration (:8003).
 

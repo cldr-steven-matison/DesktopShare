@@ -1,6 +1,6 @@
 # Chapter 23 — Cloudera AI on Data Services
 
-> **Status: BLOCKED — no test env yet.** Source: *(no source doc yet)* · [#242](https://github.com/cldr-steven-matison/DesktopShare/issues/242) · EPIC [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226).
+> **Status: BLOCKED — no test env yet.** Source: *(no source doc yet)* · [#242](https://github.com/cldr-steven-matison/DesktopShare/issues/242) · EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356).
 
 **What you'll build.** Cloudera AI on on-prem Cloudera Data Services (CDS 1.5.5+) as the third AI form factor alongside AWS and AWC, with the DGX Spark as the local inference complement.
 

@@ -2,9 +2,9 @@
 
 *by Steven Matison*
 
-> **Skeleton (2026-09-16).** Staged table of contents for the guide, work-stream J of [#226](https://github.com/cldr-steven-matison/DesktopShare/issues/226), 26 chapters in 9 parts. Every chapter is a stub on the task-first template. Seventeen of the 26 have their substance validated on `spark-dd06` and none has prose yet. Each chapter field-validates before its prose is authored, and the public repo is cut when the first validated chapter exists. Internal tracker of record is `Complete Developer Guide for Nvidia Spark with Cloudera.md` at the DesktopShare root; the remaining per-chapter work is tracked in [#320](https://github.com/cldr-steven-matison/DesktopShare/issues/320). Naming rule throughout. **DGX Spark** is the box, **Apache Spark** is the engine. AWC reachability and data-plane (Trino/Iceberg/Ozone) proven (#343, 2026-09-16); CAI inference and Kafka blocked on platform-side action.
+> **Skeleton (2026-09-16).** Staged table of contents for the guide, EPIC [#356](https://github.com/cldr-steven-matison/DesktopShare/issues/356), 26 chapters in 9 parts. Every chapter is a stub on the task-first template. Twenty-one of the 26 have their substance validated on `spark-dd06` or against a live Cloudera environment, and none has prose yet. Authoring starts when every root source doc is current and the remaining field runs are done or accepted as blocked; the public repo is cut once the chapters are written. Internal tracker of record is `Complete Developer Guide for Nvidia Spark with Cloudera.md` at the DesktopShare root. Naming rule throughout. **DGX Spark** is the box, **Apache Spark** is the engine. RAPIDS on the Workbench GPU lives in Chapter 22 rather than a chapter of its own.
 
-NVIDIA's DGX Spark is documented as a personal AI supercomputer. What it is not documented as is a node in a working data platform, and this guide is that missing half. The box as an inference endpoint for NiFi and Flink, as a Kubernetes host for Cloudera Streaming Operators on Arm, as an EFM-managed edge agent, as the home of a local knowledge base for a coding agent, and as the desk-side prototype that promotes unchanged into Cloudera AI on AWS. Every chapter marked done in the tracker points at a runbook that ran on the hardware.
+NVIDIA's DGX Spark is documented as a personal AI supercomputer. What it is not documented as is a node in a working data platform, and this guide is that missing half. The box as an inference endpoint for NiFi and Flink, as a Kubernetes host for Cloudera Streaming Operators on Arm, as an EFM-managed edge agent, as the home of a local knowledge base for a coding agent, and as the desk-side prototype that promotes unchanged into Cloudera AI. Every chapter marked done in the tracker points at a runbook that ran on the hardware.
 
 ## Table of Contents
 
@@ -72,7 +72,7 @@ Using the box with each Cloudera platform form factor as an external client, nev
 
 ### Part VII. DGX Spark with Cloudera AI
 
-Cloudera AI as a form factor in its own right, with the DGX Spark as the local half, ending in the same-code arc.
+Cloudera AI as a form factor in its own right, with the DGX Spark as the local half, ending in the same-code arc. Chapter 22 also carries RAPIDS: the same cuDF and cuML code on the box's GB10 and in a Cloudera AI Workbench GPU session.
 
 | Ch | Chapter |
 |---|---|
