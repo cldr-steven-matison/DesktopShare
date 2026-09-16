@@ -33,7 +33,7 @@ steps named in §6.
 | `steven-ce` | CDP Base CE on AWS, CM 7.13.2 / Runtime 7.3.2, `cloudera-ce-aws` v1.0.0 (2026-09-14 build) | none — topology is `t3a`/`r5a` | Mac |
 | `srm-iceberg` | CDP Public Cloud on AWS, Runtime 7.3.2, `LIGHT_DUTY` Data Lake | none; **AWS G-instance quota** is a known gate | Mac |
 | `goes01` · CDE | Data Engineering 1.26.101-b65, service `goes01-svc`, VCs `goes-vc` + `test-virtual-cluster`, both **Spark 4.1.1** | **none, proven**: `MaxVCAvailableGPU 0`, `gpuRequestActual 0` on both VCs | box (cookie auth) and Mac |
-| `goes01` · Cloudera AI | workbench `goes01-cai` 2.0.59-b252 at `goes01-cai-wb1…`; AI Inference `dm-inference` 1.14.0; model registry `dm-registry`; NVIDIA model hub with 24 models enabled | **unknown**: node types not exposed by the console API; the workbench API needs a workbench API key and Steven's user does not exist on wb1 yet | box and Mac, after one browser login |
+| `goes01` · Cloudera AI | workbench `goes01-cai` 2.0.59-b252 at `goes01-cai-wb1…` (5 nodes, 10 projects incl. Steven's `srm-test`); AI Inference `dm-inference` 1.14.0; model registry `dm-registry`; NVIDIA model hub with 24 models enabled | **one NVIDIA L4, idle** (`Total GPUs 1 / Used 0`, accelerator label `NVIDIA-L4`, 1 per workload). No GPU-edition runtime in the catalog | box (`cai_api`, workbench API key in `~/.awc.creds`) and Mac |
 
 **Docs state, researched 2026-09-15** (public sources; internal docs can move any of these), with
 the **live tenant** answer beside each:
@@ -42,7 +42,7 @@ the **live tenant** answer beside each:
 |---|---|---|---|
 | Spark on CDP Base, CDS-for-GPU | Every CDS-for-GPU parcel found is pinned to one Runtime: CDS 3.2.3 → 7.1.7, CDS 3.3 → 7.1.8 (bundles RAPIDS 22.06). CDS 3.5, the default on 7.3.x, states "NVIDIA RAPIDS and Spark Connect are not supported". **No GPU-Spark path found for 7.3.2.** The `latest/cds-for-gpu` tree 404'd. | not a goes01 surface | [7.1.8 CDS 3 requirements](https://docs.cloudera.com/cdp-private-cloud-base/7.1.8/cds-3/topics/spark-3-requirements.html) · [CDS 3.5 post](https://community.cloudera.com/t5/What-s-New-Cloudera/Upgrade-Your-Spark-Experience-Introducing-CDS-3-5-for/ba-p/412402) |
 | CDE native cuDF plugin, Spark 4.1 | Announced 2026-08-20 (Cloudera + NVIDIA, EVOLVE Singapore): zero-code, "up to 4×", part of Cloudera Anywhere Cloud. **No how-to, config key, or GA scope published.** The older CDE 1.5.4 GPU feature is Technical Preview, Spark 3, "Enable GPU Accelerations" checkbox + VC GPU quota. | CDE 1.26.101 carries `SPARK4_1_1_Standalone` (amd64+arm64) and both VCs run 4.1.1, so the Spark side is in place. Zero GPU on the service. No `gpu`/`rapids`/`cudf` key in the service or VC config; the job-create schema is unread. | [press release](https://www.cloudera.com/about/news-and-blogs/press-releases/2026-08-20-cloudera-teams-with-nvidia-to-lower-cloud-compute-spend-and-accelerate-apache-spark-pipelines.html) · [CDE 1.5.4 GPU jobs](https://docs.cloudera.com/data-engineering/1.5.4/gpu-jobs-sessions/topics/cde-accelerating-jobs-sessions-gpu.html) |
-| Cloudera AI runtime | Current family is **NVIDIA GPU Edition Runtimes 2026.08, CUDA 12.5, Python 3.10–3.13**. Whether cuDF/cuML are preinstalled is not stated. The "RAPIDS Edition" pages are 2021-era (RAPIDS 0.18 / CUDA 11.0). Tutorial: NYC taxi, `import cudf as pd`, "up to 60×". | One workbench, reachable. Runtime catalog and resource profiles sit behind the workbench API key (`/api/v2/runtimes` → `401` with the cookie). | [NVIDIA GPU Edition runtimes](https://docs.cloudera.com/machine-learning/cloud/runtimes/topics/ml-runtimes-nvidia-gpu.html) · [runtimes what's new](https://docs.cloudera.com/machine-learning/cloud/runtimes-release-notes/topics/ml-runtimes-whats-new.html) · [NYC taxi tutorial](https://www.cloudera.com/services-and-support/tutorials/using-nvidia-rapids-to-accelerate-ai-training-on-cml.html) |
+| Cloudera AI runtime | Current family is **NVIDIA GPU Edition Runtimes 2026.08, CUDA 12.5, Python 3.10–3.13**. Whether cuDF/cuML are preinstalled is not stated. The "RAPIDS Edition" pages are 2021-era (RAPIDS 0.18 / CUDA 11.0). Tutorial: NYC taxi, `import cudf as pd`, "up to 60×". | Catalog holds 6 runtimes, **none GPU edition**: Hardened JupyterLab / PBJ Workbench on Python 3.11 and 3.14 (2026.04.2-b16), Agent Studio, RAG Studio. Addons: Spark Connect 3.5.4 and **4.1.1**, Hadoop CLI, Ozone. Registering a runtime is site-admin only. | [NVIDIA GPU Edition runtimes](https://docs.cloudera.com/machine-learning/cloud/runtimes/topics/ml-runtimes-nvidia-gpu.html) · [runtimes what's new](https://docs.cloudera.com/machine-learning/cloud/runtimes-release-notes/topics/ml-runtimes-whats-new.html) · [NYC taxi tutorial](https://www.cloudera.com/services-and-support/tutorials/using-nvidia-rapids-to-accelerate-ai-training-on-cml.html) |
 
 ## 2. Design · the arc for the call
 
@@ -65,35 +65,40 @@ a support question.
 
 ## 3. Surface A · Cloudera AI (fastest visible demo)
 
-**Prereqs**
-- A Cloudera AI workbench with a GPU node group and a GPU resource profile. `goes01` has the
-  workbench (`goes01-cai`, wb1); whether it has a GPU node group is the first check. On Public Cloud
-  (`srm-iceberg`) a workbench with GPU needs the G-instance quota first.
-- The NVIDIA GPU Edition runtime (2026.08, CUDA 12.5) registered in the Runtime Catalog.
-- **A workbench API key.** The wb1 API v2 refuses the `hadoop-jwt` (`401` as a cookie, `malformed
-  apikey` as Bearer) and `/api/v1/users/me` says `user.notFound`, so the user has to exist first.
+**Facts from the tenant (2026-09-16, wb1 API).** One NVIDIA L4 on the workbench, idle
+(`Total GPUs 1 / Used 0`; accelerator label `NVIDIA-L4`, `max_gpu_per_workload 1`, available). The
+session/job API takes `nvidia_gpu` and `accelerator_label_id`. The runtime catalog has no GPU
+edition (Hardened Python 3.11 / 3.14 at 2026.04.2-b16, Agent Studio, RAG Studio), and users cannot
+register runtimes (`enable_register_runtimes_for_user false`). Steven has a project `srm-test`.
+Access from the box: `source files/issue-347/awc-env.sh` then `cai_api /…` (workbench API key stored
+by `files/issue-346/cai-key-set.sh`; the key used on 2026-09-16 is to be deleted, it went through a
+transcript).
+
+**Two ways to a GPU session**
+- **No-admin path.** Session in `srm-test`: runtime Hardened JupyterLab Python 3.11, `nvidia_gpu 1`,
+  accelerator label NVIDIA-L4; in the terminal `nvidia-smi` (driver version decides the wheel),
+  then `pip install cudf-cu12 cuml-cu12` (CUDA 12 wheels, several GB). Works if the node driver is
+  ≥ the wheel's CUDA minor and the hardened image lets pip write to the project venv.
+- **Clean path.** A site admin registers the NVIDIA GPU Edition 2026.08 runtime
+  (`container.repository.cloudera.com/cloudera/cdsw/ml-runtime-…-nvidia-gpu:2026.08…`) in the Runtime
+  Catalog; then the session needs no pip.
 
 **Enable**
-1. Steven, browser (Firefox on the box or the Mac): open
-   `https://goes01-cai-wb1.goes01-cai-cluster.demos.cloudera-labs.com`, log in through Knox SSO
-   (creates the user), then User Settings → API Keys → create. Store it with the #347 helper as a
-   `CAI_API_KEY=` line in `~/.awc.creds` (never on a command line, never in a thread).
-2. Box: `GET $WB/api/v2/runtimes` for a GPU-edition runtime; the resource-profile list for a
-   profile with `gpu ≥ 1`. (A `cai_api` wrapper for `awc-env.sh` lands with that pass.)
-3. If both exist: a JupyterLab session on the GPU runtime with the GPU profile, then in a terminal
-   `nvidia-smi` and `python -c "import cudf"`; if not preinstalled, `pip install cudf-cu12 cuml-cu12`
-   (CUDA 12.5 → `cu12` wheels).
-4. Run `cudf_bench.py` twice (stock, then `python -m cudf.pandas`), or the NYC taxi notebook.
-   Steps 3–4 are tenant writes (a project, a session) and get their own go from Steven.
+1. Steven's go for a session on the shared workbench (a tenant write: pod, GPU held while it runs).
+2. Box, API v2: `POST /api/v2/projects/<srm-test id>/jobs` or the session equivalent with
+   `runtime_identifier` = the Hardened Python 3.11 JupyterLab image, `nvidia_gpu 1`,
+   `accelerator_label_id 1`, `cpu 4`, `memory 16`; or Steven starts it from the UI.
+3. In the session: `nvidia-smi`; `pip install cudf-cu12 cuml-cu12`; `python -c "import cudf"`.
+4. Run `cudf_bench.py` twice (stock, then `python -m cudf.pandas`), or the NYC taxi notebook. Stop
+   the session after; it holds the only GPU.
 
 **Verify.** `nvidia-smi` in the session shows the Python process; the GPU column of the timing table
 beats CPU on the string/join stages the way it did on the box.
 
-**Gating.** wb1 login + API key (Steven). GPU node group present (unknown until step 2). Runtime
-registered.
+**Gating.** Steven's go (row 10). Driver / wheel compatibility (unknown until the first session). If
+pip fails on the hardened image, the clean path needs a site admin.
 
-**Owner / time.** Box, after the login. 30–60 min if the GPU profile exists; otherwise it is a
-provisioning task for the tenant admin.
+**Owner / time.** Box. 30–60 min for the no-admin path; the GPU is free right now.
 
 ## 4. Surface B · CDE with the cuDF plugin (the headline, least documented)
 
@@ -169,13 +174,13 @@ this surface is a roadmap line on the call and the effort goes to B.
 | 1 | box | Evidence, runbook, this plan committed and pushed | commit on `main`, #346 comment | done (`a0ffa19`) |
 | 2 | box | `goes01` → Cloudera AI inventory: workbench, inference app, registry, model hub | answers in the thread | done, `goes01-inventory-2026-09-16.md` |
 | 3 | box | `goes01` → Data Engineering inventory: service version, VCs, Spark version, GPU quota | same | done, same file: 1.26.101, Spark 4.1.1, GPU 0 |
-| 4 | **Steven** | Log into `goes01-cai-wb1` once; User Settings → API Keys → create; store as `CAI_API_KEY` in `~/.awc.creds` | key on the box, masked line printed by `awc-env.sh` | open |
-| 5 | box | wb1 API: GPU-edition runtime in the catalog; a resource profile with `gpu ≥ 1` | `CAI runtime: <yes/no, version>` · `CAI GPU profile: <yes/no>` in the thread | blocked on 4 |
+| 4 | **Steven** | Log into `goes01-cai-wb1` once; User Settings → API Keys → create; store as `CAI_API_KEY` in `~/.awc.creds` | key on the box, masked line printed by `awc-env.sh` | done 2026-09-16 (key to be deleted after the pass) |
+| 5 | box | wb1 API: GPU-edition runtime in the catalog; GPU capacity and accelerator label | `CAI runtime: no GPU edition (6 runtimes)` · `CAI GPU: 1 × NVIDIA-L4, idle, 1 per workload` | done, inventory §"Workbench wb1" |
 | 6 | box | `goes-vc` jobs API: job-create schema for a GPU / cuDF field | `CDE cuDF toggle: <yes/no>` in the thread | open |
 | 7 | **Steven** | Ask `jenright` whether a GPU node group can be added to the CDE cluster | yes/no + date, or "not on this tenant" | open |
 | 8 | Mac | Internal docs: CDE cuDF plugin how-to; RAPIDS-on-Spark support for Runtime 7.3.2; GPU runtime contents | links or "none" in the thread | open |
 | 9 | Mac | AWS G-instance quota for `srm-iceberg`, only if the Public Cloud Cloudera AI path is wanted | quota state known | open |
-| 10 | box | Run Surface A (own go from Steven: a project and a session are tenant writes); Surface B only after 6 and 7 | timing table + `Gpu*` screenshot in the thread | blocked on 5 |
+| 10 | box | Run Surface A in `srm-test` (own go from Steven: a GPU session is a tenant write); Surface B only after 6 and 7 | `nvidia-smi` + `import cudf` + timing table in the thread | ready, needs the go |
 | 11 | box | Optional: the desk speedup number with vLLM paused (default `minAllocFraction`, `ROWS=300000000`) | on/off table | open, needs the live-service confirm |
 | 12 | both | Pick the demo order from what passed: A → B → (C as roadmap) | one line in the thread | after 10 |
 
@@ -200,8 +205,10 @@ cde /dex/api/v1/cluster | jq -r '.[] | [.name,.clusterInfo.MaxVCAvailableGPU] | 
 cde /dex/api/v1/cluster/cluster-6gqzwzb4/instance | jq -r '.[] | [.name,.appInfo.sparkVersion,.appInfo.gpuRequestActual,.appInfo.dexApiUrl] | @tsv'
 cai_ml listWorkspaces | jq -r '.workspaces[] | [.instanceName,.version,.instanceUrl] | @tsv'
 
-# row 5 (after the API key): the Surface A gates
-curl -sS -H "Authorization: Bearer $CAI_API_KEY" "$WB/api/v2/runtimes" | jq '.runtimes[] | select(.edition|test("GPU|RAPIDS";"i")) | {edition,shortVersion,fullVersion,status}'
+# row 5 (done): the Surface A gates, via the cai_api wrapper (workbench API key)
+cai_api '/runtimes?page_size=500' | jq -r '.runtimes[] | [.edition,.editor,.kernel,.full_version,.status] | @tsv'
+cai_api /nodelabels | jq -c '.accelerator_node_label[]'
+curl -sS -H "Cookie: hadoop-jwt=$AWC_JWT" "$CAI_WB/api/v1/site/stats" | jq -r '.[] | select(.key|test("GPU|gpu")) | "\(.name)\t\(.value)"'
 
 # row 6: the Surface B toggle
 curl -sS -k -H "Cookie: hadoop-jwt=$AWC_JWT" -H "Accept: application/json" \
@@ -212,7 +219,7 @@ Two shapes to remember: the CDE console and the workbench answer `302 → knox-c
 Bearer JWT and JSON to the same JWT as a `Cookie`; the CAI control plane is `POST`-only
 (`/api/v1/ml/list*`), and a `GET` there returns the SPA shell with `200`. Check the body, not the code.
 
-Write each answer as one line in the #346 thread: `CAI runtime: <yes/no, version>`, `CAI GPU profile: <yes/no>`,
+Write each answer as one line in the #346 thread: `CAI runtime: no GPU edition` (done), `CAI GPU: 1 × L4 idle` (done),
 `cudf in session: <version/ImportError>`, `CDE version: 1.26.101` (done), `CDE GPU quota: 0` (done),
 `CDE cuDF toggle: <yes/no>`.
 
@@ -229,12 +236,14 @@ Write each answer as one line in the #346 thread: `CAI runtime: <yes/no, version
 ## 8. Open questions, and who closes each
 
 1. Does `goes01` have a GPU node group? **CDE: no** (`MaxVCAvailableGPU 0`, proven 2026-09-16).
-   **Cloudera AI: unknown**; closes with the wb1 API key (row 5).
+   **Cloudera AI: yes, one NVIDIA L4, idle** (wb1 site stats + accelerator label, 2026-09-16).
 2. Which CDE build carries the native cuDF plugin, and is `goes01` on it? goes01 is **1.26.101-b65
    with Spark 4.1.1 VCs**; whether the toggle is in this build closes with the job-schema read (row 6).
 3. Is there any supported RAPIDS-on-Spark path for Runtime 7.3.2? Unchanged; Mac, internal docs (row 8).
-4. Does the NVIDIA GPU Edition 2026.08 runtime ship cuDF/cuML, or is it `pip install`? Unchanged;
-   answered inside the first GPU session (Surface A step 3).
+4. Does the NVIDIA GPU Edition 2026.08 runtime ship cuDF/cuML, or is it `pip install`? Moot on
+   goes01 until a site admin registers that runtime; the no-admin path is `pip install cudf-cu12`
+   on the Hardened Python 3.11 runtime, and whether the L4 node's driver takes the `cu12` wheel is
+   answered inside the first GPU session.
 
 ## Sources
 

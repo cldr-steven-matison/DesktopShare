@@ -13,7 +13,7 @@ The question Part 3 needed answered: which Cloudera surface on goes01 can run th
 
 | Surface | On goes01 | GPU | Gate before a run |
 |---|---|---|---|
-| A · Cloudera AI workbench | `goes01-cai` at `https://goes01-cai-wb1.goes01-cai-cluster.demos.cloudera-labs.com`, workbench 2.0.59-b252, reachable from the box | **unknown**; the console API does not expose node instance types, and the workbench API needs a workbench API key | Steven logs into wb1 once (user does not exist yet: `user.notFound`), creates an API key; then runtimes and resource profiles are one `GET` each from the box |
+| A · Cloudera AI workbench | `goes01-cai` at `https://goes01-cai-wb1.goes01-cai-cluster.demos.cloudera-labs.com`, workbench 2.0.59-b252, reachable from the box; Steven has a project `srm-test` there | **one NVIDIA L4, 0 used** (`nodes.nvidiaGPU.allocatable 1`; accelerator label `NVIDIA-L4`, `max_gpu_per_workload 1`, available) | No GPU-edition runtime in the catalog (6 runtimes: Hardened JupyterLab / PBJ Workbench on Python 3.11 and 3.14 at 2026.04.2-b16, Agent Studio, RAG Studio). Path: a session on Hardened Python 3.11 with `nvidia_gpu: 1`, then `pip install cudf-cu12 cuml-cu12`; or a site admin registers the NVIDIA GPU Edition runtime (`enable_register_runtimes_for_user false`) |
 | B · CDE with the cuDF plugin | Data Engineering 1.26.101-b65, one service `goes01-svc`, two Spark **4.1.1** virtual clusters (`goes-vc`, `test-virtual-cluster`) | **none**: `MaxVCAvailableGPU 0` on the service, `gpuRequestActual 0` on both VCs | A GPU node group on the CDE cluster (tenant admin `jenright`); until then the Spark 4.1 prerequisite is met and the GPU one is not |
 | C · CDS on CDP Base | not on goes01 (`steven-ce`, Runtime 7.3.2) | none | unchanged from the plan: the support-matrix question for 7.3.2 |
 
@@ -127,12 +127,57 @@ Both carry `appInfoQuotaEnabled=true`; the History Server is `…/hs` on the sam
 DNS from the box: `goes01-cai-wb1…` and `dm-inference…` both resolve to `10.80.186.131` (the same
 ingress as the control plane); TLS answers on `:443`.
 
+## Workbench wb1, read with a workbench API key (row 5, 00:50–00:58 UTC)
+
+Steven logged into wb1 and created an API key (User Settings → API Keys); stored as `CAI_API_KEY`
+in `~/.awc.creds` by `cai-key-set.sh`, read by the `cai_api` wrapper in `awc-env.sh`
+(`Authorization: Bearer $CAI_API_KEY` against `/api/v2`). The v1 site endpoints answer to the
+`hadoop-jwt` cookie now that the user exists. The key was pasted into a session transcript and is
+to be deleted in the workbench after this pass.
+
+```
+$ curl … -H "Cookie: hadoop-jwt=$AWC_JWT" $CAI_WB/api/v1/site/stats | jq -r '.[] | "\(.name)\t\(.value)"'
+Total Nodes	5
+Total Memory	274.61 GiB        Used Memory	82.65 GiB
+Total vCPUs	79.40             Used vCPUs	36.26
+Total GPUs	1                 Used GPUs	0
+NVIDIA-L4 GPUs Used	0 / 1
+Total Projects	10              Total Running Sessions	5
+$ cai_api /nodelabels | jq -c '.accelerator_node_label[]'
+{"id":"1","label_key":"nvidia.com/gpu.product","label_value":"NVIDIA-L4","availability":true,"max_gpu_count":"1","current_gpu_count":"1","max_gpu_per_workload":"1","default_quota":"0","display_name":"NVIDIA-L4"}
+$ cai_api '/runtimes?page_size=500' | jq -r '.runtimes[] | [.edition,.editor,.kernel,.full_version,.status] | @tsv'
+Hardened	JupyterLab	Python 3.11	2026.04.2-b16	ENABLED
+Hardened	JupyterLab	Python 3.14	2026.04.2-b16	ENABLED
+Hardened	PBJ Workbench	Python 3.11	2026.04.2-b16	ENABLED
+Hardened	PBJ Workbench	Python 3.14	2026.04.2-b16	ENABLED
+Agent Studio	PBJ Workbench	Agent Studio	2.3.0.40	ENABLED
+RAG Studio	PBJ Workbench	RAG Studio	2.1.0.30	ENABLED
+$ cai_api '/runtimeaddons?page_size=100' | jq -r '.runtime_addons[] | [.identifier,.component,.status] | @tsv'
+hadoop-cli-7.3.1.709-1 / hadoop-cli-7.3.2.0-957	HadoopCLI	AVAILABLE
+ozone-731.1.0-b2 / ozone-732.1.0-b4	Ozone	AVAILABLE
+sparkconnect354-731-26 / sparkconnect354-732-26 / sparkconnect411-26	Spark	AVAILABLE
+```
+
+Site config (`/api/v1/site/config`, cookie): `max_gpu_per_engine 0` (legacy engines; ML Runtimes are
+governed by the accelerator label above), `default_accelerator_label_id 1`,
+`enable_register_runtimes_for_user false` (registering a GPU-edition runtime is a site-admin action),
+`enable_runtime_addons true`. Job/session create schema (`/api/v2/swagger.json`, 119 paths):
+`CreateJobRequest` carries `nvidia_gpu`, `accelerator_label_id`, `runtime_identifier`,
+`runtime_addon_identifiers`, `cpu`, `memory`. The `/cpuprofiles` endpoint returns "Operation is not
+supported". Projects: 10, including Steven's `srm-test` (private).
+
+Reading for Surface A: the GPU exists and is idle, the session API can request it, and the missing
+piece is only the runtime image. A Hardened Python 3.11 session with `nvidia_gpu 1` plus a
+`pip install cudf-cu12 cuml-cu12` is the no-admin path (the node's driver version decides whether
+the `cu12` wheels load); the clean path is a site admin registering the NVIDIA GPU Edition 2026.08
+runtime. The `sparkconnect411-26` addon is a second story for the call: a CAI session speaking Spark
+Connect to CDE's Spark 4.1.1.
+
 ## What is still unknown, and the one check that closes each
 
-1. **Does `goes01-cai-cluster` have a GPU node?** Closes with a workbench API key: `GET
-   $WB/api/v2/runtimes` for a GPU-edition runtime and the Site Administration → Resource Profiles
-   page (or its API) for a profile with `gpu ≥ 1`. Six nodes and an installed AI Inference app are a
-   hint, not proof.
+1. **Does the L4 node's driver satisfy `cudf-cu12`?** Closes inside the first GPU session:
+   `nvidia-smi` for the driver version, then `python -c "import cudf"` after the pip install. A
+   session is a tenant write; it gets its own go.
 2. **Does CDE 1.26.101 expose the cuDF plugin toggle?** Closes with a `GET` of the job-create
    schema on the VC jobs API (`…/dex/api/v1/jobs` with the cookie) and a look for a GPU / cuDF
    field. Even if present, `MaxVCAvailableGPU 0` means it cannot run here.

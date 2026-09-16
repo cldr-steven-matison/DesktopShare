@@ -18,7 +18,7 @@ fi
 set -a; . "$AWC_CREDS"; set +a
 export AWC_JWT AWC_XSRF
 _awc_mask() { local v="$1"; [ -n "$v" ] && printf '%s…%s (%d chars)' "${v:0:6}" "${v: -4}" "${#v}" || printf 'unset'; }
-echo "awc-env: AWC_JWT=$(_awc_mask "${AWC_JWT:-}")  AWC_XSRF=$(_awc_mask "${AWC_XSRF:-}")"
+echo "awc-env: AWC_JWT=$(_awc_mask "${AWC_JWT:-}")  AWC_XSRF=$(_awc_mask "${AWC_XSRF:-}")  CAI_API_KEY=$(_awc_mask "${CAI_API_KEY:-}")"
 
 # Console host: the Mac's awc-env.sh holds the real one — override with AWC_CONSOLE=… in ~/.awc.creds if this default is wrong.
 export AWC_CONSOLE="${AWC_CONSOLE:-https://console.goes01-se-goes.demos.cloudera-labs.com}"
@@ -59,3 +59,8 @@ trino_q() {
   done
   printf '%s' "$out" | sed '/^$/d'
 }
+
+# Cloudera AI workbench (wb1) API v2 — needs a workbench API key (User Settings -> API Keys), stored as
+# CAI_API_KEY= in ~/.awc.creds by files/issue-346/cai-key-set.sh. The hadoop-jwt is refused here (#346 Part 3).
+export CAI_WB="${CAI_WB:-https://goes01-cai-wb1.goes01-cai-cluster.demos.cloudera-labs.com}"
+cai_api() { curl -sS -H "Authorization: Bearer ${CAI_API_KEY:?run files/issue-346/cai-key-set.sh}" -H "Accept: application/json" "$CAI_WB/api/v2${1}"; }
