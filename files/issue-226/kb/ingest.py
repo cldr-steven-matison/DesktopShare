@@ -58,6 +58,9 @@ def sources():
     # rendered NVIDIA research corpus (index the rendered corpus, not a re-fetch) → plan
     for p in sorted(glob.glob(f"{DS}/files/issue-226/research/**/*.md", recursive=True)):
         yield p, "DesktopShare", "plan"
+    # Cloudera AI 1.5.5 public docs (issue #349)
+    for p in sorted(glob.glob(f"{DS}/files/issue-349/cloudera-ai-docs/**/*.md", recursive=True)):
+        yield p, "DesktopShare", "plan"
     # EFM guide chapters → chapter
     for p in sorted(glob.glob(f"{HOME}/EdgeFlowManager/ch*.md")):
         yield p, "EdgeFlowManager", "chapter"
