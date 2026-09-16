@@ -189,7 +189,11 @@ emit_json_ask() {
   # DENY that says how to get the yes (#344). Fail closed, never fail open.
   case "$harness" in
     grok|opencode)
-      emit_deny "NEEDS STEVEN'S YES — guard ask with no answer yet (this harness cannot prompt from a hook, so the ask went to his phone through the #192 bridge). $1 — Do NOT work around this and do NOT retry blindly. Say in one line what you want to run and why, then wait for him: once he replies yes on the phone, re-run this exact command and the guard lets it through (the yes is bound to this command via .claude/.pending-asks, 30 min). If he says no, drop it. If the bridge is down, he runs it himself at a terminal."
+      if [ "${bridge_sent:-}" = "1" ]; then
+        emit_deny "NEEDS STEVEN'S YES — guard ask with no answer yet (this harness cannot prompt from a hook, so the ask went to his phone through the #192 bridge). $1 — Do NOT work around this and do NOT retry blindly. Say in one line what you want to run and why, then wait for him: once he replies yes on the phone, re-run this exact command and the guard lets it through (the yes is bound to this command via .claude/.pending-asks, 30 min). If he says no, drop it."
+      else
+        emit_deny "NEEDS STEVEN'S YES — guard ask, and this harness cannot prompt from a hook; the phone bridge did NOT send (off or not configured here), so nobody has been asked. $1 — Do NOT work around this and do NOT retry. Say in one line what you want to run and why, and stop: Steven either runs it himself at a terminal or tells you yes in his next message, after which you re-run this exact command."
+      fi
       ;;
   esac
   jq -nc --arg r "$1" \
@@ -331,6 +335,7 @@ Approve?"
     asktime="$(date +%s)"
     ( set -a; . "$HOME/.env" 2>/dev/null; set +a; bash "$ask" "$q" ) >/dev/null 2>&1 || return 0
   fi
+  bridge_sent=1   # read by emit_json_ask: the no-answer deny says the phone WAS asked
 
   # Poll window. Claude Code: 180 s under a 300 s hook timeout. Grok's compat import may
   # cap the hook at its 5 s default (gate G1 measures it), so it polls 3 s and relies on the
