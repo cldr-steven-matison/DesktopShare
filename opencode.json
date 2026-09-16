@@ -1,0 +1,78 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "vllm/nvidia/Qwen3.6-35B-A3B-NVFP4",
+  "enabled_providers": ["vllm"],
+  "provider": {
+    "vllm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "vLLM (NvidiaSpark-1)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8000/v1",
+        "apiKey": "local"
+      },
+      "models": {
+        "nvidia/Qwen3.6-35B-A3B-NVFP4": {
+          "name": "Qwen3.6 35B NVFP4",
+          "limit": {
+            "context": 262144,
+            "output": 8192
+          }
+        }
+      }
+    }
+  },
+  "instructions": [
+    "CLAUDE.md",
+    "CONTEXT.md",
+    "AGENTS.md",
+    "agent/incident-rules.md",
+    "agent/workflow.md",
+    "agent/device-comms.md",
+    "agent/subagent-rules.md"
+  ],
+  "skills": {
+    "paths": ["skills"]
+  },
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "*teardown.sh*": "ask",
+      "*redeploy.sh*": "ask",
+      "*terraform apply*": "ask",
+      "*terraform destroy*": "ask",
+      "*cdp * delete-*": "ask",
+      "*cloudformation delete-stack*": "ask",
+      "*infrastructure-teardown.yml*": "ask",
+      "*deploy.sh*": "ask",
+      "*rollout restart*": "ask",
+      "*kubectl*delete*pod*": "ask"
+    }
+  },
+  "agent": {
+    "nvidia-spark": {
+      "description": "NvidiaSpark-1 agent: DGX Spark GB10 (spark-dd06), DesktopShare repo, EFM/MiNiFi/NiFi + CDP/AWS deploy host. Prompt in .opencode/nvidia-spark.md.",
+      "mode": "primary",
+      "prompt": "{file:.opencode/nvidia-spark.md}"
+    }
+  },
+  "mcp": {
+    "ds-kb": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--with",
+        "mcp<2",
+        "--python",
+        "3.12",
+        "/home/tunas/BrainShare/files/issue-226/kb/kb_mcp.py"
+      ],
+      "enabled": true,
+      "environment": {
+        "KB_TEI_URL": "http://127.0.0.1:8080",
+        "KB_QDRANT_URL": "http://127.0.0.1:6333",
+        "KB_COLLECTION": "desktopshare-kb"
+      }
+    }
+  }
+}
