@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <URI>\WindowsDesktop-Kube-AutoStart</URI>
+    <Description>DesktopShare files/windowsdesktop-kube-autostart.xml: 1 min after sign-in, open Windows Terminal running WSL files/windowsdesktop-kube-boot.sh (wait for Docker Desktop, minikube start, settle 5 min, zellij --layout kube-service-ports-efm). Re-register from WSL (schtasks only reads UTF-16): sed 's/encoding="UTF-8"/encoding="UTF-16"/' files/windowsdesktop-kube-autostart.xml | iconv -f UTF-8 -t UTF-16 > /mnt/c/temp/kube-autostart.xml; schtasks.exe /create /tn WindowsDesktop-Kube-AutoStart /xml C:\temp\kube-autostart.xml /f</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <UserId>MINI-GAMING-G1\tunas</UserId>
+      <Delay>PT1M</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>MINI-GAMING-G1\tunas</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>false</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Users\tunas\AppData\Local\Microsoft\WindowsApps\wt.exe</Command>
+      <Arguments>-w kube new-tab --title kube-service-ports-efm wsl.exe -d Ubuntu -u tunas --cd ~ -- bash -lc /home/tunas/DesktopShare/files/windowsdesktop-kube-boot.sh</Arguments>
+    </Exec>
+  </Actions>
+</Task>

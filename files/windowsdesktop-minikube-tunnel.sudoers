@@ -1,0 +1,15 @@
+# /etc/sudoers.d/minikube-tunnel — WindowsDesktop (WSL2 Ubuntu), installed from
+# DesktopShare/files/windowsdesktop-minikube-tunnel.sudoers.
+#
+# `minikube tunnel` on the docker driver binds the privileged ports 80/443 by running
+# (verified from `journalctl _COMM=sudo`; every launch is byte-identical apart from -p):
+#   sudo /usr/bin/ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+#        -o IdentitiesOnly=yes -N docker@127.0.0.1 -p <container ssh port> \
+#        -i /home/tunas/.minikube/machines/<profile>/id_rsa -L 80:127.0.0.1:80 -L 443:127.0.0.1:443
+# That sudo is the password prompt the first zellij pane used to block on after every
+# reboot/reset. This entry lets exactly that command run without a password: only ssh,
+# only as the docker user of a minikube profile's own container, only those two forwards.
+#
+# Install (needs a real password once):
+#   sudo install -m 0440 -o root -g root files/windowsdesktop-minikube-tunnel.sudoers /etc/sudoers.d/minikube-tunnel && sudo visudo -c
+tunas ALL=(root) NOPASSWD: /usr/bin/ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -N docker@127.0.0.1 -p [0-9]* -i /home/tunas/.minikube/machines/*/id_rsa -L 80\:127.0.0.1\:80 -L 443\:127.0.0.1\:443
